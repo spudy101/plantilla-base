@@ -1,0 +1,717 @@
+// config/swagger/modules/admin/kyc/person/person.paths.js
+
+const commonResponses = require('../../../../responses/common.responses');
+const { MASKED_DOCUMENT_DESC, MASKED_EMAIL_DESC, MASKED_PHONE_DESC } = require('../../../../schemas/pii-masking.doc');
+
+/**
+ * ============================================================
+ * PERSON PATHS — ADMIN
+ * ============================================================
+ * Módulo: /admin/api/v1/kyc/person
+ * Todos los endpoints requieren rol ADMIN o SUPER_ADMIN.
+ *
+ * Rutas:
+ *   GET    /admin/api/v1/kyc/person
+ *   GET    /admin/api/v1/kyc/person/deleted
+ *   GET    /admin/api/v1/kyc/person/:userId
+ *   POST   /admin/api/v1/kyc/person
+ *   PUT    /admin/api/v1/kyc/person/:userId/activate
+ *   PUT    /admin/api/v1/kyc/person/:userId/deactivate
+ *   PUT    /admin/api/v1/kyc/person/:userId/reset-password
+ *   PUT    /admin/api/v1/kyc/person/:userId/disable-mfa
+ *   PUT    /admin/api/v1/kyc/person/:userId/email
+ *   PUT    /admin/api/v1/kyc/person/:userId/national-id
+ *   PUT    /admin/api/v1/kyc/person/:userId/role
+ *   DELETE /admin/api/v1/kyc/person/:userId/delete-account
+ *
+ * Nota de seguridad:
+ *   national_id y email están cifrados con AES-256-GCM en BD.
+ *   La ENTRADA (requestBody / query) viaja siempre completa; la SALIDA sale
+ *   **enmascarada** (RF-USR-01 CA-6) — ver `schemas/pii-masking.doc.js`.
+ *   Las búsquedas por national_id/email se hacen via HMAC-SHA256 hash,
+ *   no por texto libre.
+ */
+
+// ─── Schemas ──────────────────────────────────────────────────
+
+const schemas = {
+  // ── UserListItem ──────────────────────────────────────────────
+  AdminUserListItem: {
+    type: 'object',
+    properties: {
+      userId: { type: 'string', format: 'uuid' },
+      username: { type: 'string', example: '1012345678' },
+      isActive: { type: 'boolean' },
+      deletedAt: {
+        type: 'string',
+        format: 'date-time',
+        nullable: true,
+        description: 'Fecha de eliminación (ofuscación irreversible). `null` si la cuenta no está eliminada.'
+      },
+      totpEnabled: { type: 'boolean', description: 'Indica si el usuario tiene MFA/TOTP activo' },
+      smsMfaEnabled: { type: 'boolean', description: 'Indica si el usuario tiene MFA por SMS activo' },
+      preferredMfaMethod: {
+        type: 'string',
+        enum: ['none', 'totp', 'sms'],
+        description: 'Método MFA preferido configurado por el usuario'
+      },
+      createdAt: { type: 'string', format: 'date-time' },
+      person: {
+        type: 'object',
+        properties: {
+          firstName: { type: 'string', example: 'María' },
+          lastName: { type: 'string', example: 'González' },
+          nationalId: {
+            type: 'string',
+            nullable: true,
+            example: '******5678',
+            description: `Descifrado en tiempo real desde AES-256-GCM. ${MASKED_DOCUMENT_DESC}`
+          }
+        }
+      },
+      email: {
+        type: 'string',
+        nullable: true,
+        example: '****a@email.com',
+        description: `Descifrado desde AES-256-GCM. ${MASKED_EMAIL_DESC}`
+      },
+      emailVerified: { type: 'boolean', nullable: true },
+      role: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          name: { type: 'string', example: 'client' }
+        }
+      }
+    }
+  },
+
+  // ── UserDetail (getById) ──────────────────────────────────────
+  AdminUserDetail: {
+    type: 'object',
+    description: 'Perfil completo del usuario con todos sus datos KYC',
+    properties: {
+      user: {
+        type: 'object',
+        properties: {
+          userId: { type: 'string', format: 'uuid' },
+          username: { type: 'string' },
+          isActive: { type: 'boolean' },
+          deletedAt: { type: 'string', format: 'date-time', nullable: true },
+          totpEnabled: { type: 'boolean' },
+          smsMfaEnabled: { type: 'boolean' },
+          preferredMfaMethod: { type: 'string', enum: ['none', 'totp', 'sms'] },
+          role: {
+            type: 'object',
+            properties: { id: { type: 'string', format: 'uuid' }, name: { type: 'string' } }
+          },
+          avatar: { type: 'object', nullable: true }
+        }
+      },
+      person: {
+        type: 'object',
+        properties: {
+          personId: { type: 'string', format: 'uuid' },
+          firstName: { type: 'string' },
+          lastName: { type: 'string' },
+          middleName: { type: 'string', nullable: true },
+          secondLastName: { type: 'string', nullable: true },
+          nationalId: {
+            type: 'string',
+            nullable: true,
+            example: '******5678',
+            description: `Descifrado desde AES-256-GCM. ${MASKED_DOCUMENT_DESC}`
+          },
+          birthDate: { type: 'string', format: 'date', nullable: true },
+          gender: { type: 'object', nullable: true },
+          nationality: { type: 'object', nullable: true },
+          contact: {
+            type: 'object',
+            nullable: true,
+            properties: {
+              email: {
+                type: 'string',
+                example: '****a@email.com',
+                description: `Descifrado desde AES-256-GCM. ${MASKED_EMAIL_DESC}`
+              },
+              emailVerifiedAt: { type: 'string', format: 'date-time', nullable: true },
+              phonePrimary: {
+                type: 'string',
+                nullable: true,
+                example: '*****4567',
+                description: `Descifrado desde AES-256-GCM. ${MASKED_PHONE_DESC}`
+              },
+              phoneSecondary: { type: 'string', nullable: true, example: '*****4567', description: MASKED_PHONE_DESC }
+            }
+          },
+          location: { type: 'object', nullable: true }
+        }
+      }
+    }
+  },
+
+  // ── Requests ──────────────────────────────────────────────────
+  AdminCreateUserRequest: {
+    type: 'object',
+    required: ['firstName', 'lastName', 'email', 'nationalId', 'documentTypeId'],
+    description: 'El rol se asigna automáticamente como CLIENTE — no se acepta roleId.',
+    properties: {
+      firstName: { type: 'string', maxLength: 100, example: 'María' },
+      lastName: { type: 'string', maxLength: 100, example: 'González' },
+      middleName: { type: 'string', nullable: true, maxLength: 100 },
+      secondLastName: { type: 'string', nullable: true, maxLength: 100 },
+      nationalId: {
+        type: 'string',
+        example: '1012345678',
+        description: 'Se cifra con AES-256-GCM al guardar.'
+      },
+      email: { type: 'string', format: 'email', example: 'maria@email.com' },
+      documentTypeId: { type: 'string', format: 'uuid', description: 'UUID del tipo de documento' },
+      birthDate: { type: 'string', format: 'date', nullable: true, example: '1990-05-15' },
+      genderId: { type: 'string', format: 'uuid', nullable: true },
+      countryId: { type: 'string', format: 'uuid', nullable: true }
+    }
+  },
+
+  AdminChangeEmailRequest: {
+    type: 'object',
+    required: ['newEmail'],
+    properties: {
+      newEmail: {
+        type: 'string',
+        format: 'email',
+        example: 'nuevo@email.com',
+        description: 'Nuevo email. Se cifra y se actualiza en BD.'
+      }
+    }
+  },
+
+  AdminChangeNationalIdRequest: {
+    type: 'object',
+    required: ['newNationalId'],
+    properties: {
+      newNationalId: {
+        type: 'string',
+        example: '9876543210',
+        description: 'Nuevo national ID. Se cifra con AES-256-GCM y se actualiza el HMAC-SHA256 para búsquedas.'
+      }
+    }
+  },
+
+  AdminChangeRoleRequest: {
+    type: 'object',
+    required: ['newRoleId'],
+    properties: {
+      newRoleId: {
+        type: 'string',
+        format: 'uuid',
+        description: 'UUID del nuevo rol. No aplica a usuarios con rol admin.'
+      }
+    }
+  },
+
+  AdminDeleteAccountRequest: {
+    type: 'object',
+    required: ['currentPassword'],
+    properties: {
+      currentPassword: {
+        type: 'string',
+        format: 'password',
+        description: 'Contraseña actual del administrador que ejecuta la acción.'
+      }
+    }
+  }
+};
+
+// ─── Parámetros comunes ────────────────────────────────────────
+
+const userIdParam = {
+  name: 'userId',
+  in: 'path',
+  required: true,
+  schema: { type: 'string', format: 'uuid' },
+  description: 'UUID del usuario'
+};
+
+const paginationParams = [
+  { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1, default: 1 } },
+  {
+    name: 'limit',
+    in: 'query',
+    schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 }
+  },
+  {
+    name: 'sortBy',
+    in: 'query',
+    schema: { type: 'string', enum: ['username', 'created_at', 'updated_at', 'is_active'] }
+  },
+  { name: 'order', in: 'query', schema: { type: 'string', enum: ['ASC', 'DESC'], default: 'DESC' } }
+];
+
+const adminSecurity = [{ bearerAuth: [], idTokenAuth: [] }];
+
+// ─── Paths ────────────────────────────────────────────────────
+
+const paths = {
+  '/admin/api/v1/kyc/person': {
+    get: {
+      tags: ['Admin - Personas'],
+      summary: 'Listar clientes',
+      operationId: 'adminListUsers',
+      description: `Lista paginada de **clientes** (solo usuarios con rol \`CLIENTE\` o \`CLIENTE_VERIFICADO\`).
+Nunca devuelve usuarios internos. La gestión de usuarios internos vive en \`/admin/api/v1/kyc/users\`.
+
+**Búsqueda por texto libre (\`search\`):** aplica \`iLike\` sobre \`username\`, \`first_name\` y \`last_name\`. \`national_id\` y \`email\` están cifrados con AES-256-GCM y no son buscables con texto libre.
+
+**Búsqueda exacta por \`nationalId\`:** debe enviarse el valor completo. Internamente se calcula el HMAC-SHA256 y se compara contra \`national_id_hash\` — no se realiza ningún descifrado durante la búsqueda.
+
+**Filtro por \`roleId\`:** acepta un UUID o varios separados por coma (\`uuid1,uuid2\`). Se intersecta con los roles cliente: un \`roleId\` que no sea \`CLIENTE\`/\`CLIENTE_VERIFICADO\` se ignora y se devuelven todos los clientes.
+
+**Filtro por \`userId\`:** UUID exacto del usuario (PK). Devuelve a lo sumo un resultado (y solo si es cliente). Combinable con el resto de filtros.`,
+      security: adminSecurity,
+      parameters: [
+        ...paginationParams,
+        {
+          name: 'search',
+          in: 'query',
+          schema: { type: 'string' },
+          description: 'Búsqueda parcial (iLike) sobre `username`, `first_name` y `last_name`. No aplica a campos cifrados.'
+        },
+        {
+          name: 'isActive',
+          in: 'query',
+          schema: { type: 'boolean' },
+          description: 'Filtrar por estado activo/inactivo'
+        },
+        {
+          name: 'roleId',
+          in: 'query',
+          schema: { type: 'string', example: 'uuid1' },
+          description:
+            'UUID de un rol o lista separada por coma (ej: `uuid1,uuid2`). Se intersecta con los roles cliente ' +
+            '(`CLIENTE`, `CLIENTE_VERIFICADO`); un rol no-cliente se ignora y se devuelven todos los clientes.'
+        },
+        {
+          name: 'nationalId',
+          in: 'query',
+          schema: { type: 'string', example: '1012345678' },
+          description:
+            'Búsqueda exacta por national ID. Debe enviarse el valor completo — se compara contra `national_id_hash` (HMAC-SHA256), no por texto libre.'
+        },
+        {
+          name: 'userId',
+          in: 'query',
+          schema: { type: 'string', format: 'uuid', example: '039b090f-6f36-4f60-a51c-e6196a288c82' },
+          description:
+            'UUID exacto del usuario (PK). Filtra por `user_id`; devuelve a lo sumo un resultado. Combinable con el resto de filtros.'
+        }
+      ],
+      responses: {
+        200: commonResponses.paginated(
+          { $ref: '#/components/schemas/AdminUserListItem' },
+          'Lista de usuarios obtenida exitosamente'
+        ),
+        ...commonResponses.Unauthorized,
+        ...commonResponses.Forbidden,
+        ...commonResponses.ValidationError,
+        ...commonResponses.InternalServerError
+      }
+    },
+
+    post: {
+      tags: ['Admin - Personas'],
+      summary: 'Crear usuario',
+      operationId: 'adminCreateUser',
+      description: `Crea un nuevo usuario: persona + contact + user en BD.
+
+**Flujo interno:**
+1. Valida unicidad de \`nationalId\` (vía HMAC-SHA256) y \`email\`.
+2. Persiste persona, contact (email cifrado) y user en BD dentro de una transacción.
+
+⚠️ La contraseña temporal se devuelve **solo en esta respuesta** — no se puede recuperar después.`,
+      security: adminSecurity,
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': { schema: { $ref: '#/components/schemas/AdminCreateUserRequest' } }
+        }
+      },
+      responses: {
+        201: commonResponses.created({ $ref: '#/components/schemas/AdminUserDetail' }, 'Usuario creado exitosamente'),
+        ...commonResponses.Unauthorized,
+        ...commonResponses.Forbidden,
+        ...commonResponses.Conflict,
+        ...commonResponses.ValidationError,
+        ...commonResponses.RateLimitExceeded,
+        ...commonResponses.InternalServerError
+      }
+    }
+  },
+
+  '/admin/api/v1/kyc/person/roles': {
+    get: {
+      tags: ['Admin - Personas'],
+      summary: 'Catálogo de roles de cliente (para filtro del listado)',
+      operationId: 'adminListClientRoleOptions',
+      description: `Devuelve los roles de **cliente** (\`CLIENTE\` / \`CLIENTE_VERIFICADO\`) para poblar el filtro
+por rol del listado de clientes — los mismos que acepta el filtro \`roleId\` de \`GET /person\`. Evita ofrecer
+todos los roles del sistema en un listado que solo contiene clientes.`,
+      security: adminSecurity,
+      responses: {
+        200: commonResponses.ok(
+          {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                roleId: { type: 'string', format: 'uuid' },
+                name: { type: 'string', example: 'CLIENTE' },
+                description: { type: 'string', nullable: true }
+              }
+            }
+          },
+          'Roles de cliente obtenidos exitosamente'
+        ),
+        ...commonResponses.Unauthorized,
+        ...commonResponses.Forbidden,
+        ...commonResponses.InternalServerError
+      }
+    }
+  },
+
+  '/admin/api/v1/kyc/person/deleted': {
+    get: {
+      tags: ['Admin - Personas'],
+      summary: 'Listar clientes eliminados (histórico)',
+      operationId: 'adminListDeletedUsers',
+      description: `Lista paginada **read-only** de **clientes eliminados** (\`deletedAt != null\`), solo con rol \`CLIENTE\`/\`CLIENTE_VERIFICADO\`.
+
+Estas cuentas fueron ofuscadas de forma irreversible (Ley 1581/2012) y son **intocables**: no se pueden reactivar, editar, cambiar de rol ni re-eliminar (toda operación de escritura responde **409**).
+
+El listado normal (\`GET /person\`) **excluye** estas cuentas; este endpoint es exclusivamente para consulta histórica. La búsqueda por texto es limitada porque los datos están ofuscados.`,
+      security: adminSecurity,
+      parameters: [
+        ...paginationParams,
+        { name: 'search', in: 'query', schema: { type: 'string' }, description: 'Búsqueda parcial (limitada: datos ofuscados)' }
+      ],
+      responses: {
+        200: commonResponses.paginated(
+          { $ref: '#/components/schemas/AdminUserListItem' },
+          'Lista de clientes eliminados obtenida exitosamente'
+        ),
+        ...commonResponses.Unauthorized,
+        ...commonResponses.Forbidden,
+        ...commonResponses.ValidationError,
+        ...commonResponses.InternalServerError
+      }
+    }
+  },
+
+  '/admin/api/v1/kyc/person/{userId}': {
+    get: {
+      tags: ['Admin - Personas'],
+      summary: 'Obtener detalle de usuario',
+      operationId: 'adminGetUser',
+      description: `Retorna el perfil completo del usuario: datos personales y contact (email/teléfonos descifrados).
+
+Incluye en \`metadata\` el porcentaje de completitud del perfil KYC.`,
+      security: adminSecurity,
+      parameters: [userIdParam],
+      responses: {
+        200: commonResponses.ok({ $ref: '#/components/schemas/AdminUserDetail' }, 'Detalle de usuario obtenido exitosamente'),
+        ...commonResponses.Unauthorized,
+        ...commonResponses.Forbidden,
+        ...commonResponses.NotFound,
+        ...commonResponses.InternalServerError
+      }
+    }
+  },
+
+  '/admin/api/v1/kyc/person/{userId}/activate': {
+    put: {
+      tags: ['Admin - Personas'],
+      summary: 'Activar usuario',
+      operationId: 'adminActivateUser',
+      description: 'Activa la cuenta de un usuario inactivo. Envía notificación al usuario afectado.',
+      security: adminSecurity,
+      parameters: [userIdParam],
+      responses: {
+        200: commonResponses.ok(
+          {
+            type: 'object',
+            properties: {
+              userId: { type: 'string', format: 'uuid' },
+              username: { type: 'string' },
+              isActive: { type: 'boolean', example: true },
+              action: { type: 'string', example: 'activate' }
+            }
+          },
+          'Usuario activado exitosamente'
+        ),
+        ...commonResponses.BadRequest,
+        ...commonResponses.Unauthorized,
+        ...commonResponses.Forbidden,
+        ...commonResponses.NotFound,
+        ...commonResponses.RateLimitExceeded,
+        ...commonResponses.InternalServerError
+      }
+    }
+  },
+
+  '/admin/api/v1/kyc/person/{userId}/deactivate': {
+    put: {
+      tags: ['Admin - Personas'],
+      summary: 'Desactivar usuario',
+      operationId: 'adminDeactivateUser',
+      description: 'Desactiva la cuenta de un usuario activo. Envía notificación al usuario afectado.',
+      security: adminSecurity,
+      parameters: [userIdParam],
+      responses: {
+        200: commonResponses.ok(
+          {
+            type: 'object',
+            properties: {
+              userId: { type: 'string', format: 'uuid' },
+              username: { type: 'string' },
+              isActive: { type: 'boolean', example: false },
+              action: { type: 'string', example: 'deactivate' }
+            }
+          },
+          'Usuario desactivado exitosamente'
+        ),
+        ...commonResponses.BadRequest,
+        ...commonResponses.Unauthorized,
+        ...commonResponses.Forbidden,
+        ...commonResponses.NotFound,
+        ...commonResponses.RateLimitExceeded,
+        ...commonResponses.InternalServerError
+      }
+    }
+  },
+
+  '/admin/api/v1/kyc/person/{userId}/reset-password': {
+    put: {
+      tags: ['Admin - Personas'],
+      summary: 'Resetear contraseña',
+      operationId: 'adminResetUserPassword',
+      description: `Genera una nueva contraseña temporal y la asigna al usuario en BD.
+
+La contraseña temporal se envía al email del usuario. No se devuelve en la respuesta de la API por seguridad.`,
+      security: adminSecurity,
+      parameters: [userIdParam],
+      responses: {
+        200: commonResponses.ok(
+          {
+            type: 'object',
+            properties: {
+              userId: { type: 'string', format: 'uuid' },
+              username: { type: 'string' },
+              email: { type: 'string', nullable: true, example: '****a@email.com', description: MASKED_EMAIL_DESC }
+            }
+          },
+          'Contraseña reseteada exitosamente'
+        ),
+        ...commonResponses.Unauthorized,
+        ...commonResponses.Forbidden,
+        ...commonResponses.NotFound,
+        ...commonResponses.RateLimitExceeded,
+        ...commonResponses.InternalServerError
+      }
+    }
+  },
+
+  '/admin/api/v1/kyc/person/{userId}/disable-mfa': {
+    put: {
+      tags: ['Admin - Personas'],
+      summary: 'Deshabilitar MFA',
+      operationId: 'adminDisableUserMFA',
+      description: 'Deshabilita el TOTP/MFA del usuario en BD. Solo aplica si `totp_enabled = true`.',
+      security: adminSecurity,
+      parameters: [userIdParam],
+      responses: {
+        200: commonResponses.ok(
+          {
+            type: 'object',
+            properties: {
+              userId: { type: 'string', format: 'uuid' },
+              username: { type: 'string' },
+              totpEnabled: { type: 'boolean', example: false }
+            }
+          },
+          'MFA deshabilitado exitosamente'
+        ),
+        ...commonResponses.BadRequest,
+        ...commonResponses.Unauthorized,
+        ...commonResponses.Forbidden,
+        ...commonResponses.NotFound,
+        ...commonResponses.RateLimitExceeded,
+        ...commonResponses.InternalServerError
+      }
+    }
+  },
+
+  '/admin/api/v1/kyc/person/{userId}/email': {
+    put: {
+      tags: ['Admin - Personas'],
+      summary: 'Cambiar email',
+      operationId: 'adminChangeUserEmail',
+      description: `Cambia el email del usuario. Actualiza el cifrado AES-256-GCM y el HMAC-SHA256 en BD.
+
+Notifica tanto al email anterior como al nuevo email.`,
+      security: adminSecurity,
+      parameters: [userIdParam],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': { schema: { $ref: '#/components/schemas/AdminChangeEmailRequest' } }
+        }
+      },
+      responses: {
+        200: commonResponses.ok(
+          {
+            type: 'object',
+            properties: {
+              userId: { type: 'string', format: 'uuid' },
+              username: { type: 'string' },
+              oldEmail: { type: 'string', example: '****o@email.com', description: MASKED_EMAIL_DESC },
+              newEmail: { type: 'string', example: '****a@email.com', description: MASKED_EMAIL_DESC },
+              emailVerified: { type: 'boolean' }
+            }
+          },
+          'Email actualizado exitosamente'
+        ),
+        ...commonResponses.Unauthorized,
+        ...commonResponses.Forbidden,
+        ...commonResponses.NotFound,
+        ...commonResponses.Conflict,
+        ...commonResponses.ValidationError,
+        ...commonResponses.RateLimitExceeded,
+        ...commonResponses.InternalServerError
+      }
+    }
+  },
+
+  '/admin/api/v1/kyc/person/{userId}/national-id': {
+    put: {
+      tags: ['Admin - Personas'],
+      summary: 'Cambiar national ID',
+      operationId: 'adminChangeUserNationalId',
+      description: `Cambia el \`national_id\` del usuario. Actualiza el cifrado AES-256-GCM y el HMAC-SHA256 en BD.
+
+La validación de unicidad se hace contra el hash antes de actualizar.
+
+**Idempotente:** si el \`newNationalId\` enviado es igual al actual, responde \`200\` con el dato vigente y **no** ejecuta cambio, auditoría, re-screening SARLAFT ni notificación (no devuelve error).`,
+      security: adminSecurity,
+      parameters: [userIdParam],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/AdminChangeNationalIdRequest' }
+          }
+        }
+      },
+      responses: {
+        200: commonResponses.ok(
+          {
+            type: 'object',
+            properties: {
+              userId: { type: 'string', format: 'uuid' },
+              username: { type: 'string' },
+              oldNationalId: { type: 'string', example: '******5678', description: MASKED_DOCUMENT_DESC },
+              newNationalId: { type: 'string', example: '******3210', description: MASKED_DOCUMENT_DESC }
+            }
+          },
+          'National ID actualizado exitosamente'
+        ),
+        ...commonResponses.Unauthorized,
+        ...commonResponses.Forbidden,
+        ...commonResponses.NotFound,
+        ...commonResponses.Conflict,
+        ...commonResponses.ValidationError,
+        ...commonResponses.RateLimitExceeded,
+        ...commonResponses.InternalServerError
+      }
+    }
+  },
+
+  '/admin/api/v1/kyc/person/{userId}/role': {
+    put: {
+      tags: ['Admin - Personas'],
+      summary: 'Cambiar rol',
+      operationId: 'adminChangeUserRole',
+      description:
+        'Cambia el rol del usuario. No aplica a usuarios con rol `admin`. Notifica al usuario con descripción del nuevo rol.',
+      security: adminSecurity,
+      parameters: [userIdParam],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': { schema: { $ref: '#/components/schemas/AdminChangeRoleRequest' } }
+        }
+      },
+      responses: {
+        200: commonResponses.ok(
+          {
+            type: 'object',
+            properties: {
+              userId: { type: 'string', format: 'uuid' },
+              username: { type: 'string' },
+              oldRole: { type: 'object' },
+              newRole: { type: 'object' }
+            }
+          },
+          'Rol actualizado exitosamente'
+        ),
+        ...commonResponses.BadRequest,
+        ...commonResponses.Unauthorized,
+        ...commonResponses.Forbidden,
+        ...commonResponses.NotFound,
+        ...commonResponses.ValidationError,
+        ...commonResponses.RateLimitExceeded,
+        ...commonResponses.InternalServerError
+      }
+    }
+  },
+
+  '/admin/api/v1/kyc/person/{userId}/delete-account': {
+    delete: {
+      tags: ['Admin - Personas'],
+      summary: 'Eliminar cuenta',
+      operationId: 'adminDeleteUserAccount',
+      description: `Elimina la cuenta del usuario: **ofusca** sus datos personales de forma irreversible (Ley 1581/2012), la desactiva y sella \`deletedAt\`.
+
+Tras la eliminación la cuenta queda **intocable** (toda operación de escritura responde **409**) y solo visible en \`GET /person/deleted\`. Una cuenta ya eliminada no se puede re-eliminar (**409**).
+
+⚠️ **Acción irreversible.** Requiere que el administrador confirme su **propia contraseña**. Se envía notificación al email del usuario antes de ofuscarlo.
+
+> **Doble aprobación (maker-checker):** la eliminación queda **pendiente de una segunda aprobación**.
+> El endpoint responde **202** con el \`ApprovalRequest\`; la cuenta NO se elimina hasta que un segundo
+> aprobador (SUPERADMIN) lo resuelve.`,
+      security: adminSecurity,
+      parameters: [userIdParam],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': { schema: { $ref: '#/components/schemas/AdminDeleteAccountRequest' } }
+        }
+      },
+      responses: {
+        200: commonResponses.ok({ type: 'object', nullable: true }, 'Cuenta eliminada exitosamente'),
+        202: commonResponses.accepted(
+          { $ref: '#/components/schemas/ApprovalRequest' },
+          'Eliminación pendiente de segunda aprobación (doble aprobación global). La cuenta NO se elimina hasta que se resuelva.'
+        ),
+        ...commonResponses.Unauthorized,
+        ...commonResponses.Forbidden,
+        ...commonResponses.NotFound,
+        ...commonResponses.Conflict,
+        ...commonResponses.ValidationError,
+        ...commonResponses.RateLimitExceeded,
+        ...commonResponses.InternalServerError
+      }
+    }
+  }
+};
+
+module.exports = { paths, schemas };

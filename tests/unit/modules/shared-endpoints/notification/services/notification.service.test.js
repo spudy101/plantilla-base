@@ -1,0 +1,289 @@
+// tests/unit/modules/shared-endpoints/notification/services/notification.service.test.js
+//
+// NotificationService — fachada de lectura/escritura de notificaciones del usuario. Se prueba la
+// orquestación sobre repos/utils mockeados: (1) getNotificationsList mezcla personales + globales,
+// ordena, pagina, marca la página como leída dentro de una transacción y audita; (2)
+// getPersonalNotifications marca las no leídas y emite el contador solo si hubo cambios; (3)
+// getGlobalNotifications marca las globales no leídas; (4) getUnreadCount computa, emite por el
+// emitter y audita; (5) computeUnreadCount suma personales + globales (tolerando no-array); (6)
+// createNotification / createDirectNotification delegan y auditan; (7) rama de rollback de
+// _markPageAsRead cuando la escritura falla. Los side-effects agendados con setImmediate se observan
+// drenando la cola de macrotareas.
+
+jest.mock('shared/models', () => ({
+  sequelize: { transaction: jest.fn() }
+}));
+
+jest.mock('shared/utils/logger.util', () => ({
+  logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+  logAudit: jest.fn()
+}));
+
+jest.mock('shared/utils/pagination.util', () => ({
+  getPaginationParams: jest.fn().mockReturnValue({ page: 1, limit: 10, offset: 0, sortBy: 'created_at', order: 'DESC' })
+}));
+
+jest.mock('modules/schemas/notification/repositories/notification.repository', () => ({
+  findByUserPaginated: jest.fn(),
+  findAll: jest.fn(),
+  countUnreadByUser: jest.fn(),
+  bulkUpdate: jest.fn().mockResolvedValue([1])
+}));
+
+jest.mock('modules/schemas/notification/repositories/global-notification.repository', () => ({
+  findActiveNotifications: jest.fn().mockResolvedValue([]),
+  findUnreadByUser: jest.fn().mockResolvedValue([])
+}));
+
+jest.mock('modules/schemas/notification/repositories/global-notification-read.repository', () => ({
+  getReadIdsByUser: jest.fn().mockResolvedValue([]),
+  bulkMarkAsRead: jest.fn().mockResolvedValue(undefined)
+}));
+
+jest.mock('modules/schemas/notification/services/notification-creation.service', () => ({
+  crearNotificacion: jest.fn(),
+  crearNotificacionDirecta: jest.fn()
+}));
+
+jest.mock('modules/schemas/notification/utils/notification-emitter.util', () => ({
+  emit: jest.fn()
+}));
+
+jest.mock('modules/schemas/notification/utils/notification-count.util', () => ({
+  emitCountUpdate: jest.fn()
+}));
+
+const { sequelize } = require('shared/models');
+const { logAudit, logger } = require('shared/utils/logger.util');
+const notificationRepo = require('modules/schemas/notification/repositories/notification.repository');
+const globalNotificationRepo = require('modules/schemas/notification/repositories/global-notification.repository');
+const globalReadRepo = require('modules/schemas/notification/repositories/global-notification-read.repository');
+const creationService = require('modules/schemas/notification/services/notification-creation.service');
+const NotificationEmitter = require('modules/schemas/notification/utils/notification-emitter.util');
+const NotificationCountUtil = require('modules/schemas/notification/utils/notification-count.util');
+const service = require('modules/shared-endpoints/notification/services/notification.service');
+
+const USER = 'u-1';
+const flush = () => new Promise(resolve => { setImmediate(resolve); });
+
+function fakeTransaction() {
+  return { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn().mockResolvedValue(undefined) };
+}
+
+describe('NotificationService', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    notificationRepo.bulkUpdate.mockResolvedValue([1]);
+    globalNotificationRepo.findActiveNotifications.mockResolvedValue([]);
+    globalReadRepo.getReadIdsByUser.mockResolvedValue([]);
+    sequelize.transaction.mockResolvedValue(fakeTransaction());
+  });
+
+  describe('getNotificationsList', () => {
+    it('mezcla y ordena DESC, marca la página como leída en transacción y audita', async () => {
+      const tx = fakeTransaction();
+      sequelize.transaction.mockResolvedValue(tx);
+      notificationRepo.findAll.mockResolvedValue([
+        { notification_id: 'n-1', createdAt: new Date('2024-01-02'), is_read: false }
+      ]);
+      globalNotificationRepo.findActiveNotifications.mockResolvedValue([
+        { global_notification_id: 'g-1', createdAt: new Date('2024-01-01') }
+      ]);
+      globalReadRepo.getReadIdsByUser.mockResolvedValue([]);
+
+      const result = await service.getNotificationsList(USER, {});
+
+      expect(result.totalItems).toBe(2);
+      // Orden DESC: la personal (02-ene) va antes que la global (01-ene).
+      expect(result.mixed[0].__type).toBe('personal');
+      expect(result.mixed[1].__type).toBe('global');
+      // Marca personal + global no leídas y confirma la transacción.
+      expect(notificationRepo.bulkUpdate).toHaveBeenCalled();
+      expect(globalReadRepo.bulkMarkAsRead).toHaveBeenCalledWith(['g-1'], USER);
+      expect(tx.commit).toHaveBeenCalled();
+      expect(logAudit).toHaveBeenCalledWith(
+        'NOTIFICATION_LIST_VIEWED',
+        USER,
+        expect.objectContaining({ totalItems: 2 }),
+        expect.objectContaining({ entityType: 'Notification' })
+      );
+
+      await flush();
+      expect(NotificationCountUtil.emitCountUpdate).toHaveBeenCalledWith(USER);
+    });
+
+    it('hace rollback y loguea error si la escritura de marcado falla (sin propagar)', async () => {
+      const tx = fakeTransaction();
+      sequelize.transaction.mockResolvedValue(tx);
+      notificationRepo.findAll.mockResolvedValue([
+        { notification_id: 'n-1', createdAt: new Date('2024-01-02'), is_read: false }
+      ]);
+      globalNotificationRepo.findActiveNotifications.mockResolvedValue([]);
+      globalReadRepo.getReadIdsByUser.mockResolvedValue([]);
+      notificationRepo.bulkUpdate.mockRejectedValue(new Error('db write fail'));
+
+      const result = await service.getNotificationsList(USER, {});
+
+      expect(result.totalItems).toBe(1);
+      expect(tx.rollback).toHaveBeenCalled();
+      expect(tx.commit).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith(
+        'Error marcando notificaciones de página como leídas',
+        expect.objectContaining({ error: 'db write fail' })
+      );
+    });
+  });
+
+  describe('getPersonalNotifications', () => {
+    it('marca las no leídas, emite el contador y audita', async () => {
+      notificationRepo.findByUserPaginated.mockResolvedValue({
+        rows: [
+          { notification_id: 'n-1', is_read: false },
+          { notification_id: 'n-2', is_read: true }
+        ],
+        count: 2
+      });
+
+      const result = await service.getPersonalNotifications(USER, {});
+
+      expect(notificationRepo.bulkUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ is_read: true }),
+        expect.any(Object),
+        expect.any(Object)
+      );
+      expect(logAudit).toHaveBeenCalledWith(
+        'NOTIFICATION_PERSONAL_LIST_VIEWED',
+        USER,
+        expect.objectContaining({ totalItems: 2 }),
+        expect.any(Object)
+      );
+      expect(result.count).toBe(2);
+
+      await flush();
+      expect(NotificationCountUtil.emitCountUpdate).toHaveBeenCalledWith(USER);
+    });
+
+    it('no marca ni emite cuando no hay no leídas', async () => {
+      notificationRepo.findByUserPaginated.mockResolvedValue({
+        rows: [{ notification_id: 'n-1', is_read: true }],
+        count: 1
+      });
+
+      await service.getPersonalNotifications(USER, {});
+
+      expect(notificationRepo.bulkUpdate).not.toHaveBeenCalled();
+      await flush();
+      expect(NotificationCountUtil.emitCountUpdate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getGlobalNotifications', () => {
+    it('marca las globales no leídas de la página y audita', async () => {
+      globalNotificationRepo.findActiveNotifications.mockResolvedValue([
+        { global_notification_id: 'g-1', createdAt: new Date('2024-01-01') }
+      ]);
+      globalReadRepo.getReadIdsByUser.mockResolvedValue([]);
+
+      const result = await service.getGlobalNotifications(USER, {});
+
+      expect(globalReadRepo.bulkMarkAsRead).toHaveBeenCalledWith(['g-1'], USER);
+      expect(result.totalItems).toBe(1);
+      expect(logAudit).toHaveBeenCalledWith(
+        'NOTIFICATION_GLOBAL_LIST_VIEWED',
+        USER,
+        expect.objectContaining({ totalItems: 1 }),
+        expect.objectContaining({ entityType: 'GlobalNotification' })
+      );
+
+      await flush();
+      expect(NotificationCountUtil.emitCountUpdate).toHaveBeenCalledWith(USER);
+    });
+
+    it('no marca nada si todas las globales ya están leídas', async () => {
+      globalNotificationRepo.findActiveNotifications.mockResolvedValue([
+        { global_notification_id: 'g-1', createdAt: new Date('2024-01-01') }
+      ]);
+      globalReadRepo.getReadIdsByUser.mockResolvedValue(['g-1']);
+
+      await service.getGlobalNotifications(USER, {});
+
+      expect(globalReadRepo.bulkMarkAsRead).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getUnreadCount', () => {
+    it('computa el total, lo emite por el emitter y audita', async () => {
+      notificationRepo.countUnreadByUser.mockResolvedValue(3);
+      globalNotificationRepo.findUnreadByUser.mockResolvedValue([{}, {}]);
+
+      const total = await service.getUnreadCount(USER);
+
+      expect(total).toBe(5);
+      expect(NotificationEmitter.emit).toHaveBeenCalledWith('count-updated', { userId: USER, count: 5 });
+      expect(logAudit).toHaveBeenCalledWith(
+        'NOTIFICATION_UNREAD_COUNT_VIEWED',
+        USER,
+        { count: 5 },
+        expect.any(Object)
+      );
+    });
+  });
+
+  describe('computeUnreadCount', () => {
+    it('suma personales + globales', async () => {
+      notificationRepo.countUnreadByUser.mockResolvedValue(2);
+      globalNotificationRepo.findUnreadByUser.mockResolvedValue([{}, {}, {}]);
+
+      await expect(service.computeUnreadCount(USER)).resolves.toBe(5);
+    });
+
+    it('trata como 0 el resultado global que no es un array', async () => {
+      notificationRepo.countUnreadByUser.mockResolvedValue(4);
+      globalNotificationRepo.findUnreadByUser.mockResolvedValue(null);
+
+      await expect(service.computeUnreadCount(USER)).resolves.toBe(4);
+    });
+  });
+
+  describe('createNotification', () => {
+    it('delega en el servicio de creación, loguea y audita', async () => {
+      creationService.crearNotificacion.mockResolvedValue({ notification_id: 'n-1' });
+
+      const result = await service.createNotification(
+        { tipoNotificacion: 'WELCOME', userId: 'u-9' },
+        { transaction: 'tx' },
+        'externo-x'
+      );
+
+      expect(creationService.crearNotificacion).toHaveBeenCalledWith(
+        { tipoNotificacion: 'WELCOME', userId: 'u-9' },
+        'tx'
+      );
+      expect(logger.info).toHaveBeenCalled();
+      expect(logAudit).toHaveBeenCalledWith(
+        'NOTIFICATION_CREATED',
+        null,
+        expect.objectContaining({ tipoNotificacion: 'WELCOME', externalService: 'externo-x' }),
+        expect.any(Object)
+      );
+      expect(result).toEqual({ notification_id: 'n-1' });
+    });
+  });
+
+  describe('createDirectNotification', () => {
+    it('delega en crearNotificacionDirecta y audita', async () => {
+      creationService.crearNotificacionDirecta.mockResolvedValue({ estado_solicitud: 1 });
+
+      const result = await service.createDirectNotification({ tipoNotificacion: 'CODIGO', email: 'a@b.cl' });
+
+      expect(creationService.crearNotificacionDirecta).toHaveBeenCalledWith({ tipoNotificacion: 'CODIGO', email: 'a@b.cl' });
+      expect(logAudit).toHaveBeenCalledWith(
+        'NOTIFICATION_DIRECT_CREATED',
+        null,
+        expect.objectContaining({ tipoNotificacion: 'CODIGO', email: 'a@b.cl' }),
+        expect.any(Object)
+      );
+      expect(result).toEqual({ estado_solicitud: 1 });
+    });
+  });
+});
