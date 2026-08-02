@@ -1,0 +1,165 @@
+// tests/unit/shared/resilience-config.util.test.js
+//
+// ResilienceConfig: resuelve la config de resiliencia de integraciones desde
+// SystemGlobalConfig.integration_resilience (snake_case), la mapea a camelCase,
+// la cachea 60s y NUNCA lanza (fallback duro / último valor ante error de BD).
+// Mockeamos el modelo (nada de BD) y el logger.
+
+const mockFindOne = jest.fn();
+
+jest.mock('shared/models', () => ({
+  SystemGlobalConfig: { findOne: (...args) => mockFindOne(...args) }
+}));
+
+jest.mock('shared/utils/logger.util', () => ({
+  logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn(), debug: jest.fn() }
+}));
+
+const { logger } = require('shared/utils/logger.util');
+const ResilienceConfig = require('shared/utils/resilience-config.util');
+
+describe('ResilienceConfig', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    ResilienceConfig._resetCache();
+  });
+
+  describe('HARD_DEFAULTS', () => {
+    it('expone los defaults duros históricos (30s/10s/3 + umbrales del breaker)', () => {
+      expect(ResilienceConfig.HARD_DEFAULTS).toMatchObject({
+        timeoutMs: 30000,
+        manualReviewTimeoutMs: 10000,
+        maxRetries: 3,
+        circuitBreaker: { failureThreshold: 5, recoveryTimeMs: 60000, failuresTtlS: 300 },
+        screeningThrottle: { batchSize: 50, spacingMs: 100 }
+      });
+    });
+
+    it('está congelado (Object.freeze) para no mutarse por accidente', () => {
+      expect(Object.isFrozen(ResilienceConfig.HARD_DEFAULTS)).toBe(true);
+      expect(Object.isFrozen(ResilienceConfig.HARD_DEFAULTS.circuitBreaker)).toBe(true);
+    });
+  });
+
+  describe('get() — mapeo snake_case → camelCase', () => {
+    it('mapea todos los campos cuando la global trae la config completa', async () => {
+      mockFindOne.mockResolvedValue({
+        integration_resilience: {
+          timeout_ms: 12000,
+          manual_review_timeout_ms: 4000,
+          max_retries: 7,
+          circuit_breaker: { failure_threshold: 9, recovery_time_ms: 15000, failures_ttl_s: 111 },
+          screening_throttle: { batch_size: 25, spacing_ms: 250 }
+        }
+      });
+
+      const cfg = await ResilienceConfig.get();
+
+      expect(cfg).toEqual({
+        timeoutMs: 12000,
+        manualReviewTimeoutMs: 4000,
+        maxRetries: 7,
+        circuitBreaker: { failureThreshold: 9, recoveryTimeMs: 15000, failuresTtlS: 111 },
+        screeningThrottle: { batchSize: 25, spacingMs: 250 }
+      });
+    });
+
+    it('rellena con los defaults duros los campos ausentes (config parcial)', async () => {
+      mockFindOne.mockResolvedValue({
+        integration_resilience: {
+          timeout_ms: 8000,
+          circuit_breaker: { failure_threshold: 2 }
+        }
+      });
+
+      const cfg = await ResilienceConfig.get();
+
+      expect(cfg.timeoutMs).toBe(8000);
+      expect(cfg.manualReviewTimeoutMs).toBe(10000); // default duro
+      expect(cfg.maxRetries).toBe(3); // default duro
+      expect(cfg.circuitBreaker).toEqual({
+        failureThreshold: 2, // override
+        recoveryTimeMs: 60000, // default duro
+        failuresTtlS: 300 // default duro
+      });
+    });
+
+    it('usa todos los defaults duros si integration_resilience viene vacío', async () => {
+      mockFindOne.mockResolvedValue({ integration_resilience: {} });
+      const cfg = await ResilienceConfig.get();
+      expect(cfg.timeoutMs).toBe(30000);
+      expect(cfg.circuitBreaker).toEqual({ failureThreshold: 5, recoveryTimeMs: 60000, failuresTtlS: 300 });
+    });
+
+    it('usa defaults si no existe fila activa (findOne devuelve null)', async () => {
+      mockFindOne.mockResolvedValue(null);
+      const cfg = await ResilienceConfig.get();
+      expect(cfg.timeoutMs).toBe(30000);
+      expect(cfg.maxRetries).toBe(3);
+    });
+  });
+
+  describe('caché (TTL 60s)', () => {
+    it('no vuelve a consultar la BD dentro de la ventana de caché', async () => {
+      mockFindOne.mockResolvedValue({ integration_resilience: { timeout_ms: 1234 } });
+
+      const a = await ResilienceConfig.get();
+      const b = await ResilienceConfig.get();
+
+      expect(mockFindOne).toHaveBeenCalledTimes(1);
+      expect(a).toBe(b); // misma referencia cacheada
+      expect(a.timeoutMs).toBe(1234);
+    });
+
+    it('_resetCache fuerza una nueva lectura', async () => {
+      mockFindOne.mockResolvedValue({ integration_resilience: { timeout_ms: 1 } });
+      await ResilienceConfig.get();
+      ResilienceConfig._resetCache();
+      await ResilienceConfig.get();
+      expect(mockFindOne).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('resiliencia ante errores (nunca lanza)', () => {
+    it('devuelve el fallback duro si la BD lanza y no hay caché previa', async () => {
+      mockFindOne.mockRejectedValue(new Error('BD caída'));
+
+      const cfg = await ResilienceConfig.get();
+
+      expect(cfg).toMatchObject(ResilienceConfig.HARD_DEFAULTS);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('[ResilienceConfig]'),
+        expect.objectContaining({ error: 'BD caída' })
+      );
+    });
+
+    it('el fallback devuelto es una copia mutable (no el objeto congelado)', async () => {
+      mockFindOne.mockRejectedValue(new Error('boom'));
+      const cfg = await ResilienceConfig.get();
+      expect(Object.isFrozen(cfg)).toBe(false);
+      expect(Object.isFrozen(cfg.circuitBreaker)).toBe(false);
+    });
+
+    it('conserva el último valor cacheado si, tras expirar la caché, la lectura falla', async () => {
+      const nowSpy = jest.spyOn(Date, 'now');
+      try {
+        // t=0: primera lectura buena → cachea timeout 4321.
+        nowSpy.mockReturnValue(0);
+        mockFindOne.mockResolvedValueOnce({ integration_resilience: { timeout_ms: 4321 } });
+        const first = await ResilienceConfig.get();
+        expect(first.timeoutMs).toBe(4321);
+
+        // t=61s: caché expirada → intenta releer y la BD falla.
+        nowSpy.mockReturnValue(61000);
+        mockFindOne.mockRejectedValueOnce(new Error('BD caída'));
+        const stale = await ResilienceConfig.get();
+
+        // Debe devolver el último valor bueno cacheado, no el fallback duro.
+        expect(stale.timeoutMs).toBe(4321);
+        expect(logger.warn).toHaveBeenCalled();
+      } finally {
+        nowSpy.mockRestore();
+      }
+    });
+  });
+});
