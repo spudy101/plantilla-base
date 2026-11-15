@@ -296,3 +296,65 @@ describe('NotificationSendingService', () => {
     });
   });
 });
+
+// ============================================================
+// SOLID (O/D): canales extensibles e inyección de dependencias
+// ============================================================
+// Agregar un canal nuevo (ej. WhatsApp) no requiere modificar el service: se inyecta un
+// descriptor más. Y gracias a la inyección por constructor se prueba con fakes en memoria,
+// sin jest.mock de módulos.
+describe('NotificationSendingService — canales extensibles (Open/Closed)', () => {
+  const { NotificationSendingService } = sending;
+
+  const makeFakeRepo = notification => ({
+    findById: jest.fn().mockResolvedValue(notification),
+    updateProcessingStatus: jest.fn().mockResolvedValue(undefined)
+  });
+
+  const whatsappChannel = () => ({
+    key: 'whatsapp',
+    supportedByDefault: false,
+    send: jest.fn().mockResolvedValue(undefined),
+    schedule: jest.fn().mockResolvedValue(undefined)
+  });
+
+  it('envía por un canal nuevo inyectado cuando la categoría y la preferencia lo permiten', async () => {
+    const whatsapp = whatsappChannel();
+    const repo = makeFakeRepo({ whatsapp_sent: true, whatsapp_error: null });
+    const service = new NotificationSendingService({ notificationRepo: repo, channels: [whatsapp] });
+    const type = { category: { supports_whatsapp: true } };
+
+    await service.procesarEnviosIndividuales(NID, UID, type, 'T', 'B', {}, { allow_whatsapp: true }, false, false);
+
+    expect(whatsapp.send).toHaveBeenCalledWith(expect.objectContaining({ notificationId: NID, userId: UID, body: 'B' }));
+    expect(whatsapp.schedule).not.toHaveBeenCalled();
+    expect(repo.updateProcessingStatus).toHaveBeenCalledWith(NID, 'completed');
+  });
+
+  it('respeta quiet hours también para el canal nuevo (programa en vez de enviar)', async () => {
+    const whatsapp = whatsappChannel();
+    const service = new NotificationSendingService({ notificationRepo: makeFakeRepo({}), channels: [whatsapp] });
+
+    await service.procesarEnviosIndividuales(NID, UID, { category: { supports_whatsapp: true } }, 'T', 'B', {}, {}, true, false);
+
+    expect(whatsapp.schedule).toHaveBeenCalled();
+    expect(whatsapp.send).not.toHaveBeenCalled();
+  });
+
+  it('no usa el canal si la categoría no lo declara y su default es false', async () => {
+    const whatsapp = whatsappChannel();
+    const service = new NotificationSendingService({ notificationRepo: makeFakeRepo({}), channels: [whatsapp] });
+
+    await service.procesarEnviosIndividuales(NID, UID, { category: {} }, 'T', 'B', {}, {}, false, false);
+
+    expect(whatsapp.send).not.toHaveBeenCalled();
+  });
+
+  it('el estado de entrega considera los flags <canal>_sent / <canal>_error del canal nuevo', async () => {
+    const service = new NotificationSendingService({ notificationRepo: makeFakeRepo({}), channels: [whatsappChannel()] });
+    const type = { category: { supports_whatsapp: true } };
+
+    expect(service._resolverEstadoEntrega({ whatsapp_sent: false, whatsapp_error: 'timeout' }, type)).toBe('failed');
+    expect(service._resolverEstadoEntrega({ whatsapp_sent: true }, type)).toBe('completed');
+  });
+});
