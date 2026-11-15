@@ -29,6 +29,47 @@ class NotificationSendingService {
     this.pushService = deps.pushService ?? pushService;
     this.smsService = deps.smsService ?? smsService;
     this.schedulerService = deps.schedulerService ?? schedulerService;
+    // Canales de entrega (SOLID: O). Agregar un canal nuevo = sumar un descriptor aquí
+    // (o inyectarlo por `deps.channels`), sin tocar el flujo de envío ni el cálculo de estado.
+    this.channels = deps.channels ?? this._defaultChannels();
+  }
+
+  /**
+   * Descriptor de canal:
+   *   key                → nombre del canal; define las columnas `<key>_sent` / `<key>_error`,
+   *                        el flag de categoría `supports_<key>` y la preferencia `allow_<key>`
+   *   supportedByDefault → valor si la categoría no declara `supports_<key>`
+   *   send(ctx)          → envía ahora
+   *   schedule(ctx)      → difiere el envío (quiet hours)
+   * ctx = { notificationId, userId, notificationType, title, body, metadata, userPreference }
+   * @private
+   */
+  _defaultChannels() {
+    return [
+      {
+        key: 'push',
+        supportedByDefault: true,
+        send: ctx => this.enviarPushIndividual(ctx.userId, ctx.title, ctx.body, ctx.metadata, ctx.notificationId),
+        schedule: ctx => this.schedulerService.programarEnvioPush(ctx.notificationId, ctx.userPreference)
+      },
+      {
+        key: 'email',
+        supportedByDefault: true,
+        send: ctx => this.enviarEmailIndividual(ctx.userId, ctx.notificationType, ctx.metadata, ctx.notificationId),
+        schedule: ctx => this.schedulerService.programarEnvioEmail(ctx.notificationId, ctx.userPreference)
+      },
+      {
+        key: 'sms',
+        supportedByDefault: false,
+        send: ctx => this.enviarSmsIndividual(ctx.userId, ctx.body, ctx.metadata, ctx.notificationId),
+        schedule: ctx => this.schedulerService.programarEnvioSms(ctx.notificationId, ctx.userPreference)
+      }
+    ];
+  }
+
+  /** @private — ¿la categoría del tipo soporta este canal? */
+  _categorySupports(category, channel) {
+    return category?.[`supports_${channel.key}`] ?? channel.supportedByDefault;
   }
 
   async _procesarCanal(isQuietHours, isHighPriority, schedulerFn, enviarFn) {
@@ -68,32 +109,18 @@ class NotificationSendingService {
       // push no debe impedir email/SMS, ni viceversa. El estado final se deriva de los flags
       // reales del registro en actualizarEstadoEntrega().
       const category = notificationType.category || null;
+      const ctx = { notificationId, userId, notificationType, title, body, metadata, userPreference };
 
-      if ((category?.supports_push ?? true) && (userPreference?.allow_push ?? true)) {
-        await this._procesarCanal(
-          isQuietHours,
-          isHighPriority,
-          () => this.schedulerService.programarEnvioPush(notificationId, userPreference),
-          () => this.enviarPushIndividual(userId, title, body, metadata, notificationId)
-        );
-      }
-
-      if ((category?.supports_email ?? true) && (userPreference?.allow_email ?? true)) {
-        await this._procesarCanal(
-          isQuietHours,
-          isHighPriority,
-          () => this.schedulerService.programarEnvioEmail(notificationId, userPreference),
-          () => this.enviarEmailIndividual(userId, notificationType, metadata, notificationId)
-        );
-      }
-
-      if ((category?.supports_sms ?? false) && (userPreference?.allow_sms ?? true)) {
-        await this._procesarCanal(
-          isQuietHours,
-          isHighPriority,
-          () => this.schedulerService.programarEnvioSms(notificationId, userPreference),
-          () => this.enviarSmsIndividual(userId, body, metadata, notificationId)
-        );
+      for (const channel of this.channels) {
+        const allowedByUser = userPreference?.[`allow_${channel.key}`] ?? true;
+        if (this._categorySupports(category, channel) && allowedByUser) {
+          await this._procesarCanal(
+            isQuietHours,
+            isHighPriority,
+            () => channel.schedule(ctx),
+            () => channel.send(ctx)
+          );
+        }
       }
 
       await this.actualizarEstadoEntrega(notificationId, notificationType);
@@ -127,16 +154,9 @@ class NotificationSendingService {
   /** @private */
   _resolverEstadoEntrega(notification, notificationType) {
     const category = notificationType.category || null;
-    const channels = [];
-    if (category?.supports_push ?? true) {
-      channels.push({ sent: notification.push_sent, error: notification.push_error });
-    }
-    if (category?.supports_email ?? true) {
-      channels.push({ sent: notification.email_sent, error: notification.email_error });
-    }
-    if (category?.supports_sms ?? false) {
-      channels.push({ sent: notification.sms_sent, error: notification.sms_error });
-    }
+    const channels = this.channels
+      .filter(channel => this._categorySupports(category, channel))
+      .map(channel => ({ sent: notification[`${channel.key}_sent`], error: notification[`${channel.key}_error`] }));
 
     // Solo cuentan los canales realmente intentados (entregados o con error registrado).
     // Los diferidos por quiet hours aún no se intentaron → se ignoran.
@@ -352,34 +372,20 @@ class NotificationSendingService {
       }
 
       const category = notificationType.category || null;
-      const metadata = notification.metadata || {};
+      const ctx = {
+        notificationId: notification.notification_id,
+        userId: notification.user_id,
+        notificationType,
+        title: notification.title,
+        body: notification.body,
+        metadata: notification.metadata || {}
+      };
 
-      // Push
-      if ((category?.supports_push ?? true) && !notification.push_sent) {
-        await this.enviarPushIndividual(
-          notification.user_id,
-          notification.title,
-          notification.body,
-          metadata,
-          // FIX: notification.notification_id en vez de notification.id
-          notification.notification_id
-        );
-      }
-
-      // Email
-      if ((category?.supports_email ?? true) && !notification.email_sent) {
-        await this.enviarEmailIndividual(
-          notification.user_id,
-          notificationType,
-          metadata,
-          // FIX: notification.notification_id en vez de notification.id
-          notification.notification_id
-        );
-      }
-
-      // SMS
-      if ((category?.supports_sms ?? false) && !notification.sms_sent) {
-        await this.enviarSmsIndividual(notification.user_id, notification.body, metadata, notification.notification_id);
+      // Reenvía solo los canales soportados que aún no se entregaron.
+      for (const channel of this.channels) {
+        if (this._categorySupports(category, channel) && !notification[`${channel.key}_sent`]) {
+          await channel.send(ctx);
+        }
       }
 
       // FIX: notification.notification_id en vez de notification.id
