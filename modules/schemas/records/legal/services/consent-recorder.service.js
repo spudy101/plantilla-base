@@ -76,7 +76,10 @@ class ConsentRecorderService {
 
   /** @private — solo pasa la transacción si existe (mantiene la firma del repositorio). */
   _grant(data, transaction) {
-    return transaction === undefined ? this.userConsentRepository.grant(data) : this.userConsentRepository.grant(data, transaction);
+    if (transaction === undefined) {
+      return this.userConsentRepository.grant(data);
+    }
+    return this.userConsentRepository.grant(data, transaction);
   }
 }
 

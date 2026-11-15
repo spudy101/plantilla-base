@@ -44,16 +44,23 @@ module.exports = new MyController();
 const AppError = require('../../../../shared/utils/app-error.util');
 const PaginationHelper = require('../../../../shared/utils/pagination.util');
 const { logAudit } = require('../../../../shared/utils/logger.util');
+const unitOfWork = require('../../../../shared/database/unit-of-work');
 const myRepository = require('../../../../schemas/kyc/person/repositories/person.repository');
 const { MyListResponseDTO } = require('../dtos/my.dto');
 
 class MyService {
+  // SOLID (D): dependencias por constructor, con la implementación real como default.
+  constructor(deps = {}) {
+    this.unitOfWork = deps.unitOfWork ?? unitOfWork;
+    this.myRepository = deps.myRepository ?? myRepository;
+  }
+
   async list(query, adminUserId) {
     const paginationParams = PaginationHelper.getPaginationParams(query);
     const filters = PaginationHelper.buildFilters(query, ['status', 'isActive']);
     const searchTerm = query.search || null;
 
-    const { rows, count } = await myRepository.findAllPaginated(filters, paginationParams, searchTerm);
+    const { rows, count } = await this.myRepository.findAllPaginated(filters, paginationParams, searchTerm);
 
     const metadata = {
       totalItems: count,
@@ -75,15 +82,19 @@ class MyService {
   }
 
   async getById(id, adminUserId) {
-    const record = await myRepository.findById(id);
+    const record = await this.myRepository.findById(id);
     if (!record) throw AppError.notFound('Recurso no encontrado');
     logAudit('MY_RESOURCE_VIEWED', adminUserId, {}, { entityId: id, entityType: 'MyResource', entityTable: 'my_resources' });
     return MyDetailResponseDTO(record);
   }
 }
 module.exports = new MyService();
+module.exports.MyService = MyService; // la clase, para tests con fakes
 ```
 
+> ✅ **SOLID** (ver [`solid.md`](solid.md)): repos vía `this.`, transacciones con `this.unitOfWork.begin()`,
+> y **nunca** `require('sequelize')` / `Op` en un service — si necesitas un filtro, crea un método con
+> nombre de negocio en el repositorio (`findByNames`, `findActive`, `searchPaginated`…).
 > ✅ El objeto `metadata` siempre incluye: `totalItems, page, limit, sortBy, order, filters`.
 > ✅ El service retorna directamente el resultado del DTO (que tiene `{ data, metadata }`).
 > ❌ No usar `PaginationHelper.buildMetadata()` — armar el objeto metadata manualmente como arriba.
@@ -126,6 +137,12 @@ class MyRepository extends BaseRepository {
 }
 module.exports = new MyRepository();
 ```
+
+> ✅ Hereda de `BaseRepository` (CRUD completo), `AppendOnlyRepository` (solo inserción, ej. auditoría)
+> o `ReadRepository` (solo lectura). Si sobrescribes un método, **misma firma que el padre**
+> (incluido `options`, para no perder la transacción) — SOLID: L.
+> ✅ Los operadores de Sequelize (`Op.in`, `Op.between`…) viven aquí, detrás de métodos con nombre
+> de negocio: `findByNames(names, { exclude })`, `findByIds(ids)`, `markAsReadByIds(ids)`.
 
 ## Routes (admin)
 
