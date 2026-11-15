@@ -256,8 +256,8 @@ class TrustedDeviceRepository extends BaseRepository {
   /**
    * Elimina un dispositivo por PK.
    */
-  delete(deviceId) {
-    return super.delete(deviceId);
+  delete(deviceId, options = {}) {
+    return super.delete(deviceId, options);
   }
 }
 

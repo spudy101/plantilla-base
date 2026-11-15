@@ -1,4 +1,4 @@
-const { SystemGlobalConfig } = require('../../../../shared/models');
+const systemGlobalConfigRepository = require('../../../schemas/core/repositories/system-global-config.repository');
 const { logAudit } = require('../../../../shared/utils/logger.util');
 const { PublicPromotionalBannerListDTO } = require('../dtos/promotional-banner.dto');
 
@@ -9,6 +9,14 @@ let cache = { data: null, expiresAt: 0 };
 
 class PromotionalBannerPublicService {
   /**
+   * @param {object} [deps]
+   * @param {object} [deps.systemGlobalConfigRepository]
+   */
+  constructor(deps = {}) {
+    this.systemGlobalConfigRepository = deps.systemGlobalConfigRepository ?? systemGlobalConfigRepository;
+  }
+
+  /**
    * Banners activos para el front (landing pública + app cliente), ordenados por sortOrder.
    * Solo contenido publicado: los banners con is_active false nunca salen de acá.
    */
@@ -17,7 +25,7 @@ class PromotionalBannerPublicService {
       return cache.data;
     }
 
-    const config = await SystemGlobalConfig.findOne({ where: { is_active: true } });
+    const config = await this.systemGlobalConfigRepository.findActive();
     const activos = (config?.promotional_banners ?? []).filter(b => b.is_active !== false);
 
     const dto = PublicPromotionalBannerListDTO(activos);
@@ -35,3 +43,4 @@ class PromotionalBannerPublicService {
 }
 
 module.exports = new PromotionalBannerPublicService();
+module.exports.PromotionalBannerPublicService = PromotionalBannerPublicService;

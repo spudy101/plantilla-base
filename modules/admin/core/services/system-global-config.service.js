@@ -1,7 +1,7 @@
 const AppError = require('../../../../shared/utils/app-error.util');
 const { logger, logAudit } = require('../../../../shared/utils/logger.util');
 const requestContext = require('../../../../shared/utils/request-context.util');
-const { SystemGlobalConfig } = require('../../../../shared/models');
+const systemGlobalConfigRepository = require('../../../schemas/core/repositories/system-global-config.repository');
 const { SystemGlobalConfigDTO } = require('../dtos/system-global-config.dto');
 const notificationCreationService = require('../../../schemas/notification/services/notification-creation.service');
 
@@ -16,10 +16,11 @@ class SystemGlobalConfigService {
    */
   constructor(deps = {}) {
     this.notificationCreationService = deps.notificationCreationService ?? notificationCreationService;
+    this.systemGlobalConfigRepository = deps.systemGlobalConfigRepository ?? systemGlobalConfigRepository;
   }
 
   async getConfig(adminUserId) {
-    const config = await SystemGlobalConfig.findOne({ where: { is_active: true } });
+    const config = await this.systemGlobalConfigRepository.findActive();
     if (!config) {
       throw AppError.notFound('No hay una configuración global activa. Contacta al equipo de infraestructura.');
     }
@@ -35,11 +36,11 @@ class SystemGlobalConfigService {
   }
 
   async updateConfig(data, adminUserId, _auditCtx) {
-    let config = await SystemGlobalConfig.findOne({ where: { is_active: true } });
+    let config = await this.systemGlobalConfigRepository.findActive();
 
     if (!config) {
       logger.warn('SystemGlobalConfigService.update — no existe config activa, creando con defaults');
-      config = await SystemGlobalConfig.create({ is_active: true, ...requestContext.originFromContext() });
+      config = await this.systemGlobalConfigRepository.createActive(requestContext.originFromContext());
     }
 
     const updatePayload = _buildUpdatePayload(data, config);

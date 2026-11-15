@@ -135,8 +135,9 @@ class ResetCredentialsRepository extends BaseRepository {
     return this.model.findByPk(resetCredentialsId, options);
   }
 
-  delete(resetCredentialsId) {
-    return this.model.destroy({ where: { reset_credentials_id: resetCredentialsId } });
+  // Misma firma que BaseRepository.delete(id, options) — SOLID: L (no se pierde la transacción)
+  delete(resetCredentialsId, options = {}) {
+    return this.model.destroy({ where: { reset_credentials_id: resetCredentialsId }, ...options });
   }
 }
 

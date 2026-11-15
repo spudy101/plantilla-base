@@ -60,8 +60,9 @@ class PersonLocationRepository extends BaseRepository {
   }
 
   // Override delete para usar person_location_id
-  delete(personLocationId) {
-    return this.model.destroy({ where: { person_location_id: personLocationId } });
+  // Misma firma que BaseRepository.delete(id, options) — SOLID: L (no se pierde la transacción)
+  delete(personLocationId, options = {}) {
+    return this.model.destroy({ where: { person_location_id: personLocationId }, ...options });
   }
 }
 

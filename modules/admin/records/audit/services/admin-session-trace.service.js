@@ -6,7 +6,6 @@
 // (índice inverso / cobertura / durabilidad), no la fuente. La hidratación es perezosa y por lote:
 // un findAll por tabla involucrada, agrupando los ids, reusando los DTOs admin que ya existen.
 
-const { Op } = require('sequelize');
 const AppError = require('../../../../../shared/utils/app-error.util');
 const { logAudit } = require('../../../../../shared/utils/logger.util');
 const PaginationHelper = require('../../../../../shared/utils/pagination.util');
@@ -202,7 +201,7 @@ class AdminSessionTraceService {
         skipped.push({ entityTable, count: ids.length });
         continue;
       }
-      const domainRows = await entry.repository.findAll({ [entry.pk]: { [Op.in]: ids } });
+      const domainRows = await entry.repository.findByIds(ids, entry.pk);
       entities.push({
         entityTable,
         entityType: entry.entityType,

@@ -7,13 +7,8 @@ class AuditAlertRepository extends BaseRepository {
     super(AuditAlert);
   }
 
-  create(data) {
-    try {
-      return this.model.create(data);
-    } catch {
-      return null;
-    }
-  }
+  // (Se eliminó el override de `create`: el try/catch no capturaba rechazos async y además
+  // perdía `options`. Se usa BaseRepository.create(data, options); el llamador ya maneja errores.)
 
   findAllFiltered({ acknowledged, dateFrom, dateTo, action, category } = {}, { limit = 20, offset = 0 } = {}) {
     const where = {};

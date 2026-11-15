@@ -30,8 +30,9 @@ class PersonContactRepository extends BaseRepository {
     return this._markVerified(personContactId, 'phone_primary_verified_at', verifiedAt, options);
   }
 
-  delete(personContactId) {
-    return this.model.destroy({ where: { person_contact_id: personContactId } });
+  // Misma firma que BaseRepository.delete(id, options) — SOLID: L (no se pierde la transacción)
+  delete(personContactId, options = {}) {
+    return this.model.destroy({ where: { person_contact_id: personContactId }, ...options });
   }
 
   findById(personContactId, options = {}) {

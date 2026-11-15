@@ -1,4 +1,3 @@
-const { Op } = require('sequelize');
 const unitOfWork = require('../../../../shared/database/unit-of-work');
 const { logger, logAudit } = require('../../../../shared/utils/logger.util');
 const PaginationHelper = require('../../../../shared/utils/pagination.util');
@@ -233,11 +232,7 @@ class NotificationService {
     if (!notificationIds || notificationIds.length === 0) {
       return undefined;
     }
-    return this.notificationRepository.bulkUpdate(
-      { is_read: true, read_at: new Date() },
-      { notification_id: { [Op.in]: notificationIds }, is_read: false },
-      options
-    );
+    return this.notificationRepository.markAsReadByIds(notificationIds, options);
   }
 }
 

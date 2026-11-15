@@ -2,7 +2,7 @@ const { v4: uuidv4 } = require('uuid');
 const AppError = require('../../../../shared/utils/app-error.util');
 const { logAudit, logger } = require('../../../../shared/utils/logger.util');
 const S3Util = require('../../../../shared/utils/s3.util');
-const { SystemGlobalConfig } = require('../../../../shared/models');
+const systemGlobalConfigRepository = require('../../../schemas/core/repositories/system-global-config.repository');
 const { PromotionalBannerListDTO, PromotionalBannerImageDTO } = require('../dtos/promotional-banner.dto');
 
 // Prefijo del bucket PÚBLICO (CloudFront). Cada imagen sube con key única (uuid), así que no hay
@@ -12,6 +12,17 @@ const IMAGE_S3_PREFIX = 'promotional/banners';
 const ENTITY_META = { entityType: 'SystemGlobalConfig', entityTable: 'system_global_config' };
 
 class PromotionalBannerService {
+  /**
+   * Dependencias inyectables (SOLID: D).
+   * @param {object} [deps]
+   * @param {object} [deps.systemGlobalConfigRepository] - acceso a la config global
+   * @param {object} [deps.fileStorage] - almacenamiento de archivos (por defecto S3)
+   */
+  constructor(deps = {}) {
+    this.systemGlobalConfigRepository = deps.systemGlobalConfigRepository ?? systemGlobalConfigRepository;
+    this.fileStorage = deps.fileStorage ?? S3Util;
+  }
+
   async list(adminUserId) {
     const config = await this._getActiveConfig();
 
@@ -72,7 +83,7 @@ class PromotionalBannerService {
     const extension = (file.mimetype?.split('/')[1] ?? 'png').replace('jpeg', 'jpg');
     const s3Key = `${IMAGE_S3_PREFIX}/${uuidv4()}.${extension}`;
 
-    const imageUrl = await S3Util.uploadPublicDocument(file.buffer, s3Key, file.mimetype);
+    const imageUrl = await this.fileStorage.uploadPublicDocument(file.buffer, s3Key, file.mimetype);
 
     logAudit('PROMOTIONAL_BANNER_IMAGE_UPLOADED', adminUserId, { s3Key }, ENTITY_META);
 
@@ -102,7 +113,7 @@ class PromotionalBannerService {
       return { deleted: 0, orphanKeys: [] };
     }
 
-    const results = await Promise.allSettled(orphanKeys.map(key => S3Util.deletePublicFile(key)));
+    const results = await Promise.allSettled(orphanKeys.map(key => this.fileStorage.deletePublicFile(key)));
     const deleted = results.filter(r => r.status === 'fulfilled').length;
 
     if (deleted < orphanKeys.length) {
@@ -132,7 +143,7 @@ class PromotionalBannerService {
 
   /** @private */
   async _getActiveConfig() {
-    const config = await SystemGlobalConfig.findOne({ where: { is_active: true } });
+    const config = await this.systemGlobalConfigRepository.findActive();
     if (!config) {
       throw AppError.notFound('No hay una configuración global activa. Contacta al equipo de infraestructura.');
     }
@@ -141,3 +152,4 @@ class PromotionalBannerService {
 }
 
 module.exports = new PromotionalBannerService();
+module.exports.PromotionalBannerService = PromotionalBannerService;

@@ -17,6 +17,7 @@ jest.mock('modules/schemas/kyc/iam/repositories/user.repository', () => ({
 
 jest.mock('modules/schemas/kyc/iam/repositories/role.repository', () => ({
   findAll: jest.fn(),
+  findByNames: jest.fn(),
   findByName: jest.fn(),
   findById: jest.fn()
 }));
@@ -142,7 +143,7 @@ const makeUser = (over = {}) => ({
 describe('AdminUserService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    roleRepository.findAll.mockResolvedValue([{ role_id: 'role-auditor' }, { role_id: 'role-admin' }]);
+    roleRepository.findByNames.mockResolvedValue([{ role_id: 'role-auditor' }, { role_id: 'role-admin' }]);
     userRepository.findByUserId.mockResolvedValue(makeUser());
     DualApprovalService.gate.mockResolvedValue({ pending: false });
     DualApprovalService.annotatePending.mockResolvedValue(undefined);
@@ -203,10 +204,12 @@ describe('AdminUserService', () => {
 
   describe('listRoleOptions', () => {
     it('devuelve los roles internos mapeados y audita', async () => {
-      roleRepository.findAll.mockResolvedValue([{ role_id: 'r1', name: 'auditor' }]);
+      roleRepository.findByNames.mockResolvedValue([{ role_id: 'r1', name: 'auditor' }]);
 
       const result = await service.listRoleOptions('admin-1');
 
+      // el service pide roles por nombre de negocio; el repositorio arma el IN / NOT IN
+      expect(roleRepository.findByNames).toHaveBeenCalledWith(expect.any(Array), { exclude: expect.any(Array) });
       expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_ROLE_OPTIONS_VIEWED', 'admin-1', { totalItems: 1 }, expect.any(Object));
       expect(result).toEqual([{ dto: 'role', role_id: 'r1', name: 'auditor' }]);
     });

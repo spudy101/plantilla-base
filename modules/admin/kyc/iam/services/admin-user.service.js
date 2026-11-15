@@ -9,7 +9,6 @@
 //   - ProfileHelper.validate*   → unicidad de email / national_id
 //   - user/role/session/change-log repositories
 
-const { Op } = require('sequelize');
 
 const userRepository = require('../../../../schemas/kyc/iam/repositories/user.repository');
 const roleRepository = require('../../../../schemas/kyc/iam/repositories/role.repository');
@@ -144,9 +143,7 @@ class AdminUserService {
    * Evita que el front ofrezca roles de cliente (o superadmin) en este listado.
    */
   async listRoleOptions(adminUserId) {
-    const roles = await this.roleRepository.findAll({
-      name: { [Op.in]: INTERNAL_ROLE_NAMES, [Op.notIn]: SUPERADMIN_ROLE_NAMES }
-    });
+    const roles = await this.roleRepository.findByNames(INTERNAL_ROLE_NAMES, { exclude: SUPERADMIN_ROLE_NAMES });
     logAudit(
       'INTERNAL_USER_ROLE_OPTIONS_VIEWED',
       adminUserId,
@@ -612,9 +609,7 @@ class AdminUserService {
    * con rol superadmin en la gestión de usuarios.
    */
   async _listableInternalRoleIds() {
-    const roles = await this.roleRepository.findAll({
-      name: { [Op.in]: INTERNAL_ROLE_NAMES, [Op.notIn]: SUPERADMIN_ROLE_NAMES }
-    });
+    const roles = await this.roleRepository.findByNames(INTERNAL_ROLE_NAMES, { exclude: SUPERADMIN_ROLE_NAMES });
     return roles.map(r => r.role_id);
   }
 

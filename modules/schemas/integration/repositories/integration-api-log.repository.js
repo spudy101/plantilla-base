@@ -67,8 +67,9 @@ class IntegrationApiLogRepository extends BaseRepository {
   /**
    * Detalle forense de una llamada: incluye request/response payload + usuario + sesión.
    */
-  findById(id) {
+  findById(id, options = {}) {
     return IntegrationApiLog.findByPk(id, {
+      ...options,
       include: [
         { association: 'user', attributes: ['user_id', 'username'], required: false },
         {

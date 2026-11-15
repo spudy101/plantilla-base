@@ -13,8 +13,9 @@ class PersonRepository extends BaseRepository {
     return this.findOne({ national_id_hash: hash });
   }
 
-  delete(personId) {
-    return this.model.destroy({ where: { person_id: personId } });
+  // Misma firma que BaseRepository.delete(id, options) — SOLID: L (no se pierde la transacción)
+  delete(personId, options = {}) {
+    return this.model.destroy({ where: { person_id: personId }, ...options });
   }
 }
 

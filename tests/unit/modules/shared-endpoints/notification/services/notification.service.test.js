@@ -27,7 +27,7 @@ jest.mock('modules/schemas/notification/repositories/notification.repository', (
   findByUserPaginated: jest.fn(),
   findAll: jest.fn(),
   countUnreadByUser: jest.fn(),
-  bulkUpdate: jest.fn().mockResolvedValue([1])
+  markAsReadByIds: jest.fn().mockResolvedValue([1])
 }));
 
 jest.mock('modules/schemas/notification/repositories/global-notification.repository', () => ({
@@ -73,7 +73,7 @@ function fakeTransaction() {
 describe('NotificationService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    notificationRepo.bulkUpdate.mockResolvedValue([1]);
+    notificationRepo.markAsReadByIds.mockResolvedValue([1]);
     globalNotificationRepo.findActiveNotifications.mockResolvedValue([]);
     globalReadRepo.getReadIdsByUser.mockResolvedValue([]);
     sequelize.transaction.mockResolvedValue(fakeTransaction());
@@ -98,7 +98,7 @@ describe('NotificationService', () => {
       expect(result.mixed[0].__type).toBe('personal');
       expect(result.mixed[1].__type).toBe('global');
       // Marca personal + global no leídas y confirma la transacción.
-      expect(notificationRepo.bulkUpdate).toHaveBeenCalled();
+      expect(notificationRepo.markAsReadByIds).toHaveBeenCalled();
       expect(globalReadRepo.bulkMarkAsRead).toHaveBeenCalledWith(['g-1'], USER);
       expect(tx.commit).toHaveBeenCalled();
       expect(logAudit).toHaveBeenCalledWith(
@@ -120,7 +120,7 @@ describe('NotificationService', () => {
       ]);
       globalNotificationRepo.findActiveNotifications.mockResolvedValue([]);
       globalReadRepo.getReadIdsByUser.mockResolvedValue([]);
-      notificationRepo.bulkUpdate.mockRejectedValue(new Error('db write fail'));
+      notificationRepo.markAsReadByIds.mockRejectedValue(new Error('db write fail'));
 
       const result = await service.getNotificationsList(USER, {});
 
@@ -146,11 +146,8 @@ describe('NotificationService', () => {
 
       const result = await service.getPersonalNotifications(USER, {});
 
-      expect(notificationRepo.bulkUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({ is_read: true }),
-        expect.any(Object),
-        expect.any(Object)
-      );
+      // solo las no leídas; el WHERE con IN lo arma el repositorio
+      expect(notificationRepo.markAsReadByIds).toHaveBeenCalledWith(['n-1'], expect.any(Object));
       expect(logAudit).toHaveBeenCalledWith(
         'NOTIFICATION_PERSONAL_LIST_VIEWED',
         USER,
@@ -171,7 +168,7 @@ describe('NotificationService', () => {
 
       await service.getPersonalNotifications(USER, {});
 
-      expect(notificationRepo.bulkUpdate).not.toHaveBeenCalled();
+      expect(notificationRepo.markAsReadByIds).not.toHaveBeenCalled();
       await flush();
       expect(NotificationCountUtil.emitCountUpdate).not.toHaveBeenCalled();
     });
