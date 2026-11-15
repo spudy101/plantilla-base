@@ -616,7 +616,12 @@ class AuthRegisterService {
     // user_consents: PRIVACY_POLICY (obligatorio) y
     // COMUNICACIONES_COMERCIALES (opcional).
     // RF-ADM-04: trazabilidad de aceptación inicial de política en user_consents
-    await this._recordPrivacyPolicyConsent(user.user_id, privacyPolicyVersion, privacyPolicyAcceptedIp, transaction).catch(err => {
+    await this._recordPrivacyPolicyConsent(
+      user.user_id,
+      privacyPolicyVersion,
+      privacyPolicyAcceptedIp,
+      transaction
+    ).catch(err => {
       logger.warn('auth-register: no se pudo registrar user_consent de privacy policy', {
         userId: user.user_id,
         error: err.message
