@@ -3,7 +3,7 @@ const notificationTypeRepository = require('../../../schemas/notification/reposi
 const AppError = require('../../../../shared/utils/app-error.util');
 const PaginationHelper = require('../../../../shared/utils/pagination.util');
 const { logAudit } = require('../../../../shared/utils/logger.util');
-const { sequelize } = require('../../../../shared/models');
+const unitOfWork = require('../../../../shared/database/unit-of-work');
 const {
   NotificationCategoryAdminDTO,
   ListNotificationCategoriesResponseDTO
@@ -38,12 +38,24 @@ function _toColumns(data = {}) {
 }
 
 class NotificationCategoryService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new NotificationCategoryService({ unitOfWork: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.unitOfWork = deps.unitOfWork ?? unitOfWork;
+    this.notificationCategoryRepository = deps.notificationCategoryRepository ?? notificationCategoryRepository;
+    this.notificationTypeRepository = deps.notificationTypeRepository ?? notificationTypeRepository;
+  }
+
   async list(query, adminUserId) {
     const paginationParams = PaginationHelper.getPaginationParams(query);
     const filters = PaginationHelper.buildFilters(query, ['isActive', 'isCritical']);
     const searchTerm = query.search || null;
 
-    const { rows, count } = await notificationCategoryRepository.findAllPaginated(filters, paginationParams, searchTerm);
+    const { rows, count } = await this.notificationCategoryRepository.findAllPaginated(filters, paginationParams, searchTerm);
 
     const metadata = {
       totalItems: count,
@@ -60,7 +72,7 @@ class NotificationCategoryService {
   }
 
   async getById(notificationCategoryId, adminUserId) {
-    const category = await notificationCategoryRepository.findById(notificationCategoryId);
+    const category = await this.notificationCategoryRepository.findById(notificationCategoryId);
     if (!category) {
       throw AppError.notFound('Categoría de notificación no encontrada');
     }
@@ -73,13 +85,13 @@ class NotificationCategoryService {
 
   async create(data, adminUserId) {
     const code = data.code.trim().toUpperCase();
-    if (await notificationCategoryRepository.codeExists(code)) {
+    if (await this.notificationCategoryRepository.codeExists(code)) {
       throw AppError.badRequest(`Ya existe una categoría con el código ${code}`);
     }
 
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
     try {
-      const category = await notificationCategoryRepository.create({ code, ..._toColumns(data) }, { transaction });
+      const category = await this.notificationCategoryRepository.create({ code, ..._toColumns(data) }, { transaction });
       await transaction.commit();
 
       logAudit('NOTIFICATION_CATEGORY_CREATED', adminUserId, { code }, {
@@ -95,9 +107,9 @@ class NotificationCategoryService {
   }
 
   async update(notificationCategoryId, data, adminUserId) {
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
     try {
-      const category = await notificationCategoryRepository.findById(notificationCategoryId);
+      const category = await this.notificationCategoryRepository.findById(notificationCategoryId);
       if (!category) {
         throw AppError.notFound('Categoría de notificación no encontrada');
       }
@@ -124,20 +136,20 @@ class NotificationCategoryService {
   }
 
   async remove(notificationCategoryId, adminUserId) {
-    const category = await notificationCategoryRepository.findById(notificationCategoryId);
+    const category = await this.notificationCategoryRepository.findById(notificationCategoryId);
     if (!category) {
       throw AppError.notFound('Categoría de notificación no encontrada');
     }
 
     // No se borra una categoría que aún tiene tipos asignados: primero hay que reasignarlos.
-    const assignedTypes = await notificationTypeRepository.count({ notification_category_id: notificationCategoryId });
+    const assignedTypes = await this.notificationTypeRepository.count({ notification_category_id: notificationCategoryId });
     if (assignedTypes > 0) {
       throw AppError.badRequest(
         `No se puede eliminar: la categoría tiene ${assignedTypes} tipo(s) asignado(s). Reasignalos primero.`
       );
     }
 
-    await notificationCategoryRepository.delete(notificationCategoryId);
+    await this.notificationCategoryRepository.delete(notificationCategoryId);
 
     logAudit('NOTIFICATION_CATEGORY_DELETED', adminUserId, { code: category.code }, {
       ...AUDIT_META,
@@ -149,3 +161,4 @@ class NotificationCategoryService {
 }
 
 module.exports = new NotificationCategoryService();
+module.exports.NotificationCategoryService = NotificationCategoryService;

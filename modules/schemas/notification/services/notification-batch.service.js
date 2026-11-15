@@ -16,6 +16,21 @@ const EMAIL_BATCH_SIZE = 50;
 const BATCH_SLEEP_MS = 1000;
 
 class NotificationBatchService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new NotificationBatchService({ globalNotificationRepo: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.globalNotificationRepo = deps.globalNotificationRepo ?? globalNotificationRepo;
+    this.userNotificationPreferenceRepo = deps.userNotificationPreferenceRepo ?? userNotificationPreferenceRepo;
+    this.userPushTokenRepo = deps.userPushTokenRepo ?? userPushTokenRepo;
+    this.emailService = deps.emailService ?? emailService;
+    this.pushService = deps.pushService ?? pushService;
+    this.rateLimitService = deps.rateLimitService ?? rateLimitService;
+  }
+
   async _initBatchState(cache, globalNotificationId, totalUsers) {
     await cache.set(
       `global_notif:${globalNotificationId}:batch_state`,
@@ -59,7 +74,7 @@ class NotificationBatchService {
       });
       const totalUsers = allUsers.length;
 
-      await globalNotificationRepo.update(globalNotificationId, {
+      await this.globalNotificationRepo.update(globalNotificationId, {
         total_target_users: totalUsers,
         processing_started_at: new Date()
       });
@@ -71,24 +86,24 @@ class NotificationBatchService {
       const categoryCode = notificationType.category?.code ?? null;
 
       if (notificationType.category?.supports_push ?? true) {
-        await globalNotificationRepo.updatePushProcessingStatus(globalNotificationId, 'processing');
+        await this.globalNotificationRepo.updatePushProcessingStatus(globalNotificationId, 'processing');
         await this.enviarPushGlobalPorLotes(globalNotificationId, allUsers, title, body, metadata, categoryCode, cache);
-        await globalNotificationRepo.updatePushProcessingStatus(globalNotificationId, 'completed');
+        await this.globalNotificationRepo.updatePushProcessingStatus(globalNotificationId, 'completed');
       }
 
       if (notificationType.category?.supports_email ?? true) {
-        await globalNotificationRepo.updateEmailProcessingStatus(globalNotificationId, 'processing');
+        await this.globalNotificationRepo.updateEmailProcessingStatus(globalNotificationId, 'processing');
         await this.enviarEmailGlobalPorLotes(globalNotificationId, allUsers, notificationType, metadata, categoryCode, cache);
-        await globalNotificationRepo.updateEmailProcessingStatus(globalNotificationId, 'completed');
+        await this.globalNotificationRepo.updateEmailProcessingStatus(globalNotificationId, 'completed');
       }
 
-      await globalNotificationRepo.update(globalNotificationId, {
+      await this.globalNotificationRepo.update(globalNotificationId, {
         processing_completed_at: new Date()
       });
       this._scheduleCacheCleanup(cache, globalNotificationId);
     } catch (error) {
       logger.warn('Error en procesamiento global', { error: error.message, globalNotificationId });
-      await globalNotificationRepo.update(globalNotificationId, {
+      await this.globalNotificationRepo.update(globalNotificationId, {
         push_processing_status: 'failed',
         email_processing_status: 'failed'
       });
@@ -108,7 +123,7 @@ class NotificationBatchService {
       });
 
       const userIds = usersAllowingPush.map(u => u.user_id);
-      const allTokens = await userPushTokenRepo.findActiveByUsers(userIds);
+      const allTokens = await this.userPushTokenRepo.findActiveByUsers(userIds);
 
       if (allTokens.length === 0) {
         logger.warn('No hay tokens activos para push global');
@@ -131,19 +146,19 @@ class NotificationBatchService {
         const batch = allTokens.slice(i * PUSH_BATCH_SIZE, (i + 1) * PUSH_BATCH_SIZE);
         const endpointArns = batch.map(t => t.token);
 
-        await rateLimitService.checkSNSRateLimit(cache);
+        await this.rateLimitService.checkSNSRateLimit(cache);
 
         logger.info(`Procesando lote push ${i + 1}/${totalBatches}`, {
           globalNotificationId,
           tokensEnLote: endpointArns.length
         });
 
-        const stats = await pushService.enviarPushMasivo(endpointArns, title, body, metadata);
+        const stats = await this.pushService.enviarPushMasivo(endpointArns, title, body, metadata);
 
         totalSuccess += stats.success;
         totalFailed += stats.failed;
 
-        await globalNotificationRepo.incrementPushSentCount(globalNotificationId, stats.success);
+        await this.globalNotificationRepo.incrementPushSentCount(globalNotificationId, stats.success);
         await this._actualizarEstadoLote(cache, globalNotificationId, i + 1, batch.length);
 
         if (i < totalBatches - 1) {
@@ -173,7 +188,7 @@ class NotificationBatchService {
       const parts = rawEmail?.split(':') ?? [];
       const email = parts.length === GCM_PARTS_COUNT ? EncryptionUtil.decrypt(rawEmail) : rawEmail;
 
-      return emailService
+      return this.emailService
         .enviarNotificacion(email, notificationType, metadata)
         .then(() => ({ success: true }))
         .catch(err => {
@@ -225,7 +240,7 @@ class NotificationBatchService {
       for (let i = 0; i < totalBatches; i++) {
         const batch = usersAllowingEmail.slice(i * EMAIL_BATCH_SIZE, (i + 1) * EMAIL_BATCH_SIZE);
 
-        await rateLimitService.checkSESRateLimit(cache);
+        await this.rateLimitService.checkSESRateLimit(cache);
         logger.info(`Procesando lote email ${i + 1}/${totalBatches}`, {
           globalNotificationId,
           emailsEnLote: batch.length
@@ -241,7 +256,7 @@ class NotificationBatchService {
         totalSuccess += successCount;
         totalFailed += failedCount;
 
-        await globalNotificationRepo.incrementEmailSentCount(globalNotificationId, successCount);
+        await this.globalNotificationRepo.incrementEmailSentCount(globalNotificationId, successCount);
 
         if (i < totalBatches - 1) {
           await this._sleep(BATCH_SLEEP_MS);
@@ -264,7 +279,7 @@ class NotificationBatchService {
   async _filtrarUsuariosPush(users, notificationTypeCode) {
     const allowed = [];
     for (const user of users) {
-      const allowsPush = await userNotificationPreferenceRepo.userAllowsPush(user.user_id, notificationTypeCode);
+      const allowsPush = await this.userNotificationPreferenceRepo.userAllowsPush(user.user_id, notificationTypeCode);
       if (allowsPush) {
         allowed.push(user);
       }
@@ -276,7 +291,7 @@ class NotificationBatchService {
   async _filtrarUsuariosEmail(users, notificationTypeCode) {
     const allowed = [];
     for (const user of users) {
-      const allowsEmail = await userNotificationPreferenceRepo.userAllowsEmail(user.user_id, notificationTypeCode);
+      const allowsEmail = await this.userNotificationPreferenceRepo.userAllowsEmail(user.user_id, notificationTypeCode);
       if (allowsEmail && user.person?.contact?.email) {
         allowed.push(user);
       }
@@ -313,3 +328,4 @@ class NotificationBatchService {
 }
 
 module.exports = new NotificationBatchService();
+module.exports.NotificationBatchService = NotificationBatchService;

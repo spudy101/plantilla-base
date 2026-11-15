@@ -1,4 +1,4 @@
-const { sequelize } = require('../../../../../shared/models');
+const unitOfWork = require('../../../../../shared/database/unit-of-work');
 const userRepository = require('../../../../schemas/kyc/iam/repositories/user.repository');
 const personRepository = require('../../../../schemas/kyc/person/repositories/person.repository');
 const userConsentRepository = require('../../../../schemas/records/legal/repositories/user-consent.repository');
@@ -17,31 +17,46 @@ const {
 } = require('../dtos/profile.dto');
 
 class ProfileService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new ProfileService({ unitOfWork: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.unitOfWork = deps.unitOfWork ?? unitOfWork;
+    this.userRepository = deps.userRepository ?? userRepository;
+    this.personRepository = deps.personRepository ?? personRepository;
+    this.userConsentRepository = deps.userConsentRepository ?? userConsentRepository;
+    this.consentTypeRepository = deps.consentTypeRepository ?? consentTypeRepository;
+    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+  }
+
   // ============================================================
   // CONSULTAS
   // ============================================================
 
   async getProfile(userId) {
-    const user = await userRepository.findByUserId(userId, 'basic');
+    const user = await this.userRepository.findByUserId(userId, 'basic');
     if (!user) {
       throw AppError.notFound('Usuario no encontrado');
     }
     const [consentTypes, consents] = await Promise.all([
-      consentTypeRepository.findAllActive(),
-      userConsentRepository.findCurrentByUser(userId)
+      this.consentTypeRepository.findAllActive(),
+      this.userConsentRepository.findCurrentByUser(userId)
     ]);
     logAudit('PROFILE_VIEWED', userId, {}, { entityId: userId, entityType: 'User', entityTable: 'users' });
     return BasicProfileDTO(user, consentTypes, consents);
   }
 
   async getExtendedProfile(userId) {
-    const user = await userRepository.findByUserId(userId, 'full');
+    const user = await this.userRepository.findByUserId(userId, 'full');
     if (!user) {
       throw AppError.notFound('Usuario no encontrado');
     }
     const [consentTypes, consents] = await Promise.all([
-      consentTypeRepository.findAllActive(),
-      userConsentRepository.findCurrentByUser(userId)
+      this.consentTypeRepository.findAllActive(),
+      this.userConsentRepository.findCurrentByUser(userId)
     ]);
     logAudit('PROFILE_EXTENDED_VIEWED', userId, {}, { entityId: userId, entityType: 'User', entityTable: 'users' });
     return ExtendedProfileDTO(user, consentTypes, consents);
@@ -73,7 +88,7 @@ class ProfileService {
   async updateProfile(data, userId, personId, username, firstName, auditContext = {}) {
     const snapshot = await ProfileHelper.fetchPersonSnapshot(personId);
 
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
 
     try {
       if (data.username && data.username !== username) {
@@ -106,7 +121,7 @@ class ProfileService {
       );
 
       setImmediate(() => {
-        NotificationUtil.crearNotificacion({
+        this.NotificationUtil.crearNotificacion({
           tipoNotificacion: 'PROFILE_UPDATED',
           userId,
           relatedEntity: null,
@@ -119,7 +134,7 @@ class ProfileService {
         );
       });
 
-      const updatedUser = await userRepository.findByUserId(userId, 'full');
+      const updatedUser = await this.userRepository.findByUserId(userId, 'full');
       return ExtendedProfileDTO(updatedUser);
     } catch (error) {
       await transaction.rollback();
@@ -133,7 +148,7 @@ class ProfileService {
     const user = await this._getUserSecure(userId);
     await ProfileHelper.validateCurrentPassword(user.password_hash, currentPassword);
 
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
 
     try {
       const { newEmail } = await ProfileHelper.updateEmailLogic({
@@ -154,7 +169,7 @@ class ProfileService {
       logAudit('PROFILE_EMAIL_UPDATED', userId, { newEmail }, { entityId: userId, entityType: 'User', entityTable: 'users' });
 
       setImmediate(() => {
-        NotificationUtil.crearNotificacion({
+        this.NotificationUtil.crearNotificacion({
           tipoNotificacion: 'EMAIL_UPDATED',
           userId,
           relatedEntity: null,
@@ -171,7 +186,7 @@ class ProfileService {
 
   async updatePhone(data, userId, personId, firstName, auditContext = {}) {
     const { newPhone, phonePrefixId, phoneType } = data;
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
 
     try {
       const result = await ProfileHelper.updatePhoneLogic({
@@ -191,7 +206,7 @@ class ProfileService {
       logAudit('PROFILE_PHONE_UPDATED', userId, { phoneType }, { entityId: userId, entityType: 'User', entityTable: 'users' });
 
       setImmediate(() => {
-        NotificationUtil.crearNotificacion({
+        this.NotificationUtil.crearNotificacion({
           tipoNotificacion: 'PHONE_UPDATED',
           userId,
           relatedEntity: null,
@@ -212,7 +227,7 @@ class ProfileService {
     const user = await this._getUserSecure(userId);
     await ProfileHelper.validateCurrentPassword(user.password_hash, currentPassword);
 
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
 
     try {
       await ProfileHelper.updatePasswordLogic({
@@ -231,7 +246,7 @@ class ProfileService {
       logAudit('PASSWORD_CHANGED', userId, {}, { entityId: userId, entityType: 'User', entityTable: 'users' });
 
       setImmediate(() => {
-        NotificationUtil.crearNotificacion({
+        this.NotificationUtil.crearNotificacion({
           tipoNotificacion: 'PASSWORD_UPDATED',
           userId,
           relatedEntity: null,
@@ -259,10 +274,10 @@ class ProfileService {
    * En la plantilla no hay validación de identidad, así que los nombres son libremente editables.
    */
   async updateNames(data, userId, personId, firstName, auditContext) {
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
 
     try {
-      const before = await personRepository.findById(personId);
+      const before = await this.personRepository.findById(personId);
       const previousName = _composeFullName(before);
 
       await ProfileHelper.updateNames(
@@ -310,7 +325,7 @@ class ProfileService {
       );
 
       setImmediate(() => {
-        NotificationUtil.crearNotificacion({
+        this.NotificationUtil.crearNotificacion({
           tipoNotificacion: 'PROFILE_UPDATED',
           userId,
           relatedEntity: null,
@@ -318,7 +333,7 @@ class ProfileService {
         }).catch(err => logger.warn('Error enviando notificacion profile updated', { error: err.message, userId }));
       });
 
-      const updatedPerson = await personRepository.findById(personId);
+      const updatedPerson = await this.personRepository.findById(personId);
       return UpdateNamesResponseDTO(updatedPerson);
     } catch (error) {
       await transaction.rollback();
@@ -332,7 +347,7 @@ class ProfileService {
     const user = await this._getUserSecure(userId);
     await ProfileHelper.validateCurrentPassword(user.password_hash, currentPassword);
 
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
 
     try {
       const result = await ProfileHelper.deleteAccountLogic({
@@ -356,7 +371,7 @@ class ProfileService {
 
       if (result.deletedEmail) {
         setImmediate(() => {
-          NotificationUtil.crearNotificacionDirecta({
+          this.NotificationUtil.crearNotificacionDirecta({
             tipoNotificacion: 'CUENTA_ELIMINADA',
             email: result.deletedEmail,
             metadata: {
@@ -383,7 +398,7 @@ class ProfileService {
 
   /** @private */
   async _getUserSecure(userId) {
-    const user = await userRepository.findByUserId(userId, 'minimal');
+    const user = await this.userRepository.findByUserId(userId, 'minimal');
     if (!user) {
       throw AppError.notFound('Usuario no encontrado');
     }
@@ -457,3 +472,4 @@ async function _logProfileFieldChanges({ data, snapshot, userId, auditContext, t
 }
 
 module.exports = new ProfileService();
+module.exports.ProfileService = ProfileService;

@@ -12,6 +12,19 @@ const CHANNEL_PRODUCT = { email: 'ses', push: 'sns' };
 
 class NotificationRetryService {
   /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new NotificationRetryService({ notificationRepo: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.notificationRepo = deps.notificationRepo ?? notificationRepo;
+    this.notificationTypeRepo = deps.notificationTypeRepo ?? notificationTypeRepo;
+    this.integrationApiLogRepo = deps.integrationApiLogRepo ?? integrationApiLogRepo;
+    this.notificationSendingService = deps.notificationSendingService ?? notificationSendingService;
+  }
+
+  /**
    * Decide si un canal fallido es un hard bounce (buzón/endpoint muerto) y, de serlo, lo cierra.
    * Lee el error_code del ÚLTIMO intento de esa notificación en integration_api_logs (correlacionado
    * por notification_id + product) y lo clasifica con isHardBounce(). Al cerrar deja *_error seteado
@@ -26,16 +39,16 @@ class NotificationRetryService {
       return false;
     }
 
-    const lastLog = await integrationApiLogRepo.findLatestByNotification(notification.notification_id, product);
+    const lastLog = await this.integrationApiLogRepo.findLatestByNotification(notification.notification_id, product);
     if (!lastLog || !isHardBounce(channel, lastLog.error_code)) {
       return false;
     }
 
     const reason = `hard_bounce:${lastLog.error_code}`;
     if (channel === 'email') {
-      await notificationRepo.markEmailPermanentFailure(notification.notification_id, reason);
+      await this.notificationRepo.markEmailPermanentFailure(notification.notification_id, reason);
     } else {
-      await notificationRepo.markPushPermanentFailure(notification.notification_id, reason);
+      await this.notificationRepo.markPushPermanentFailure(notification.notification_id, reason);
     }
 
     logger.info('Canal cerrado por hard bounce', {
@@ -51,7 +64,7 @@ class NotificationRetryService {
    */
   async reintentarEnviosPush() {
     try {
-      const pending = await notificationRepo.findPendingPushRetries();
+      const pending = await this.notificationRepo.findPendingPushRetries();
       logger.info('Reintentando envíos de push pendientes', { count: pending.length });
 
       let reintentadas = 0;
@@ -61,7 +74,7 @@ class NotificationRetryService {
           cerradas++;
           continue;
         }
-        await notificationSendingService.enviarPushIndividual(
+        await this.notificationSendingService.enviarPushIndividual(
           notification.user_id,
           notification.title,
           notification.body,
@@ -84,7 +97,7 @@ class NotificationRetryService {
    */
   async reintentarEnviosEmail() {
     try {
-      const pending = await notificationRepo.findPendingEmailRetries();
+      const pending = await this.notificationRepo.findPendingEmailRetries();
       logger.info('Reintentando envíos de email pendientes', { count: pending.length });
 
       let reintentadas = 0;
@@ -94,9 +107,9 @@ class NotificationRetryService {
           cerradas++;
           continue;
         }
-        const notificationType = await notificationTypeRepo.findById(notification.notification_type_id);
+        const notificationType = await this.notificationTypeRepo.findById(notification.notification_type_id);
         if (notificationType) {
-          await notificationSendingService.enviarEmailIndividual(
+          await this.notificationSendingService.enviarEmailIndividual(
             notification.user_id,
             notificationType,
             notification.metadata || {},
@@ -119,7 +132,7 @@ class NotificationRetryService {
    */
   async reintentarEnviosSms() {
     try {
-      const pending = await notificationRepo.findPendingSmsRetries();
+      const pending = await this.notificationRepo.findPendingSmsRetries();
       logger.info('Reintentando envíos de SMS pendientes', { count: pending.length });
 
       let reintentadas = 0;
@@ -129,7 +142,7 @@ class NotificationRetryService {
           cerradas++;
           continue;
         }
-        await notificationSendingService.enviarSmsIndividual(
+        await this.notificationSendingService.enviarSmsIndividual(
           notification.user_id,
           notification.body,
           notification.metadata || {},
@@ -148,3 +161,4 @@ class NotificationRetryService {
 }
 
 module.exports = new NotificationRetryService();
+module.exports.NotificationRetryService = NotificationRetryService;

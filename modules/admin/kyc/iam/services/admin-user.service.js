@@ -20,7 +20,7 @@ const InternalUserHelper = require('../../../../schemas/kyc/iam/helpers/internal
 const ProfileHelper = require('../../../../schemas/kyc/person/helpers/profile.helper');
 const KycSharedUtil = require('../../../../schemas/kyc/person/utils/kyc-shared.util');
 const TokenBlacklistUtil = require('../../../../../shared/utils/token-blacklist.util');
-const { sequelize } = require('../../../../../shared/models');
+const unitOfWork = require('../../../../../shared/database/unit-of-work');
 const AppError = require('../../../../../shared/utils/app-error.util');
 const { logger, logAudit } = require('../../../../../shared/utils/logger.util');
 const PaginationHelper = require('../../../../../shared/utils/pagination.util');
@@ -39,6 +39,23 @@ const {
 const { buildAuditDiff } = require('../../../../../shared/utils/audit-diff.util');
 
 class AdminUserService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new AdminUserService({ unitOfWork: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.unitOfWork = deps.unitOfWork ?? unitOfWork;
+    this.userRepository = deps.userRepository ?? userRepository;
+    this.roleRepository = deps.roleRepository ?? roleRepository;
+    this.documentTypeRepository = deps.documentTypeRepository ?? documentTypeRepository;
+    this.userSessionRepository = deps.userSessionRepository ?? userSessionRepository;
+    this.userChangeLogRepository = deps.userChangeLogRepository ?? userChangeLogRepository;
+    this.NotificationCreationService = deps.NotificationCreationService ?? NotificationCreationService;
+    this.DualApprovalService = deps.DualApprovalService ?? DualApprovalService;
+  }
+
   // ============================================================
   // LIST / DETAIL
   // ============================================================
@@ -58,9 +75,9 @@ class AdminUserService {
       filters.isActive = query.isActive;
     }
 
-    const { rows, count } = await userRepository.findAllPaginated(filters, paginationParams, query.search || null);
+    const { rows, count } = await this.userRepository.findAllPaginated(filters, paginationParams, query.search || null);
 
-    await DualApprovalService.annotatePending('User', rows);
+    await this.DualApprovalService.annotatePending('User', rows);
 
     logAudit(
       'INTERNAL_USER_LIST_VIEWED',
@@ -100,7 +117,7 @@ class AdminUserService {
     const roleIds = query.roleId && internalRoleIds.includes(query.roleId) ? [query.roleId] : internalRoleIds;
 
     const filters = { roleIds, onlyDeleted: true };
-    const { rows, count } = await userRepository.findAllPaginated(filters, paginationParams, query.search || null);
+    const { rows, count } = await this.userRepository.findAllPaginated(filters, paginationParams, query.search || null);
 
     logAudit(
       'INTERNAL_USER_DELETED_LIST_VIEWED',
@@ -127,7 +144,7 @@ class AdminUserService {
    * Evita que el front ofrezca roles de cliente (o superadmin) en este listado.
    */
   async listRoleOptions(adminUserId) {
-    const roles = await roleRepository.findAll({
+    const roles = await this.roleRepository.findAll({
       name: { [Op.in]: INTERNAL_ROLE_NAMES, [Op.notIn]: SUPERADMIN_ROLE_NAMES }
     });
     logAudit(
@@ -157,14 +174,14 @@ class AdminUserService {
   async create(data, auditCtx) {
     // Mínimo privilegio (criterio #5, RF-ADM-01): todo usuario interno nace como
     // AUDITOR — solo lectura. El admin sube el rol real después con PATCH /:userId/role.
-    const role = await roleRepository.findByName(RBAC_ROLES.AUDITOR);
+    const role = await this.roleRepository.findByName(RBAC_ROLES.AUDITOR);
     if (!role) {
       throw AppError.internal(`Rol ${RBAC_ROLES.AUDITOR} no encontrado. Ejecuta el seeder RBAC.`);
     }
 
     // Los usuarios internos no tienen documento real: siempre llevan el tipo SYSTEM
     // ("Usuario de Sistema") para que su national_id sea un identificador de sistema.
-    const systemDocumentType = await documentTypeRepository.findByCode('SYSTEM');
+    const systemDocumentType = await this.documentTypeRepository.findByCode('SYSTEM');
     if (!systemDocumentType) {
       throw AppError.internal("Tipo de documento 'SYSTEM' no encontrado. Ejecuta el seeder de tipos de documento.");
     }
@@ -198,12 +215,12 @@ class AdminUserService {
 
     setImmediate(() => {
       const { logoUrl } = notifications.ses;
-      NotificationCreationService.crearNotificacion({
+      this.NotificationCreationService.crearNotificacion({
         tipoNotificacion: 'IAM_INTERNAL_USER_CREATED',
         userId: user.user_id,
         metadata: { nombre: data.firstName, email: data.email, passwordTemporal: temporaryPassword, logoUrl }
       }).catch(err => logger.warn('Error enviando IAM_INTERNAL_USER_CREATED', { error: err.message }));
-      NotificationCreationService.crearNotificacion({
+      this.NotificationCreationService.crearNotificacion({
         tipoNotificacion: 'IAM_ADMIN_USER_CREATED',
         userId: auditCtx.adminUserId,
         relatedEntity: user.user_id,
@@ -211,7 +228,7 @@ class AdminUserService {
       }).catch(err => logger.warn('Error enviando IAM_ADMIN_USER_CREATED', { error: err.message }));
     });
 
-    const fullUser = await userRepository.findByUserId(user.user_id, 'basic');
+    const fullUser = await this.userRepository.findByUserId(user.user_id, 'basic');
     // La contraseña temporal se devuelve SOLO en esta respuesta.
     return InternalUserCreatedDTO(fullUser, temporaryPassword);
   }
@@ -247,7 +264,7 @@ class AdminUserService {
       { entityId: userId, entityType: 'InternalUser', entityTable: 'persons' }
     );
 
-    const fresh = await userRepository.findByUserId(userId, 'basic');
+    const fresh = await this.userRepository.findByUserId(userId, 'basic');
     return InternalUserDTO(fresh);
   }
 
@@ -274,7 +291,7 @@ class AdminUserService {
     // approval_request. Pendiente → 202; flag off / super_admin maker → inline. El handler IoC
     // reanuda con executeChangeRole (no re-gatea). Se pasan las entidades ya cargadas para no
     // duplicar queries en el camino inline.
-    const gate = await DualApprovalService.gate('RBAC_ROLE_CHANGE', {
+    const gate = await this.DualApprovalService.gate('RBAC_ROLE_CHANGE', {
       entityType: 'User',
       entityId: userId,
       payload: { userId, roleId: newRoleId },
@@ -299,7 +316,7 @@ class AdminUserService {
 
     const oldRoleName = user.role?.name || null;
 
-    await userRepository.update(userId, { role_id: newRoleId });
+    await this.userRepository.update(userId, { role_id: newRoleId });
 
     await KycSharedUtil.logChange({
       userId,
@@ -330,13 +347,13 @@ class AdminUserService {
     const empleadoNombreRol = [user.person?.first_name, user.person?.last_name].filter(Boolean).join(' ') || 'Usuario';
     setImmediate(() => {
       const { logoUrl } = notifications.ses;
-      NotificationCreationService.crearNotificacion({
+      this.NotificationCreationService.crearNotificacion({
         tipoNotificacion: 'IAM_INTERNAL_USER_ROLE_CHANGED',
         userId,
         relatedEntity: userId,
         metadata: { nombre: empleadoNombreRol, rolAnterior: oldRoleName || '—', nuevoRol: newRole.name, logoUrl }
       }).catch(err => logger.warn('Error enviando IAM_INTERNAL_USER_ROLE_CHANGED', { error: err.message }));
-      NotificationCreationService.crearNotificacion({
+      this.NotificationCreationService.crearNotificacion({
         tipoNotificacion: 'IAM_ADMIN_ROLE_CHANGED',
         userId: auditCtx.adminUserId,
         relatedEntity: userId,
@@ -344,7 +361,7 @@ class AdminUserService {
       }).catch(err => logger.warn('Error enviando IAM_ADMIN_ROLE_CHANGED', { error: err.message }));
     });
 
-    const fresh = await userRepository.findByUserId(userId, 'basic');
+    const fresh = await this.userRepository.findByUserId(userId, 'basic');
     return InternalUserDTO(fresh);
   }
 
@@ -365,7 +382,7 @@ class AdminUserService {
       throw AppError.badRequest(`El usuario ya está ${isActive ? 'activo' : 'inactivo'}`);
     }
 
-    await userRepository.setActiveStatus(userId, isActive);
+    await this.userRepository.setActiveStatus(userId, isActive);
 
     await KycSharedUtil.logChange({
       userId,
@@ -395,7 +412,7 @@ class AdminUserService {
     const accionStatus = isActive ? 'activado' : 'desactivado';
     setImmediate(() => {
       const { logoUrl } = notifications.ses;
-      NotificationCreationService.crearNotificacion({
+      this.NotificationCreationService.crearNotificacion({
         tipoNotificacion: isActive ? 'IAM_INTERNAL_USER_ACTIVATED' : 'IAM_INTERNAL_USER_DEACTIVATED',
         userId,
         relatedEntity: userId,
@@ -403,7 +420,7 @@ class AdminUserService {
       }).catch(err =>
         logger.warn(`Error enviando IAM_INTERNAL_USER_${isActive ? 'ACTIVATED' : 'DEACTIVATED'}`, { error: err.message })
       );
-      NotificationCreationService.crearNotificacion({
+      this.NotificationCreationService.crearNotificacion({
         tipoNotificacion: 'IAM_ADMIN_STATUS_CHANGED',
         userId: auditCtx.adminUserId,
         relatedEntity: userId,
@@ -411,7 +428,7 @@ class AdminUserService {
       }).catch(err => logger.warn('Error enviando IAM_ADMIN_STATUS_CHANGED', { error: err.message }));
     });
 
-    const fresh = await userRepository.findByUserId(userId, 'basic');
+    const fresh = await this.userRepository.findByUserId(userId, 'basic');
     return InternalUserDTO(fresh);
   }
 
@@ -421,7 +438,7 @@ class AdminUserService {
 
   async deleteUser(userId, currentPassword, auditCtx) {
     // Re-autenticación del admin (maker) ANTES de gatear la doble aprobación.
-    const adminUser = await userRepository.findByUserId(auditCtx.adminUserId, 'minimal');
+    const adminUser = await this.userRepository.findByUserId(auditCtx.adminUserId, 'minimal');
     if (!adminUser) {
       throw AppError.notFound('Administrador no encontrado');
     }
@@ -436,7 +453,7 @@ class AdminUserService {
 
     // Doble aprobación (maker-checker). Pendiente → 202 y la eliminación corre luego desde el
     // handler IoC (executeDeleteUser). Flag off / super_admin → se ejecuta inline.
-    const gate = await DualApprovalService.gate('INTERNAL_USER_DELETE', {
+    const gate = await this.DualApprovalService.gate('INTERNAL_USER_DELETE', {
       entityType: 'User',
       entityId: userId,
       payload: { userId },
@@ -455,10 +472,10 @@ class AdminUserService {
    * sesiones). Punto de entrada del handler de doble aprobación y de la ejecución directa.
    */
   async executeDeleteUser(userId, auditCtx) {
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
 
     try {
-      const user = await userRepository.findById(userId, {
+      const user = await this.userRepository.findById(userId, {
         include: [
           {
             association: 'person',
@@ -502,7 +519,7 @@ class AdminUserService {
 
       const empleadoNombre = user.person?.first_name || 'Usuario';
       setImmediate(() => {
-        NotificationCreationService.crearNotificacion({
+        this.NotificationCreationService.crearNotificacion({
           tipoNotificacion: 'IAM_ADMIN_STATUS_CHANGED',
           userId: auditCtx.adminUserId,
           relatedEntity: userId,
@@ -525,7 +542,7 @@ class AdminUserService {
 
   async listSessions(userId, adminUserId) {
     await this._getInternalUserOrFail(userId);
-    const sessions = await userSessionRepository.findActiveByUser(userId);
+    const sessions = await this.userSessionRepository.findActiveByUser(userId);
     logAudit(
       'INTERNAL_USER_SESSIONS_VIEWED',
       adminUserId,
@@ -547,7 +564,7 @@ class AdminUserService {
     );
     const empleadoNombreSesion = [user.person?.first_name, user.person?.last_name].filter(Boolean).join(' ') || 'Usuario';
     setImmediate(() => {
-      NotificationCreationService.crearNotificacion({
+      this.NotificationCreationService.crearNotificacion({
         tipoNotificacion: 'IAM_INTERNAL_USER_SESSIONS_CLOSED',
         userId,
         relatedEntity: userId,
@@ -564,7 +581,7 @@ class AdminUserService {
   async listChangeLogs(userId, query, adminUserId) {
     await this._getInternalUserOrFail(userId);
     const paginationParams = PaginationHelper.getPaginationParams(query);
-    const { rows, count } = await userChangeLogRepository.findByUserId(userId, paginationParams);
+    const { rows, count } = await this.userChangeLogRepository.findByUserId(userId, paginationParams);
 
     logAudit(
       'INTERNAL_USER_CHANGE_LOGS_VIEWED',
@@ -595,7 +612,7 @@ class AdminUserService {
    * con rol superadmin en la gestión de usuarios.
    */
   async _listableInternalRoleIds() {
-    const roles = await roleRepository.findAll({
+    const roles = await this.roleRepository.findAll({
       name: { [Op.in]: INTERNAL_ROLE_NAMES, [Op.notIn]: SUPERADMIN_ROLE_NAMES }
     });
     return roles.map(r => r.role_id);
@@ -618,7 +635,7 @@ class AdminUserService {
 
   /** @private */
   async _getInternalUserOrFail(userId) {
-    const user = await userRepository.findByUserId(userId, 'basic');
+    const user = await this.userRepository.findByUserId(userId, 'basic');
     if (!user) {
       throw AppError.notFound('Usuario no encontrado');
     }
@@ -630,7 +647,7 @@ class AdminUserService {
 
   /** @private */
   async _getInternalRoleOrFail(roleId) {
-    const role = await roleRepository.findById(roleId);
+    const role = await this.roleRepository.findById(roleId);
     if (!role) {
       throw AppError.notFound('Rol no encontrado');
     }
@@ -647,7 +664,7 @@ class AdminUserService {
 
   /** @private — cierra sesiones en BD y las invalida en Redis */
   async _invalidateSessions(userId, reason) {
-    await userSessionRepository.closeAllByUser(userId, reason);
+    await this.userSessionRepository.closeAllByUser(userId, reason);
     await TokenBlacklistUtil.invalidateUserSessions(userId).catch(err =>
       logger.warn('Error invalidando sesiones en Redis', { error: err.message, userId })
     );
@@ -655,3 +672,4 @@ class AdminUserService {
 }
 
 module.exports = new AdminUserService();
+module.exports.AdminUserService = AdminUserService;

@@ -32,12 +32,32 @@ const PRIVACY_POLICY_CACHE_KEY = 'cache:privacy-policy:active';
 const PRIVACY_POLICY_CACHE_TTL_SECONDS = 43200; // 12 horas
 
 class MaintainersService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new MaintainersService({ genderRepository: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.genderRepository = deps.genderRepository ?? genderRepository;
+    this.documentTypeRepository = deps.documentTypeRepository ?? documentTypeRepository;
+    this.phonePrefixRepository = deps.phonePrefixRepository ?? phonePrefixRepository;
+    this.avatarRepository = deps.avatarRepository ?? avatarRepository;
+    this.avatarThemeRepository = deps.avatarThemeRepository ?? avatarThemeRepository;
+    this.countryRepository = deps.countryRepository ?? countryRepository;
+    this.departmentRepository = deps.departmentRepository ?? departmentRepository;
+    this.cityRepository = deps.cityRepository ?? cityRepository;
+    this.privacyPolicyRepository = deps.privacyPolicyRepository ?? privacyPolicyRepository;
+    this.roleRepository = deps.roleRepository ?? roleRepository;
+    this.notificationTypeRepository = deps.notificationTypeRepository ?? notificationTypeRepository;
+  }
+
   // Rutas públicas — userId puede ser null si no hay sesión activa
   // Se auditan para detectar scraping o reconocimiento previo a ataques
 
   listGenders(query, userId = null) {
     return this._list({
-      repository: genderRepository,
+      repository: this.genderRepository,
       query,
       filters: ['isActive'],
       auditAction: 'MAINTAINER_GENDERS_VIEWED',
@@ -47,7 +67,7 @@ class MaintainersService {
   }
 
   async listDocumentTypes(_query = {}, userId = null) {
-    const items = await documentTypeRepository.findAllVisibleToClient();
+    const items = await this.documentTypeRepository.findAllVisibleToClient();
     logAudit(
       'MAINTAINER_DOCUMENT_TYPES_VIEWED',
       userId,
@@ -66,7 +86,7 @@ class MaintainersService {
 
   listPhonePrefixes(query, userId = null) {
     return this._list({
-      repository: phonePrefixRepository,
+      repository: this.phonePrefixRepository,
       query,
       filters: ['isActive', 'countryId'],
       auditAction: 'MAINTAINER_PHONE_PREFIXES_VIEWED',
@@ -77,7 +97,7 @@ class MaintainersService {
 
   listAvatars(query, userId = null) {
     return this._list({
-      repository: avatarRepository,
+      repository: this.avatarRepository,
       query,
       filters: ['isActive', 'themeId'],
       auditAction: 'MAINTAINER_AVATARS_VIEWED',
@@ -88,7 +108,7 @@ class MaintainersService {
 
   listAvatarThemes(query, userId = null) {
     return this._list({
-      repository: avatarThemeRepository,
+      repository: this.avatarThemeRepository,
       query,
       filters: ['isActive'],
       auditAction: 'MAINTAINER_AVATAR_THEMES_VIEWED',
@@ -99,7 +119,7 @@ class MaintainersService {
 
   listCountries(query, userId = null) {
     return this._list({
-      repository: countryRepository,
+      repository: this.countryRepository,
       query,
       filters: ['isActive'],
       auditAction: 'MAINTAINER_COUNTRIES_VIEWED',
@@ -110,7 +130,7 @@ class MaintainersService {
 
   listDepartments(query, userId = null) {
     return this._list({
-      repository: departmentRepository,
+      repository: this.departmentRepository,
       query,
       filters: ['isActive', 'countryId'],
       auditAction: 'MAINTAINER_DEPARTMENTS_VIEWED',
@@ -121,7 +141,7 @@ class MaintainersService {
 
   listCities(query, userId = null) {
     return this._list({
-      repository: cityRepository,
+      repository: this.cityRepository,
       query,
       filters: ['isActive', 'departmentId'],
       auditAction: 'MAINTAINER_CITIES_VIEWED',
@@ -132,7 +152,7 @@ class MaintainersService {
 
   listRoles(query, userId = null) {
     return this._list({
-      repository: roleRepository,
+      repository: this.roleRepository,
       query,
       filters: ['isActive'],
       auditAction: 'MAINTAINER_ROLES_VIEWED',
@@ -143,7 +163,7 @@ class MaintainersService {
 
   listNotificationTypes(query, userId = null) {
     return this._list({
-      repository: notificationTypeRepository,
+      repository: this.notificationTypeRepository,
       query,
       filters: ['isActive'],
       auditAction: 'MAINTAINER_NOTIFICATION_TYPES_VIEWED',
@@ -161,7 +181,7 @@ class MaintainersService {
       return cached;
     }
 
-    const policy = await privacyPolicyRepository.findActive();
+    const policy = await this.privacyPolicyRepository.findActive();
     if (!policy) {
       throw AppError.notFound('No hay una política de privacidad activa configurada');
     }
@@ -202,3 +222,4 @@ class MaintainersService {
 }
 
 module.exports = new MaintainersService();
+module.exports.MaintainersService = MaintainersService;

@@ -15,7 +15,7 @@ const personContactRepository = require('../../person/repositories/person-contac
 const AppError = require('../../../../../shared/utils/app-error.util');
 const { logger } = require('../../../../../shared/utils/logger.util');
 const requestContext = require('../../../../../shared/utils/request-context.util');
-const { sequelize } = require('../../../../../shared/models');
+const unitOfWork = require('../../../../../shared/database/unit-of-work');
 
 class InternalUserHelper {
   /**
@@ -56,7 +56,7 @@ class InternalUserHelper {
 
   /** @private */
   static async _createInDB(data) {
-    const transaction = await sequelize.transaction();
+    const transaction = await unitOfWork.begin();
     try {
       const person = await personRepository.create(
         {

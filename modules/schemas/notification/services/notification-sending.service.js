@@ -14,6 +14,23 @@ const TOKEN_LOG_PREVIEW_LENGTH = 20;
 const SMS_MAX_LENGTH = 160;
 
 class NotificationSendingService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new NotificationSendingService({ notificationRepo: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.notificationRepo = deps.notificationRepo ?? notificationRepo;
+    this.notificationTypeRepo = deps.notificationTypeRepo ?? notificationTypeRepo;
+    this.userRepo = deps.userRepo ?? userRepo;
+    this.userPushTokenRepo = deps.userPushTokenRepo ?? userPushTokenRepo;
+    this.emailService = deps.emailService ?? emailService;
+    this.pushService = deps.pushService ?? pushService;
+    this.smsService = deps.smsService ?? smsService;
+    this.schedulerService = deps.schedulerService ?? schedulerService;
+  }
+
   async _procesarCanal(isQuietHours, isHighPriority, schedulerFn, enviarFn) {
     if (!isQuietHours || isHighPriority) {
       await enviarFn();
@@ -56,7 +73,7 @@ class NotificationSendingService {
         await this._procesarCanal(
           isQuietHours,
           isHighPriority,
-          () => schedulerService.programarEnvioPush(notificationId, userPreference),
+          () => this.schedulerService.programarEnvioPush(notificationId, userPreference),
           () => this.enviarPushIndividual(userId, title, body, metadata, notificationId)
         );
       }
@@ -65,7 +82,7 @@ class NotificationSendingService {
         await this._procesarCanal(
           isQuietHours,
           isHighPriority,
-          () => schedulerService.programarEnvioEmail(notificationId, userPreference),
+          () => this.schedulerService.programarEnvioEmail(notificationId, userPreference),
           () => this.enviarEmailIndividual(userId, notificationType, metadata, notificationId)
         );
       }
@@ -74,7 +91,7 @@ class NotificationSendingService {
         await this._procesarCanal(
           isQuietHours,
           isHighPriority,
-          () => schedulerService.programarEnvioSms(notificationId, userPreference),
+          () => this.schedulerService.programarEnvioSms(notificationId, userPreference),
           () => this.enviarSmsIndividual(userId, body, metadata, notificationId)
         );
       }
@@ -82,7 +99,7 @@ class NotificationSendingService {
       await this.actualizarEstadoEntrega(notificationId, notificationType);
     } catch (error) {
       logger.warn('Error en procesamiento individual', { error: error.message, notificationId });
-      await notificationRepo.updateProcessingStatus(notificationId, Notification.PROCESSING_STATUS.FAILED);
+      await this.notificationRepo.updateProcessingStatus(notificationId, Notification.PROCESSING_STATUS.FAILED);
     }
   }
 
@@ -98,12 +115,12 @@ class NotificationSendingService {
    * @param {Object} notificationType
    */
   async actualizarEstadoEntrega(notificationId, notificationType) {
-    const notification = await notificationRepo.findById(notificationId);
+    const notification = await this.notificationRepo.findById(notificationId);
     if (!notification) {
       return null;
     }
     const status = this._resolverEstadoEntrega(notification, notificationType);
-    await notificationRepo.updateProcessingStatus(notificationId, status);
+    await this.notificationRepo.updateProcessingStatus(notificationId, status);
     return status;
   }
 
@@ -150,7 +167,7 @@ class NotificationSendingService {
    */
   async enviarPushIndividual(userId, title, body, metadata, notificationId) {
     try {
-      const tokens = await userPushTokenRepo.findActiveByUser(userId);
+      const tokens = await this.userPushTokenRepo.findActiveByUser(userId);
 
       if (tokens.length === 0) {
         logger.warn('Usuario sin tokens push activos', { userId });
@@ -158,7 +175,7 @@ class NotificationSendingService {
       }
 
       const promises = tokens.map(tokenData =>
-        pushService.enviarPushIndividual(tokenData.token, title, body, metadata, notificationId).catch(err => {
+        this.pushService.enviarPushIndividual(tokenData.token, title, body, metadata, notificationId).catch(err => {
           logger.warn('Error enviando a token específico', {
             error: err.message,
             token: `${tokenData.token.slice(0, TOKEN_LOG_PREVIEW_LENGTH)}...`
@@ -171,14 +188,14 @@ class NotificationSendingService {
       const successCount = results.filter(r => r.status === 'fulfilled' && r.value && r.value.success !== false).length;
 
       if (successCount > 0) {
-        await notificationRepo.markPushSent(notificationId);
+        await this.notificationRepo.markPushSent(notificationId);
         logger.info('Push individual enviado', {
           userId,
           successCount,
           totalTokens: tokens.length
         });
       } else {
-        await notificationRepo.recordPushError(notificationId, 'Todos los envíos fallaron');
+        await this.notificationRepo.recordPushError(notificationId, 'Todos los envíos fallaron');
         logAudit(
           'PUSH_DELIVERY_FAILED',
           null,
@@ -188,7 +205,7 @@ class NotificationSendingService {
       }
     } catch (error) {
       logger.warn('Error al enviar push individual', { error: error.message, userId });
-      await notificationRepo.recordPushError(notificationId, error.message);
+      await this.notificationRepo.recordPushError(notificationId, error.message);
       logAudit(
         'PUSH_DELIVERY_FAILED',
         null,
@@ -213,7 +230,7 @@ class NotificationSendingService {
       if (metadata.email) {
         email = metadata.email;
       } else {
-        const user = await userRepo.findById(userId, {
+        const user = await this.userRepo.findById(userId, {
           include: [
             {
               association: 'person',
@@ -235,13 +252,13 @@ class NotificationSendingService {
       // afterFind de PersonContact no se ejecuta. Descifrar en ambos casos antes de enviar.
       email = EncryptionUtil.safeDecrypt(email);
 
-      await emailService.enviarNotificacion(email, notificationType, metadata, notificationId);
-      await notificationRepo.markEmailSent(notificationId);
+      await this.emailService.enviarNotificacion(email, notificationType, metadata, notificationId);
+      await this.notificationRepo.markEmailSent(notificationId);
 
       logger.info('Email individual enviado', { userId, email });
     } catch (error) {
       logger.warn('Error al enviar email individual', { error: error.message, userId });
-      await notificationRepo.recordEmailError(notificationId, error.message);
+      await this.notificationRepo.recordEmailError(notificationId, error.message);
       logAudit(
         'EMAIL_DELIVERY_FAILED',
         null,
@@ -268,7 +285,7 @@ class NotificationSendingService {
         phoneNumber = metadata.phone;
         prefixId = metadata.phonePrefixId || null;
       } else {
-        const user = await userRepo.findById(userId, {
+        const user = await this.userRepo.findById(userId, {
           include: [{ association: 'person', include: [{ association: 'contact' }] }]
         });
         const contact = user?.person?.contact;
@@ -284,17 +301,17 @@ class NotificationSendingService {
         prefixId = contact.phone_primary_prefix_id || null;
       }
 
-      const e164 = await smsService.resolveE164(phoneNumber, prefixId);
+      const e164 = await this.smsService.resolveE164(phoneNumber, prefixId);
       const message = (body || '').slice(0, SMS_MAX_LENGTH);
 
-      const result = await smsService.enviarSms({ phoneNumber: e164, message, userId, purpose: 'notification' });
+      const result = await this.smsService.enviarSms({ phoneNumber: e164, message, userId, purpose: 'notification' });
 
       if (result?.success) {
-        await notificationRepo.markSmsSent(notificationId);
+        await this.notificationRepo.markSmsSent(notificationId);
         logger.info('SMS individual enviado', { userId });
       } else {
         const errorMsg = result?.error || 'Envío SMS fallido';
-        await notificationRepo.recordSmsError(notificationId, errorMsg);
+        await this.notificationRepo.recordSmsError(notificationId, errorMsg);
         logAudit(
           'SMS_DELIVERY_FAILED',
           null,
@@ -304,7 +321,7 @@ class NotificationSendingService {
       }
     } catch (error) {
       logger.warn('Error al enviar SMS individual', { error: error.message, userId });
-      await notificationRepo.recordSmsError(notificationId, error.message);
+      await this.notificationRepo.recordSmsError(notificationId, error.message);
       logAudit(
         'SMS_DELIVERY_FAILED',
         null,
@@ -321,9 +338,9 @@ class NotificationSendingService {
   async procesarNotificacionProgramada(notification) {
     try {
       // FIX: notification.notification_id en vez de notification.id
-      await notificationRepo.updateProcessingStatus(notification.notification_id, Notification.PROCESSING_STATUS.PROCESSING);
+      await this.notificationRepo.updateProcessingStatus(notification.notification_id, Notification.PROCESSING_STATUS.PROCESSING);
 
-      const notificationType = await notificationTypeRepo.findById(notification.notification_type_id, {
+      const notificationType = await this.notificationTypeRepo.findById(notification.notification_type_id, {
         include: [{ association: 'category' }]
       });
 
@@ -374,9 +391,10 @@ class NotificationSendingService {
         notification_id: notification.notification_id
       });
       // FIX: notification.notification_id en vez de notification.id
-      await notificationRepo.updateProcessingStatus(notification.notification_id, Notification.PROCESSING_STATUS.FAILED);
+      await this.notificationRepo.updateProcessingStatus(notification.notification_id, Notification.PROCESSING_STATUS.FAILED);
     }
   }
 }
 
 module.exports = new NotificationSendingService();
+module.exports.NotificationSendingService = NotificationSendingService;

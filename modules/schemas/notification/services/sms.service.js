@@ -22,6 +22,17 @@ const SMS_MAX_RETRIES = 3;
 const SMS_RETRY_BASE_MS = 1000;
 
 class SmsService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new SmsService({ smsDeliveryAttemptRepository: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.smsDeliveryAttemptRepository = deps.smsDeliveryAttemptRepository ?? smsDeliveryAttemptRepository;
+    this.phonePrefixRepository = deps.phonePrefixRepository ?? phonePrefixRepository;
+  }
+
   get snsClient() {
     if (!this._snsClient) {
       this._snsClient = new SNSClient({
@@ -49,7 +60,7 @@ class SmsService {
   async enviarSmsOtp({ phoneNumber, message, userId = null, purpose = 'otp_verification' }) {
     const phoneHash = EncryptionUtil.generateHash(phoneNumber);
 
-    const attempt = await smsDeliveryAttemptRepository.createAttempt({
+    const attempt = await this.smsDeliveryAttemptRepository.createAttempt({
       userId,
       phoneHash,
       provider: PROVIDER,
@@ -65,7 +76,7 @@ class SmsService {
     // Circuit breaker (protege ante fallos repetidos de envío SNS).
     const allowed = await CircuitBreaker.canCall(CB_PRODUCT);
     if (!allowed) {
-      await smsDeliveryAttemptRepository.markFailed(attempt.sms_attempt_id, {
+      await this.smsDeliveryAttemptRepository.markFailed(attempt.sms_attempt_id, {
         lastError: 'Circuit breaker abierto — SMS (AWS SNS) no disponible'
       });
       ProviderApiLogger.log({
@@ -93,7 +104,7 @@ class SmsService {
 
       const responseTimeMs = Date.now() - startTime;
       await CircuitBreaker.recordSuccess(CB_PRODUCT);
-      await smsDeliveryAttemptRepository.markSent(attempt.sms_attempt_id, {
+      await this.smsDeliveryAttemptRepository.markSent(attempt.sms_attempt_id, {
         providerMessageId: result.messageId || null
       });
       ProviderApiLogger.log({
@@ -109,7 +120,7 @@ class SmsService {
     } catch (error) {
       const responseTimeMs = Date.now() - startTime;
       await CircuitBreaker.recordFailure(CB_PRODUCT);
-      await smsDeliveryAttemptRepository.markFailed(attempt.sms_attempt_id, {
+      await this.smsDeliveryAttemptRepository.markFailed(attempt.sms_attempt_id, {
         lastError: error.message,
         retryCount: SMS_MAX_RETRIES
       });
@@ -158,7 +169,7 @@ class SmsService {
       purpose: attempt.purpose
     });
 
-    await smsDeliveryAttemptRepository.markSent(attempt.sms_attempt_id, {
+    await this.smsDeliveryAttemptRepository.markSent(attempt.sms_attempt_id, {
       providerMessageId: `MOCK-${attempt.sms_attempt_id}`
     });
 
@@ -206,7 +217,7 @@ class SmsService {
     if (!prefixId) {
       return localNumber;
     }
-    const prefix = await phonePrefixRepository.findById(prefixId);
+    const prefix = await this.phonePrefixRepository.findById(prefixId);
     return prefix?.prefix ? `${prefix.prefix}${localNumber}` : localNumber;
   }
 
@@ -219,3 +230,4 @@ class SmsService {
 }
 
 module.exports = new SmsService();
+module.exports.SmsService = SmsService;

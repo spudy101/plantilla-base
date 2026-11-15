@@ -1,4 +1,4 @@
-const { sequelize } = require('../../../../../shared/models');
+const unitOfWork = require('../../../../../shared/database/unit-of-work');
 const AppError = require('../../../../../shared/utils/app-error.util');
 const { logAudit } = require('../../../../../shared/utils/logger.util');
 // eslint-disable-next-line max-len
@@ -20,15 +20,27 @@ function _pickPreferenceFields(data) {
 
 class NotificationPreferenceService {
   /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new NotificationPreferenceService({ unitOfWork: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.unitOfWork = deps.unitOfWork ?? unitOfWork;
+    this.userNotificationPreferenceRepository = deps.userNotificationPreferenceRepository ?? userNotificationPreferenceRepository;
+    this.notificationCategoryRepository = deps.notificationCategoryRepository ?? notificationCategoryRepository;
+  }
+
+  /**
    * Crea o actualiza la preferencia GLOBAL del usuario (categoría = null). Aplica a todas las
    * categorías que no tengan una preferencia específica.
    */
   async updateGlobalPreference(data, userId) {
     const updateData = _pickPreferenceFields(data);
 
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
     try {
-      const preference = await userNotificationPreferenceRepository.upsertGlobalPreference(userId, updateData, {
+      const preference = await this.userNotificationPreferenceRepository.upsertGlobalPreference(userId, updateData, {
         transaction
       });
       await transaction.commit();
@@ -57,16 +69,16 @@ class NotificationPreferenceService {
    * la categoría permita silenciarse antes de aceptar quiet hours.
    */
   async updateCategoryPreference(categoryCode, data, userId) {
-    const category = await notificationCategoryRepository.findByCode(categoryCode);
+    const category = await this.notificationCategoryRepository.findByCode(categoryCode);
     if (!category || !category.is_active) {
       throw AppError.notFound('Categoría de notificación no encontrada');
     }
 
     const updateData = _pickPreferenceFields(data);
 
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
     try {
-      const preference = await userNotificationPreferenceRepository.upsertCategoryPreference(
+      const preference = await this.userNotificationPreferenceRepository.upsertCategoryPreference(
         userId,
         categoryCode,
         updateData,
@@ -96,14 +108,14 @@ class NotificationPreferenceService {
    * Elimina la preferencia específica de una categoría: el usuario vuelve a regirse por la global.
    */
   async deleteCategoryPreference(categoryCode, userId) {
-    const category = await notificationCategoryRepository.findByCode(categoryCode);
+    const category = await this.notificationCategoryRepository.findByCode(categoryCode);
     if (!category || !category.is_active) {
       throw AppError.notFound('Categoría de notificación no encontrada');
     }
 
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
     try {
-      await userNotificationPreferenceRepository.deleteCategoryPreference(userId, categoryCode, { transaction });
+      await this.userNotificationPreferenceRepository.deleteCategoryPreference(userId, categoryCode, { transaction });
       await transaction.commit();
 
       logAudit(
@@ -124,7 +136,7 @@ class NotificationPreferenceService {
    * Preferencias crudas almacenadas del usuario (global + overrides por categoría).
    */
   async getPreferences(userId) {
-    const preferences = await userNotificationPreferenceRepository.findAllByUser(userId);
+    const preferences = await this.userNotificationPreferenceRepository.findAllByUser(userId);
 
     logAudit(
       'NOTIFICATION_PREFERENCES_VIEWED',
@@ -143,8 +155,8 @@ class NotificationPreferenceService {
    */
   async getCategoriesWithPreferences(userId) {
     const [categories, stored] = await Promise.all([
-      notificationCategoryRepository.findAllActive(),
-      userNotificationPreferenceRepository.findAllByUser(userId)
+      this.notificationCategoryRepository.findAllActive(),
+      this.userNotificationPreferenceRepository.findAllByUser(userId)
     ]);
 
     const global = stored.find(p => !p.notification_category_code) || null;
@@ -162,3 +174,4 @@ class NotificationPreferenceService {
 }
 
 module.exports = new NotificationPreferenceService();
+module.exports.NotificationPreferenceService = NotificationPreferenceService;

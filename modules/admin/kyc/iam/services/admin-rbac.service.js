@@ -23,24 +23,36 @@ const {
 } = require('../dtos/admin-rbac.dto');
 
 class AdminRbacService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new AdminRbacService({ RbacService: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.RbacService = deps.RbacService ?? RbacService;
+    this.NotificationCreationService = deps.NotificationCreationService ?? NotificationCreationService;
+    this.rolePermissionOverrideRepository = deps.rolePermissionOverrideRepository ?? rolePermissionOverrideRepository;
+  }
+
   // ============================================================
   // CATÁLOGO (solo lectura)
   // ============================================================
 
   getCatalog(userId) {
     logAudit('RBAC_CATALOG_VIEWED', userId, {}, { entityType: 'RbacCatalog', entityTable: 'roles' });
-    return RbacCatalogDTO(RbacService.listCatalog());
+    return RbacCatalogDTO(this.RbacService.listCatalog());
   }
 
   async getRoles(userId) {
     const roleNames = Object.values(RBAC_ROLES);
     logAudit('RBAC_ROLES_VIEWED', userId, {}, { entityType: 'RbacRole', entityTable: 'roles' });
-    return RoleMatrixDTO(await RbacService.getRoleMatrix(roleNames));
+    return RoleMatrixDTO(await this.RbacService.getRoleMatrix(roleNames));
   }
 
   async getEffectivePermissions(roleName, userId) {
     logAudit('RBAC_EFFECTIVE_PERMISSIONS_VIEWED', userId, { roleName }, { entityType: 'RbacRole', entityTable: 'roles' });
-    return EffectivePermissionsDTO(roleName, await RbacService.getEffectivePermissions(roleName));
+    return EffectivePermissionsDTO(roleName, await this.RbacService.getEffectivePermissions(roleName));
   }
 
   // ============================================================
@@ -50,7 +62,7 @@ class AdminRbacService {
   /** Lista los overrides (permisos extra) definidos para un rol. */
   async listOverrides(roleName, userId) {
     this._assertValidRole(roleName);
-    const overrides = await rolePermissionOverrideRepository.findByRole(roleName);
+    const overrides = await this.rolePermissionOverrideRepository.findByRole(roleName);
     logAudit(
       'RBAC_ROLE_PERMISSIONS_VIEWED',
       userId,
@@ -67,19 +79,19 @@ class AdminRbacService {
   async grantPermission(roleName, moduleName, action, grantedByUserId) {
     this._assertValidRole(roleName);
 
-    const alreadyExists = await rolePermissionOverrideRepository.exists(roleName, moduleName, action);
+    const alreadyExists = await this.rolePermissionOverrideRepository.exists(roleName, moduleName, action);
     if (alreadyExists) {
       throw AppError.conflict(`El rol '${roleName}' ya tiene el permiso '${action}' en '${moduleName}'`);
     }
 
-    const override = await rolePermissionOverrideRepository.create({
+    const override = await this.rolePermissionOverrideRepository.create({
       role_name: roleName,
       module_name: moduleName,
       action,
       granted_by_user_id: grantedByUserId
     });
 
-    await RbacService.invalidateCache(roleName);
+    await this.RbacService.invalidateCache(roleName);
 
     logAudit(
       'RBAC_PERMISSION_GRANTED',
@@ -93,7 +105,7 @@ class AdminRbacService {
     );
 
     setImmediate(() => {
-      NotificationCreationService.crearNotificacion({
+      this.NotificationCreationService.crearNotificacion({
         tipoNotificacion: 'IAM_RBAC_PERMISSION_GRANTED',
         userId: grantedByUserId,
         relatedEntity: override.role_permission_id,
@@ -109,13 +121,13 @@ class AdminRbacService {
    * Solo el SUPERADMIN llega aquí (protegido por RbacMiddleware en la ruta).
    */
   async revokePermission(permissionId, adminUserId) {
-    const override = await rolePermissionOverrideRepository.findById(permissionId);
+    const override = await this.rolePermissionOverrideRepository.findById(permissionId);
     if (!override) {
       throw AppError.notFound('Permiso no encontrado');
     }
 
-    await rolePermissionOverrideRepository.deleteById(permissionId);
-    await RbacService.invalidateCache(override.role_name);
+    await this.rolePermissionOverrideRepository.deleteById(permissionId);
+    await this.RbacService.invalidateCache(override.role_name);
 
     logAudit(
       'RBAC_PERMISSION_REVOKED',
@@ -129,7 +141,7 @@ class AdminRbacService {
     );
 
     setImmediate(() => {
-      NotificationCreationService.crearNotificacion({
+      this.NotificationCreationService.crearNotificacion({
         tipoNotificacion: 'IAM_RBAC_PERMISSION_REVOKED',
         userId: adminUserId,
         relatedEntity: permissionId,
@@ -158,3 +170,4 @@ class AdminRbacService {
 }
 
 module.exports = new AdminRbacService();
+module.exports.AdminRbacService = AdminRbacService;

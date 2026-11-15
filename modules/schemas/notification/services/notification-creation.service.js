@@ -13,6 +13,21 @@ const { Notification } = require('../../../../shared/models');
 
 class NotificationCreationService {
   /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new NotificationCreationService({ notificationRepo: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.notificationRepo = deps.notificationRepo ?? notificationRepo;
+    this.globalNotificationRepo = deps.globalNotificationRepo ?? globalNotificationRepo;
+    this.notificationTypeRepo = deps.notificationTypeRepo ?? notificationTypeRepo;
+    this.userNotificationPreferenceRepo = deps.userNotificationPreferenceRepo ?? userNotificationPreferenceRepo;
+    this.notificationSchedulerService = deps.notificationSchedulerService ?? notificationSchedulerService;
+    this.notificationSendingService = deps.notificationSendingService ?? notificationSendingService;
+  }
+
+  /**
    * Crea y envía una notificación directa por email sin guardarla en BD
    * Útil para cuentas eliminadas u otros casos donde el usuario ya no existe
    *
@@ -32,7 +47,7 @@ class NotificationCreationService {
         throw AppError.badRequest('email es requerido');
       }
 
-      const notificationType = await notificationTypeRepo.findByCode(tipoNotificacion);
+      const notificationType = await this.notificationTypeRepo.findByCode(tipoNotificacion);
       if (!notificationType) {
         throw AppError.notFound(`Tipo de notificación no encontrado: ${tipoNotificacion}`);
       }
@@ -80,7 +95,7 @@ class NotificationCreationService {
         throw AppError.badRequest('tipoNotificacion es requerido');
       }
 
-      const notificationType = await notificationTypeRepo.findByCode(tipoNotificacion);
+      const notificationType = await this.notificationTypeRepo.findByCode(tipoNotificacion);
       if (!notificationType) {
         throw AppError.notFound(`Tipo de notificación no encontrado: ${tipoNotificacion}`);
       }
@@ -128,7 +143,7 @@ class NotificationCreationService {
   /** @private */
   async _crearNotificacionIndividual(userId, notificationType, title, body, relatedEntity, metadata, transaction) {
     // 1. Crear notificación in-app
-    const notification = await notificationRepo.create(
+    const notification = await this.notificationRepo.create(
       {
         user_id: userId,
         // FIX: notification_type_id usa notification_type_id (PK del modelo NotificationType)
@@ -148,19 +163,19 @@ class NotificationCreationService {
     const category = notificationType.category || null;
     const categoryCode = category?.code ?? null;
     const userPreference = categoryCode
-      ? await userNotificationPreferenceRepo.findByUserAndCategory(userId, categoryCode)
-      : await userNotificationPreferenceRepo.findGlobalByUser(userId);
+      ? await this.userNotificationPreferenceRepo.findByUserAndCategory(userId, categoryCode)
+      : await this.userNotificationPreferenceRepo.findGlobalByUser(userId);
 
     // 3. Quiet hours y prioridad — la categoría manda. Una categoría crítica o no silenciable
     //    ignora el quiet hours del usuario.
     const isCritical = category?.is_critical === true;
     const allowDnd = category?.allow_dnd !== false;
-    const isQuietHours = allowDnd && !isCritical && notificationSchedulerService.isInQuietHours(userPreference);
+    const isQuietHours = allowDnd && !isCritical && this.notificationSchedulerService.isInQuietHours(userPreference);
     const isHighPriority = isCritical || category?.priority === 'urgent' || notificationType.priority === 'high';
 
     // 4. Programar envíos en background
     setImmediate(() => {
-      notificationSendingService
+      this.notificationSendingService
         .procesarEnviosIndividuales(
           // FIX: notification.notification_id en vez de notification.id
           notification.notification_id,
@@ -192,7 +207,7 @@ class NotificationCreationService {
   /** @private */
   async _crearNotificacionGlobal(notificationType, title, body, metadata, transaction) {
     // 1. Crear notificación global
-    const globalNotification = await globalNotificationRepo.create(
+    const globalNotification = await this.globalNotificationRepo.create(
       {
         // FIX: notification_type_id usa notification_type_id (PK del modelo NotificationType)
         notification_type_id: notificationType.notification_type_id,
@@ -241,3 +256,4 @@ class NotificationCreationService {
 }
 
 module.exports = new NotificationCreationService();
+module.exports.NotificationCreationService = NotificationCreationService;

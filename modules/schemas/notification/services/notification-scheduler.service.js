@@ -8,6 +8,16 @@ const SECONDS_PER_MINUTE = 60;
 
 class NotificationSchedulerService {
   /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new NotificationSchedulerService({ notificationRepo: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.notificationRepo = deps.notificationRepo ?? notificationRepo;
+  }
+
+  /**
    * Verifica si estamos en quiet hours
    * @param {Object} userPreference - Preferencias del usuario
    * @returns {boolean}
@@ -64,7 +74,7 @@ class NotificationSchedulerService {
   async programarEnvioPush(notificationId, userPreference) {
     const nextRetryAt = this.calcularFinQuietHours(userPreference);
 
-    await notificationRepo.update(notificationId, {
+    await this.notificationRepo.update(notificationId, {
       scheduled_for: nextRetryAt,
       push_next_retry_at: nextRetryAt
     });
@@ -80,7 +90,7 @@ class NotificationSchedulerService {
   async programarEnvioEmail(notificationId, userPreference) {
     const nextRetryAt = this.calcularFinQuietHours(userPreference);
 
-    await notificationRepo.update(notificationId, {
+    await this.notificationRepo.update(notificationId, {
       scheduled_for: nextRetryAt,
       email_next_retry_at: nextRetryAt
     });
@@ -96,7 +106,7 @@ class NotificationSchedulerService {
   async programarEnvioSms(notificationId, userPreference) {
     const nextRetryAt = this.calcularFinQuietHours(userPreference);
 
-    await notificationRepo.update(notificationId, {
+    await this.notificationRepo.update(notificationId, {
       scheduled_for: nextRetryAt,
       sms_next_retry_at: nextRetryAt
     });
@@ -110,7 +120,7 @@ class NotificationSchedulerService {
    */
   async procesarNotificacionesProgramadas() {
     try {
-      const scheduled = await notificationRepo.findScheduledReady();
+      const scheduled = await this.notificationRepo.findScheduledReady();
 
       logger.info('Procesando notificaciones programadas', { count: scheduled.length });
 
@@ -123,3 +133,4 @@ class NotificationSchedulerService {
 }
 
 module.exports = new NotificationSchedulerService();
+module.exports.NotificationSchedulerService = NotificationSchedulerService;

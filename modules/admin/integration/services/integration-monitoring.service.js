@@ -26,6 +26,17 @@ const FALLBACK_ENTITY = { entityType: 'ProviderFallbackEvent', entityTable: 'pro
 
 class IntegrationMonitoringService {
   /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new IntegrationMonitoringService({ integrationApiLogRepository: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.integrationApiLogRepository = deps.integrationApiLogRepository ?? integrationApiLogRepository;
+    this.providerFallbackRepository = deps.providerFallbackRepository ?? providerFallbackRepository;
+  }
+
+  /**
    * Dashboard: métricas por producto (nº llamadas, % éxito, tiempo prom, errores) + estado del
    * circuito + fallbacks activos e historial reciente.
    */
@@ -34,13 +45,13 @@ class IntegrationMonitoringService {
     const from = query.from ? new Date(query.from) : new Date(now.getTime() - TWENTY_FOUR_HOURS_MS);
     const to = query.to ? new Date(query.to) : now;
 
-    const { products } = integrationApiLogRepository;
+    const { products } = this.integrationApiLogRepository;
 
     const [stats, circuitStatuses, activeFallbacks, recentFallbacks] = await Promise.all([
-      integrationApiLogRepository.getStats({ from: from.toISOString(), to: to.toISOString() }),
+      this.integrationApiLogRepository.getStats({ from: from.toISOString(), to: to.toISOString() }),
       Promise.all(products.map(p => CircuitBreaker.getStatus(p))),
-      providerFallbackRepository.countActive(),
-      providerFallbackRepository.findRecent(RECENT_FALLBACKS_LIMIT)
+      this.providerFallbackRepository.countActive(),
+      this.providerFallbackRepository.findRecent(RECENT_FALLBACKS_LIMIT)
     ]);
 
     const circuitMap = {};
@@ -66,12 +77,12 @@ class IntegrationMonitoringService {
    * Estado del circuit breaker por producto (semáforo en tiempo real). Vista ligera para health.
    */
   async getProvidersHealth(adminUserId) {
-    const { products } = integrationApiLogRepository;
+    const { products } = this.integrationApiLogRepository;
     const now = new Date();
     const since24h = new Date(now.getTime() - TWENTY_FOUR_HOURS_MS);
 
     const [stats, circuitStatuses] = await Promise.all([
-      integrationApiLogRepository.getStats({ from: since24h.toISOString(), to: now.toISOString() }),
+      this.integrationApiLogRepository.getStats({ from: since24h.toISOString(), to: now.toISOString() }),
       Promise.all(products.map(p => CircuitBreaker.getStatus(p)))
     ]);
 
@@ -112,7 +123,7 @@ class IntegrationMonitoringService {
       to: query.to || null
     };
 
-    const { rows, count } = await integrationApiLogRepository.findAllPaginated(filters, paginationParams);
+    const { rows, count } = await this.integrationApiLogRepository.findAllPaginated(filters, paginationParams);
 
     logAudit('INTEGRATION_LOGS_VIEWED', adminUserId, { totalItems: count }, { ...ENTITY });
 
@@ -132,7 +143,7 @@ class IntegrationMonitoringService {
   }
 
   async getLogDetail(apiLogId, adminUserId) {
-    const record = await integrationApiLogRepository.findById(apiLogId);
+    const record = await this.integrationApiLogRepository.findById(apiLogId);
     if (!record) {
       throw AppError.notFound('Registro de llamada no encontrado');
     }
@@ -154,7 +165,7 @@ class IntegrationMonitoringService {
       to: query.to || null
     };
 
-    const { rows, count } = await providerFallbackRepository.findAllPaginated(filters, paginationParams);
+    const { rows, count } = await this.providerFallbackRepository.findAllPaginated(filters, paginationParams);
 
     logAudit('PROVIDER_FALLBACK_HISTORY_VIEWED', adminUserId, { totalItems: count }, { ...FALLBACK_ENTITY });
 
@@ -175,3 +186,4 @@ class IntegrationMonitoringService {
 }
 
 module.exports = new IntegrationMonitoringService();
+module.exports.IntegrationMonitoringService = IntegrationMonitoringService;

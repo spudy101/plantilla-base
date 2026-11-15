@@ -43,6 +43,18 @@ const CLIENT_SAFE_AUDIT_ACTIONS = [
 
 class UserActivityService {
   /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new UserActivityService({ auditLogRepository: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.auditLogRepository = deps.auditLogRepository ?? auditLogRepository;
+    this.userChangeLogRepository = deps.userChangeLogRepository ?? userChangeLogRepository;
+    this.userSessionRepository = deps.userSessionRepository ?? userSessionRepository;
+  }
+
+  /**
    * Feed paginado del PROPIO usuario, mezcla de dos fuentes:
    *   - audit_logs (user_id = self) filtrado por la whitelist client-safe — lo que el usuario hizo.
    *   - user_change_logs (user_id = self, changed_by_role admin/system) — lo que un tercero hizo
@@ -57,8 +69,8 @@ class UserActivityService {
     const fetch = { limit: offset + limit, offset: 0 };
 
     const [audit, changes] = await Promise.all([
-      auditLogRepository.findClientSafeByUser(userId, CLIENT_SAFE_AUDIT_ACTIONS, fetch),
-      userChangeLogRepository.findExternalChangesByUserId(userId, fetch)
+      this.auditLogRepository.findClientSafeByUser(userId, CLIENT_SAFE_AUDIT_ACTIONS, fetch),
+      this.userChangeLogRepository.findExternalChangesByUserId(userId, fetch)
     ]);
 
     const merged = [
@@ -102,7 +114,7 @@ class UserActivityService {
       return new Map();
     }
 
-    const sessions = await userSessionRepository.findByIdsWithDeviceForUser(sessionIds, userId);
+    const sessions = await this.userSessionRepository.findByIdsWithDeviceForUser(sessionIds, userId);
     return new Map(
       sessions.map(s => [
         s.user_session_id,
@@ -113,3 +125,4 @@ class UserActivityService {
 }
 
 module.exports = new UserActivityService();
+module.exports.UserActivityService = UserActivityService;

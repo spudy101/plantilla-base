@@ -8,16 +8,27 @@ const auditAlertRepository = require('../../../../schemas/records/audit/reposito
 const { AuditAlertListDTO } = require('../dtos/admin-audit-alert.dto');
 
 class AdminAuditAlertService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new AdminAuditAlertService({ NotificationCreationService: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.NotificationCreationService = deps.NotificationCreationService ?? NotificationCreationService;
+    this.auditAlertRepository = deps.auditAlertRepository ?? auditAlertRepository;
+  }
+
   async list(query, adminUserId) {
     const paginationParams = PaginationHelper.getPaginationParams(query);
     const { acknowledged, dateFrom, dateTo, action, category } = query;
 
-    const { rows, count } = await auditAlertRepository.findAllFiltered(
+    const { rows, count } = await this.auditAlertRepository.findAllFiltered(
       { acknowledged, dateFrom, dateTo, action, category },
       { limit: paginationParams.limit, offset: paginationParams.offset }
     );
 
-    const pending = await auditAlertRepository.countPending();
+    const pending = await this.auditAlertRepository.countPending();
 
     const activeFilters = PaginationHelper.buildFilters(query, ['acknowledged', 'dateFrom', 'dateTo', 'action', 'category']);
 
@@ -45,12 +56,12 @@ class AdminAuditAlertService {
   }
 
   async acknowledge(alertId, adminUserId) {
-    const [updated] = await auditAlertRepository.acknowledge(alertId, adminUserId);
+    const [updated] = await this.auditAlertRepository.acknowledge(alertId, adminUserId);
     if (!updated) {
       throw AppError.notFound('Alerta no encontrada o ya estaba reconocida');
     }
 
-    const record = await auditAlertRepository.findById(alertId);
+    const record = await this.auditAlertRepository.findById(alertId);
 
     logAudit(
       'AUDIT_ALERT_ACKNOWLEDGED',
@@ -60,7 +71,7 @@ class AdminAuditAlertService {
     );
 
     setImmediate(() => {
-      NotificationCreationService.crearNotificacion({
+      this.NotificationCreationService.crearNotificacion({
         tipoNotificacion: 'AUDIT_ALERT_ACKNOWLEDGED',
         userId: adminUserId,
         relatedEntity: { type: 'AuditAlert', id: alertId },
@@ -72,7 +83,7 @@ class AdminAuditAlertService {
   }
 
   async acknowledgeBulk(alertIds, adminUserId) {
-    const [count] = await auditAlertRepository.acknowledgeBulk(alertIds, adminUserId);
+    const [count] = await this.auditAlertRepository.acknowledgeBulk(alertIds, adminUserId);
 
     logAudit(
       'AUDIT_ALERTS_BULK_ACKNOWLEDGED',
@@ -82,7 +93,7 @@ class AdminAuditAlertService {
     );
 
     setImmediate(() => {
-      NotificationCreationService.crearNotificacion({
+      this.NotificationCreationService.crearNotificacion({
         tipoNotificacion: 'AUDIT_ALERTS_BULK_ACKNOWLEDGED',
         userId: adminUserId,
         relatedEntity: null,
@@ -95,3 +106,4 @@ class AdminAuditAlertService {
 }
 
 module.exports = new AdminAuditAlertService();
+module.exports.AdminAuditAlertService = AdminAuditAlertService;

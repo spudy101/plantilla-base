@@ -32,11 +32,21 @@ const CSV_COLUMNS = [
 ];
 
 class AdminAuditLogService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new AdminAuditLogService({ auditLogRepository: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.auditLogRepository = deps.auditLogRepository ?? auditLogRepository;
+  }
+
   async list(query, adminUserId) {
     const paginationParams = PaginationHelper.getPaginationParams(query);
     const where = _buildWhere(query);
 
-    const { rows, count } = await auditLogRepository.findPaginatedWithExecutor(
+    const { rows, count } = await this.auditLogRepository.findPaginatedWithExecutor(
       where,
       {
         limit: paginationParams.limit,
@@ -85,7 +95,7 @@ class AdminAuditLogService {
   }
 
   async getById(auditLogId, adminUserId) {
-    const record = await auditLogRepository.findByIdFull(auditLogId, [_includeExecutor()]);
+    const record = await this.auditLogRepository.findByIdFull(auditLogId, [_includeExecutor()]);
     if (!record) {
       throw AppError.notFound('Log de auditoría no encontrado');
     }
@@ -103,7 +113,7 @@ class AdminAuditLogService {
   async exportToResponse(res, query, adminUserId, format = 'csv') {
     const where = _buildWhere(query);
 
-    const rows = await auditLogRepository.findAllForExport(where, EXPORT_LIMIT);
+    const rows = await this.auditLogRepository.findAllForExport(where, EXPORT_LIMIT);
 
     const truncated = rows.length === EXPORT_LIMIT;
 
@@ -254,3 +264,4 @@ function _includeExecutor() {
 }
 
 module.exports = new AdminAuditLogService();
+module.exports.AdminAuditLogService = AdminAuditLogService;

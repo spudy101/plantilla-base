@@ -25,6 +25,17 @@ const {
 } = require('../dtos/privacy-policy-admin.dto');
 
 class PrivacyPolicyAdminService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new PrivacyPolicyAdminService({ privacyPolicyAdminRepository: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.privacyPolicyAdminRepository = deps.privacyPolicyAdminRepository ?? privacyPolicyAdminRepository;
+    this.NotificationCreationService = deps.NotificationCreationService ?? NotificationCreationService;
+  }
+
   // ============================================================
   // LIST — paginado con filtros
   // ============================================================
@@ -45,7 +56,7 @@ class PrivacyPolicyAdminService {
     const filters = PaginationHelper.buildFilters(query, ['isActive']);
     const searchTerm = query.search || null;
 
-    const { rows, count } = await privacyPolicyAdminRepository.findAllPaginated(filters, paginationParams, searchTerm);
+    const { rows, count } = await this.privacyPolicyAdminRepository.findAllPaginated(filters, paginationParams, searchTerm);
 
     const metadata = {
       totalItems: count,
@@ -81,7 +92,7 @@ class PrivacyPolicyAdminService {
    * @param {string} userId          - ID del admin (para auditoría)
    */
   async getVersionDetail(privacyPolicyId, userId) {
-    const policy = await privacyPolicyAdminRepository.findById(privacyPolicyId);
+    const policy = await this.privacyPolicyAdminRepository.findById(privacyPolicyId);
     if (!policy) {
       throw AppError.notFound('Versión de política de privacidad no encontrada');
     }
@@ -121,7 +132,7 @@ class PrivacyPolicyAdminService {
     const { version, fileBuffer, _originalName, summary, effectiveDate } = data;
 
     // 1. Verificar que la versión no exista
-    const existing = await privacyPolicyAdminRepository.findByVersion(version);
+    const existing = await this.privacyPolicyAdminRepository.findByVersion(version);
     if (existing) {
       throw AppError.conflict(`La versión ${version} ya existe`);
     }
@@ -144,7 +155,7 @@ class PrivacyPolicyAdminService {
     //    El repositorio desactiva la versión anterior automáticamente
     const documentHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
-    const policy = await privacyPolicyAdminRepository.createVersion({
+    const policy = await this.privacyPolicyAdminRepository.createVersion({
       version,
       document_url: documentUrl,
       document_hash: documentHash,
@@ -165,7 +176,7 @@ class PrivacyPolicyAdminService {
 
     // RF-ADM-04: notificar a todos los usuarios activos en background
     setImmediate(() => {
-      NotificationCreationService.crearNotificacion({
+      this.NotificationCreationService.crearNotificacion({
         tipoNotificacion: 'PRIVACY_POLICY_UPDATE',
         userId: null, // null = notificación global
         metadata: {
@@ -187,3 +198,4 @@ class PrivacyPolicyAdminService {
 }
 
 module.exports = new PrivacyPolicyAdminService();
+module.exports.PrivacyPolicyAdminService = PrivacyPolicyAdminService;

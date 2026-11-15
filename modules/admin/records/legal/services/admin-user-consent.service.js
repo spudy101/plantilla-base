@@ -6,11 +6,21 @@ const userConsentRepository = require('../../../../schemas/records/legal/reposit
 const { UserConsentAuditItemDTO } = require('../dtos/admin-user-consent.dto');
 
 class AdminUserConsentService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new AdminUserConsentService({ userConsentRepository: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.userConsentRepository = deps.userConsentRepository ?? userConsentRepository;
+  }
+
   async list(query, adminUserId) {
     const paginationParams = PaginationHelper.getPaginationParams(query);
     const filters = _buildFilters(query);
 
-    const { rows, count } = await userConsentRepository.findAllPaginatedForAdmin(filters, {
+    const { rows, count } = await this.userConsentRepository.findAllPaginatedForAdmin(filters, {
       limit: paginationParams.limit,
       offset: paginationParams.offset
     });
@@ -38,7 +48,7 @@ class AdminUserConsentService {
   async getHistoryByUser(userId, query, adminUserId) {
     const paginationParams = PaginationHelper.getPaginationParams(query);
 
-    const { rows, count } = await userConsentRepository.findHistoryByUser(userId, {
+    const { rows, count } = await this.userConsentRepository.findHistoryByUser(userId, {
       limit: paginationParams.limit,
       offset: paginationParams.offset
     });
@@ -88,3 +98,4 @@ function _buildFilters(query) {
 }
 
 module.exports = new AdminUserConsentService();
+module.exports.AdminUserConsentService = AdminUserConsentService;

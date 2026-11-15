@@ -1,15 +1,27 @@
 const AppError = require('../../../../../shared/utils/app-error.util');
 const { logger, logAudit } = require('../../../../../shared/utils/logger.util');
-const { sequelize } = require('../../../../../shared/models');
+const unitOfWork = require('../../../../../shared/database/unit-of-work');
 const consentTypeRepository = require('../../../../schemas/records/legal/repositories/consent-type.repository');
 const userConsentRepository = require('../../../../schemas/records/legal/repositories/user-consent.repository');
 const { MyConsentCatalogDTO, ConsentGrantedDTO } = require('../dtos/user-consent.dto');
 
 class UserConsentService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new UserConsentService({ unitOfWork: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.unitOfWork = deps.unitOfWork ?? unitOfWork;
+    this.consentTypeRepository = deps.consentTypeRepository ?? consentTypeRepository;
+    this.userConsentRepository = deps.userConsentRepository ?? userConsentRepository;
+  }
+
   async getMyConsents(userId) {
     const [consentTypes, currentConsents] = await Promise.all([
-      consentTypeRepository.findAllActive(),
-      userConsentRepository.findCurrentByUser(userId)
+      this.consentTypeRepository.findAllActive(),
+      this.userConsentRepository.findCurrentByUser(userId)
     ]);
 
     const grantedByTypeId = new Map(currentConsents.map(c => [c.consent_type_id, c]));
@@ -30,18 +42,18 @@ class UserConsentService {
       throw AppError.badRequest('Debe proporcionar al menos un consentimiento a otorgar');
     }
 
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
     try {
       const granted = [];
       const auditEntries = [];
 
       for (const item of items) {
-        const consentType = await consentTypeRepository.findByCode(item.consentTypeCode);
+        const consentType = await this.consentTypeRepository.findByCode(item.consentTypeCode);
         if (!consentType) {
           throw AppError.badRequest(`Tipo de consentimiento "${item.consentTypeCode}" no encontrado o inactivo`);
         }
 
-        const record = await userConsentRepository.grant(
+        const record = await this.userConsentRepository.grant(
           {
             userId,
             consentTypeId: consentType.consent_type_id,
@@ -87,7 +99,7 @@ class UserConsentService {
   }
 
   async revokeMarketing(userId, consentTypeId, auditCtx) {
-    const consentType = await consentTypeRepository.findById(consentTypeId);
+    const consentType = await this.consentTypeRepository.findById(consentTypeId);
     if (!consentType) {
       throw AppError.notFound('Tipo de consentimiento no encontrado');
     }
@@ -95,9 +107,9 @@ class UserConsentService {
       throw AppError.badRequest('Este consentimiento no puede ser revocado');
     }
 
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
     try {
-      const revoked = await userConsentRepository.revoke(
+      const revoked = await this.userConsentRepository.revoke(
         {
           userId,
           consentTypeId,
@@ -130,3 +142,4 @@ class UserConsentService {
 }
 
 module.exports = new UserConsentService();
+module.exports.UserConsentService = UserConsentService;

@@ -9,9 +9,7 @@ const resetCredentialsRepository = require('../../../../schemas/kyc/iam/reposito
 const userNotificationPreferenceRepository = require('../../../../schemas/kyc/person/repositories/user-notification-preference.repository');
 const countryRepository = require('../../../../schemas/kyc/maintainers/repositories/country.repository');
 const privacyPolicyRepository = require('../../../../schemas/records/legal/repositories/privacy-policy.repository');
-const userConsentRepository = require('../../../../schemas/records/legal/repositories/user-consent.repository');
-const consentTypeRepository = require('../../../../schemas/records/legal/repositories/consent-type.repository');
-const { CONSENT_TYPE_CODES } = require('../../../../../shared/constants');
+const consentRecorder = require('../../../../schemas/records/legal/services/consent-recorder.service');
 const genderRepository = require('../../../../schemas/kyc/maintainers/repositories/gender.repository');
 const verificationCodeRepository = require('../../../../schemas/notification/repositories/verification-code.repository');
 const roleRepository = require('../../../../schemas/kyc/iam/repositories/role.repository');
@@ -24,7 +22,7 @@ const NotificationUtil = require('../../../../schemas/notification/services/noti
 const AppError = require('../../../../../shared/utils/app-error.util');
 const { logger, logAudit } = require('../../../../../shared/utils/logger.util'); // ← logAudit agregado
 const requestContext = require('../../../../../shared/utils/request-context.util');
-const { sequelize } = require('../../../../../shared/models');
+const unitOfWork = require('../../../../../shared/database/unit-of-work');
 const { RegisterResponseDTO } = require('../dtos/auth-register.dto');
 const { frontend, SECURITY, RBAC_ROLES, server, notifications, jwt: jwtConfig } = require('../../../../../shared/constants');
 
@@ -37,6 +35,30 @@ const IS_BYPASS_ENABLED = server.nodeEnv === 'development' && server.bypass === 
 const API_KEY_RANDOM_BYTES = 32;
 
 class AuthRegisterService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new AuthRegisterService({ unitOfWork: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.unitOfWork = deps.unitOfWork ?? unitOfWork;
+    this.userRepository = deps.userRepository ?? userRepository;
+    this.personRepository = deps.personRepository ?? personRepository;
+    this.personContactRepository = deps.personContactRepository ?? personContactRepository;
+    this.documentTypeRepository = deps.documentTypeRepository ?? documentTypeRepository;
+    this.resetCredentialsRepository = deps.resetCredentialsRepository ?? resetCredentialsRepository;
+    this.userNotificationPreferenceRepository = deps.userNotificationPreferenceRepository ?? userNotificationPreferenceRepository;
+    this.countryRepository = deps.countryRepository ?? countryRepository;
+    this.privacyPolicyRepository = deps.privacyPolicyRepository ?? privacyPolicyRepository;
+    this.consentRecorder = deps.consentRecorder ?? consentRecorder;
+    this.genderRepository = deps.genderRepository ?? genderRepository;
+    this.verificationCodeRepository = deps.verificationCodeRepository ?? verificationCodeRepository;
+    this.roleRepository = deps.roleRepository ?? roleRepository;
+    this.userSessionRepository = deps.userSessionRepository ?? userSessionRepository;
+    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+  }
+
   // ============================================================
   // REGISTER
   // ============================================================
@@ -101,7 +123,7 @@ class AuthRegisterService {
     );
 
     setImmediate(() => {
-      verificationCodeRepository
+      this.verificationCodeRepository
         .deleteVerifiedByContact('email', email)
         .catch(err => logger.warn('Error limpiando verification_code post-register', { error: err.message }));
     });
@@ -114,8 +136,8 @@ class AuthRegisterService {
   /** @private — valida prerequisitos de registro: país, política activa, email verificado y tipo de documento */
   async _fetchRegistrationPrerequisites(email, documentTypeId) {
     const [colombia, activePolicy] = await Promise.all([
-      countryRepository.findByCode('COL'),
-      privacyPolicyRepository.findActive()
+      this.countryRepository.findByCode('COL'),
+      this.privacyPolicyRepository.findActive()
     ]);
 
     if (!activePolicy) {
@@ -131,12 +153,12 @@ class AuthRegisterService {
     // Efecto equivalente: no se crea la cuenta sin email
     // verificado. TTL reducido por criterio de seguridad.
     // Pendiente: actualizar SRS v12.1.
-    const emailVerified = await verificationCodeRepository.findVerifiedByContact('email', email);
+    const emailVerified = await this.verificationCodeRepository.findVerifiedByContact('email', email);
     if (!emailVerified) {
       throw AppError.forbidden('El email debe estar verificado antes de registrarse');
     }
 
-    const documentType = await documentTypeRepository.findById(documentTypeId);
+    const documentType = await this.documentTypeRepository.findById(documentTypeId);
     if (!documentType || !documentType.is_active) {
       throw AppError.notFound('Tipo de documento no encontrado');
     }
@@ -177,7 +199,7 @@ class AuthRegisterService {
    * @private
    */
   async _issueAuthTokens(userId, auditContext = {}) {
-    const user = await userRepository.findByUserId(userId, 'login');
+    const user = await this.userRepository.findByUserId(userId, 'login');
 
     const sessionId = crypto.randomUUID();
     const jti = crypto.randomUUID();
@@ -190,7 +212,7 @@ class AuthRegisterService {
       logger.warn('No se pudo guardar JTI de refresh token en registro', { userId });
     }
 
-    userSessionRepository
+    this.userSessionRepository
       .create({
         user_session_id: sessionId,
         user_id: userId,
@@ -209,7 +231,7 @@ class AuthRegisterService {
   /** @private */
   _sendWelcomeNotification(userId, nombre, email) {
     setImmediate(() => {
-      NotificationUtil.crearNotificacion({
+      this.NotificationUtil.crearNotificacion({
         tipoNotificacion: 'BIENVENIDA',
         userId,
         relatedEntity: null,
@@ -226,7 +248,7 @@ class AuthRegisterService {
   async requestResetCredentials(data) {
     const { email, type } = data;
 
-    const personContact = await personContactRepository.findByEmail(email, {
+    const personContact = await this.personContactRepository.findByEmail(email, {
       include: [
         {
           association: 'person',
@@ -253,7 +275,7 @@ class AuthRegisterService {
       return false;
     }
 
-    const invalidated = await resetCredentialsRepository.invalidateUserTokens(user.user_id);
+    const invalidated = await this.resetCredentialsRepository.invalidateUserTokens(user.user_id);
     if (invalidated > 0) {
       logger.info('Previous reset tokens invalidated', {
         userId: user.user_id,
@@ -265,7 +287,7 @@ class AuthRegisterService {
     const token = crypto.randomBytes(API_KEY_RANDOM_BYTES).toString('hex');
     const expiresAt = new Date(Date.now() + SECURITY.RESET_TOKEN_EXPIRATION_MINUTES * 60 * 1000);
 
-    await resetCredentialsRepository.createResetToken({
+    await this.resetCredentialsRepository.createResetToken({
       user_id: user.user_id,
       email,
       token,
@@ -284,7 +306,7 @@ class AuthRegisterService {
     const resetUrl = `${frontend.resetCredentialUrl}-${type === 'password' ? 'password' : 'totp'}?token=${token}&type=${type}`;
 
     setImmediate(() => {
-      NotificationUtil.crearNotificacionDirecta({
+      this.NotificationUtil.crearNotificacionDirecta({
         tipoNotificacion: type === 'password' ? 'SOLICITUD_RESET_PASSWORD' : 'SOLICITUD_RESET_MFA',
         email,
         metadata: {
@@ -316,10 +338,10 @@ class AuthRegisterService {
       throw AppError.notFound('Usuario no encontrado');
     }
 
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
     try {
       const tipoNotif = await this._applyCredentialReset(type, user, newPassword, transaction);
-      await resetCredentialsRepository.markAsUsed(resetRecord.reset_credentials_id, {
+      await this.resetCredentialsRepository.markAsUsed(resetRecord.reset_credentials_id, {
         transaction
       });
       await transaction.commit();
@@ -342,7 +364,7 @@ class AuthRegisterService {
 
   /** @private */
   async _findValidResetRecord(token) {
-    const resetRecord = await resetCredentialsRepository.findValidToken(token, {
+    const resetRecord = await this.resetCredentialsRepository.findValidToken(token, {
       include: [
         {
           association: 'user',
@@ -369,13 +391,13 @@ class AuthRegisterService {
       if (!newPassword) {
         throw AppError.badRequest('La nueva contraseña es requerida');
       }
-      await userRepository.updatePassword(user.user_id, newPassword, { transaction });
+      await this.userRepository.updatePassword(user.user_id, newPassword, { transaction });
       return 'RESET_PASSWORD';
     }
 
     if (type === 'mfa') {
       // Reset total del MFA: baja TOTP (y borra su secreto) y SMS, todo en BD propia.
-      await userRepository.update(
+      await this.userRepository.update(
         user.user_id,
         {
           totp_enabled: false,
@@ -430,7 +452,7 @@ class AuthRegisterService {
         userId
       })
     );
-    userSessionRepository.closeAllByUser(userId, 'password_reset').catch(err =>
+    this.userSessionRepository.closeAllByUser(userId, 'password_reset').catch(err =>
       logger.warn('Error cerrando sesiones en BD tras reset de contraseña', {
         error: err.message,
         userId
@@ -443,7 +465,7 @@ class AuthRegisterService {
     const firstName = user.person?.first_name || 'Usuario';
     const email = user.person?.contact?.email;
     setImmediate(() => {
-      NotificationUtil.crearNotificacion({
+      this.NotificationUtil.crearNotificacion({
         tipoNotificacion,
         userId: user.user_id,
         relatedEntity: null,
@@ -466,8 +488,8 @@ class AuthRegisterService {
   // y correo antes de crear el registro → 409 si existen.
   async _validateRegistration(email, nationalId, genderId) {
     const [existingContact, existingPerson] = await Promise.all([
-      personContactRepository.findByEmail(email),
-      personRepository.findByNationalId(nationalId)
+      this.personContactRepository.findByEmail(email),
+      this.personRepository.findByNationalId(nationalId)
     ]);
 
     if (existingContact) {
@@ -477,7 +499,7 @@ class AuthRegisterService {
       throw AppError.conflict('El número de documento ya está registrado');
     }
     if (genderId) {
-      const genderExists = await genderRepository.exists({ gender_id: genderId });
+      const genderExists = await this.genderRepository.exists({ gender_id: genderId });
       if (!genderExists) {
         throw AppError.notFound('El género seleccionado no existe');
       }
@@ -486,7 +508,7 @@ class AuthRegisterService {
 
   /** @private */
   async _createUserInDB(data) {
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
     try {
       const result = await this._createAllEntities(data, transaction);
       await transaction.commit();
@@ -526,12 +548,12 @@ class AuthRegisterService {
     },
     transaction
   ) {
-    const defaultRole = await roleRepository.findByName(RBAC_ROLES.CLIENTE, { transaction });
+    const defaultRole = await this.roleRepository.findByName(RBAC_ROLES.CLIENTE, { transaction });
     if (!defaultRole) {
       throw AppError.internal(`Rol ${RBAC_ROLES.CLIENTE} no encontrado en BD. Ejecuta el seeder RBAC.`);
     }
 
-    const person = await personRepository.create(
+    const person = await this.personRepository.create(
       {
         first_name: firstName,
         middle_name: middleName,
@@ -549,7 +571,7 @@ class AuthRegisterService {
       { transaction }
     );
 
-    const personContact = await personContactRepository.create(
+    const personContact = await this.personContactRepository.create(
       {
         person_id: person.person_id,
         email,
@@ -561,7 +583,7 @@ class AuthRegisterService {
       { transaction }
     );
 
-    const user = await userRepository.create(
+    const user = await this.userRepository.create(
       {
         username: authUsername,
         auth_username: authUsername,
@@ -576,7 +598,7 @@ class AuthRegisterService {
       { transaction }
     );
 
-    await userNotificationPreferenceRepository.create(
+    await this.userNotificationPreferenceRepository.create(
       {
         user_id: user.user_id,
         notification_category_code: null,
@@ -594,7 +616,7 @@ class AuthRegisterService {
     // user_consents: PRIVACY_POLICY (obligatorio) y
     // COMUNICACIONES_COMERCIALES (opcional).
     // RF-ADM-04: trazabilidad de aceptación inicial de política en user_consents
-    await _recordPrivacyPolicyConsent(user.user_id, privacyPolicyVersion, privacyPolicyAcceptedIp, transaction).catch(err => {
+    await this._recordPrivacyPolicyConsent(user.user_id, privacyPolicyVersion, privacyPolicyAcceptedIp, transaction).catch(err => {
       logger.warn('auth-register: no se pudo registrar user_consent de privacy policy', {
         userId: user.user_id,
         error: err.message
@@ -618,7 +640,7 @@ class AuthRegisterService {
     });
 
     if (comunicacionesComerciales) {
-      await _recordComercialConsent(user.user_id, privacyPolicyAcceptedIp, transaction).catch(err =>
+      await this._recordComercialConsent(user.user_id, privacyPolicyAcceptedIp, transaction).catch(err =>
         logger.warn('auth-register: no se pudo registrar user_consent de comunicaciones comerciales', {
           userId: user.user_id,
           error: err.message
@@ -628,53 +650,33 @@ class AuthRegisterService {
 
     return { user, person, personContact, role: defaultRole };
   }
-}
 
-async function _recordPrivacyPolicyConsent(userId, policyVersion, ip, transaction) {
-  const consentType = await consentTypeRepository.findByCode(CONSENT_TYPE_CODES.PRIVACY_POLICY);
-  if (!consentType) {
-    return;
-  }
-  const activePolicy = await privacyPolicyRepository.findActive();
-  const record = await userConsentRepository.grant(
-    {
+  /** @private — RF-ADM-04: delega en ConsentRecorder y deja traza granular vía logger (NO logAudit). */
+  async _recordPrivacyPolicyConsent(userId, policyVersion, ip, transaction) {
+    const record = await this.consentRecorder.grantPrivacyPolicy({ userId, ip, transaction });
+    if (!record) {
+      return;
+    }
+    // El único logAudit de este punto de entrada es USER_REGISTERED — un segundo logAudit duplicaría el request.
+    logger.info('Consentimiento de política de privacidad otorgado en registro', {
       userId,
-      consentTypeId: consentType.consent_type_id,
-      privacyPolicyId: activePolicy?.privacy_policy_id || null,
-      ip: ip || null,
-      userAgent: null
-    },
-    transaction
-  );
-  // Traza granular vía logger (NO logAudit): el único logAudit de este punto de entrada
-  // es USER_REGISTERED — un segundo logAudit duplicaría el request.
-  logger.info('Consentimiento de política de privacidad otorgado en registro', {
-    userId,
-    policyVersion,
-    userConsentId: record?.user_consent_id
-  });
-}
+      policyVersion,
+      userConsentId: record?.user_consent_id
+    });
+  }
 
-async function _recordComercialConsent(userId, ip, transaction) {
-  const consentType = await consentTypeRepository.findByCode(CONSENT_TYPE_CODES.COMUNICACIONES_COMERCIALES);
-  if (!consentType) {
-    return;
-  }
-  const record = await userConsentRepository.grant(
-    {
+  /** @private — comunicaciones comerciales (opcional en el registro). */
+  async _recordComercialConsent(userId, ip, transaction) {
+    const record = await this.consentRecorder.grantCommercialCommunications({ userId, ip, transaction });
+    if (!record) {
+      return;
+    }
+    logger.info('Consentimiento de comunicaciones comerciales otorgado en registro', {
       userId,
-      consentTypeId: consentType.consent_type_id,
-      privacyPolicyId: null,
-      ip: ip || null,
-      userAgent: null
-    },
-    transaction
-  );
-  // Traza granular vía logger (NO logAudit): mismo criterio — un solo logAudit por request.
-  logger.info('Consentimiento de comunicaciones comerciales otorgado en registro', {
-    userId,
-    userConsentId: record?.user_consent_id
-  });
+      userConsentId: record?.user_consent_id
+    });
+  }
 }
 
 module.exports = new AuthRegisterService();
+module.exports.AuthRegisterService = AuthRegisterService;

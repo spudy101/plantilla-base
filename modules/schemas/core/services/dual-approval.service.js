@@ -34,6 +34,18 @@ const AUTO_APPROVE_NOTE = 'Auto-aprobado por super_admin (cuatro ojos omitido po
 const HANDLERS = new Map();
 
 class DualApprovalService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new DualApprovalService({ approvalRequestRepository: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.approvalRequestRepository = deps.approvalRequestRepository ?? approvalRequestRepository;
+    this.userRepository = deps.userRepository ?? userRepository;
+    this.NotificationCreationService = deps.NotificationCreationService ?? NotificationCreationService;
+  }
+
   // ── Registro de handlers ──────────────────────────────────────────────────
 
   /**
@@ -92,7 +104,7 @@ class DualApprovalService {
 
     // Una sola pendiente por (operación, entidad) — refuerza el índice único parcial.
     if (resolvedEntityType && entityId) {
-      const existing = await approvalRequestRepository.findPendingByEntityOperation(opKey, resolvedEntityType, entityId);
+      const existing = await this.approvalRequestRepository.findPendingByEntityOperation(opKey, resolvedEntityType, entityId);
       if (existing) {
         throw AppError.conflict('Ya hay una solicitud de aprobación pendiente para esta operación sobre esta entidad', {
           code: 'DUAL_APPROVAL_ALREADY_PENDING',
@@ -112,7 +124,7 @@ class DualApprovalService {
     const ttlHours = op.ttlHours ?? DEFAULT_TTL_HOURS;
     const expiresAt = addBusinessHours(new Date(), ttlHours);
 
-    const request = await approvalRequestRepository.create({
+    const request = await this.approvalRequestRepository.create({
       operation_key: opKey,
       entity_type: resolvedEntityType,
       entity_id: entityId ?? null,
@@ -162,7 +174,7 @@ class DualApprovalService {
   // eslint-disable-next-line class-methods-use-this
   async _gateAutoApprove(opKey, { resolvedEntityType, entityId, payload, ctx }) {
     const now = new Date();
-    const request = await approvalRequestRepository.create({
+    const request = await this.approvalRequestRepository.create({
       operation_key: opKey,
       entity_type: resolvedEntityType,
       entity_id: entityId ?? null,
@@ -203,7 +215,7 @@ class DualApprovalService {
    * @param {Object} approverCtx — { adminUserId, adminRoleName?, adminFirstName?, ... }
    */
   async resolve(requestId, body, approverCtx) {
-    const request = await approvalRequestRepository.findByIdWithUsers(requestId);
+    const request = await this.approvalRequestRepository.findByIdWithUsers(requestId);
     if (!request) {
       throw AppError.notFound('Solicitud de aprobación no encontrada', { code: 'APPROVAL_REQUEST_NOT_FOUND' });
     }
@@ -317,7 +329,7 @@ class DualApprovalService {
     }
 
     const ids = rows.map(r => r[pkField]).filter(Boolean);
-    const pendings = await approvalRequestRepository.findPendingByEntityIds(entityType, ids);
+    const pendings = await this.approvalRequestRepository.findPendingByEntityIds(entityType, ids);
 
     const byEntityId = new Map();
     for (const p of pendings) {
@@ -365,7 +377,7 @@ class DualApprovalService {
     const filters = PaginationHelper.buildFilters(query, ['operationKey', 'status', 'entityType']);
     const searchTerm = query.search || null;
 
-    const { rows, count } = await approvalRequestRepository.findAllPaginatedWithUsers(filters, paginationParams, searchTerm);
+    const { rows, count } = await this.approvalRequestRepository.findAllPaginatedWithUsers(filters, paginationParams, searchTerm);
 
     const metadata = {
       totalItems: count,
@@ -384,7 +396,7 @@ class DualApprovalService {
 
   // eslint-disable-next-line class-methods-use-this
   async getById(id) {
-    const request = await approvalRequestRepository.findByIdWithUsers(id);
+    const request = await this.approvalRequestRepository.findByIdWithUsers(id);
     if (!request) {
       throw AppError.notFound('Solicitud de aprobación no encontrada', { code: 'APPROVAL_REQUEST_NOT_FOUND' });
     }
@@ -397,7 +409,7 @@ class DualApprovalService {
   async _notifyApprovers(op, request, ctx) {
     let approvers = [];
     try {
-      approvers = await userRepository.findActiveUsersByRoleNames(op.approverRoles, {
+      approvers = await this.userRepository.findActiveUsersByRoleNames(op.approverRoles, {
         attributes: ['user_id'],
         includePerson: false
       });
@@ -408,7 +420,7 @@ class DualApprovalService {
 
     for (const approver of approvers ?? []) {
       setImmediate(() => {
-        NotificationCreationService.crearNotificacion({
+        this.NotificationCreationService.crearNotificacion({
           tipoNotificacion: op.notificationType,
           userId: approver.user_id,
           relatedEntity: { type: 'ApprovalRequest', id: request.approval_request_id },
@@ -436,7 +448,7 @@ class DualApprovalService {
       return;
     }
     setImmediate(() => {
-      NotificationCreationService.crearNotificacion({
+      this.NotificationCreationService.crearNotificacion({
         tipoNotificacion: NOTIF_DUAL_APPROVAL_RESOLVED,
         userId: request.requested_by,
         relatedEntity: { type: 'ApprovalRequest', id: request.approval_request_id },
@@ -519,3 +531,4 @@ function _sanitizeResult(result) {
 }
 
 module.exports = new DualApprovalService();
+module.exports.DualApprovalService = DualApprovalService;
