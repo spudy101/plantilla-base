@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { sequelize } = require('../../../../shared/models');
+const unitOfWork = require('../../../../shared/database/unit-of-work');
 const { logger, logAudit } = require('../../../../shared/utils/logger.util');
 const PaginationHelper = require('../../../../shared/utils/pagination.util');
 const notificationRepository = require('../../../schemas/notification/repositories/notification.repository');
@@ -11,6 +11,20 @@ const NotificationEmitter = require('../../../schemas/notification/utils/notific
 const NotificationCountUtil = require('../../../schemas/notification/utils/notification-count.util');
 
 class NotificationService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new NotificationService({ unitOfWork: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.unitOfWork = deps.unitOfWork ?? unitOfWork;
+    this.notificationRepository = deps.notificationRepository ?? notificationRepository;
+    this.globalNotificationRepository = deps.globalNotificationRepository ?? globalNotificationRepository;
+    this.globalNotificationReadRepository = deps.globalNotificationReadRepository ?? globalNotificationReadRepository;
+    this.notificationCreationService = deps.notificationCreationService ?? notificationCreationService;
+  }
+
   // ── Públicos ───────────────────────────────────────────────────────────────
 
   async getNotificationsList(userId, query) {
@@ -42,7 +56,7 @@ class NotificationService {
     const paginationParams = PaginationHelper.getPaginationParams(query);
     const searchTerm = query.search || null;
     const searchConfig = searchTerm ? { searchTerm, searchFields: ['title', 'body'] } : {};
-    const { rows, count } = await notificationRepository.findByUserPaginated(userId, paginationParams, searchConfig);
+    const { rows, count } = await this.notificationRepository.findByUserPaginated(userId, paginationParams, searchConfig);
 
     const unreadIds = rows.filter(n => !n.is_read).map(n => n.notification_id);
     await this._markPersonalAsRead(unreadIds);
@@ -73,7 +87,7 @@ class NotificationService {
       .map(item => item.__instance.global_notification_id);
 
     if (unreadIds.length > 0) {
-      await globalNotificationReadRepository.bulkMarkAsRead(unreadIds, userId);
+      await this.globalNotificationReadRepository.bulkMarkAsRead(unreadIds, userId);
       setImmediate(() => NotificationCountUtil.emitCountUpdate(userId));
     }
 
@@ -108,14 +122,14 @@ class NotificationService {
    */
   async computeUnreadCount(userId) {
     const [personalCount, globalUnread] = await Promise.all([
-      notificationRepository.countUnreadByUser(userId),
-      globalNotificationRepository.findUnreadByUser(userId)
+      this.notificationRepository.countUnreadByUser(userId),
+      this.globalNotificationRepository.findUnreadByUser(userId)
     ]);
     return personalCount + (Array.isArray(globalUnread) ? globalUnread.length : 0);
   }
 
   async createNotification(data, metadata, externalService = null) {
-    const result = await notificationCreationService.crearNotificacion(data, metadata.transaction);
+    const result = await this.notificationCreationService.crearNotificacion(data, metadata.transaction);
 
     logger.info('Notificación creada por servicio externo', {
       tipoNotificacion: data.tipoNotificacion,
@@ -134,7 +148,7 @@ class NotificationService {
   }
 
   async createDirectNotification(data) {
-    const result = await notificationCreationService.crearNotificacionDirecta(data);
+    const result = await this.notificationCreationService.crearNotificacionDirecta(data);
 
     logAudit(
       'NOTIFICATION_DIRECT_CREATED',
@@ -149,7 +163,7 @@ class NotificationService {
   // ── Privados ───────────────────────────────────────────────────────────────
 
   async _getPersonalRaw(userId) {
-    const rows = await notificationRepository.findAll(
+    const rows = await this.notificationRepository.findAll(
       { user_id: userId },
       {
         order: [['created_at', 'DESC']],
@@ -167,8 +181,8 @@ class NotificationService {
 
   async _getGlobalRaw(userId) {
     const [rows, readIds] = await Promise.all([
-      globalNotificationRepository.findActiveNotifications(),
-      globalNotificationReadRepository.getReadIdsByUser(userId)
+      this.globalNotificationRepository.findActiveNotifications(),
+      this.globalNotificationReadRepository.getReadIdsByUser(userId)
     ]);
 
     const tagged = rows.map(gn => ({
@@ -188,7 +202,7 @@ class NotificationService {
   }
 
   async _markPageAsRead(userId, paginatedMixed, readIds) {
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
     try {
       const personalUnread = paginatedMixed
         .filter(item => item.__type === 'personal' && !item.is_read)
@@ -200,7 +214,7 @@ class NotificationService {
 
       await Promise.all([
         personalUnread.length > 0 ? this._markPersonalAsRead(personalUnread, { transaction }) : Promise.resolve(),
-        globalUnread.length > 0 ? globalNotificationReadRepository.bulkMarkAsRead(globalUnread, userId) : Promise.resolve()
+        globalUnread.length > 0 ? this.globalNotificationReadRepository.bulkMarkAsRead(globalUnread, userId) : Promise.resolve()
       ]);
 
       await transaction.commit();
@@ -219,7 +233,7 @@ class NotificationService {
     if (!notificationIds || notificationIds.length === 0) {
       return undefined;
     }
-    return notificationRepository.bulkUpdate(
+    return this.notificationRepository.bulkUpdate(
       { is_read: true, read_at: new Date() },
       { notification_id: { [Op.in]: notificationIds }, is_read: false },
       options
@@ -228,3 +242,4 @@ class NotificationService {
 }
 
 module.exports = new NotificationService();
+module.exports.NotificationService = NotificationService;

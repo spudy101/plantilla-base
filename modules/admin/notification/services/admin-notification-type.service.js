@@ -6,7 +6,7 @@ const AppError = require('../../../../shared/utils/app-error.util');
 const PaginationHelper = require('../../../../shared/utils/pagination.util');
 const { logAudit } = require('../../../../shared/utils/logger.util');
 const { notifications } = require('../../../../shared/constants');
-const { sequelize } = require('../../../../shared/models');
+const unitOfWork = require('../../../../shared/database/unit-of-work');
 const {
   ListNotificationTypesResponseDTO,
   UpdateNotificationTypeResponseDTO,
@@ -15,12 +15,26 @@ const {
 } = require('../dtos/admin-notification-type.dto');
 
 class NotificationTypeService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new NotificationTypeService({ unitOfWork: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.unitOfWork = deps.unitOfWork ?? unitOfWork;
+    this.notificationTypeRepository = deps.notificationTypeRepository ?? notificationTypeRepository;
+    this.notificationCategoryRepository = deps.notificationCategoryRepository ?? notificationCategoryRepository;
+    this.userRepository = deps.userRepository ?? userRepository;
+    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+  }
+
   async list(query, adminUserId) {
     const paginationParams = PaginationHelper.getPaginationParams(query);
     const filters = PaginationHelper.buildFilters(query, ['isActive', 'priority', 'notificationCategoryId']);
     const searchTerm = query.search || null;
 
-    const { rows, count } = await notificationTypeRepository.findAllPaginated(filters, paginationParams, searchTerm);
+    const { rows, count } = await this.notificationTypeRepository.findAllPaginated(filters, paginationParams, searchTerm);
 
     const metadata = {
       totalItems: count,
@@ -46,17 +60,17 @@ class NotificationTypeService {
   }
 
   async update(notificationTypeId, data, adminUserId) {
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
 
     try {
-      const nt = await notificationTypeRepository.findById(notificationTypeId);
+      const nt = await this.notificationTypeRepository.findById(notificationTypeId);
       if (!nt) {
         throw AppError.notFound('Tipo de notificación no encontrado');
       }
 
       // Si se reasigna la categoría, validar que exista (además del FK) para dar un error claro.
       if (data.notificationCategoryId) {
-        const category = await notificationCategoryRepository.findById(data.notificationCategoryId);
+        const category = await this.notificationCategoryRepository.findById(data.notificationCategoryId);
         if (!category) {
           throw AppError.badRequest('La categoría indicada no existe');
         }
@@ -105,7 +119,7 @@ class NotificationTypeService {
   async createGlobalNotification(data, adminUserId) {
     const { titulo, contenido, asunto } = data;
 
-    const result = await NotificationUtil.crearNotificacion({
+    const result = await this.NotificationUtil.crearNotificacion({
       tipoNotificacion: 'NOTIFICACION_GENERAL',
       userId: null,
       relatedEntity: null,
@@ -130,7 +144,7 @@ class NotificationTypeService {
   async createDirectNotification(data, adminUserId) {
     const { userId, titulo, contenido, asunto } = data;
 
-    const user = await userRepository.findByUserId(userId, 'minimal');
+    const user = await this.userRepository.findByUserId(userId, 'minimal');
     if (!user) {
       throw AppError.notFound('Usuario no encontrado');
     }
@@ -138,7 +152,7 @@ class NotificationTypeService {
       throw AppError.badRequest('No se puede notificar a un usuario inactivo');
     }
 
-    const result = await NotificationUtil.crearNotificacion({
+    const result = await this.NotificationUtil.crearNotificacion({
       tipoNotificacion: 'NOTIFICACION_GENERAL',
       userId,
       relatedEntity: null,
@@ -163,3 +177,4 @@ class NotificationTypeService {
 }
 
 module.exports = new NotificationTypeService();
+module.exports.NotificationTypeService = NotificationTypeService;

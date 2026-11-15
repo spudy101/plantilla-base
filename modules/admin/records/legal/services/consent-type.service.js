@@ -8,9 +8,20 @@ const { notifications } = require('../../../../../shared/constants');
 const { ConsentTypeListDTO, ConsentTypeDTO } = require('../dtos/consent-type.dto');
 
 class ConsentTypeService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new ConsentTypeService({ consentTypeRepository: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.consentTypeRepository = deps.consentTypeRepository ?? consentTypeRepository;
+    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+  }
+
   async list(query, adminUserId) {
     const paginationParams = PaginationHelper.getPaginationParams(query);
-    const { rows, count } = await consentTypeRepository.findAllPaginated({}, paginationParams, query.search);
+    const { rows, count } = await this.consentTypeRepository.findAllPaginated({}, paginationParams, query.search);
 
     logAudit(
       'CONSENT_TYPE_LIST_VIEWED',
@@ -32,7 +43,7 @@ class ConsentTypeService {
   }
 
   async getById(consentTypeId, adminUserId) {
-    const record = await consentTypeRepository.findById(consentTypeId);
+    const record = await this.consentTypeRepository.findById(consentTypeId);
     if (!record) {
       throw AppError.notFound('Tipo de consentimiento no encontrado');
     }
@@ -48,12 +59,12 @@ class ConsentTypeService {
   }
 
   async create(body, auditCtx) {
-    const existing = await consentTypeRepository.findOne({ code: body.code });
+    const existing = await this.consentTypeRepository.findOne({ code: body.code });
     if (existing) {
       throw AppError.conflict(`Ya existe un tipo de consentimiento con el código "${body.code}"`);
     }
 
-    const record = await consentTypeRepository.create({
+    const record = await this.consentTypeRepository.create({
       code: body.code.toUpperCase(),
       name: body.name,
       description: body.description || null,
@@ -75,7 +86,7 @@ class ConsentTypeService {
   }
 
   async update(consentTypeId, body, auditCtx) {
-    const record = await consentTypeRepository.findById(consentTypeId);
+    const record = await this.consentTypeRepository.findById(consentTypeId);
     if (!record) {
       throw AppError.notFound('Tipo de consentimiento no encontrado');
     }
@@ -100,7 +111,7 @@ class ConsentTypeService {
   /** @private — push de confirmación al administrador que realizó la acción */
   _notifyAdmin(accion, record, auditCtx) {
     setImmediate(() => {
-      NotificationUtil.crearNotificacion({
+      this.NotificationUtil.crearNotificacion({
         tipoNotificacion: 'CONSENT_TYPE_ADMIN_ACTION',
         userId: auditCtx.adminUserId,
         relatedEntity: { type: 'ConsentType', id: record.consent_type_id },
@@ -120,3 +131,4 @@ class ConsentTypeService {
 }
 
 module.exports = new ConsentTypeService();
+module.exports.ConsentTypeService = ConsentTypeService;

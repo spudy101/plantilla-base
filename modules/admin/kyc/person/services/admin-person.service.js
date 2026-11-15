@@ -1,5 +1,5 @@
 const { v4: uuidv4 } = require('uuid');
-const { sequelize } = require('../../../../../shared/models');
+const unitOfWork = require('../../../../../shared/database/unit-of-work');
 const userRepository = require('../../../../schemas/kyc/iam/repositories/user.repository');
 const personRepository = require('../../../../schemas/kyc/person/repositories/person.repository');
 const personContactRepository = require('../../../../schemas/kyc/person/repositories/person-contact.repository');
@@ -42,6 +42,22 @@ const {
  */
 
 class PersonService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new PersonService({ unitOfWork: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.unitOfWork = deps.unitOfWork ?? unitOfWork;
+    this.userRepository = deps.userRepository ?? userRepository;
+    this.personRepository = deps.personRepository ?? personRepository;
+    this.personContactRepository = deps.personContactRepository ?? personContactRepository;
+    this.roleRepository = deps.roleRepository ?? roleRepository;
+    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+    this.DualApprovalService = deps.DualApprovalService ?? DualApprovalService;
+  }
+
   // ============================================================
   // CONSULTAS
   // ============================================================
@@ -86,7 +102,7 @@ class PersonService {
       filters.userId = query.userId.trim();
     }
 
-    const { rows, count } = await userRepository.findAllPaginated(filters, paginationParams, searchTerm);
+    const { rows, count } = await this.userRepository.findAllPaginated(filters, paginationParams, searchTerm);
 
     const activeFilters = searchTerm ? { search: searchTerm, ...filters } : filters;
 
@@ -115,7 +131,7 @@ class PersonService {
 
   /** @private — IDs de los roles de cliente (CLIENTE, CLIENTE_VERIFICADO) */
   async _clientRoleIds() {
-    const roles = await roleRepository.findAll({ name: { [Op.in]: CLIENT_ROLE_NAMES } });
+    const roles = await this.roleRepository.findAll({ name: { [Op.in]: CLIENT_ROLE_NAMES } });
     return roles.map(r => r.role_id);
   }
 
@@ -130,7 +146,7 @@ class PersonService {
     const clientRoleIds = await this._clientRoleIds();
     const filters = { roleIds: clientRoleIds, onlyDeleted: true };
 
-    const { rows, count } = await userRepository.findAllPaginated(filters, paginationParams, searchTerm);
+    const { rows, count } = await this.userRepository.findAllPaginated(filters, paginationParams, searchTerm);
 
     logAudit(
       'PERSON_DELETED_LIST_VIEWED',
@@ -157,7 +173,7 @@ class PersonService {
    * Evita que el front ofrezca todos los roles del sistema en este listado.
    */
   async listRoleOptions(adminUserId) {
-    const roles = await roleRepository.findAll({ name: { [Op.in]: CLIENT_ROLE_NAMES } });
+    const roles = await this.roleRepository.findAll({ name: { [Op.in]: CLIENT_ROLE_NAMES } });
     logAudit(
       'PERSON_ROLE_OPTIONS_VIEWED',
       adminUserId,
@@ -178,7 +194,7 @@ class PersonService {
   }
 
   async getById(userId, adminUserId) {
-    const user = await userRepository.findByUserId(userId, 'full');
+    const user = await this.userRepository.findByUserId(userId, 'full');
     if (!user) {
       throw AppError.notFound('Usuario no encontrado');
     }
@@ -198,11 +214,11 @@ class PersonService {
   // ============================================================
 
   async create(userData, auditContext) {
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
     let transactionFinished = false;
 
     try {
-      const role = await roleRepository.findByName(RBAC_ROLES.CLIENTE);
+      const role = await this.roleRepository.findByName(RBAC_ROLES.CLIENTE);
       if (!role) {
         throw AppError.internal(`Rol ${RBAC_ROLES.CLIENTE} no configurado. Ejecuta el seeder RBAC.`);
       }
@@ -231,7 +247,7 @@ class PersonService {
 
       setImmediate(() => this._sendCreateNotifications(userData, user, auditContext, temporaryPassword));
 
-      const fullUser = await userRepository.findByUserId(user.user_id, 'full');
+      const fullUser = await this.userRepository.findByUserId(user.user_id, 'full');
       return CreateUserDTO(fullUser, temporaryPassword);
     } catch (error) {
       if (!transactionFinished) {
@@ -243,7 +259,7 @@ class PersonService {
 
   /** @private */
   async _createDbRecords(userData, authUsername, temporaryPassword, roleId, transaction) {
-    const person = await personRepository.create(
+    const person = await this.personRepository.create(
       {
         first_name: userData.firstName,
         middle_name: userData.middleName || null,
@@ -259,7 +275,7 @@ class PersonService {
       { transaction }
     );
 
-    await personContactRepository.create(
+    await this.personContactRepository.create(
       {
         person_id: person.person_id,
         email: userData.email,
@@ -269,7 +285,7 @@ class PersonService {
       { transaction }
     );
 
-    return userRepository.create(
+    return this.userRepository.create(
       {
         username: authUsername,
         auth_username: authUsername,
@@ -283,7 +299,7 @@ class PersonService {
 
   /** @private */
   _sendCreateNotifications(userData, user, auditContext, temporaryPassword) {
-    NotificationUtil.crearNotificacion({
+    this.NotificationUtil.crearNotificacion({
       tipoNotificacion: 'USUARIO_CREADO_ADMIN',
       userId: user.user_id,
       relatedEntity: null,
@@ -295,7 +311,7 @@ class PersonService {
       }
     }).catch(err => logger.warn('Error sending welcome notification', { error: err.message }));
 
-    NotificationUtil.crearNotificacion({
+    this.NotificationUtil.crearNotificacion({
       tipoNotificacion: 'PERSON_ADMIN_ACTION',
       userId: auditContext.adminUserId,
       relatedEntity: null,
@@ -321,11 +337,11 @@ class PersonService {
   }
 
   async _toggleStatus(userId, action, auditContext) {
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
     const isActivating = action === 'activate';
 
     try {
-      const user = await userRepository.findById(userId, {
+      const user = await this.userRepository.findById(userId, {
         include: [
           {
             association: 'person',
@@ -345,7 +361,7 @@ class PersonService {
         throw AppError.badRequest(`El usuario ya está ${isActivating ? 'activo' : 'inactivo'}`);
       }
 
-      await userRepository.setActiveStatus(userId, isActivating, { transaction });
+      await this.userRepository.setActiveStatus(userId, isActivating, { transaction });
 
       await KycSharedUtil.logChange(
         {
@@ -375,7 +391,7 @@ class PersonService {
       const affectedEmail = user.person?.contact?.email;
 
       setImmediate(() => {
-        NotificationUtil.crearNotificacion({
+        this.NotificationUtil.crearNotificacion({
           tipoNotificacion: isActivating ? 'ACCOUNT_ACTIVATED' : 'ACCOUNT_DEACTIVATED',
           userId: userId,
           relatedEntity: null,
@@ -386,7 +402,7 @@ class PersonService {
           }
         }).catch(err => logger.warn('Error sending status notification', { error: err.message }));
 
-        NotificationUtil.crearNotificacion({
+        this.NotificationUtil.crearNotificacion({
           tipoNotificacion: 'PERSON_ADMIN_ACTION',
           userId: auditContext.adminUserId,
           relatedEntity: null,
@@ -412,10 +428,10 @@ class PersonService {
   // ============================================================
 
   async resetPassword(userId, auditContext) {
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
 
     try {
-      const user = await userRepository.findById(userId, {
+      const user = await this.userRepository.findById(userId, {
         include: [
           {
             association: 'person',
@@ -433,7 +449,7 @@ class PersonService {
 
       const temporaryPassword = KycSharedUtil.generateSecurePassword();
 
-      await userRepository.updatePassword(userId, temporaryPassword, { transaction });
+      await this.userRepository.updatePassword(userId, temporaryPassword, { transaction });
 
       await KycSharedUtil.logChange(
         {
@@ -463,7 +479,7 @@ class PersonService {
       const affectedEmail = user.person?.contact?.email;
 
       setImmediate(() => {
-        NotificationUtil.crearNotificacion({
+        this.NotificationUtil.crearNotificacion({
           tipoNotificacion: 'PASSWORD_RESET_ADMIN',
           userId: user.user_id,
           relatedEntity: null,
@@ -475,7 +491,7 @@ class PersonService {
           }
         }).catch(err => logger.warn('Error sending password reset notification', { error: err.message }));
 
-        NotificationUtil.crearNotificacion({
+        this.NotificationUtil.crearNotificacion({
           tipoNotificacion: 'PERSON_ADMIN_ACTION',
           userId: auditContext.adminUserId,
           relatedEntity: null,
@@ -502,10 +518,10 @@ class PersonService {
   // ============================================================
 
   async changeEmail(userId, newEmail, auditContext) {
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
 
     try {
-      const user = await userRepository.findById(userId, {
+      const user = await this.userRepository.findById(userId, {
         include: [
           {
             association: 'person',
@@ -548,20 +564,20 @@ class PersonService {
       const firstName = user.person?.first_name;
 
       setImmediate(() => {
-        NotificationUtil.crearNotificacionDirecta({
+        this.NotificationUtil.crearNotificacionDirecta({
           tipoNotificacion: 'EMAIL_CHANGED_OLD',
           email: oldEmail,
           metadata: { nombre: firstName, email: oldEmail, logoUrl: notifications.ses.logoUrl }
         }).catch(err => logger.warn('Error sending old email notification', { error: err.message }));
 
-        NotificationUtil.crearNotificacion({
+        this.NotificationUtil.crearNotificacion({
           tipoNotificacion: 'EMAIL_CHANGED_NEW',
           userId: user.user_id,
           relatedEntity: null,
           metadata: { nombre: firstName, email: updatedEmail, logoUrl: notifications.ses.logoUrl }
         }).catch(err => logger.warn('Error sending new email notification', { error: err.message }));
 
-        NotificationUtil.crearNotificacion({
+        this.NotificationUtil.crearNotificacion({
           tipoNotificacion: 'PERSON_ADMIN_ACTION',
           userId: auditContext.adminUserId,
           relatedEntity: null,
@@ -588,10 +604,10 @@ class PersonService {
   // ============================================================
 
   async changeNationalId(userId, newNationalId, auditContext) {
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
 
     try {
-      const user = await userRepository.findById(userId, {
+      const user = await this.userRepository.findById(userId, {
         include: [
           {
             association: 'person',
@@ -646,14 +662,14 @@ class PersonService {
       const firstName = user.person?.first_name;
 
       setImmediate(() => {
-        NotificationUtil.crearNotificacion({
+        this.NotificationUtil.crearNotificacion({
           tipoNotificacion: 'NATIONAL_ID_CHANGED',
           userId: user.user_id,
           relatedEntity: null,
           metadata: { nombre: firstName, email: affectedEmail, logoUrl: notifications.ses.logoUrl }
         }).catch(err => logger.warn('Error sending national id notification', { error: err.message }));
 
-        NotificationUtil.crearNotificacion({
+        this.NotificationUtil.crearNotificacion({
           tipoNotificacion: 'PERSON_ADMIN_ACTION',
           userId: auditContext.adminUserId,
           relatedEntity: null,
@@ -680,10 +696,10 @@ class PersonService {
   // ============================================================
 
   async disableMFA(userId, auditContext) {
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
 
     try {
-      const user = await userRepository.findById(userId, {
+      const user = await this.userRepository.findById(userId, {
         include: [
           {
             association: 'person',
@@ -711,7 +727,7 @@ class PersonService {
         updates.sms_mfa_enabled = false;
       }
 
-      await userRepository.update(userId, updates, { transaction });
+      await this.userRepository.update(userId, updates, { transaction });
 
       await KycSharedUtil.logChange(
         {
@@ -760,7 +776,7 @@ class PersonService {
     const affectedEmail = user.person?.contact?.email;
 
     setImmediate(() => {
-      NotificationUtil.crearNotificacion({
+      this.NotificationUtil.crearNotificacion({
         tipoNotificacion: 'RESET_MFA',
         userId: user.user_id,
         relatedEntity: null,
@@ -771,7 +787,7 @@ class PersonService {
         }
       }).catch(err => logger.warn('Error sending MFA reset notification', { error: err.message }));
 
-      NotificationUtil.crearNotificacion({
+      this.NotificationUtil.crearNotificacion({
         tipoNotificacion: 'PERSON_ADMIN_ACTION',
         userId: auditContext.adminUserId,
         relatedEntity: null,
@@ -790,10 +806,10 @@ class PersonService {
   // ============================================================
 
   async changeRole(userId, newRoleId, auditContext) {
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
 
     try {
-      const user = await userRepository.findById(userId, {
+      const user = await this.userRepository.findById(userId, {
         include: [
           {
             association: 'person',
@@ -814,7 +830,7 @@ class PersonService {
         throw AppError.badRequest('No se puede cambiar el rol de un administrador');
       }
 
-      const newRole = await roleRepository.findById(newRoleId);
+      const newRole = await this.roleRepository.findById(newRoleId);
       if (!newRole) {
         throw AppError.notFound('Rol no encontrado');
       }
@@ -825,7 +841,7 @@ class PersonService {
 
       const oldRole = user.role;
 
-      await userRepository.update(userId, { role_id: newRoleId }, { transaction });
+      await this.userRepository.update(userId, { role_id: newRoleId }, { transaction });
 
       await KycSharedUtil.logChange(
         {
@@ -858,7 +874,7 @@ class PersonService {
       const affectedEmail = user.person?.contact?.email;
 
       setImmediate(() => {
-        NotificationUtil.crearNotificacion({
+        this.NotificationUtil.crearNotificacion({
           tipoNotificacion: 'ROL_CHANGE',
           userId: user.user_id,
           relatedEntity: null,
@@ -871,7 +887,7 @@ class PersonService {
           }
         }).catch(err => logger.warn('Error sending role change notification', { error: err.message }));
 
-        NotificationUtil.crearNotificacion({
+        this.NotificationUtil.crearNotificacion({
           tipoNotificacion: 'PERSON_ADMIN_ACTION',
           userId: auditContext.adminUserId,
           relatedEntity: null,
@@ -898,14 +914,14 @@ class PersonService {
 
   async deleteAccount(userId, currentPassword, auditContext) {
     // Re-autenticación del admin (maker) ANTES de gatear la doble aprobación.
-    const adminUser = await userRepository.findByUserId(auditContext.adminUserId, 'minimal');
+    const adminUser = await this.userRepository.findByUserId(auditContext.adminUserId, 'minimal');
     if (!adminUser) {
       throw AppError.notFound('Administrador no encontrado');
     }
     await ProfileHelper.validateCurrentPassword(adminUser.password_hash, currentPassword);
 
     // La cuenta objetivo debe existir y no estar ya eliminada (no se re-elimina).
-    const target = await userRepository.findById(userId, {
+    const target = await this.userRepository.findById(userId, {
       attributes: ['user_id', 'deleted_at'],
       include: [{ association: 'person', attributes: ['person_id'] }]
     });
@@ -916,7 +932,7 @@ class PersonService {
 
     // Doble aprobación (maker-checker). Pendiente → 202 y la eliminación corre luego desde el
     // handler IoC (executeDeleteAccount). Flag off / super_admin → se ejecuta inline.
-    const gate = await DualApprovalService.gate('CLIENT_ACCOUNT_DELETE', {
+    const gate = await this.DualApprovalService.gate('CLIENT_ACCOUNT_DELETE', {
       entityType: 'User',
       entityId: userId,
       payload: { userId },
@@ -935,10 +951,10 @@ class PersonService {
    * Punto de entrada del handler de doble aprobación y de la ejecución directa.
    */
   async executeDeleteAccount(userId, auditContext) {
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
 
     try {
-      const user = await userRepository.findById(userId, {
+      const user = await this.userRepository.findById(userId, {
         include: [
           {
             association: 'person',
@@ -979,7 +995,7 @@ class PersonService {
 
       if (result.deletedEmail) {
         setImmediate(() => {
-          NotificationUtil.crearNotificacionDirecta({
+          this.NotificationUtil.crearNotificacionDirecta({
             tipoNotificacion: 'CUENTA_ELIMINADA',
             email: result.deletedEmail,
             metadata: {
@@ -994,7 +1010,7 @@ class PersonService {
             })
           );
 
-          NotificationUtil.crearNotificacion({
+          this.NotificationUtil.crearNotificacion({
             tipoNotificacion: 'PERSON_ADMIN_ACTION',
             userId: auditContext.adminUserId,
             relatedEntity: null,
@@ -1020,3 +1036,4 @@ class PersonService {
 }
 
 module.exports = new PersonService();
+module.exports.PersonService = PersonService;

@@ -4,6 +4,16 @@ const { logAudit } = require('../../../../../shared/utils/logger.util');
 const { ListUserChangeLogsResponseDTO } = require('../dtos/admin-change-log.dto');
 
 class ChangeLogService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new ChangeLogService({ userChangeLogRepository: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.userChangeLogRepository = deps.userChangeLogRepository ?? userChangeLogRepository;
+  }
+
   async listUserChangeLogs(query, adminUserId) {
     const paginationParams = PaginationHelper.getPaginationParams(query);
     const filters = PaginationHelper.buildFilters(query, ['changeType', 'changedByRole']);
@@ -21,7 +31,7 @@ class ChangeLogService {
       filters.dateTo = query.dateTo;
     }
 
-    const { rows, count } = await userChangeLogRepository.findAllPaginated(filters, paginationParams, searchTerm);
+    const { rows, count } = await this.userChangeLogRepository.findAllPaginated(filters, paginationParams, searchTerm);
 
     const metadata = {
       totalItems: count,
@@ -48,3 +58,4 @@ class ChangeLogService {
 }
 
 module.exports = new ChangeLogService();
+module.exports.ChangeLogService = ChangeLogService;

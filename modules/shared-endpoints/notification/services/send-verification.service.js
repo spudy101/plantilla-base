@@ -1,4 +1,4 @@
-const { sequelize } = require('../../../../shared/models');
+const unitOfWork = require('../../../../shared/database/unit-of-work');
 const verificationCodeRepository = require('../../../schemas/notification/repositories/verification-code.repository');
 const NotificationUtil = require('../../../schemas/notification/services/notification-creation.service');
 const SmsService = require('../../../schemas/notification/services/sms.service');
@@ -19,6 +19,19 @@ const VERIFICATION_CODE_MAX = 999999;
 const MASKED_CODE_VISIBLE_DIGITS = 2;
 
 class SendVerificationService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new SendVerificationService({ unitOfWork: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.unitOfWork = deps.unitOfWork ?? unitOfWork;
+    this.verificationCodeRepository = deps.verificationCodeRepository ?? verificationCodeRepository;
+    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+    this.SmsService = deps.SmsService ?? SmsService;
+  }
+
   // ============================================================
   // ENVIAR CÓDIGO
   // ============================================================
@@ -26,7 +39,7 @@ class SendVerificationService {
   async sendVerificationCode(data) {
     const { type, contact, phonePrefixId } = data;
 
-    const canRequest = await verificationCodeRepository.canRequestNewCode(type, contact);
+    const canRequest = await this.verificationCodeRepository.canRequestNewCode(type, contact);
     if (!canRequest) {
       throw AppError.tooManyRequests('Debes esperar 60 segundos antes de solicitar un nuevo código');
     }
@@ -34,10 +47,10 @@ class SendVerificationService {
     const code = this._generateCode();
     const expiresAt = new Date(Date.now() + VERIFICATION_EXPIRATION_MINUTES * 60 * 1000);
 
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
 
     try {
-      const verificationCode = await verificationCodeRepository.create(
+      const verificationCode = await this.verificationCodeRepository.create(
         {
           type,
           contact_value: contact,
@@ -89,7 +102,7 @@ class SendVerificationService {
   async verifyCode(data) {
     const { type, contact, code } = data;
 
-    const verificationCode = await verificationCodeRepository.findActiveByContact(type, contact);
+    const verificationCode = await this.verificationCodeRepository.findActiveByContact(type, contact);
 
     if (!verificationCode) {
       logger.info('Verificación de código sin registro activo', { type, contact });
@@ -105,9 +118,9 @@ class SendVerificationService {
     }
 
     if (verificationCode.code !== code) {
-      const transaction = await sequelize.transaction();
+      const transaction = await this.unitOfWork.begin();
       try {
-        await verificationCodeRepository.incrementAttempts(verificationCode.verification_code_id, {
+        await this.verificationCodeRepository.incrementAttempts(verificationCode.verification_code_id, {
           transaction
         });
         await transaction.commit();
@@ -141,9 +154,9 @@ class SendVerificationService {
       throw AppError.badRequest(`Código inválido. Te quedan ${remaining} intento${remaining !== 1 ? 's' : ''}`);
     }
 
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
     try {
-      await verificationCodeRepository.markAsVerified(verificationCode.verification_code_id, {
+      await this.verificationCodeRepository.markAsVerified(verificationCode.verification_code_id, {
         transaction
       });
       await transaction.commit();
@@ -191,7 +204,7 @@ class SendVerificationService {
   /** @private */
   async _sendCode(type, contact, phonePrefixId, code) {
     if (type === 'email') {
-      await NotificationUtil.crearNotificacionDirecta({
+      await this.NotificationUtil.crearNotificacionDirecta({
         tipoNotificacion: 'CODIGO_VERIFICACION',
         email: contact,
         metadata: {
@@ -203,9 +216,9 @@ class SendVerificationService {
       logger.info('Verification email sent', { email: contact });
     } else if (type === 'phone') {
       // SMS por AWS SNS. Se arma el E.164 con el prefijo del país (ej: +56) + el número local.
-      const phoneNumber = await SmsService.resolveE164(contact, phonePrefixId);
+      const phoneNumber = await this.SmsService.resolveE164(contact, phonePrefixId);
 
-      const result = await SmsService.enviarSmsOtp({
+      const result = await this.SmsService.enviarSmsOtp({
         phoneNumber,
         message: `Tu código de verificación es ${code}. Vence en ${VERIFICATION_EXPIRATION_MINUTES} minutos.`,
         purpose: 'otp_verification'
@@ -220,3 +233,4 @@ class SendVerificationService {
 }
 
 module.exports = new SendVerificationService();
+module.exports.SendVerificationService = SendVerificationService;

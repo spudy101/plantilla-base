@@ -12,6 +12,16 @@ const emailSuppressionService = require('./email-suppression.service');
 const SES_RAW_MAX_BYTES = 10 * 1024 * 1024;
 
 class EmailNotificationService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new EmailNotificationService({ emailSuppressionService: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.emailSuppressionService = deps.emailSuppressionService ?? emailSuppressionService;
+  }
+
   // Lazy getter: SESClient se instancia la primera vez que se usa,
   // no al hacer require(). Esto evita que aws.region sea undefined
   // en tests donde los mocks aún no están listos al momento del require().
@@ -88,7 +98,7 @@ class EmailNotificationService {
   async enviarEmail(destinatario, asunto, cuerpoHtml, cuerpoTexto = '', notificationId = null) {
     // Suppression list: si la dirección acumuló rebotes duros no se envía (protege la reputación
     // de envío de SES). No es un error de envío — se omite silenciosamente y se audita.
-    if (await emailSuppressionService.isSuppressed(destinatario)) {
+    if (await this.emailSuppressionService.isSuppressed(destinatario)) {
       logger.warn('[EmailNotification] Envío omitido: dirección suprimida por rebotes duros', {
         destinatario: MaskingUtil.maskEmail(destinatario)
       });
@@ -171,7 +181,7 @@ class EmailNotificationService {
    */
   async enviarEmailConAdjuntos(destinatario, asunto, cuerpoHtml, adjuntos, notificationId = null) {
     // Suppression list: misma protección de reputación que enviarEmail (rebotes duros → no se envía).
-    if (await emailSuppressionService.isSuppressed(destinatario)) {
+    if (await this.emailSuppressionService.isSuppressed(destinatario)) {
       logger.warn('[EmailNotification] Envío con adjuntos omitido: dirección suprimida por rebotes duros', {
         destinatario: MaskingUtil.maskEmail(destinatario)
       });
@@ -369,3 +379,4 @@ class EmailNotificationService {
 }
 
 module.exports = new EmailNotificationService();
+module.exports.EmailNotificationService = EmailNotificationService;

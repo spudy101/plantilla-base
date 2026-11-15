@@ -5,13 +5,25 @@ const { logger } = require('../../../../shared/utils/logger.util');
 
 class NotificationCleanupService {
   /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new NotificationCleanupService({ notificationRepo: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.notificationRepo = deps.notificationRepo ?? notificationRepo;
+    this.userPushTokenRepo = deps.userPushTokenRepo ?? userPushTokenRepo;
+    this.verificationCodeRepo = deps.verificationCodeRepo ?? verificationCodeRepo;
+  }
+
+  /**
    * Limpieza de notificaciones antiguas y tokens inactivos
    * @param {number} days - Días de antigüedad (por defecto 90)
    */
   async limpiarNotificacionesAntiguas(days = 90) {
     try {
-      const deletedNotifications = await notificationRepo.deleteOldRead(days);
-      const deletedTokens = await userPushTokenRepo.deleteOldInactive(days);
+      const deletedNotifications = await this.notificationRepo.deleteOldRead(days);
+      const deletedTokens = await this.userPushTokenRepo.deleteOldInactive(days);
 
       logger.info('Limpieza completada', {
         notificaciones_eliminadas: deletedNotifications,
@@ -28,8 +40,8 @@ class NotificationCleanupService {
     }
   }
   async limpiarCodigosVerificacion(retentionDays = 30) {
-    const deletedExpired = await verificationCodeRepo.deleteExpired();
-    const deletedVerified = await verificationCodeRepo.deleteOldVerified(retentionDays);
+    const deletedExpired = await this.verificationCodeRepo.deleteExpired();
+    const deletedVerified = await this.verificationCodeRepo.deleteOldVerified(retentionDays);
 
     logger.info('Limpieza de codigos de verificacion completada', {
       expirados_eliminados: deletedExpired,
@@ -42,3 +54,4 @@ class NotificationCleanupService {
 }
 
 module.exports = new NotificationCleanupService();
+module.exports.NotificationCleanupService = NotificationCleanupService;

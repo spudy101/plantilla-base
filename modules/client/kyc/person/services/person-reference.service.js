@@ -9,8 +9,18 @@ const { PersonReferenceDTO, PersonReferenceListDTO } = require('../dtos/person-r
 const MAX_REFERENCES_PER_PERSON = 5;
 
 class PersonReferenceService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new PersonReferenceService({ personReferenceRepository: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.personReferenceRepository = deps.personReferenceRepository ?? personReferenceRepository;
+  }
+
   async list(personId, userId) {
-    const references = await personReferenceRepository.findAllByPersonId(personId);
+    const references = await this.personReferenceRepository.findAllByPersonId(personId);
     logAudit(
       'PROFILE_REFERENCES_VIEWED',
       userId,
@@ -21,12 +31,12 @@ class PersonReferenceService {
   }
 
   async create(data, personId, userId) {
-    const existing = await personReferenceRepository.findAllByPersonId(personId);
+    const existing = await this.personReferenceRepository.findAllByPersonId(personId);
     if (existing.length >= MAX_REFERENCES_PER_PERSON) {
       throw AppError.badRequest(`No puede agregar más de ${MAX_REFERENCES_PER_PERSON} referencias`);
     }
 
-    const reference = await personReferenceRepository.create({
+    const reference = await this.personReferenceRepository.create({
       person_id: personId,
       reference_name: data.referenceName,
       reference_phone: data.referencePhone,
@@ -44,12 +54,12 @@ class PersonReferenceService {
   }
 
   async update(referenceId, data, personId, userId) {
-    const reference = await personReferenceRepository.findActiveById(referenceId, personId);
+    const reference = await this.personReferenceRepository.findActiveById(referenceId, personId);
     if (!reference) {
       throw AppError.notFound('Referencia no encontrada');
     }
 
-    const updated = await personReferenceRepository.update(referenceId, {
+    const updated = await this.personReferenceRepository.update(referenceId, {
       reference_name: data.referenceName,
       reference_phone: data.referencePhone,
       reference_type: data.referenceType
@@ -76,12 +86,12 @@ class PersonReferenceService {
   }
 
   async remove(referenceId, personId, userId) {
-    const reference = await personReferenceRepository.findActiveById(referenceId, personId);
+    const reference = await this.personReferenceRepository.findActiveById(referenceId, personId);
     if (!reference) {
       throw AppError.notFound('Referencia no encontrada');
     }
 
-    await personReferenceRepository.update(referenceId, { is_active: false });
+    await this.personReferenceRepository.update(referenceId, { is_active: false });
     logAudit(
       'PROFILE_REFERENCE_DELETED',
       userId,
@@ -92,3 +102,4 @@ class PersonReferenceService {
 }
 
 module.exports = new PersonReferenceService();
+module.exports.PersonReferenceService = PersonReferenceService;

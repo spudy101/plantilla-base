@@ -1,4 +1,4 @@
-const { sequelize } = require('../../../../../shared/models');
+const unitOfWork = require('../../../../../shared/database/unit-of-work');
 const userRepository = require('../../../../schemas/kyc/iam/repositories/user.repository');
 const verificationCodeRepository = require('../../../../schemas/notification/repositories/verification-code.repository');
 const KycSharedUtil = require('../../../../schemas/kyc/person/utils/kyc-shared.util');
@@ -28,6 +28,20 @@ const OTP_CODE_MAX = 999999;
 const MASKED_CODE_VISIBLE_DIGITS = 2;
 
 class MFAService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new MFAService({ unitOfWork: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.unitOfWork = deps.unitOfWork ?? unitOfWork;
+    this.userRepository = deps.userRepository ?? userRepository;
+    this.verificationCodeRepository = deps.verificationCodeRepository ?? verificationCodeRepository;
+    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+    this.SmsService = deps.SmsService ?? SmsService;
+  }
+
   async setupTOTP(userId, username) {
     const user = await this._getUserSecure(userId);
     if (user.totp_enabled) {
@@ -40,7 +54,7 @@ class MFAService {
     const secretCode = TotpUtil.generateSecret();
     const otpauthUrl = TotpUtil.keyuri(username, secretCode);
 
-    await userRepository.update(userId, { totp_secret: EncryptionUtil.encrypt(secretCode) });
+    await this.userRepository.update(userId, { totp_secret: EncryptionUtil.encrypt(secretCode) });
 
     logAudit('MFA_TOTP_SETUP', userId, { username }, { entityId: userId, entityType: 'User', entityTable: 'users' });
 
@@ -62,14 +76,14 @@ class MFAService {
       throw AppError.badRequest('Codigo TOTP invalido');
     }
 
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
 
     try {
-      await userRepository.updateTOTPStatus(userId, true, { transaction });
+      await this.userRepository.updateTOTPStatus(userId, true, { transaction });
 
       // Primer MFA activado → queda como método preferido para que el login lo aplique
       if (user.preferred_mfa_method === 'none') {
-        await userRepository.update(userId, { preferred_mfa_method: 'totp' }, { transaction });
+        await this.userRepository.update(userId, { preferred_mfa_method: 'totp' }, { transaction });
       }
 
       await KycSharedUtil.logChange(
@@ -93,7 +107,7 @@ class MFAService {
       logAudit('MFA_TOTP_ACTIVATED', userId, { username }, { entityId: userId, entityType: 'User', entityTable: 'users' });
 
       setImmediate(() => {
-        NotificationUtil.crearNotificacion({
+        this.NotificationUtil.crearNotificacion({
           tipoNotificacion: 'TOTP_ACTIVADO',
           userId: userId,
           relatedEntity: null,
@@ -134,21 +148,21 @@ class MFAService {
       throw AppError.badRequest('TOTP no esta activado');
     }
 
-    const isPasswordValid = await userRepository.verifyPassword(password, user.password_hash);
+    const isPasswordValid = await this.userRepository.verifyPassword(password, user.password_hash);
     if (!isPasswordValid) {
       throw AppError.unauthorized('Contrasena incorrecta');
     }
 
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
 
     try {
       // Limpia el flag y BORRA el secreto en un solo update.
-      await userRepository.setTOTPStatus(userId, false, null, { transaction });
+      await this.userRepository.setTOTPStatus(userId, false, null, { transaction });
 
       // Si TOTP era el método preferido, degradar para no dejar al login pidiendo
       // un factor que ya no existe: cae a SMS si está activo, si no a 'none'.
       if (user.preferred_mfa_method === 'totp') {
-        await userRepository.update(
+        await this.userRepository.update(
           userId,
           { preferred_mfa_method: user.sms_mfa_enabled ? 'sms' : 'none' },
           { transaction }
@@ -176,7 +190,7 @@ class MFAService {
       logAudit('MFA_TOTP_DEACTIVATED', userId, { username }, { entityId: userId, entityType: 'User', entityTable: 'users' });
 
       setImmediate(() => {
-        NotificationUtil.crearNotificacion({
+        this.NotificationUtil.crearNotificacion({
           tipoNotificacion: 'TOTP_ELIMINADO',
           userId: userId,
           relatedEntity: null,
@@ -193,7 +207,7 @@ class MFAService {
 
   async validatePassword(password, userId, username) {
     const user = await this._getUserSecure(userId);
-    const isValid = await userRepository.verifyPassword(password, user.password_hash);
+    const isValid = await this.userRepository.verifyPassword(password, user.password_hash);
 
     logAudit(
       'MFA_PASSWORD_VALIDATED',
@@ -223,7 +237,7 @@ class MFAService {
       throw AppError.conflict('SMS MFA ya está activado para este usuario');
     }
 
-    const isPasswordValid = await userRepository.verifyPassword(password, user.password_hash);
+    const isPasswordValid = await this.userRepository.verifyPassword(password, user.password_hash);
     if (!isPasswordValid) {
       throw AppError.unauthorized('Contraseña incorrecta');
     }
@@ -233,7 +247,7 @@ class MFAService {
       throw AppError.badRequest('Debes registrar un número de teléfono antes de activar SMS MFA');
     }
 
-    const canRequest = await verificationCodeRepository.canRequestNewCode('phone', phone);
+    const canRequest = await this.verificationCodeRepository.canRequestNewCode('phone', phone);
     if (!canRequest) {
       throw AppError.tooManyRequests('Debes esperar 60 segundos antes de solicitar un nuevo código');
     }
@@ -241,7 +255,7 @@ class MFAService {
     const code = this._generateOtpCode();
     const expiresAt = new Date(Date.now() + OTP_EXPIRATION_MINUTES * 60 * 1000);
 
-    const verificationCode = await verificationCodeRepository.create({
+    const verificationCode = await this.verificationCodeRepository.create({
       type: 'phone',
       contact_value: phone,
       code,
@@ -253,8 +267,8 @@ class MFAService {
     const phonePrefixId = user.person?.contact?.phone_primary_prefix_id ?? null;
     setImmediate(async () => {
       try {
-        const phoneNumber = await SmsService.resolveE164(phone, phonePrefixId);
-        const result = await SmsService.enviarSmsOtp({
+        const phoneNumber = await this.SmsService.resolveE164(phone, phonePrefixId);
+        const result = await this.SmsService.enviarSmsOtp({
           phoneNumber,
           message: `Tu código de activación de SMS MFA es ${code}. Vence en ${OTP_EXPIRATION_MINUTES} minutos.`,
           userId,
@@ -289,7 +303,7 @@ class MFAService {
       throw AppError.badRequest('Debes registrar un número de teléfono antes de activar SMS MFA');
     }
 
-    const verificationCode = await verificationCodeRepository.findActiveByContact('phone', phone);
+    const verificationCode = await this.verificationCodeRepository.findActiveByContact('phone', phone);
     if (!verificationCode) {
       throw AppError.notFound('Código de verificación no encontrado o expirado');
     }
@@ -301,15 +315,15 @@ class MFAService {
     }
 
     if (verificationCode.code !== code) {
-      await verificationCodeRepository.incrementAttempts(verificationCode.verification_code_id);
+      await this.verificationCodeRepository.incrementAttempts(verificationCode.verification_code_id);
       const remaining = MAX_OTP_ATTEMPTS - (verificationCode.attempts + 1);
       throw AppError.badRequest(`Código inválido. Te quedan ${remaining} intento${remaining !== 1 ? 's' : ''}`);
     }
 
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
 
     try {
-      await verificationCodeRepository.markAsVerified(verificationCode.verification_code_id, {
+      await this.verificationCodeRepository.markAsVerified(verificationCode.verification_code_id, {
         transaction
       });
       // SMS MFA gestionado íntegramente en nuestra BD
@@ -318,7 +332,7 @@ class MFAService {
       if (user.preferred_mfa_method === 'none') {
         updates.preferred_mfa_method = 'sms';
       }
-      await userRepository.update(userId, updates, { transaction });
+      await this.userRepository.update(userId, updates, { transaction });
 
       await KycSharedUtil.logChange(
         {
@@ -340,7 +354,7 @@ class MFAService {
       logAudit('MFA_SMS_ACTIVATED', userId, { username }, { entityId: userId, entityType: 'User', entityTable: 'users' });
 
       setImmediate(() => {
-        NotificationUtil.crearNotificacion({
+        this.NotificationUtil.crearNotificacion({
           tipoNotificacion: 'SMS_MFA_ACTIVADO',
           userId,
           relatedEntity: null,
@@ -366,12 +380,12 @@ class MFAService {
       throw AppError.badRequest('SMS MFA no está activado');
     }
 
-    const isPasswordValid = await userRepository.verifyPassword(password, user.password_hash);
+    const isPasswordValid = await this.userRepository.verifyPassword(password, user.password_hash);
     if (!isPasswordValid) {
       throw AppError.unauthorized('Contraseña incorrecta');
     }
 
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
 
     try {
       // SMS MFA gestionado íntegramente en nuestra BD
@@ -379,7 +393,7 @@ class MFAService {
       if (user.preferred_mfa_method === 'sms') {
         updates.preferred_mfa_method = user.totp_enabled ? 'totp' : 'none';
       }
-      await userRepository.update(userId, updates, { transaction });
+      await this.userRepository.update(userId, updates, { transaction });
 
       await KycSharedUtil.logChange(
         {
@@ -401,7 +415,7 @@ class MFAService {
       logAudit('MFA_SMS_DEACTIVATED', userId, { username }, { entityId: userId, entityType: 'User', entityTable: 'users' });
 
       setImmediate(() => {
-        NotificationUtil.crearNotificacion({
+        this.NotificationUtil.crearNotificacion({
           tipoNotificacion: 'SMS_MFA_DESACTIVADO',
           userId,
           relatedEntity: null,
@@ -431,12 +445,12 @@ class MFAService {
       throw AppError.badRequest('Debes activar SMS MFA antes de seleccionarlo como método preferido');
     }
 
-    const transaction = await sequelize.transaction();
+    const transaction = await this.unitOfWork.begin();
 
     try {
       // La preferencia de MFA vive solo en nuestra BD; el login la lee para decidir
       // qué segundo factor exigir. Ya no hay que sincronizar con ningún proveedor externo.
-      await userRepository.update(userId, { preferred_mfa_method: preferredMethod }, { transaction });
+      await this.userRepository.update(userId, { preferred_mfa_method: preferredMethod }, { transaction });
 
       await KycSharedUtil.logChange(
         {
@@ -471,7 +485,7 @@ class MFAService {
 
   /** @private */
   async _getUserSecure(userId) {
-    const user = await userRepository.findById(userId, { include: [] });
+    const user = await this.userRepository.findById(userId, { include: [] });
     if (!user) {
       throw AppError.notFound('Usuario no encontrado');
     }
@@ -480,7 +494,7 @@ class MFAService {
 
   /** @private */
   async _getUserWithPhone(userId) {
-    const user = await userRepository.findById(userId, {
+    const user = await this.userRepository.findById(userId, {
       include: [
         {
           association: 'person',
@@ -505,3 +519,4 @@ class MFAService {
 }
 
 module.exports = new MFAService();
+module.exports.MFAService = MFAService;

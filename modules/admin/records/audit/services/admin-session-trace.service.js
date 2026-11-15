@@ -90,16 +90,27 @@ function _timelineExecutorInclude() {
 }
 
 class AdminSessionTraceService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new AdminSessionTraceService({ auditLogRepository: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.auditLogRepository = deps.auditLogRepository ?? auditLogRepository;
+    this.userSessionRepository = deps.userSessionRepository ?? userSessionRepository;
+  }
+
   // GET /records/audit/sessions — listado paginado de sesiones con conteo de acciones por sesión.
   async listSessions(query, adminUserId) {
     const pagination = PaginationHelper.getPaginationParams(query);
-    const where = userSessionRepository.buildWhere(query);
+    const where = this.userSessionRepository.buildWhere(query);
 
-    const { rows, count } = await userSessionRepository.findPaginated(where, pagination, _sessionInclude());
+    const { rows, count } = await this.userSessionRepository.findPaginated(where, pagination, _sessionInclude());
 
     // Conteo de acciones por sesión, solo para las sesiones de esta página (un query agrupado).
     const sessionIds = rows.map(s => s.user_session_id);
-    const counts = await auditLogRepository.countBySessionIds(sessionIds);
+    const counts = await this.auditLogRepository.countBySessionIds(sessionIds);
     const countMap = counts.reduce((acc, row) => {
       acc[row.session_id] = Number(row.count);
       return acc;
@@ -126,14 +137,14 @@ class AdminSessionTraceService {
 
   // GET /records/audit/sessions/:sessionId — cabecera + timeline cronológico de audit_logs.
   async getSessionTimeline(sessionId, query, adminUserId) {
-    const session = await userSessionRepository.findById(sessionId, { include: _sessionInclude() });
+    const session = await this.userSessionRepository.findById(sessionId, { include: _sessionInclude() });
     if (!session) {
       throw AppError.notFound('Sesión no encontrada');
     }
 
     const pagination = PaginationHelper.getPaginationParams(query);
 
-    const { rows, count } = await auditLogRepository.findPaginatedWithExecutor(
+    const { rows, count } = await this.auditLogRepository.findPaginatedWithExecutor(
       { session_id: sessionId },
       { limit: pagination.limit, offset: pagination.offset, sortBy: 'created_at', order: 'ASC' },
       _timelineExecutorInclude()
@@ -165,12 +176,12 @@ class AdminSessionTraceService {
   // referenciadas por el timeline. Un findAll por tabla involucrada; ids derivados de audit_logs
   // (nunca de input del usuario). ?entityTable= acota a una sola tabla (caso "expandir una fila").
   async getSessionEntities(sessionId, query, adminUserId) {
-    const exists = await userSessionRepository.findById(sessionId, { attributes: ['user_session_id'] });
+    const exists = await this.userSessionRepository.findById(sessionId, { attributes: ['user_session_id'] });
     if (!exists) {
       throw AppError.notFound('Sesión no encontrada');
     }
 
-    let refs = await auditLogRepository.findEntityRefsBySession(sessionId);
+    let refs = await this.auditLogRepository.findEntityRefsBySession(sessionId);
     if (query.entityTable) {
       refs = refs.filter(r => r.entity_table === query.entityTable);
     }
@@ -212,3 +223,4 @@ class AdminSessionTraceService {
 }
 
 module.exports = new AdminSessionTraceService();
+module.exports.AdminSessionTraceService = AdminSessionTraceService;

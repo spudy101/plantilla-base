@@ -5,9 +5,7 @@ const verificationCodeRepository = require('../../../../schemas/notification/rep
 const userSessionRepository = require('../../../../schemas/kyc/iam/repositories/user-session.repository');
 const trustedDeviceRepository = require('../../../../schemas/kyc/iam/repositories/auth-trusted-device.repository');
 const privacyPolicyRepository = require('../../../../schemas/records/legal/repositories/privacy-policy.repository');
-const userConsentRepository = require('../../../../schemas/records/legal/repositories/user-consent.repository');
-const consentTypeRepository = require('../../../../schemas/records/legal/repositories/consent-type.repository');
-const { CONSENT_TYPE_CODES } = require('../../../../../shared/constants');
+const consentRecorder = require('../../../../schemas/records/legal/services/consent-recorder.service');
 const JwtUtil = require('../../../../../shared/utils/jwt.util');
 const TotpUtil = require('../../../../../shared/utils/totp.util');
 const EncryptionUtil = require('../../../../../shared/utils/encryption.util');
@@ -59,6 +57,24 @@ const BYPASS_TOKENS = {
 };
 
 class AuthLoginService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new AuthLoginService({ userRepository: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.userRepository = deps.userRepository ?? userRepository;
+    this.userLoginAttemptRepository = deps.userLoginAttemptRepository ?? userLoginAttemptRepository;
+    this.verificationCodeRepository = deps.verificationCodeRepository ?? verificationCodeRepository;
+    this.userSessionRepository = deps.userSessionRepository ?? userSessionRepository;
+    this.trustedDeviceRepository = deps.trustedDeviceRepository ?? trustedDeviceRepository;
+    this.privacyPolicyRepository = deps.privacyPolicyRepository ?? privacyPolicyRepository;
+    this.consentRecorder = deps.consentRecorder ?? consentRecorder;
+    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+    this.SmsService = deps.SmsService ?? SmsService;
+  }
+
   // ============================================================
   // LOGIN
   // ============================================================
@@ -78,7 +94,7 @@ class AuthLoginService {
       return policyCheck;
     }
 
-    const isValid = await userRepository.verifyPassword(password, user.password_hash);
+    const isValid = await this.userRepository.verifyPassword(password, user.password_hash);
     if (!isValid) {
       await this._handleFailedLogin(user, nationalId, { ip, userAgent, fingerprintHash }, 'Contrasena invalida');
     }
@@ -155,7 +171,7 @@ class AuthLoginService {
 
     const secret = user.totp_secret ? EncryptionUtil.decrypt(user.totp_secret) : null;
     if (!TotpUtil.verify(totpCode, secret)) {
-      await userLoginAttemptRepository.recordAttempt({
+      await this.userLoginAttemptRepository.recordAttempt({
         user_id: user.user_id,
         username_attempt: user.auth_username,
         national_id: nationalId,
@@ -264,7 +280,7 @@ class AuthLoginService {
     }
 
     // 5. Cargar usuario de BD (con rol para que generateAccessToken incluya roleId/roleName)
-    const user = await userRepository.findById(decoded.userId, { include: [{ association: 'role' }] });
+    const user = await this.userRepository.findById(decoded.userId, { include: [{ association: 'role' }] });
     if (!user || !user.is_active) {
       throw AppError.unauthorized('Usuario no encontrado o inactivo', { code: AUTH_ERROR_CODES.SESSION_CLOSED });
     }
@@ -352,7 +368,7 @@ class AuthLoginService {
     );
 
     // Rota el JTI en BD y marca actividad (last_access_at).
-    userSessionRepository.updateJtiAndLastAccess(decoded.sessionId, newJti).catch(err =>
+    this.userSessionRepository.updateJtiAndLastAccess(decoded.sessionId, newJti).catch(err =>
       logger.warn('Error actualizando JTI de sesión en BD', {
         error: err.message,
         sessionId: decoded.sessionId
@@ -376,7 +392,7 @@ class AuthLoginService {
   // [RF-AUTH-02] | CA-01 | Reuse attack → invalidación global de las sesiones del usuario
   async _handleRefreshReuseAttack(decoded) {
     if (decoded.sessionId) {
-      const session = await userSessionRepository.findById(decoded.sessionId);
+      const session = await this.userSessionRepository.findById(decoded.sessionId);
       if (session && session.status !== 'active') {
         logger.info('Refresh sobre sesión ya cerrada — no es reuse attack', {
           userId: decoded.userId,
@@ -416,7 +432,7 @@ class AuthLoginService {
   // la rotación del refresh token no puede extender la sesión más allá de started_at + 8h.
   // Cierra la sesión, revoca el JTI, blacklista y lanza 401 si se superó el límite.
   async _enforceAbsoluteSessionLifetime(sessionId, userId, jti) {
-    const session = await userSessionRepository.findById(sessionId);
+    const session = await this.userSessionRepository.findById(sessionId);
     if (!session || session.status !== 'active') {
       return;
     }
@@ -426,7 +442,7 @@ class AuthLoginService {
       return;
     }
 
-    await userSessionRepository.closeSession(sessionId, 'absolute_lifetime');
+    await this.userSessionRepository.closeSession(sessionId, 'absolute_lifetime');
     RefreshTokenStore.revoke(jti).catch(err =>
       logger.warn('Error revocando JTI al expirar sesión por tope absoluto', { error: err.message, sessionId })
     );
@@ -462,7 +478,7 @@ class AuthLoginService {
 
     // Cerrar la sesión en BD
     if (sessionId) {
-      userSessionRepository.closeSession(sessionId, 'logout').catch(err =>
+      this.userSessionRepository.closeSession(sessionId, 'logout').catch(err =>
         logger.warn('Error cerrando sesión en BD en logout', {
           error: err.message,
           userId,
@@ -489,7 +505,7 @@ class AuthLoginService {
       );
     }
 
-    await trustedDeviceRepository
+    await this.trustedDeviceRepository
       .updateLastSeen(userId, fingerprintHash)
       .catch(err => logger.warn('Error updating last_seen on logout', { error: err.message }));
 
@@ -529,17 +545,17 @@ class AuthLoginService {
     );
 
     // Cerrar todas las sesiones activas en BD
-    userSessionRepository
+    this.userSessionRepository
       .closeAllByUser(userId, 'logout_all')
       .catch(err => logger.warn('Error cerrando sesiones en BD en logout-all', { error: err.message, userId }));
 
-    await trustedDeviceRepository.deleteAllByUser(userId);
+    await this.trustedDeviceRepository.deleteAllByUser(userId);
 
     logAudit('LOGOUT_ALL', userId, {}, { entityId: userId, entityType: 'User', entityTable: 'users' });
 
     // Notificar al usuario que todas sus sesiones fueron cerradas (fire-and-forget)
     setImmediate(() => {
-      NotificationUtil.crearNotificacion({
+      this.NotificationUtil.crearNotificacion({
         tipoNotificacion: 'LOGOUT_ALL',
         userId,
         metadata: { nombre: firstName || 'Usuario' }
@@ -557,7 +573,7 @@ class AuthLoginService {
   // [RF-AUTH-03] | CA-01 | Devuelve lista de dispositivos del usuario con browser,
   // os, device_type, ip_address, city, country, last_seen_at y flag de sesión actual
   async getTrustedDevices(userId, currentFingerprintHash, currentSessionId = null) {
-    const devices = await trustedDeviceRepository.findAllByUserWithSessions(userId);
+    const devices = await this.trustedDeviceRepository.findAllByUserWithSessions(userId);
 
     logAudit(
       'TRUSTED_DEVICES_VIEWED',
@@ -570,7 +586,7 @@ class AuthLoginService {
   }
 
   async getPendingDevices(userId) {
-    const devices = await trustedDeviceRepository.findAllPending(userId);
+    const devices = await this.trustedDeviceRepository.findAllPending(userId);
 
     logAudit(
       'PENDING_DEVICES_VIEWED',
@@ -583,12 +599,12 @@ class AuthLoginService {
   }
 
   async renameDevice(userId, deviceId, deviceName) {
-    const device = await trustedDeviceRepository.findByIdAndUser(deviceId, userId);
+    const device = await this.trustedDeviceRepository.findByIdAndUser(deviceId, userId);
     if (!device) {
       throw AppError.notFound('Dispositivo no encontrado');
     }
 
-    const updated = await trustedDeviceRepository.rename(deviceId, deviceName);
+    const updated = await this.trustedDeviceRepository.rename(deviceId, deviceName);
 
     logAudit(
       'TRUSTED_DEVICE_RENAMED',
@@ -607,7 +623,7 @@ class AuthLoginService {
    */
   async blockDevice(userId, deviceId, currentFingerprintHash) {
     // Verificar que quien bloquea es TRUSTED
-    const currentDevice = await trustedDeviceRepository.findByFingerprint(userId, currentFingerprintHash);
+    const currentDevice = await this.trustedDeviceRepository.findByFingerprint(userId, currentFingerprintHash);
 
     if (!currentDevice || currentDevice.status !== 'trusted') {
       throw AppError.forbidden('Solo puedes bloquear dispositivos desde un dispositivo de confianza');
@@ -619,7 +635,7 @@ class AuthLoginService {
     }
 
     // Verificar que el dispositivo a bloquear existe y pertenece al usuario
-    const targetDevice = await trustedDeviceRepository.findByIdAndUser(deviceId, userId);
+    const targetDevice = await this.trustedDeviceRepository.findByIdAndUser(deviceId, userId);
     if (!targetDevice) {
       throw AppError.notFound('Dispositivo no encontrado');
     }
@@ -629,13 +645,13 @@ class AuthLoginService {
 
     // Garantizar que siempre quede al menos un trusted
     if (targetDevice.status === 'trusted') {
-      const trustedCount = await trustedDeviceRepository.countTrusted(userId);
+      const trustedCount = await this.trustedDeviceRepository.countTrusted(userId);
       if (trustedCount <= 1) {
         throw AppError.badRequest('No puedes bloquear el único dispositivo de confianza. Promueve otro dispositivo primero');
       }
     }
 
-    const updated = await trustedDeviceRepository.block(deviceId);
+    const updated = await this.trustedDeviceRepository.block(deviceId);
 
     // ── Invalidación inmediata del access token en Redis ─────────────────────
     // Los access tokens no se pueden revocar por sí mismos, así que escribimos el
@@ -670,13 +686,13 @@ class AuthLoginService {
    */
   async unblockDevice(userId, deviceId, currentFingerprintHash) {
     // Verificar que quien desbloquea es TRUSTED
-    const currentDevice = await trustedDeviceRepository.findByFingerprint(userId, currentFingerprintHash);
+    const currentDevice = await this.trustedDeviceRepository.findByFingerprint(userId, currentFingerprintHash);
     if (!currentDevice || currentDevice.status !== 'trusted') {
       throw AppError.forbidden('Solo puedes desbloquear dispositivos desde un dispositivo de confianza');
     }
 
     // Verificar que el dispositivo a desbloquear existe y está bloqueado
-    const targetDevice = await trustedDeviceRepository.findByIdAndUser(deviceId, userId);
+    const targetDevice = await this.trustedDeviceRepository.findByIdAndUser(deviceId, userId);
     if (!targetDevice) {
       throw AppError.notFound('Dispositivo no encontrado');
     }
@@ -685,7 +701,7 @@ class AuthLoginService {
     }
 
     // Al desbloquear vuelve a pending (requiere aprobación de un trusted para operar)
-    const updated = await trustedDeviceRepository.unblock(deviceId);
+    const updated = await this.trustedDeviceRepository.unblock(deviceId);
 
     // ── Limpiar la entrada de Redis ──────────────────────────────────────────
     // Si la clave aún existe (el token original no expiró), la eliminamos
@@ -718,13 +734,13 @@ class AuthLoginService {
   async approveDevice(userId, deviceId, currentFingerprintHash) {
     // Verificar que el dispositivo actual es TRUSTED (quien aprueba)
 
-    const currentDevice = await trustedDeviceRepository.findByFingerprint(userId, currentFingerprintHash);
+    const currentDevice = await this.trustedDeviceRepository.findByFingerprint(userId, currentFingerprintHash);
     if (!currentDevice || currentDevice.status !== 'trusted') {
       throw AppError.forbidden('Solo puedes aprobar dispositivos desde un dispositivo de confianza');
     }
 
     // Verificar que el dispositivo a aprobar pertenece al usuario y está PENDING
-    const pendingDevice = await trustedDeviceRepository.findByIdAndUser(deviceId, userId);
+    const pendingDevice = await this.trustedDeviceRepository.findByIdAndUser(deviceId, userId);
     if (!pendingDevice) {
       throw AppError.notFound('Dispositivo no encontrado');
     }
@@ -732,7 +748,7 @@ class AuthLoginService {
       throw AppError.badRequest('El dispositivo no está pendiente de aprobación');
     }
 
-    const approved = await trustedDeviceRepository.approve(deviceId, currentDevice.user_trusted_device_id);
+    const approved = await this.trustedDeviceRepository.approve(deviceId, currentDevice.user_trusted_device_id);
 
     logAudit(
       'TRUSTED_DEVICE_APPROVED',
@@ -765,7 +781,7 @@ class AuthLoginService {
    * @private
    */
   async _checkPrivacyPolicy(user, acceptPolicy, ip) {
-    const activePolicy = await privacyPolicyRepository.findActive();
+    const activePolicy = await this.privacyPolicyRepository.findActive();
 
     // Los usuarios internos no están sujetos a la política de privacidad de clientes.
     const roleName = user.role?.name;
@@ -786,14 +802,15 @@ class AuthLoginService {
 
     // El cliente aceptó en este mismo request → registrar y dejar pasar
     if (acceptPolicy === true) {
-      await userRepository.updatePrivacyPolicy(user.user_id, {
+      await this.userRepository.updatePrivacyPolicy(user.user_id, {
         version: activePolicy.version,
         acceptedAt: new Date(),
         acceptedIp: ip || null
       });
 
       // RF-ADM-04: registrar trazabilidad granular en user_consents
-      await _recordPrivacyPolicyConsent(user.user_id, activePolicy, ip).catch(err =>
+      await this.consentRecorder
+        .grantPrivacyPolicy({ userId: user.user_id, privacyPolicyId: activePolicy.privacy_policy_id, ip }).catch(err =>
         logger.warn('auth-login: no se pudo registrar user_consent de privacy policy', {
           userId: user.user_id,
           error: err.message
@@ -866,7 +883,7 @@ class AuthLoginService {
     }
 
     // Fallback: verificar bloqueo en DB (si Redis no está disponible)
-    const blockStatus = await userLoginAttemptRepository.checkIfBlocked(nationalId);
+    const blockStatus = await this.userLoginAttemptRepository.checkIfBlocked(nationalId);
     if (blockStatus?.blocked) {
       const retrySecs = blockStatus.remainingMinutes * 60;
       throw AppError.tooManyRequests(
@@ -879,7 +896,7 @@ class AuthLoginService {
 
   /** @private */
   async _getUserForLogin(nationalId) {
-    const user = await userRepository.findByUsernameAndNationalId(nationalId, 'login');
+    const user = await this.userRepository.findByUsernameAndNationalId(nationalId, 'login');
     if (!user) {
       throw AppError.badRequest('Credenciales invalidas');
     }
@@ -893,7 +910,7 @@ class AuthLoginService {
   // [RF-AUTH-02] | CA-05 | Segunda capa de rate limiting por cuenta (bonus, no exigido por CA-05)
   async _handleFailedLogin(user, nationalId, auditContext, reason) {
     // Registrar el intento en BD para auditoría (sin blocked_until — el bloqueo lo gestiona Redis)
-    await userLoginAttemptRepository.recordAttempt({
+    await this.userLoginAttemptRepository.recordAttempt({
       user_id: user.user_id,
       username_attempt: user.auth_username,
       national_id: nationalId,
@@ -937,7 +954,7 @@ class AuthLoginService {
       );
 
       // Notificar al usuario que su cuenta quedó bloqueada (fire-and-forget)
-      NotificationUtil.crearNotificacion({
+      this.NotificationUtil.crearNotificacion({
         tipoNotificacion: 'ACCOUNT_BLOCKED',
         userId: user.user_id,
         metadata: {
@@ -1022,7 +1039,7 @@ class AuthLoginService {
 
     // Crear registro de sesión activa en BD (fire-and-forget)
     // [RF-AUTH-02] | CA-04 | Registra IP, user-agent, started_at, last_access_at al crear sesión
-    userSessionRepository
+    this.userSessionRepository
       .create({
         user_session_id: sessionId,
         user_id: user.user_id,
@@ -1056,7 +1073,7 @@ class AuthLoginService {
     }
 
     // ── Registro del intento exitoso ─────────────────────────
-    await userLoginAttemptRepository.recordAttempt({
+    await this.userLoginAttemptRepository.recordAttempt({
       user_id: user.user_id,
       username_attempt: user.auth_username,
       national_id: nationalId,
@@ -1156,14 +1173,14 @@ class AuthLoginService {
     const { ip, userAgent, fingerprintHash } = auditContext;
 
     // ── ¿El dispositivo ya existe? ───────────────────────────
-    const existing = await trustedDeviceRepository.findByFingerprint(user.user_id, fingerprintHash);
+    const existing = await this.trustedDeviceRepository.findByFingerprint(user.user_id, fingerprintHash);
     if (existing) {
       return this._handleExistingDevice(user.user_id, fingerprintHash, existing);
     }
 
     // ── Dispositivo nuevo ────────────────────────────────────
     const enriched = DeviceFingerprintUtil.enrichDevice(userAgent, ip);
-    const trustedCount = await trustedDeviceRepository.countTrusted(user.user_id);
+    const trustedCount = await this.trustedDeviceRepository.countTrusted(user.user_id);
     const isFirstDevice = trustedCount === 0;
 
     if (isFirstDevice) {
@@ -1193,7 +1210,7 @@ class AuthLoginService {
     }
 
     // trusted o pending → puede loguearse, actualiza last_seen
-    await trustedDeviceRepository.updateLastSeen(userId, fingerprintHash);
+    await this.trustedDeviceRepository.updateLastSeen(userId, fingerprintHash);
     return {
       requiresApproval: false,
       deviceId: existing.user_trusted_device_id,
@@ -1213,7 +1230,7 @@ class AuthLoginService {
       throw AppError.badRequest('Para cerrar la sesión actual usa el endpoint de logout');
     }
 
-    const session = await userSessionRepository.findById(sessionId);
+    const session = await this.userSessionRepository.findById(sessionId);
     if (!session || session.user_id !== userId) {
       throw AppError.notFound('Sesión no encontrada');
     }
@@ -1221,7 +1238,7 @@ class AuthLoginService {
       throw AppError.badRequest('La sesión ya está cerrada');
     }
 
-    await userSessionRepository.closeSession(sessionId, 'closed_by_user');
+    await this.userSessionRepository.closeSession(sessionId, 'closed_by_user');
 
     RefreshTokenStore.revoke(session.jti).catch(err =>
       logger.warn('Error revocando JTI al cerrar sesión por usuario', {
@@ -1253,13 +1270,13 @@ class AuthLoginService {
   // [RF-AUTH-03] | CA-02 | Cierra todas las sesiones salvo la actual;
   // revoca cada JTI y blacklista. Devuelve closedCount
   async closeOtherSessions(userId, currentSessionId) {
-    const others = await userSessionRepository.findActiveByUserExcept(userId, currentSessionId);
+    const others = await this.userSessionRepository.findActiveByUserExcept(userId, currentSessionId);
 
     if (others.length === 0) {
       return { closedCount: 0 };
     }
 
-    await userSessionRepository.closeAllByUserExcept(userId, currentSessionId, 'logout_others');
+    await this.userSessionRepository.closeAllByUserExcept(userId, currentSessionId, 'logout_others');
 
     for (const session of others) {
       RefreshTokenStore.revoke(session.jti).catch(err =>
@@ -1306,13 +1323,13 @@ class AuthLoginService {
       return;
     }
 
-    const previous = await userSessionRepository.findActiveByUserAndDevice(userId, deviceId);
+    const previous = await this.userSessionRepository.findActiveByUserAndDevice(userId, deviceId);
     if (previous.length === 0) {
       return;
     }
 
     for (const session of previous) {
-      userSessionRepository.closeSession(session.user_session_id, 'reauth_same_device').catch(err =>
+      this.userSessionRepository.closeSession(session.user_session_id, 'reauth_same_device').catch(err =>
         logger.warn('Error cerrando sesión previa del mismo dispositivo', {
           error: err.message,
           sessionId: session.user_session_id
@@ -1349,17 +1366,17 @@ class AuthLoginService {
   // [RF-AUTH-03] | CA-04 | Aplica límite de 5 sesiones simultáneas; si se supera,
   // busca la más antigua, la cierra en BD, revoca en Redis y registra auditoría
   async _enforceSessionLimit(userId) {
-    const activeCount = await userSessionRepository.countActive(userId);
+    const activeCount = await this.userSessionRepository.countActive(userId);
     if (activeCount < SECURITY.MAX_ACTIVE_SESSIONS) {
       return;
     }
 
-    const oldest = await userSessionRepository.findOldestActive(userId);
+    const oldest = await this.userSessionRepository.findOldestActive(userId);
     if (!oldest) {
       return;
     }
 
-    await userSessionRepository.closeSession(oldest.user_session_id, 'session_limit');
+    await this.userSessionRepository.closeSession(oldest.user_session_id, 'session_limit');
 
     RefreshTokenStore.revoke(oldest.jti).catch(err =>
       logger.warn('Error revocando JTI al aplicar límite de sesiones', {
@@ -1393,7 +1410,7 @@ class AuthLoginService {
   async _registerFirstDevice(user, fingerprintHash, ip, enriched) {
     const { browser, os, deviceType, city, country, countryCode, deviceName } = enriched;
 
-    const device = await trustedDeviceRepository.create({
+    const device = await this.trustedDeviceRepository.create({
       user_id: user.user_id,
       fingerprint_hash: fingerprintHash,
       device_name: deviceName,
@@ -1429,7 +1446,7 @@ class AuthLoginService {
 
   /** @private */
   async _issueSmsLoginChallenge(user, nationalId) {
-    const userWithPhone = await userRepository.findById(user.user_id, {
+    const userWithPhone = await this.userRepository.findById(user.user_id, {
       include: [
         {
           association: 'person',
@@ -1445,7 +1462,7 @@ class AuthLoginService {
     }
     const phonePrefixId = userWithPhone?.person?.contact?.phone_primary_prefix_id ?? null;
 
-    const canRequest = await verificationCodeRepository.canRequestNewCode('phone', phone);
+    const canRequest = await this.verificationCodeRepository.canRequestNewCode('phone', phone);
     if (!canRequest) {
       throw AppError.tooManyRequests('Debes esperar antes de solicitar un nuevo código SMS');
     }
@@ -1453,7 +1470,7 @@ class AuthLoginService {
     const code = this._generateSmsCode();
     const expiresAt = new Date(Date.now() + SMS_CHALLENGE_EXPIRY_MINUTES * 60 * 1000);
 
-    const verificationCode = await verificationCodeRepository.create({
+    const verificationCode = await this.verificationCodeRepository.create({
       type: 'phone',
       contact_value: phone,
       code,
@@ -1464,8 +1481,8 @@ class AuthLoginService {
     // SMS por AWS SNS — envío no bloqueante (no debe demorar/tumbar el flujo de login).
     setImmediate(async () => {
       try {
-        const phoneNumber = await SmsService.resolveE164(phone, phonePrefixId);
-        const result = await SmsService.enviarSmsOtp({
+        const phoneNumber = await this.SmsService.resolveE164(phone, phonePrefixId);
+        const result = await this.SmsService.enviarSmsOtp({
           phoneNumber,
           message: `Tu código de verificación es ${code}. Vence en ${SMS_CHALLENGE_EXPIRY_MINUTES} minutos.`,
           userId: user.user_id,
@@ -1496,7 +1513,7 @@ class AuthLoginService {
 
   /** @private */
   async _verifySmsLoginChallenge(user, nationalId, code, { ip, userAgent, fingerprintHash }) {
-    const userWithPhone = await userRepository.findById(user.user_id, {
+    const userWithPhone = await this.userRepository.findById(user.user_id, {
       include: [
         {
           association: 'person',
@@ -1511,7 +1528,7 @@ class AuthLoginService {
       throw AppError.badRequest('No tienes número de teléfono registrado para SMS MFA');
     }
 
-    const verificationCode = await verificationCodeRepository.findActiveByContact('phone', phone);
+    const verificationCode = await this.verificationCodeRepository.findActiveByContact('phone', phone);
     if (!verificationCode || verificationCode.verified_at) {
       throw AppError.badRequest('Código SMS inválido o expirado');
     }
@@ -1521,9 +1538,9 @@ class AuthLoginService {
     }
 
     if (verificationCode.code !== code) {
-      await verificationCodeRepository.incrementAttempts(verificationCode.verification_code_id);
+      await this.verificationCodeRepository.incrementAttempts(verificationCode.verification_code_id);
 
-      await userLoginAttemptRepository.recordAttempt({
+      await this.userLoginAttemptRepository.recordAttempt({
         user_id: user.user_id,
         username_attempt: user.auth_username,
         national_id: nationalId,
@@ -1548,7 +1565,7 @@ class AuthLoginService {
       throw AppError.badRequest(`Código SMS incorrecto. Te quedan ${remaining} intento(s)`);
     }
 
-    await verificationCodeRepository.markAsVerified(verificationCode.verification_code_id);
+    await this.verificationCodeRepository.markAsVerified(verificationCode.verification_code_id);
   }
 
   /** @private */
@@ -1565,7 +1582,7 @@ class AuthLoginService {
   async _registerPendingDevice(user, fingerprintHash, ip, enriched) {
     const { browser, os, deviceType, city, country, countryCode, deviceName } = enriched;
 
-    const device = await trustedDeviceRepository.create({
+    const device = await this.trustedDeviceRepository.create({
       user_id: user.user_id,
       fingerprint_hash: fingerprintHash,
       device_name: deviceName,
@@ -1593,7 +1610,7 @@ class AuthLoginService {
     const firstName = user.person?.first_name || 'Usuario';
     const email = user.person?.contact?.email;
 
-    NotificationUtil.crearNotificacion({
+    this.NotificationUtil.crearNotificacion({
       tipoNotificacion: 'NUEVO_DISPOSITIVO_DETECTADO',
       userId: user.user_id,
       relatedEntity: null,
@@ -1619,19 +1636,6 @@ class AuthLoginService {
   }
 }
 
-// RF-ADM-04: trazabilidad de aceptación de política en user_consents
-async function _recordPrivacyPolicyConsent(userId, activePolicy, ip) {
-  const consentType = await consentTypeRepository.findByCode(CONSENT_TYPE_CODES.PRIVACY_POLICY);
-  if (!consentType) {
-    return;
-  }
-  await userConsentRepository.grant({
-    userId,
-    consentTypeId: consentType.consent_type_id,
-    privacyPolicyId: activePolicy.privacy_policy_id,
-    ip: ip || null,
-    userAgent: null
-  });
-}
 
 module.exports = new AuthLoginService();
+module.exports.AuthLoginService = AuthLoginService;

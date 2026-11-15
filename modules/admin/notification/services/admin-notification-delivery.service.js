@@ -19,6 +19,19 @@ const {
 } = require('../dtos/admin-notification-delivery.dto');
 
 class AdminNotificationDeliveryService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new AdminNotificationDeliveryService({ notificationRepo: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.notificationRepo = deps.notificationRepo ?? notificationRepo;
+    this.notificationTypeRepo = deps.notificationTypeRepo ?? notificationTypeRepo;
+    this.notificationSendingService = deps.notificationSendingService ?? notificationSendingService;
+    this.NotificationCreationService = deps.NotificationCreationService ?? NotificationCreationService;
+  }
+
   async list(query, adminUserId) {
     const paginationParams = PaginationHelper.getPaginationParams(query);
     const filters = {
@@ -30,7 +43,7 @@ class AdminNotificationDeliveryService {
       onlyCritical: query.onlyCritical || null
     };
 
-    const { rows, count } = await notificationRepo.findAllForAdmin(filters, paginationParams);
+    const { rows, count } = await this.notificationRepo.findAllForAdmin(filters, paginationParams);
 
     logAudit(
       'NOTIFICATION_DELIVERY_LIST_VIEWED',
@@ -56,7 +69,7 @@ class AdminNotificationDeliveryService {
 
   async metrics(query, adminUserId) {
     const range = { from: query.from || null, to: query.to || null };
-    const rows = await notificationRepo.deliveryMetrics({
+    const rows = await this.notificationRepo.deliveryMetrics({
       from: range.from,
       to: range.to,
       userId: query.userId || null
@@ -75,7 +88,7 @@ class AdminNotificationDeliveryService {
   }
 
   async getById(notificationId, adminUserId) {
-    const record = await notificationRepo.findByIdWithType(notificationId);
+    const record = await this.notificationRepo.findByIdWithType(notificationId);
     if (!record) {
       throw AppError.notFound('Notificación no encontrada');
     }
@@ -91,7 +104,7 @@ class AdminNotificationDeliveryService {
   }
 
   async retry(notificationId, channel = 'all', adminUserId) {
-    const notification = await notificationRepo.findByIdWithType(notificationId);
+    const notification = await this.notificationRepo.findByIdWithType(notificationId);
     if (!notification) {
       throw AppError.notFound('Notificación no encontrada');
     }
@@ -107,7 +120,7 @@ class AdminNotificationDeliveryService {
     }
 
     // Resetear el mismo registro en lugar de crear uno nuevo
-    await notificationRepo.resetForRetry(notificationId, effectiveChannel);
+    await this.notificationRepo.resetForRetry(notificationId, effectiveChannel);
 
     logAudit(
       'NOTIFICATION_DELIVERY_RETRY_REQUESTED',
@@ -117,7 +130,7 @@ class AdminNotificationDeliveryService {
     );
 
     setImmediate(() => {
-      NotificationCreationService.crearNotificacion({
+      this.NotificationCreationService.crearNotificacion({
         tipoNotificacion: 'NOTIFICATION_RETRY_REQUESTED',
         userId: adminUserId,
         relatedEntity: notificationId,
@@ -127,7 +140,7 @@ class AdminNotificationDeliveryService {
 
     const notificationType =
       notification.notification_type ||
-      (await notificationTypeRepo.findById(notification.notification_type_id, {
+      (await this.notificationTypeRepo.findById(notification.notification_type_id, {
         include: [{ association: 'category' }]
       }));
 
@@ -138,7 +151,7 @@ class AdminNotificationDeliveryService {
     setImmediate(async () => {
       try {
         if ((effectiveChannel === 'email' || effectiveChannel === 'all') && (category?.supports_email ?? true)) {
-          await notificationSendingService.enviarEmailIndividual(
+          await this.notificationSendingService.enviarEmailIndividual(
             notification.user_id,
             notificationType,
             notification.metadata || {},
@@ -146,7 +159,7 @@ class AdminNotificationDeliveryService {
           );
         }
         if ((effectiveChannel === 'push' || effectiveChannel === 'all') && (category?.supports_push ?? true)) {
-          await notificationSendingService.enviarPushIndividual(
+          await this.notificationSendingService.enviarPushIndividual(
             notification.user_id,
             notification.title,
             notification.body,
@@ -155,7 +168,7 @@ class AdminNotificationDeliveryService {
           );
         }
         if ((effectiveChannel === 'sms' || effectiveChannel === 'all') && (category?.supports_sms ?? false)) {
-          await notificationSendingService.enviarSmsIndividual(
+          await this.notificationSendingService.enviarSmsIndividual(
             notification.user_id,
             notification.body,
             notification.metadata || {},
@@ -164,10 +177,10 @@ class AdminNotificationDeliveryService {
         }
         // El estado real se deriva de los flags de cada canal (puede quedar partial_failure
         // si solo uno de los canales reintentados volvió a fallar).
-        const finalStatus = await notificationSendingService.actualizarEstadoEntrega(notificationId, notificationType);
+        const finalStatus = await this.notificationSendingService.actualizarEstadoEntrega(notificationId, notificationType);
         logger.info('[NotificationDelivery] Reintento procesado', { notificationId, effectiveChannel, finalStatus });
       } catch (err) {
-        await notificationRepo.updateProcessingStatus(notificationId, Notification.PROCESSING_STATUS.FAILED);
+        await this.notificationRepo.updateProcessingStatus(notificationId, Notification.PROCESSING_STATUS.FAILED);
         logger.warn('[NotificationDelivery] Error en reintento admin', { notificationId, error: err.message });
       }
     });
@@ -239,3 +252,4 @@ function _resolverCanal(notification, requestedChannel) {
 }
 
 module.exports = new AdminNotificationDeliveryService();
+module.exports.AdminNotificationDeliveryService = AdminNotificationDeliveryService;

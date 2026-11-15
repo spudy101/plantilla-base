@@ -38,12 +38,24 @@ const ATTEMPTS_INCLUDE = [
 ];
 
 class AdminAuthSessionService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new AdminAuthSessionService({ userSessionRepository: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.userSessionRepository = deps.userSessionRepository ?? userSessionRepository;
+    this.auditLogRepository = deps.auditLogRepository ?? auditLogRepository;
+    this.NotificationCreationService = deps.NotificationCreationService ?? NotificationCreationService;
+  }
+
   // [RF-AUTH-02] | CA-04 | Superficie de consumo para RF-AUTH-03: lista sesiones con JOIN a dispositivos
   // [RF-AUTH-03] | CA-01 | Vista admin de sesiones activas (equivalente a
   // /auth/devices pero con vista por sesión cruda y scope de todos los usuarios)
   async listSessions(query, adminUserId) {
     const pagination = PaginationHelper.getPaginationParams(query);
-    const where = userSessionRepository.buildWhere(query);
+    const where = this.userSessionRepository.buildWhere(query);
 
     const include = [
       {
@@ -61,7 +73,7 @@ class AdminAuthSessionService {
       }
     ];
 
-    const { rows, count } = await userSessionRepository.findPaginated(where, pagination, include);
+    const { rows, count } = await this.userSessionRepository.findPaginated(where, pagination, include);
 
     logAudit(
       'AUTH_SESSION_LIST_VIEWED',
@@ -90,7 +102,7 @@ class AdminAuthSessionService {
   // /auth/devices pero con vista por sesión cruda y scope de todos los usuarios)
   async getSessionsByUser(userId, query, adminUserId) {
     const pagination = PaginationHelper.getPaginationParams(query);
-    const where = userSessionRepository.buildWhere({ userId, status: query.status });
+    const where = this.userSessionRepository.buildWhere({ userId, status: query.status });
 
     const include = [
       {
@@ -108,7 +120,7 @@ class AdminAuthSessionService {
       }
     ];
 
-    const { rows, count } = await userSessionRepository.findPaginated(where, pagination, include);
+    const { rows, count } = await this.userSessionRepository.findPaginated(where, pagination, include);
 
     logAudit(
       'AUTH_SESSION_BY_USER_VIEWED',
@@ -131,7 +143,7 @@ class AdminAuthSessionService {
   // [RF-AUTH-03] | CA-02 | Revocación administrativa de sesión con notificación
   // al usuario (supera lo especificado en el requerimiento)
   async revokeSession(sessionId, adminUserId) {
-    const session = await userSessionRepository.findById(sessionId);
+    const session = await this.userSessionRepository.findById(sessionId);
     if (!session) {
       throw AppError.notFound('Sesión no encontrada');
     }
@@ -139,7 +151,7 @@ class AdminAuthSessionService {
       throw AppError.badRequest('La sesión ya está cerrada');
     }
 
-    await userSessionRepository.closeSession(sessionId, 'revoked_by_admin');
+    await this.userSessionRepository.closeSession(sessionId, 'revoked_by_admin');
 
     RefreshTokenStore.revoke(session.jti).catch(err =>
       logger.warn('Error revocando JTI en Redis al revocar sesión por admin', {
@@ -172,7 +184,7 @@ class AdminAuthSessionService {
     );
 
     setImmediate(() => {
-      NotificationCreationService.crearNotificacion({
+      this.NotificationCreationService.crearNotificacion({
         tipoNotificacion: 'AUTH_SESSION_REVOKED_INTERNAL',
         userId: adminUserId,
         relatedEntity: sessionId,
@@ -181,7 +193,7 @@ class AdminAuthSessionService {
     });
 
     setImmediate(() => {
-      NotificationCreationService.crearNotificacion({
+      this.NotificationCreationService.crearNotificacion({
         tipoNotificacion: 'AUTH_SESSION_REVOKED_CLIENT',
         userId: session.user_id,
         relatedEntity: sessionId,
@@ -221,7 +233,7 @@ class AdminAuthSessionService {
     const pagination = PaginationHelper.getPaginationParams(query);
     const where = this._buildAttemptsWhere(query);
 
-    const { rows, count } = await auditLogRepository.findPaginatedWithExecutor(where, pagination, ATTEMPTS_INCLUDE);
+    const { rows, count } = await this.auditLogRepository.findPaginatedWithExecutor(where, pagination, ATTEMPTS_INCLUDE);
 
     const scope = query.scope || 'all';
     logAudit(
@@ -245,7 +257,7 @@ class AdminAuthSessionService {
     const pagination = PaginationHelper.getPaginationParams(query);
     const where = this._buildAttemptsWhere(query, userId);
 
-    const { rows, count } = await auditLogRepository.findPaginatedWithExecutor(where, pagination, ATTEMPTS_INCLUDE);
+    const { rows, count } = await this.auditLogRepository.findPaginatedWithExecutor(where, pagination, ATTEMPTS_INCLUDE);
 
     const scope = query.scope || 'all';
     logAudit(
@@ -267,3 +279,4 @@ class AdminAuthSessionService {
 }
 
 module.exports = new AdminAuthSessionService();
+module.exports.AdminAuthSessionService = AdminAuthSessionService;

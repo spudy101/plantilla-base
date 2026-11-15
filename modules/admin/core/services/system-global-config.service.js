@@ -8,6 +8,16 @@ const notificationCreationService = require('../../../schemas/notification/servi
 const NOTIF_SYSTEM_CONFIG_UPDATED = 'SYSTEM_CONFIG_UPDATED_INTERNAL';
 
 class SystemGlobalConfigService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new SystemGlobalConfigService({ notificationCreationService: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.notificationCreationService = deps.notificationCreationService ?? notificationCreationService;
+  }
+
   async getConfig(adminUserId) {
     const config = await SystemGlobalConfig.findOne({ where: { is_active: true } });
     if (!config) {
@@ -48,7 +58,7 @@ class SystemGlobalConfigService {
     );
 
     setImmediate(() => {
-      notificationCreationService
+      this.notificationCreationService
         .crearNotificacion({
           tipoNotificacion: NOTIF_SYSTEM_CONFIG_UPDATED,
           userId: null,
@@ -131,3 +141,4 @@ function _mergeResilience(current, incoming) {
 }
 
 module.exports = new SystemGlobalConfigService();
+module.exports.SystemGlobalConfigService = SystemGlobalConfigService;

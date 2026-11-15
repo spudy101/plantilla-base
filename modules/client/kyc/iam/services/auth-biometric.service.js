@@ -4,9 +4,7 @@ const userRepository = require('../../../../schemas/kyc/iam/repositories/user.re
 const userLoginAttemptRepository = require('../../../../schemas/records/audit/repositories/user-login-attempt.repository');
 const trustedDeviceRepository = require('../../../../schemas/kyc/iam/repositories/auth-trusted-device.repository');
 const privacyPolicyRepository = require('../../../../schemas/records/legal/repositories/privacy-policy.repository');
-const userConsentRepository = require('../../../../schemas/records/legal/repositories/user-consent.repository');
-const consentTypeRepository = require('../../../../schemas/records/legal/repositories/consent-type.repository');
-const { CONSENT_TYPE_CODES } = require('../../../../../shared/constants');
+const consentRecorder = require('../../../../schemas/records/legal/services/consent-recorder.service');
 const {
   biometricCredentialRepository,
   biometricChallengeRepository
@@ -44,6 +42,22 @@ const DER_SEQUENCE_TAG = 0x30; // tag ASN.1 SEQUENCE
 const PEM_LINE_LENGTH = 64; // caracteres por línea en PEM
 
 class AuthBiometricService {
+  /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new AuthBiometricService({ userRepository: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.userRepository = deps.userRepository ?? userRepository;
+    this.userLoginAttemptRepository = deps.userLoginAttemptRepository ?? userLoginAttemptRepository;
+    this.trustedDeviceRepository = deps.trustedDeviceRepository ?? trustedDeviceRepository;
+    this.privacyPolicyRepository = deps.privacyPolicyRepository ?? privacyPolicyRepository;
+    this.consentRecorder = deps.consentRecorder ?? consentRecorder;
+    this.userSessionRepository = deps.userSessionRepository ?? userSessionRepository;
+    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+  }
+
   // ============================================================
   // REGISTER
   // ============================================================
@@ -56,7 +70,7 @@ class AuthBiometricService {
    */
   async registerStart(userId, fingerprintHash) {
     // Verificar que el dispositivo actual es TRUSTED
-    const device = await trustedDeviceRepository.findByFingerprint(userId, fingerprintHash);
+    const device = await this.trustedDeviceRepository.findByFingerprint(userId, fingerprintHash);
     if (!device || device.status !== 'trusted') {
       throw AppError.forbidden('Solo puedes registrar una huella desde un dispositivo de confianza');
     }
@@ -102,7 +116,7 @@ class AuthBiometricService {
    */
   async registerFinish({ credentialId, publicKey, challenge, signature }, userId, fingerprintHash) {
     // Verificar dispositivo TRUSTED
-    const device = await trustedDeviceRepository.findByFingerprint(userId, fingerprintHash);
+    const device = await this.trustedDeviceRepository.findByFingerprint(userId, fingerprintHash);
     if (!device || device.status !== 'trusted') {
       throw AppError.forbidden('Solo puedes registrar una huella desde un dispositivo de confianza');
     }
@@ -164,10 +178,10 @@ class AuthBiometricService {
     );
 
     setImmediate(() => {
-      userRepository
+      this.userRepository
         .findByUserId(userId, 'basic')
         .then(user =>
-          NotificationUtil.crearNotificacion({
+          this.NotificationUtil.crearNotificacion({
             tipoNotificacion: 'BIOMETRIC_CREDENTIAL_REGISTERED',
             userId,
             relatedEntity: credential.biometric_credential_id,
@@ -191,7 +205,7 @@ class AuthBiometricService {
    * @returns {Promise<BiometricLoginStartDTO>}
    */
   async loginStart({ nationalId }) {
-    const user = await userRepository.findByUsernameAndNationalId(nationalId, 'login');
+    const user = await this.userRepository.findByUsernameAndNationalId(nationalId, 'login');
     if (!user) {
       throw AppError.unauthorized('Credenciales inválidas');
     }
@@ -250,7 +264,7 @@ class AuthBiometricService {
     });
 
     // Cargar usuario con las asociaciones que LoginResponseDTO necesita (mismo nivel que login normal)
-    const user = await userRepository.findByUserId(userId, 'login');
+    const user = await this.userRepository.findByUserId(userId, 'login');
     if (!user) {
       throw AppError.unauthorized('Usuario no encontrado');
     }
@@ -265,7 +279,7 @@ class AuthBiometricService {
     }
 
     // Verificar que el dispositivo de la credencial sigue siendo TRUSTED
-    const device = await trustedDeviceRepository.findById(credential.user_trusted_device_id);
+    const device = await this.trustedDeviceRepository.findById(credential.user_trusted_device_id);
     if (!device || device.status !== 'trusted') {
       throw AppError.forbidden('El dispositivo asociado a esta credencial ya no es de confianza');
     }
@@ -289,7 +303,7 @@ class AuthBiometricService {
     }
 
     // Crear registro de sesión activa en BD (fire-and-forget) — igual que el login normal
-    userSessionRepository
+    this.userSessionRepository
       .create({
         user_session_id: sessionId,
         user_id: userId,
@@ -312,8 +326,8 @@ class AuthBiometricService {
     // Actualizar sign_count, last_seen y registrar intento — en paralelo
     await Promise.all([
       biometricCredentialRepository.updateAfterLogin(credentialId, signCount),
-      trustedDeviceRepository.updateLastSeen(userId, device.fingerprint_hash),
-      userLoginAttemptRepository.recordAttempt({
+      this.trustedDeviceRepository.updateLastSeen(userId, device.fingerprint_hash),
+      this.userLoginAttemptRepository.recordAttempt({
         user_id: userId,
         username_attempt: user.auth_username,
         national_id: user.username,
@@ -463,13 +477,13 @@ class AuthBiometricService {
       return;
     }
 
-    const previous = await userSessionRepository.findActiveByUserAndDevice(userId, deviceId);
+    const previous = await this.userSessionRepository.findActiveByUserAndDevice(userId, deviceId);
     if (previous.length === 0) {
       return;
     }
 
     for (const session of previous) {
-      userSessionRepository.closeSession(session.user_session_id, 'reauth_same_device').catch(err =>
+      this.userSessionRepository.closeSession(session.user_session_id, 'reauth_same_device').catch(err =>
         logger.warn('Error cerrando sesión previa del mismo dispositivo', {
           error: err.message,
           sessionId: session.user_session_id
@@ -509,17 +523,17 @@ class AuthBiometricService {
    * @private
    */
   async _enforceSessionLimit(userId) {
-    const activeCount = await userSessionRepository.countActive(userId);
+    const activeCount = await this.userSessionRepository.countActive(userId);
     if (activeCount < SECURITY.MAX_ACTIVE_SESSIONS) {
       return;
     }
 
-    const oldest = await userSessionRepository.findOldestActive(userId);
+    const oldest = await this.userSessionRepository.findOldestActive(userId);
     if (!oldest) {
       return;
     }
 
-    await userSessionRepository.closeSession(oldest.user_session_id, 'session_limit');
+    await this.userSessionRepository.closeSession(oldest.user_session_id, 'session_limit');
 
     RefreshTokenStore.revoke(oldest.jti).catch(err =>
       logger.warn('Error revocando JTI al aplicar límite de sesiones', {
@@ -557,7 +571,7 @@ class AuthBiometricService {
    * @private
    */
   async _checkPrivacyPolicy(user, acceptPolicy, ip) {
-    const activePolicy = await privacyPolicyRepository.findActive();
+    const activePolicy = await this.privacyPolicyRepository.findActive();
 
     // Los usuarios internos no están sujetos a la política de privacidad de clientes
     const roleName = user.role?.name;
@@ -572,14 +586,15 @@ class AuthBiometricService {
     }
 
     if (acceptPolicy === true) {
-      await userRepository.updatePrivacyPolicy(user.user_id, {
+      await this.userRepository.updatePrivacyPolicy(user.user_id, {
         version: activePolicy.version,
         acceptedAt: new Date(),
         acceptedIp: ip || null
       });
 
       // RF-ADM-04: trazabilidad granular en user_consents
-      await _recordPrivacyPolicyConsent(user.user_id, activePolicy, ip).catch(err =>
+      await this.consentRecorder
+        .grantPrivacyPolicy({ userId: user.user_id, privacyPolicyId: activePolicy.privacy_policy_id, ip }).catch(err =>
         logger.warn('auth-biometric: no se pudo registrar user_consent de privacy policy', {
           userId: user.user_id,
           error: err.message
@@ -691,19 +706,6 @@ class AuthBiometricService {
   }
 }
 
-// RF-ADM-04: trazabilidad de aceptación de política en user_consents
-async function _recordPrivacyPolicyConsent(userId, activePolicy, ip) {
-  const consentType = await consentTypeRepository.findByCode(CONSENT_TYPE_CODES.PRIVACY_POLICY);
-  if (!consentType) {
-    return;
-  }
-  await userConsentRepository.grant({
-    userId,
-    consentTypeId: consentType.consent_type_id,
-    privacyPolicyId: activePolicy.privacy_policy_id,
-    ip: ip || null,
-    userAgent: null
-  });
-}
 
 module.exports = new AuthBiometricService();
+module.exports.AuthBiometricService = AuthBiometricService;

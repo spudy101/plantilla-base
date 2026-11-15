@@ -14,6 +14,16 @@ const ENTITY = { entityType: 'EmailBounceSuppression', entityTable: 'email_bounc
 
 class EmailBounceWebhookService {
   /**
+   * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
+   * reales; en tests u otros contextos se pueden reemplazar:
+   *   new EmailBounceWebhookService({ emailSuppressionService: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.emailSuppressionService = deps.emailSuppressionService ?? emailSuppressionService;
+  }
+
+  /**
    * Procesa el cuerpo crudo (string) de un POST de SNS.
    * @param {string|Object} rawBody
    */
@@ -84,7 +94,7 @@ class EmailBounceWebhookService {
       if (!recipient?.emailAddress) {
         continue;
       }
-      const result = await emailSuppressionService.registerHardBounce({
+      const result = await this.emailSuppressionService.registerHardBounce({
         email: recipient.emailAddress,
         errorCode
       });
@@ -105,3 +115,4 @@ class EmailBounceWebhookService {
 }
 
 module.exports = new EmailBounceWebhookService();
+module.exports.EmailBounceWebhookService = EmailBounceWebhookService;
