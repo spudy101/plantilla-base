@@ -59,6 +59,19 @@ class NotificationRepository extends BaseRepository {
   }
 
   /**
+   * Marca como leídas (solo las que siguen sin leer) un conjunto de notificaciones por ID.
+   * @param {string[]} notificationIds
+   * @param {object} [options] - opciones Sequelize (ej. { transaction })
+   */
+  markAsReadByIds(notificationIds, options = {}) {
+    return this.bulkUpdate(
+      { is_read: true, read_at: new Date() },
+      { notification_id: { [Op.in]: notificationIds }, is_read: false },
+      options
+    );
+  }
+
+  /**
    * Obtiene notificaciones pendientes de envío de push
    */
   findPendingPushRetries() {

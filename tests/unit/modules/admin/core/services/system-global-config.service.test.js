@@ -20,8 +20,10 @@ jest.mock('shared/utils/request-context.util', () => ({
   originFromContext: jest.fn().mockReturnValue({ origin_session: 'sess-1' })
 }));
 
-jest.mock('shared/models', () => ({
-  SystemGlobalConfig: { findOne: jest.fn(), create: jest.fn() }
+// El service ya no toca el modelo de Sequelize: depende del repositorio (SOLID: D).
+jest.mock('modules/schemas/core/repositories/system-global-config.repository', () => ({
+  findActive: jest.fn(),
+  createActive: jest.fn()
 }));
 
 jest.mock('modules/admin/core/dtos/system-global-config.dto', () => ({
@@ -33,7 +35,7 @@ jest.mock('modules/schemas/notification/services/notification-creation.service',
 }));
 
 const { logAudit } = require('shared/utils/logger.util');
-const { SystemGlobalConfig } = require('shared/models');
+const systemGlobalConfigRepository = require('modules/schemas/core/repositories/system-global-config.repository');
 const notificationCreationService = require('modules/schemas/notification/services/notification-creation.service');
 const service = require('modules/admin/core/services/system-global-config.service');
 
@@ -62,17 +64,17 @@ describe('SystemGlobalConfigService', () => {
 
   describe('getConfig', () => {
     it('devuelve la config activa y audita la lectura', async () => {
-      SystemGlobalConfig.findOne.mockResolvedValue(makeConfig());
+      systemGlobalConfigRepository.findActive.mockResolvedValue(makeConfig());
 
       const result = await service.getConfig('admin-1');
 
-      expect(SystemGlobalConfig.findOne).toHaveBeenCalledWith({ where: { is_active: true } });
+      expect(systemGlobalConfigRepository.findActive).toHaveBeenCalled();
       expect(logAudit).toHaveBeenCalledWith('SYSTEM_GLOBAL_CONFIG_VIEWED', 'admin-1', {}, expect.objectContaining({ entityId: 'cfg-1' }));
       expect(result).toMatchObject({ dto: 'config', config_id: 'cfg-1' });
     });
 
     it('lanza (404) si no hay configuración global activa', async () => {
-      SystemGlobalConfig.findOne.mockResolvedValue(null);
+      systemGlobalConfigRepository.findActive.mockResolvedValue(null);
       await expect(service.getConfig('admin-1')).rejects.toThrow(/No hay una configuración global activa/);
     });
   });
@@ -84,7 +86,7 @@ describe('SystemGlobalConfigService', () => {
   describe('updateConfig', () => {
     it('actualiza campos simples, incrementa la versión, audita, notifica y devuelve el DTO', async () => {
       const config = makeConfig();
-      SystemGlobalConfig.findOne.mockResolvedValue(config);
+      systemGlobalConfigRepository.findActive.mockResolvedValue(config);
 
       const data = { currency: 'USD', auditRetentionHotYears: 2, auditHotPurgeEnabled: true };
       const result = await service.updateConfig(data, 'admin-1', {});
@@ -112,7 +114,7 @@ describe('SystemGlobalConfigService', () => {
 
     it('hace merge parcial de integration_resilience (camelCase→snake_case, circuit_breaker anidado, conserva lo no enviado)', async () => {
       const config = makeConfig();
-      SystemGlobalConfig.findOne.mockResolvedValue(config);
+      systemGlobalConfigRepository.findActive.mockResolvedValue(config);
 
       const data = {
         integrationResilience: {
@@ -132,12 +134,12 @@ describe('SystemGlobalConfigService', () => {
     });
 
     it('si no existe config activa la crea con defaults (advierte y usa origin del contexto)', async () => {
-      SystemGlobalConfig.findOne.mockResolvedValue(null);
-      SystemGlobalConfig.create.mockResolvedValue(makeConfig({ config_version: 0 }));
+      systemGlobalConfigRepository.findActive.mockResolvedValue(null);
+      systemGlobalConfigRepository.createActive.mockResolvedValue(makeConfig({ config_version: 0 }));
 
       const result = await service.updateConfig({ currency: 'CLP' }, 'admin-1', {});
 
-      expect(SystemGlobalConfig.create).toHaveBeenCalledWith(expect.objectContaining({ is_active: true, origin_session: 'sess-1' }));
+      expect(systemGlobalConfigRepository.createActive).toHaveBeenCalledWith({ origin_session: 'sess-1' });
       expect(result).toMatchObject({ dto: 'config' });
     });
   });

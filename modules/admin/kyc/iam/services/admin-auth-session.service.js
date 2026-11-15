@@ -1,7 +1,6 @@
 // === RF-AUTH-02, RF-AUTH-03: Login, Gestión de Sesión Segura y Recuperación de Contraseña ===
 // === RF-AUTH-03 (admin): Gestión de Dispositivos Autenticados y Control de Sesiones ===
 
-const { Op } = require('sequelize');
 const userSessionRepository = require('../../../../schemas/kyc/iam/repositories/user-session.repository');
 const auditLogRepository = require('../../../../schemas/records/audit/repositories/audit-log.repository');
 const RefreshTokenStore = require('../../../../../shared/utils/refresh-token-store.util');
@@ -204,36 +203,29 @@ class AdminAuthSessionService {
     return { sessionId, status: 'closed', closeReason: 'revoked_by_admin' };
   }
 
-  // Arma el WHERE de intentos combinando scope (todo / solo login), usuario, outcome y rango de fechas.
-  // scope=login → action IN LOGIN_ACTIONS; scope=all (default) → toda la categoría 'Autenticación'.
-  _buildAttemptsWhere(query, forcedUserId = null) {
+  // Traduce el query HTTP a criterios de negocio (sin Sequelize): scope, usuario, outcome y rango de fechas.
+  // scope=login → solo LOGIN_ACTIONS; scope=all (default) → toda la categoría 'Autenticación'.
+  // El repositorio es quien convierte estos criterios en un WHERE.
+  _buildAttemptsCriteria(query, forcedUserId = null) {
     const from = query.dateFrom ? new Date(query.dateFrom) : DEFAULT_DATE_FROM;
     const to = query.dateTo ? new Date(query.dateTo) : new Date();
+    const isLoginScope = query.scope === 'login';
 
-    const where = { created_at: { [Op.between]: [from, to] } };
-
-    if (query.scope === 'login') {
-      where.action = { [Op.in]: LOGIN_ACTIONS };
-    } else {
-      where.category = AUTH_CATEGORY;
-    }
-
-    const userId = forcedUserId || query.userId;
-    if (userId) {
-      where.user_id = userId;
-    }
-    if (query.outcome) {
-      where.outcome = query.outcome;
-    }
-
-    return where;
+    return {
+      from,
+      to,
+      actions: isLoginScope ? LOGIN_ACTIONS : undefined,
+      category: isLoginScope ? undefined : AUTH_CATEGORY,
+      userId: forcedUserId || query.userId || undefined,
+      outcome: query.outcome || undefined
+    };
   }
 
   async listAttempts(query, adminUserId) {
     const pagination = PaginationHelper.getPaginationParams(query);
-    const where = this._buildAttemptsWhere(query);
+    const criteria = this._buildAttemptsCriteria(query);
 
-    const { rows, count } = await this.auditLogRepository.findPaginatedWithExecutor(where, pagination, ATTEMPTS_INCLUDE);
+    const { rows, count } = await this.auditLogRepository.findAuthAttemptsPaginated(criteria, pagination, ATTEMPTS_INCLUDE);
 
     const scope = query.scope || 'all';
     logAudit(
@@ -255,9 +247,9 @@ class AdminAuthSessionService {
 
   async getAttemptsByUser(userId, query, adminUserId) {
     const pagination = PaginationHelper.getPaginationParams(query);
-    const where = this._buildAttemptsWhere(query, userId);
+    const criteria = this._buildAttemptsCriteria(query, userId);
 
-    const { rows, count } = await this.auditLogRepository.findPaginatedWithExecutor(where, pagination, ATTEMPTS_INCLUDE);
+    const { rows, count } = await this.auditLogRepository.findAuthAttemptsPaginated(criteria, pagination, ATTEMPTS_INCLUDE);
 
     const scope = query.scope || 'all';
     logAudit(

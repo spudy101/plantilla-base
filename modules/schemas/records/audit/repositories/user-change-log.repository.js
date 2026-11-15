@@ -193,8 +193,9 @@ class UserChangeLogRepository extends BaseRepository {
   }
 
   // Override para usar log_id en vez de id
-  delete(logId) {
-    return this.model.destroy({ where: { log_id: logId } });
+  // Misma firma que BaseRepository.delete(id, options) — SOLID: L (no se pierde la transacción)
+  delete(logId, options = {}) {
+    return this.model.destroy({ where: { log_id: logId }, ...options });
   }
 
   // Override findById para usar log_id

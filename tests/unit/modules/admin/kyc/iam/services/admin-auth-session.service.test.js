@@ -13,7 +13,7 @@ jest.mock('modules/schemas/kyc/iam/repositories/user-session.repository', () => 
 }));
 
 jest.mock('modules/schemas/records/audit/repositories/audit-log.repository', () => ({
-  findPaginatedWithExecutor: jest.fn()
+  findAuthAttemptsPaginated: jest.fn()
 }));
 
 jest.mock('shared/utils/refresh-token-store.util', () => ({
@@ -71,7 +71,7 @@ describe('AdminAuthSessionService', () => {
     jest.clearAllMocks();
     userSessionRepository.buildWhere.mockReturnValue({});
     userSessionRepository.findPaginated.mockResolvedValue({ rows: [{ user_session_id: 's1' }], count: 1 });
-    auditLogRepository.findPaginatedWithExecutor.mockResolvedValue({ rows: [{ audit_log_id: 'a1' }], count: 1 });
+    auditLogRepository.findAuthAttemptsPaginated.mockResolvedValue({ rows: [{ audit_log_id: 'a1' }], count: 1 });
   });
 
   describe('listSessions', () => {
@@ -197,9 +197,12 @@ describe('AdminAuthSessionService', () => {
     it('scope por defecto = all → filtra por categoría Autenticación', async () => {
       await service.listAttempts({}, ADMIN_ID);
 
-      const where = auditLogRepository.findPaginatedWithExecutor.mock.calls[0][0];
-      expect(where.category).toBe('Autenticación');
-      expect(where.action).toBeUndefined();
+      const criteria = auditLogRepository.findAuthAttemptsPaginated.mock.calls[0][0];
+      // el service arma criterios de negocio; el WHERE (Op.between / Op.in) lo arma el repositorio
+      expect(criteria.category).toBe('Autenticación');
+      expect(criteria.actions).toBeUndefined();
+      expect(criteria.from).toBeInstanceOf(Date);
+      expect(criteria.to).toBeInstanceOf(Date);
       expect(logAudit).toHaveBeenCalledWith(
         'AUTH_ATTEMPTS_LIST_VIEWED',
         ADMIN_ID,
@@ -215,11 +218,11 @@ describe('AdminAuthSessionService', () => {
     it('scope=login → filtra por acciones de login (no toda la categoría)', async () => {
       await service.listAttempts({ scope: 'login', userId: 'u-1', outcome: 'FAILED' }, ADMIN_ID);
 
-      const where = auditLogRepository.findPaginatedWithExecutor.mock.calls[0][0];
-      expect(where.action).toBeDefined();
-      expect(where.category).toBeUndefined();
-      expect(where.user_id).toBe('u-1');
-      expect(where.outcome).toBe('FAILED');
+      const criteria = auditLogRepository.findAuthAttemptsPaginated.mock.calls[0][0];
+      expect(criteria.actions).toEqual(expect.any(Array));
+      expect(criteria.category).toBeUndefined();
+      expect(criteria.userId).toBe('u-1');
+      expect(criteria.outcome).toBe('FAILED');
     });
   });
 
@@ -227,8 +230,8 @@ describe('AdminAuthSessionService', () => {
     it('fuerza el user_id del path por sobre el del query y audita', async () => {
       await service.getAttemptsByUser('user-target', { userId: 'ignorado', scope: 'all' }, ADMIN_ID);
 
-      const where = auditLogRepository.findPaginatedWithExecutor.mock.calls[0][0];
-      expect(where.user_id).toBe('user-target');
+      const criteria = auditLogRepository.findAuthAttemptsPaginated.mock.calls[0][0];
+      expect(criteria.userId).toBe('user-target');
       expect(logAudit).toHaveBeenCalledWith(
         'AUTH_ATTEMPTS_BY_USER_VIEWED',
         ADMIN_ID,

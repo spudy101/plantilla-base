@@ -18,15 +18,15 @@ jest.mock('modules/schemas/kyc/iam/repositories/user-session.repository', () => 
 }));
 
 jest.mock('modules/schemas/records/legal/repositories/user-consent.repository', () => ({
-  findAll: jest.fn()
+  findByIds: jest.fn()
 }));
 
 jest.mock('modules/schemas/kyc/person/repositories/user-notification-preference.repository', () => ({
-  findAll: jest.fn()
+  findByIds: jest.fn()
 }));
 
 jest.mock('modules/schemas/kyc/iam/repositories/auth-trusted-device.repository', () => ({
-  findAll: jest.fn()
+  findByIds: jest.fn()
 }));
 
 jest.mock('shared/dtos/audit/components-audit.dto', () => ({
@@ -147,15 +147,13 @@ describe('AdminSessionTraceService', () => {
         { entity_table: 'user_trusted_devices', entity_id: 'd1' },
         { entity_table: 'foo_table', entity_id: 'z1' }
       ]);
-      userConsentRepository.findAll.mockResolvedValue([{ user_consent_id: 'c1' }]);
-      trustedDeviceRepo.findAll.mockResolvedValue([{ user_trusted_device_id: 'd1' }]);
+      userConsentRepository.findByIds.mockResolvedValue([{ user_consent_id: 'c1' }]);
+      trustedDeviceRepo.findByIds.mockResolvedValue([{ user_trusted_device_id: 'd1' }]);
 
       await service.getSessionEntities('s1', {}, ADMIN_ID);
 
       // ids únicos por tabla
-      expect(userConsentRepository.findAll).toHaveBeenCalledWith(
-        expect.objectContaining({ user_consent_id: expect.any(Object) })
-      );
+      expect(userConsentRepository.findByIds).toHaveBeenCalledWith(['c1'], 'user_consent_id');
 
       const [sessionIdArg, entities, skipped] = SessionEntitiesDTO.mock.calls[0];
       expect(sessionIdArg).toBe('s1');
@@ -178,12 +176,12 @@ describe('AdminSessionTraceService', () => {
         { entity_table: 'user_consents', entity_id: 'c1' },
         { entity_table: 'user_trusted_devices', entity_id: 'd1' }
       ]);
-      userConsentRepository.findAll.mockResolvedValue([{ user_consent_id: 'c1' }]);
+      userConsentRepository.findByIds.mockResolvedValue([{ user_consent_id: 'c1' }]);
 
       await service.getSessionEntities('s1', { entityTable: 'user_consents' }, ADMIN_ID);
 
-      expect(userConsentRepository.findAll).toHaveBeenCalledTimes(1);
-      expect(trustedDeviceRepo.findAll).not.toHaveBeenCalled();
+      expect(userConsentRepository.findByIds).toHaveBeenCalledTimes(1);
+      expect(trustedDeviceRepo.findByIds).not.toHaveBeenCalled();
     });
   });
 });

@@ -14,7 +14,6 @@ const { MetadataDTO } = require('../../../../../shared/dtos/kyc/components-catal
 const ProfileHelper = require('../../../../schemas/kyc/person/helpers/profile.helper');
 const DualApprovalService = require('../../../../schemas/core/services/dual-approval.service');
 const { notifications, RBAC_ROLES, CLIENT_ROLE_NAMES } = require('../../../../../shared/constants');
-const { Op } = require('sequelize');
 
 const {
   UserDTO,
@@ -131,7 +130,7 @@ class PersonService {
 
   /** @private — IDs de los roles de cliente (CLIENTE, CLIENTE_VERIFICADO) */
   async _clientRoleIds() {
-    const roles = await this.roleRepository.findAll({ name: { [Op.in]: CLIENT_ROLE_NAMES } });
+    const roles = await this.roleRepository.findByNames(CLIENT_ROLE_NAMES);
     return roles.map(r => r.role_id);
   }
 
@@ -173,7 +172,7 @@ class PersonService {
    * Evita que el front ofrezca todos los roles del sistema en este listado.
    */
   async listRoleOptions(adminUserId) {
-    const roles = await this.roleRepository.findAll({ name: { [Op.in]: CLIENT_ROLE_NAMES } });
+    const roles = await this.roleRepository.findByNames(CLIENT_ROLE_NAMES);
     logAudit(
       'PERSON_ROLE_OPTIONS_VIEWED',
       adminUserId,

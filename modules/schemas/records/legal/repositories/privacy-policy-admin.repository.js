@@ -23,8 +23,8 @@ class PrivacyPolicyAdminRepository extends BaseRepository {
     );
   }
 
-  findById(id) {
-    return super.findById(id);
+  findById(id, options = {}) {
+    return super.findById(id, options);
   }
 
   findByVersion(version) {

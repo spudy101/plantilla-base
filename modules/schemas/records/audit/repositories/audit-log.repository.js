@@ -1,23 +1,15 @@
-const BaseRepository = require('../../../../../shared/repositories/base.repository');
+const AppendOnlyRepository = require('../../../../../shared/repositories/append-only.repository');
 const { AuditLog } = require('../../../../../shared/models');
-const AppError = require('../../../../../shared/utils/app-error.util');
 const { Op } = require('sequelize');
 
-class AuditLogRepository extends BaseRepository {
+class AuditLogRepository extends AppendOnlyRepository {
   constructor() {
     super(AuditLog);
   }
 
-  // `audit_logs` es append-only. La garantía dura es el trigger de BD (BEFORE UPDATE OR DELETE), pero al
-  // heredar de BaseRepository el repo exponía `update`/`delete` y parecía permitirlos. Nadie los usa: se
-  // cierran acá para que el error salte en desarrollo y no como excepción de Postgres en runtime.
-  update() {
-    throw AppError.internal('audit_logs es append-only: no se puede modificar una entrada de auditoría');
-  }
-
-  delete() {
-    throw AppError.internal('audit_logs es append-only: no se puede eliminar una entrada de auditoría');
-  }
+  // `audit_logs` es append-only. La garantía dura es el trigger de BD (BEFORE UPDATE OR DELETE).
+  // Antes este repo heredaba de BaseRepository y sobrescribía `update`/`delete` para lanzar error
+  // (violación de Liskov). Ahora hereda de AppendOnlyRepository: esos métodos simplemente no existen.
 
   /**
    * Registra una entrada de auditoría.
@@ -240,6 +232,93 @@ class AuditLogRepository extends BaseRepository {
       order: [['created_at', 'DESC']],
       limit
     });
+  }
+
+  // ============================================================
+  // BÚSQUEDAS CON FILTROS DE NEGOCIO (SOLID: D / I)
+  // ============================================================
+  // Los services pasan filtros planos (dateFrom, action, userId…) y el repositorio
+  // los traduce a un WHERE de Sequelize. Así ningún service importa `Op`.
+
+  /**
+   * Traduce los filtros del listado/exportación de auditoría a un WHERE.
+   * @param {object} filters - { dateFrom, dateTo, action, userId, sessionId, category, module,
+   *                             outcome, risk, ip, correlationId, entityId, entityType, source }
+   * @returns {object} where de Sequelize
+   */
+  buildSearchWhere(filters = {}) {
+    const where = {};
+    const { dateFrom, dateTo } = filters;
+    if (dateFrom || dateTo) {
+      where.created_at = {};
+      if (dateFrom) {
+        where.created_at[Op.gte] = dateFrom;
+      }
+      if (dateTo) {
+        where.created_at[Op.lte] = dateTo;
+      }
+    }
+    const columns = {
+      action: 'action',
+      userId: 'user_id',
+      sessionId: 'session_id',
+      category: 'category',
+      module: 'module',
+      outcome: 'outcome',
+      risk: 'risk',
+      ip: 'ip',
+      correlationId: 'correlation_id',
+      entityId: 'entity_id',
+      entityType: 'entity_type',
+      source: 'source'
+    };
+    for (const [key, column] of Object.entries(columns)) {
+      if (filters[key]) {
+        where[column] = filters[key];
+      }
+    }
+    return where;
+  }
+
+  /** Listado paginado de auditoría a partir de filtros de negocio. */
+  searchPaginated(filters, pagination, include = []) {
+    return this.findPaginatedWithExecutor(this.buildSearchWhere(filters), pagination, include);
+  }
+
+  /** Exportación (sin include) a partir de filtros de negocio. */
+  searchForExport(filters, limit) {
+    return this.findAllForExport(this.buildSearchWhere(filters), limit);
+  }
+
+  /**
+   * WHERE de intentos de autenticación.
+   * @param {object} criteria
+   * @param {Date} criteria.from
+   * @param {Date} criteria.to
+   * @param {string[]} [criteria.actions] - si viene, filtra por esas acciones
+   * @param {string} [criteria.category]  - si no hay actions, filtra por categoría
+   * @param {string} [criteria.userId]
+   * @param {string} [criteria.outcome]
+   */
+  buildAuthAttemptsWhere({ from, to, actions, category, userId, outcome } = {}) {
+    const where = { created_at: { [Op.between]: [from, to] } };
+    if (actions && actions.length) {
+      where.action = { [Op.in]: actions };
+    } else if (category) {
+      where.category = category;
+    }
+    if (userId) {
+      where.user_id = userId;
+    }
+    if (outcome) {
+      where.outcome = outcome;
+    }
+    return where;
+  }
+
+  /** Intentos de autenticación paginados. */
+  findAuthAttemptsPaginated(criteria, pagination, include = []) {
+    return this.findPaginatedWithExecutor(this.buildAuthAttemptsWhere(criteria), pagination, include);
   }
 
   // ============================================================

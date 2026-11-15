@@ -38,6 +38,7 @@ jest.mock('modules/schemas/kyc/person/repositories/person-contact.repository', (
 }));
 jest.mock('modules/schemas/kyc/iam/repositories/role.repository', () => ({
   findAll: jest.fn(),
+  findByNames: jest.fn(),
   findByName: jest.fn(),
   findById: jest.fn()
 }));
@@ -153,7 +154,7 @@ describe('PersonService (admin)', () => {
     txn = makeTransaction();
     sequelize.transaction.mockResolvedValue(txn);
     // roles cliente por defecto para _clientRoleIds
-    roleRepository.findAll.mockResolvedValue([{ role_id: 'rc1' }, { role_id: 'rc2' }]);
+    roleRepository.findByNames.mockResolvedValue([{ role_id: 'rc1' }, { role_id: 'rc2' }]);
   });
 
   // ============================================================
@@ -226,10 +227,11 @@ describe('PersonService (admin)', () => {
 
   describe('listRoleOptions', () => {
     it('devuelve solo los roles cliente y audita', async () => {
-      roleRepository.findAll.mockResolvedValue([{ role_id: 'rc1' }, { role_id: 'rc2' }]);
+      roleRepository.findByNames.mockResolvedValue([{ role_id: 'rc1' }, { role_id: 'rc2' }]);
 
       const result = await service.listRoleOptions('admin-1');
 
+      expect(roleRepository.findByNames).toHaveBeenCalledWith(['cliente', 'cliente_verificado']);
       expect(logAudit).toHaveBeenCalledWith('PERSON_ROLE_OPTIONS_VIEWED', 'admin-1', { totalItems: 2 }, expect.any(Object));
       expect(result).toEqual([{ dto: 'RoleOptionDTO', id: 'rc1' }, { dto: 'RoleOptionDTO', id: 'rc2' }]);
     });

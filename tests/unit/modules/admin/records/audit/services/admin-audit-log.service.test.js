@@ -32,9 +32,9 @@ jest.mock('shared/dtos/kyc/components-catalog.dto', () => ({
 }));
 
 jest.mock('modules/schemas/records/audit/repositories/audit-log.repository', () => ({
-  findPaginatedWithExecutor: jest.fn(),
+  searchPaginated: jest.fn(),
   findByIdFull: jest.fn(),
-  findAllForExport: jest.fn()
+  searchForExport: jest.fn()
 }));
 
 jest.mock('modules/admin/records/audit/dtos/admin-audit-log.dto', () => ({
@@ -64,8 +64,8 @@ describe('AdminAuditLogService', () => {
   });
 
   describe('list', () => {
-    it('construye el WHERE desde los filtros, pagina, mapea con el DTO y audita', async () => {
-      auditLogRepo.findPaginatedWithExecutor.mockResolvedValue({
+    it('delega los filtros al repositorio, pagina, mapea con el DTO y audita', async () => {
+      auditLogRepo.searchPaginated.mockResolvedValue({
         rows: [{ audit_log_id: 'a-1' }, { audit_log_id: 'a-2' }],
         count: 2
       });
@@ -73,9 +73,10 @@ describe('AdminAuditLogService', () => {
 
       const result = await service.list({ action: 'LOGIN', userId: 'u-9', dateFrom: '2024-01-01' }, ADMIN);
 
-      const [whereArg] = auditLogRepo.findPaginatedWithExecutor.mock.calls[0];
-      expect(whereArg).toMatchObject({ action: 'LOGIN', user_id: 'u-9' });
-      expect(whereArg.created_at).toBeDefined();
+      // El service ya no arma el WHERE (no conoce Sequelize): pasa los filtros de negocio tal cual.
+      const [filtersArg, paginationArg] = auditLogRepo.searchPaginated.mock.calls[0];
+      expect(filtersArg).toMatchObject({ action: 'LOGIN', userId: 'u-9', dateFrom: '2024-01-01' });
+      expect(paginationArg).toMatchObject({ limit: expect.any(Number) });
 
       expect(result.data).toHaveLength(2);
       expect(result.data[0]).toMatchObject({ dto: 'list', audit_log_id: 'a-1' });
@@ -114,7 +115,7 @@ describe('AdminAuditLogService', () => {
 
   describe('exportToResponse', () => {
     it('exporta CSV con BOM, cabecera y filas (escapando comas), audita y loguea', async () => {
-      auditLogRepo.findAllForExport.mockResolvedValue([
+      auditLogRepo.searchForExport.mockResolvedValue([
         { audit_log_id: 'a-1', action: 'LOGIN', description: 'texto, con coma' }
       ]);
       const res = fakeRes();
@@ -137,7 +138,7 @@ describe('AdminAuditLogService', () => {
     });
 
     it('exporta XLSX construyendo el WorkbookWriter y con el content-type de Excel', async () => {
-      auditLogRepo.findAllForExport.mockResolvedValue([{ audit_log_id: 'a-1', action: 'LOGIN' }]);
+      auditLogRepo.searchForExport.mockResolvedValue([{ audit_log_id: 'a-1', action: 'LOGIN' }]);
       const res = fakeRes();
 
       await service.exportToResponse(res, {}, ADMIN, 'xlsx');

@@ -17,7 +17,7 @@ jest.mock('shared/utils/logger.util', () => ({
   logAudit: jest.fn()
 }));
 
-jest.mock('shared/models', () => ({ SystemGlobalConfig: { findOne: jest.fn() } }));
+jest.mock('modules/schemas/core/repositories/system-global-config.repository', () => ({ findActive: jest.fn() }));
 
 jest.mock('modules/admin/core/dtos/promotional-banner.dto', () => ({
   PromotionalBannerListDTO: jest.fn(banners => ({ banners })),
@@ -27,7 +27,7 @@ jest.mock('modules/admin/core/dtos/promotional-banner.dto', () => ({
 const { v4: uuidv4 } = require('uuid');
 const S3Util = require('shared/utils/s3.util');
 const { logAudit, logger } = require('shared/utils/logger.util');
-const { SystemGlobalConfig } = require('shared/models');
+const systemGlobalConfigRepository = require('modules/schemas/core/repositories/system-global-config.repository');
 const { PromotionalBannerListDTO, PromotionalBannerImageDTO } = require('modules/admin/core/dtos/promotional-banner.dto');
 const service = require('modules/admin/core/services/promotional-banner.service');
 
@@ -42,13 +42,13 @@ describe('PromotionalBannerService', () => {
 
   describe('list', () => {
     it('lanza 404 cuando no hay configuración global activa', async () => {
-      SystemGlobalConfig.findOne.mockResolvedValue(null);
+      systemGlobalConfigRepository.findActive.mockResolvedValue(null);
 
       await expect(service.list(ADMIN_ID)).rejects.toThrow('No hay una configuración global activa');
     });
 
     it('devuelve los banners de la config activa y audita', async () => {
-      SystemGlobalConfig.findOne.mockResolvedValue({ config_id: 'cfg-1', promotional_banners: [{ id: 'b1' }] });
+      systemGlobalConfigRepository.findActive.mockResolvedValue({ config_id: 'cfg-1', promotional_banners: [{ id: 'b1' }] });
 
       const result = await service.list(ADMIN_ID);
 
@@ -63,7 +63,7 @@ describe('PromotionalBannerService', () => {
     });
 
     it('usa arreglo vacío cuando promotional_banners es null', async () => {
-      SystemGlobalConfig.findOne.mockResolvedValue({ config_id: 'cfg-1', promotional_banners: null });
+      systemGlobalConfigRepository.findActive.mockResolvedValue({ config_id: 'cfg-1', promotional_banners: null });
 
       await service.list(ADMIN_ID);
 
@@ -74,7 +74,7 @@ describe('PromotionalBannerService', () => {
   describe('replace', () => {
     it('normaliza a snake_case, genera ids faltantes, sube versión y audita', async () => {
       const update = jest.fn().mockImplementation(payload => ({ promotional_banners: payload.promotional_banners }));
-      SystemGlobalConfig.findOne.mockResolvedValue({
+      systemGlobalConfigRepository.findActive.mockResolvedValue({
         config_id: 'cfg-1',
         config_version: 4,
         promotional_banners: [],
@@ -110,7 +110,7 @@ describe('PromotionalBannerService', () => {
       const orphanManaged = `https://cdn.test/${PREFIX}/vieja.png`;
       const externalUrl = 'https://marca.externa.com/logo.png';
       const update = jest.fn().mockImplementation(p => ({ promotional_banners: p.promotional_banners }));
-      SystemGlobalConfig.findOne.mockResolvedValue({
+      systemGlobalConfigRepository.findActive.mockResolvedValue({
         config_id: 'cfg-1',
         config_version: 1,
         promotional_banners: [{ image_url: orphanManaged }, { image_url: externalUrl }],
@@ -132,7 +132,7 @@ describe('PromotionalBannerService', () => {
 
     it('registra warn si algún borrado de imagen huérfana falla (best-effort)', async () => {
       const update = jest.fn().mockImplementation(p => ({ promotional_banners: p.promotional_banners }));
-      SystemGlobalConfig.findOne.mockResolvedValue({
+      systemGlobalConfigRepository.findActive.mockResolvedValue({
         config_id: 'cfg-1',
         config_version: 1,
         promotional_banners: [{ image_url: `https://cdn.test/${PREFIX}/a.png` }, { image_url: `https://cdn.test/${PREFIX}/b.png` }],

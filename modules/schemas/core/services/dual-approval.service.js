@@ -483,8 +483,9 @@ async function _resolveThreshold(op) {
     return op.thresholdDefault ?? 0;
   }
   try {
-    const { SystemGlobalConfig } = require('../../../../shared/models');
-    const cfg = await SystemGlobalConfig.findOne({ where: { is_active: true } });
+    // require perezoso: evita un ciclo de carga con los módulos que dependen de dual-approval
+    const systemGlobalConfigRepository = require('../repositories/system-global-config.repository');
+    const cfg = await systemGlobalConfigRepository.findActive();
     const raw = cfg ? cfg[op.thresholdConfigKey] : null;
     if (raw === null || raw === undefined) {
       return op.thresholdDefault ?? 0;

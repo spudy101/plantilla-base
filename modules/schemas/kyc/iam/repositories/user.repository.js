@@ -292,8 +292,9 @@ class UserRepository extends BaseRepository {
     return this.update(userId, { totp_enabled: enabled, totp_secret: totpSecret }, options);
   }
 
-  delete(userId) {
-    return this.model.destroy({ where: { user_id: userId } });
+  // Misma firma que BaseRepository.delete(id, options) — SOLID: L (no se pierde la transacción)
+  delete(userId, options = {}) {
+    return this.model.destroy({ where: { user_id: userId }, ...options });
   }
 
   findById(userId, options = {}) {

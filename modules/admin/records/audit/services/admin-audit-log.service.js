@@ -6,7 +6,6 @@ const { MetadataDTO } = require('../../../../../shared/dtos/kyc/components-catal
 const auditLogRepository = require('../../../../schemas/records/audit/repositories/audit-log.repository');
 const { AuditLogListDTO, AuditLogDTO } = require('../dtos/admin-audit-log.dto');
 const { User, Person } = require('../../../../../shared/models');
-const { Op } = require('sequelize');
 
 const EXPORT_LIMIT = 50000;
 
@@ -44,10 +43,9 @@ class AdminAuditLogService {
 
   async list(query, adminUserId) {
     const paginationParams = PaginationHelper.getPaginationParams(query);
-    const where = _buildWhere(query);
-
-    const { rows, count } = await this.auditLogRepository.findPaginatedWithExecutor(
-      where,
+    // Los filtros de negocio se traducen a WHERE dentro del repositorio (el service no conoce Sequelize).
+    const { rows, count } = await this.auditLogRepository.searchPaginated(
+      query,
       {
         limit: paginationParams.limit,
         offset: paginationParams.offset,
@@ -111,9 +109,7 @@ class AdminAuditLogService {
   }
 
   async exportToResponse(res, query, adminUserId, format = 'csv') {
-    const where = _buildWhere(query);
-
-    const rows = await this.auditLogRepository.findAllForExport(where, EXPORT_LIMIT);
+    const rows = await this.auditLogRepository.searchForExport(query, EXPORT_LIMIT);
 
     const truncated = rows.length === EXPORT_LIMIT;
 
@@ -131,74 +127,6 @@ class AdminAuditLogService {
     }
     return _streamCsv(res, rows, truncated);
   }
-}
-
-function _buildWhere(query) {
-  const where = {};
-  const {
-    dateFrom,
-    dateTo,
-    action,
-    userId,
-    sessionId,
-    category,
-    module: moduleFilter,
-    outcome,
-    risk,
-    ip,
-    correlationId,
-    entityId,
-    entityType,
-    source
-  } = query;
-
-  if (dateFrom || dateTo) {
-    where.created_at = {};
-    if (dateFrom) {
-      where.created_at[Op.gte] = dateFrom;
-    }
-    if (dateTo) {
-      where.created_at[Op.lte] = dateTo;
-    }
-  }
-  if (action) {
-    where.action = action;
-  }
-  if (userId) {
-    where.user_id = userId;
-  }
-  if (sessionId) {
-    where.session_id = sessionId;
-  }
-  if (category) {
-    where.category = category;
-  }
-  if (moduleFilter) {
-    where.module = moduleFilter;
-  }
-  if (outcome) {
-    where.outcome = outcome;
-  }
-  if (risk) {
-    where.risk = risk;
-  }
-  if (ip) {
-    where.ip = ip;
-  }
-  if (correlationId) {
-    where.correlation_id = correlationId;
-  }
-  if (entityId) {
-    where.entity_id = entityId;
-  }
-  if (entityType) {
-    where.entity_type = entityType;
-  }
-  if (source) {
-    where.source = source;
-  }
-
-  return where;
 }
 
 function _escapeCsv(value) {
