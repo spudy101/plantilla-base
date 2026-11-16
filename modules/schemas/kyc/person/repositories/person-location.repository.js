@@ -50,6 +50,14 @@ class PersonLocationRepository extends BaseRepository {
     );
   }
 
+  /**
+   * Anonimiza la dirección física de una persona (Ley 1581/2012 — eliminación de cuenta).
+   * Conserva departamento/ciudad para estadística agregada.
+   */
+  anonymizeAddressByPersonId(personId, options = {}) {
+    return this.bulkUpdate({ address: 'ELIMINADO', postal_code: null }, { person_id: personId }, options);
+  }
+
   // Override para usar person_location_id con relaciones
   findById(personLocationId, options = {}) {
     const defaultOptions = {

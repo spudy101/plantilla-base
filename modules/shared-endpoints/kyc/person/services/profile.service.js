@@ -25,6 +25,7 @@ class ProfileService {
    */
   constructor(deps = {}) {
     this.unitOfWork = deps.unitOfWork ?? unitOfWork;
+    this.profileHelper = deps.profileHelper ?? ProfileHelper;
     this.userRepository = deps.userRepository ?? userRepository;
     this.personRepository = deps.personRepository ?? personRepository;
     this.userConsentRepository = deps.userConsentRepository ?? userConsentRepository;
@@ -86,25 +87,25 @@ class ProfileService {
   // ============================================================
 
   async updateProfile(data, userId, personId, username, firstName, auditContext = {}) {
-    const snapshot = await ProfileHelper.fetchPersonSnapshot(personId);
+    const snapshot = await this.profileHelper.fetchPersonSnapshot(personId);
 
     const transaction = await this.unitOfWork.begin();
 
     try {
       if (data.username && data.username !== username) {
-        await ProfileHelper.updateUsername(userId, data.username, transaction);
+        await this.profileHelper.updateUsername(userId, data.username, transaction);
       }
       if (data.avatarId) {
-        await ProfileHelper.updateAvatar(userId, data.avatarId, transaction);
+        await this.profileHelper.updateAvatar(userId, data.avatarId, transaction);
       }
       if (data.genderId) {
-        await ProfileHelper.updateGender(personId, data.genderId, transaction);
+        await this.profileHelper.updateGender(personId, data.genderId, transaction);
       }
       if (data.location) {
-        await ProfileHelper.updateLocation(personId, data.location, transaction);
+        await this.profileHelper.updateLocation(personId, data.location, transaction);
       }
       if (data.birthDate) {
-        await ProfileHelper.updateBirthDate(personId, data.birthDate, transaction);
+        await this.profileHelper.updateBirthDate(personId, data.birthDate, transaction);
       }
 
       await _logProfileFieldChanges({ data, snapshot, userId, auditContext, transaction });
@@ -146,12 +147,12 @@ class ProfileService {
     const { email, currentPassword } = data;
 
     const user = await this._getUserSecure(userId);
-    await ProfileHelper.validateCurrentPassword(user.password_hash, currentPassword);
+    await this.profileHelper.validateCurrentPassword(user.password_hash, currentPassword);
 
     const transaction = await this.unitOfWork.begin();
 
     try {
-      const { newEmail } = await ProfileHelper.updateEmailLogic({
+      const { newEmail } = await this.profileHelper.updateEmailLogic({
         userId,
         personId,
         newEmail: email,
@@ -189,7 +190,7 @@ class ProfileService {
     const transaction = await this.unitOfWork.begin();
 
     try {
-      const result = await ProfileHelper.updatePhoneLogic({
+      const result = await this.profileHelper.updatePhoneLogic({
         personId,
         phone: newPhone,
         phonePrefixId,
@@ -225,12 +226,12 @@ class ProfileService {
     const { currentPassword, newPassword } = data;
 
     const user = await this._getUserSecure(userId);
-    await ProfileHelper.validateCurrentPassword(user.password_hash, currentPassword);
+    await this.profileHelper.validateCurrentPassword(user.password_hash, currentPassword);
 
     const transaction = await this.unitOfWork.begin();
 
     try {
-      await ProfileHelper.updatePasswordLogic({
+      await this.profileHelper.updatePasswordLogic({
         userId,
         newPassword,
         changedByUserId: userId,
@@ -280,7 +281,7 @@ class ProfileService {
       const before = await this.personRepository.findById(personId);
       const previousName = _composeFullName(before);
 
-      await ProfileHelper.updateNames(
+      await this.profileHelper.updateNames(
         personId,
         {
           firstName: data.firstName,
@@ -345,12 +346,12 @@ class ProfileService {
     const { currentPassword } = data;
 
     const user = await this._getUserSecure(userId);
-    await ProfileHelper.validateCurrentPassword(user.password_hash, currentPassword);
+    await this.profileHelper.validateCurrentPassword(user.password_hash, currentPassword);
 
     const transaction = await this.unitOfWork.begin();
 
     try {
-      const result = await ProfileHelper.deleteAccountLogic({
+      const result = await this.profileHelper.deleteAccountLogic({
         userId,
         personId,
         nationalId,

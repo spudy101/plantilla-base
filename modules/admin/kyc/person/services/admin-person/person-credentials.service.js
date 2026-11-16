@@ -22,6 +22,7 @@ class PersonCredentialsService {
    */
   constructor(deps = {}) {
     this.unitOfWork = deps.unitOfWork ?? unitOfWork;
+    this.profileHelper = deps.profileHelper ?? ProfileHelper;
     this.userRepository = deps.userRepository ?? userRepository;
     this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
   }
@@ -140,7 +141,7 @@ class PersonCredentialsService {
       }
       assertNotDeleted(user);
 
-      const { oldEmail, newEmail: updatedEmail } = await ProfileHelper.updateEmailLogic({
+      const { oldEmail, newEmail: updatedEmail } = await this.profileHelper.updateEmailLogic({
         userId,
         personId: user.person.person_id,
         newEmail,
@@ -231,7 +232,7 @@ class PersonCredentialsService {
         oldNationalId,
         newNationalId: updated,
         unchanged
-      } = await ProfileHelper.updateNationalIdLogic({
+      } = await this.profileHelper.updateNationalIdLogic({
         userId,
         personId: user.person.person_id,
         newNationalId,

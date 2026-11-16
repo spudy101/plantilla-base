@@ -26,6 +26,7 @@ class PersonCreationService {
    */
   constructor(deps = {}) {
     this.unitOfWork = deps.unitOfWork ?? unitOfWork;
+    this.profileHelper = deps.profileHelper ?? ProfileHelper;
     this.userRepository = deps.userRepository ?? userRepository;
     this.personRepository = deps.personRepository ?? personRepository;
     this.personContactRepository = deps.personContactRepository ?? personContactRepository;
@@ -48,8 +49,8 @@ class PersonCreationService {
       }
 
       KycSharedUtil.validateNationalIdByRole(userData.nationalId, role);
-      await ProfileHelper.validateNationalIdUnique(userData.nationalId);
-      await ProfileHelper.validateEmailUnique(userData.email);
+      await this.profileHelper.validateNationalIdUnique(userData.nationalId);
+      await this.profileHelper.validateEmailUnique(userData.email);
 
       const temporaryPassword = KycSharedUtil.generateSecurePassword();
       const authUsername = `user_${uuidv4()}`;
