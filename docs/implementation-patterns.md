@@ -143,6 +143,13 @@ module.exports = new MyRepository();
 > (incluido `options`, para no perder la transacción) — SOLID: L.
 > ✅ Los operadores de Sequelize (`Op.in`, `Op.between`…) viven aquí, detrás de métodos con nombre
 > de negocio: `findByNames(names, { exclude })`, `findByIds(ids)`, `markAsReadByIds(ids)`.
+> ✅ Los `include` también: el repositorio expone `findPaginatedWithDeviceAndUser(where, pagination)`
+> o `findForAccountDeletion(userId, options)` y declara las asociaciones por nombre
+> (`{ association: 'executor' }`), nunca con `model: X`.
+> ✅ Los enums de dominio (estados, catálogos cerrados) viven en `shared/constants/domain-enums.js`;
+> el modelo los usa para su `ENUM` y el service los importa de ahí, no del modelo.
+> ✅ No sobrescribas un método del padre con otra firma: si necesitas otra semántica, otro nombre
+> (`existsOverride(role, module, action)` en vez de redefinir `exists(criteria)`).
 
 ## Routes (admin)
 
