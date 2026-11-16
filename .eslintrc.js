@@ -13,11 +13,40 @@
 // La única excepción permitida: leer NODE_ENV directo para configurar no-console.
 const isProduction = process.env.NODE_ENV === 'production';
 
+// Números permitidos sin constante (HTTP status, potencias, ms/segundos comunes). Los comparten la
+// regla base y la de TypeScript (@typescript-eslint/no-magic-numbers no hereda las opciones de la base).
+const MAGIC_NUMBER_IGNORE = [
+  -1,
+  0,
+  1,
+  2,
+  10,
+  100,
+  60, // minutos/segundos
+  3600, // segundos en una hora
+  24, // horas en un día
+  1000, // ms en un segundo
+  10000, // ms (timeout común)
+  1024, // bytes → KB
+  200,
+  201,
+  204,
+  400,
+  401,
+  403,
+  404,
+  409,
+  422,
+  429,
+  500,
+  503
+];
+
 module.exports = {
   // Archivos/carpetas que ESLint ignora completamente.
   // Migrations y seeders son código generado o de un solo uso — no hace falta
   // que cumplan los estándares del proyecto.
-  ignorePatterns: ['**/migrations/**', '**/seeders/**', '**/migrate/**', '**/seeder/**', '**/scripts/**', '.eslintrc.js'],
+  ignorePatterns: ['dist/**', 'coverage/**', '**/migrations/**', '**/seeders/**', '**/migrate/**', '**/seeder/**', '**/scripts/**', '.eslintrc.js'],
 
   // Declara los globals disponibles según el entorno para que ESLint
   // no los marque como "variable no definida".
@@ -354,32 +383,7 @@ module.exports = {
     'no-magic-numbers': [
       'warn',
       {
-        ignore: [
-          -1,
-          0,
-          1,
-          2,
-          10,
-          100,
-          60, // minutos/segundos
-          3600, // segundos en una hora
-          24, // horas en un día
-          1000, // ms en un segundo
-          10000, // ms (timeout común)
-          1024, // bytes → KB
-          200,
-          201,
-          204,
-          400,
-          401,
-          403,
-          404,
-          409,
-          422,
-          429,
-          500,
-          503
-        ],
+        ignore: MAGIC_NUMBER_IGNORE,
         ignoreArrayIndexes: true,
         ignoreDefaultValues: true,
         enforceConst: true,
@@ -534,6 +538,54 @@ module.exports = {
       rules: {
         strict: 'off',
         'no-process-env': 'off'
+      }
+    },
+
+    // -------------------------------------------------------------------------
+    // TypeScript (migración gradual — ver docs/typescript-migration.md)
+    // Mismas reglas del proyecto + las recomendadas de typescript-eslint.
+    // Las reglas base que TS ya cubre (o reporta mal sobre sintaxis de tipos)
+    // se reemplazan por su versión de @typescript-eslint.
+    // -------------------------------------------------------------------------
+    {
+      files: ['**/*.ts'],
+      parser: '@typescript-eslint/parser',
+      parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
+      plugins: ['@typescript-eslint'],
+      extends: ['plugin:@typescript-eslint/recommended', 'prettier'],
+      rules: {
+        'no-undef': 'off', // tsc ya detecta identificadores no definidos
+        'no-unused-vars': 'off',
+        '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+        'no-use-before-define': 'off',
+        // `import x = require()` / `export =` son el puente CommonJS durante la migración
+        '@typescript-eslint/no-require-imports': 'off',
+        // Los números en anotaciones de tipo / enums no son "mágicos"
+        'no-magic-numbers': 'off',
+        '@typescript-eslint/no-magic-numbers': [
+          'warn',
+          {
+            ignore: MAGIC_NUMBER_IGNORE,
+            ignoreArrayIndexes: true,
+            ignoreDefaultValues: true,
+            enforceConst: true,
+            detectObjects: false,
+            ignoreEnums: true,
+            ignoreNumericLiteralTypes: true,
+            ignoreReadonlyClassProperties: true
+          }
+        ],
+        // `import type { X } from 'm'` junto a `import { y } from 'm'` es el patrón normal en TS
+        'no-duplicate-imports': 'off'
+      }
+    },
+    {
+      files: ['**/tests/**/*.ts', '**/*.test.ts'],
+      rules: {
+        'max-lines-per-function': 'off',
+        'max-len': 'off',
+        '@typescript-eslint/no-magic-numbers': 'off',
+        '@typescript-eslint/no-explicit-any': 'off'
       }
     }
   ]

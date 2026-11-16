@@ -10,7 +10,8 @@ modos de ejecución, ver [`run-modes.md`](./run-modes.md).
 
 ## 1. Requisitos
 
-- **Node.js 20** (la imagen de producción es `node:20-alpine`).
+- **Node.js 24** LTS (la imagen de producción es `node:24-alpine`; ver `.nvmrc`). El código es
+  TypeScript en migración gradual: ver [`typescript-migration.md`](typescript-migration.md).
 - **PostgreSQL** (la app usa un esquema configurable vía `DB_SCHEMA`; por defecto `public`).
 - **Redis** — opcional. Sin él, el cache y el rate-limit degradan a memoria por instancia.
 - Cuenta **AWS** (SES/S3/SNS) para correo, almacenamiento y push. En local se pueden mockear

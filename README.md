@@ -95,7 +95,7 @@ Todo lo transversal que un proyecto necesita el día 1, ya construido y probado:
 
 | Área            | Tecnologías                                                                      |
 | --------------- | -------------------------------------------------------------------------------- |
-| **Runtime/Web** | Node.js 20+, Express 4                                                            |
+| **Runtime/Web** | Node.js 24+, TypeScript (migración gradual), Express 4                           |
 | **Datos**       | PostgreSQL 14+, Sequelize 6, `pg`                                                 |
 | **Cache/estado**| Redis (`ioredis`) — **opcional**, con fallback a memoria/BD                       |
 | **Auth**        | `jose` (JWT RS256), `bcryptjs`, `otplib` (TOTP)                                   |
@@ -222,6 +222,9 @@ corre uno a la vez**.
 | **Monolito** (def) | admin **y** client (`/admin/...` + `/client/...`) en un proceso        | `npm run dev`         | `npm start`            |
 | Solo admin         | únicamente `adminApp`                                                   | `npm run dev:admin`   | `npm run start:admin`  |
 | Solo client        | únicamente `clientApp`                                                  | `npm run dev:client`  | `npm run start:client` |
+
+Producción corre el build compilado: `npm run build` antes de `npm start` (ver
+[`docs/typescript-migration.md`](docs/typescript-migration.md)).
 
 Prefijos de ruta reales (bajo cada app): `/api/v1/auth`, `/api/v1/kyc`, `/api/v1/notification`,
 `/api/v1/records`, `/api/v1/core`, `/api/v1/integration`. En modo monolito se antepone `/admin` o

@@ -1,0 +1,15 @@
+{
+  // Typecheck de los tests .ts (Jest los transpila con Babel sin revisar tipos).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "shared/*": ["shared/*"],
+      "modules/*": ["modules/*"],
+      "config/*": ["config/*"]
+    }
+  },
+  "include": ["servers/**/*", "modules/**/*", "shared/**/*", "config/**/*", "tests/**/*"],
+  "exclude": ["node_modules", "dist", "coverage", "migrations", "seeders", "scripts"]
+}
