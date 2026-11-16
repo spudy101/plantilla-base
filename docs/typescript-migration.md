@@ -63,10 +63,10 @@
 | Fase | Alcance | Estado |
 |---|---|---|
 | **1. Infraestructura + núcleo** | tsconfig, build, dev, Jest, ESLint, Docker, CLI de BD vía tsx; `AppError`, `ReadRepository` / `BaseRepository` / `AppendOnlyRepository` (genéricos `<M extends Model>`), `UnitOfWork` (con su puerto `Port`), `domain-enums` (uniones literales), `es256-signature.util` | ✅ |
-| **2. Resto de `shared/`** | ✅ `constants/` (23) y `utils/` (30) · ⏳ `dtos/`, `middlewares/`, `services/`, `validators/`, `base/`, `models/index` + mixin | 🔄 |
+| **2. Resto de `shared/`** | `constants/`, `utils/`, `dtos/`, `middlewares/`, `services/`, `validators/`, `base/`, `models/index` + mixin: **`shared/` ya no tiene `.js`** | ✅ |
 | **3. Modelos + repositorios** | Tipar los 45 modelos de `modules/schemas/*/models` (`InferAttributes`) junto a su repositorio; `modules/**/repositories` → `extends BaseRepository<UserModel>`; definir **interfaces de puerto** (`UserRepositoryPort`) que consumen los services | ⏳ |
 | **4. Dominios** (uno por commit) | `schemas/kyc`, `schemas/notification`, `schemas/records`, `schemas/core`, `schemas/integration`; luego `shared-endpoints`, `client`, `admin` (services, controllers, routes, dtos, validators) | ⏳ |
-| **5. Arranque y config** | `servers/`, `config/`, `shared/base/` | ⏳ |
+| **5. Arranque y config** | `servers/`, `config/` | ⏳ |
 | **6. Cierre** | Tests a `.ts`, `allowJs: false`, pasar de `export =` a `import`/`export` nativos (ya sin consumidores JS), quitar `babel-jest`, migraciones/seeders a `.ts` | ⏳ |
 
 Orden pensado de abajo hacia arriba: cada fase solo depende de capas ya tipadas, así los tipos
@@ -74,20 +74,41 @@ Orden pensado de abajo hacia arriba: cada fase solo depende de capas ya tipadas,
 
 ## Utilidades para migrar
 
+Scripts en [`scripts/ts-migration/`](../scripts/ts-migration/README.md): codemod `.js` → `.ts` y fixers de
+parámetros y `catch` (ver su README para el flujo y las trampas conocidas).
+
+Tipos y helpers compartidos:
+
 - `shared/utils/error-message.util.ts`: `errorMessage(e)`, `errorName(e)`, `isOperationalError(e)` para los
   `catch` (con `strict` el error es `unknown`). Si una función recibe un parámetro llamado
   `errorMessage`, usar `errorMessageModule.errorMessage(…)` para no taparlo.
 - `shared/types/express.d.ts`: propiedades que los middlewares agregan a `req` (`user`, `correlationId`,
   `serverContext`, `externalService`, `lockKey`).
+- `shared/types/db-rows.ts`: formas mínimas de filas (`UserRefRow`, `DbDate`, `Maybe<T>`) para tipar lo
+  que leen los DTOs sin depender de los modelos (estructurales: los modelos tipados de la fase 3 encajan).
+- `shared/utils/auth-user.util.ts`: `requireAuthUser(req)` — el usuario autenticado tipado, o 401 si la
+  ruta quedó sin AuthMiddleware (antes era un `TypeError` → 500).
 - Campos de clase opcionales que no siempre se asignan: `declare campo?: T`. Con target ES2023
   (`useDefineForClassFields`) un campo sin `declare` se crea como `undefined` en cada instancia.
 
-## Bugs encontrados por los tipos
+## Hallazgos de la migración
+
+### Bugs corregidos
 
 - **Ventana de gracia de rotación de refresh token** (`refresh-token-store.util`): se guardaba con
   `JSON.stringify` y se leía con `JSON.parse` sobre lo que `redisClient.get` ya devuelve parseado →
   `getRotation` siempre devolvía `null` y dos `/auth/refresh` concurrentes podían detectarse como
   reuse attack. Corregido (acepta también el formato viejo) y cubierto con test.
+- **Webhook con `apiKey` repetida en la query** (`?apiKey=a&apiKey=b`): llegaba un array a la verificación de
+  la API key, `crypto` lanzaba y respondía 500. Ahora solo se acepta un string → 401.
+
+### Para decidir (sin cambios de comportamiento)
+
+- **El bypass de autenticación de desarrollo está apagado de hecho.** `auth.middleware`, `auth-login`,
+  `token-refresh` y `auth-register` leen `server.bypass`, pero `shared/constants/config.ts` nunca expone
+  esa propiedad (no hay variable de entorno), así que `IS_BYPASS_ENABLED` siempre es `false`. Se dejó tal cual
+  (es lo seguro). Opciones: borrar el código muerto del bypass, o agregar una variable explícita
+  (p. ej. `AUTH_BYPASS=true`, solo con `NODE_ENV=development`) si se quiere usar.
 
 ## Qué queda fuera a propósito (por ahora)
 

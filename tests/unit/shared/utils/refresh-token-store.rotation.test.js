@@ -9,19 +9,19 @@ const mockStore = new Map();
 
 jest.mock('shared/utils/redis.util', () => ({
   isAvailable: () => true,
-  set: jest.fn(async (key, value) => {
+  set: jest.fn((key, value) => {
     mockStore.set(key, typeof value === 'string' ? value : JSON.stringify(value));
-    return true;
+    return Promise.resolve(true);
   }),
-  get: jest.fn(async key => {
+  get: jest.fn(key => {
     const raw = mockStore.get(key);
     if (raw === undefined) {
-      return null;
+      return Promise.resolve(null);
     }
     try {
-      return JSON.parse(raw);
+      return Promise.resolve(JSON.parse(raw));
     } catch {
-      return raw;
+      return Promise.resolve(raw);
     }
   })
 }));

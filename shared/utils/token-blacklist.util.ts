@@ -280,7 +280,7 @@ class TokenBlacklistUtil {
    * @param {number} tokenIat - Unix timestamp (segundos) del iat del access token
    * @returns {Promise<boolean>} true = token invalidado (iat anterior al umbral)
    */
-  static async isSessionTokenInvalidated(sessionId: string, tokenIat: number) {
+  static async isSessionTokenInvalidated(sessionId: string | null | undefined, tokenIat: number | undefined): Promise<boolean> {
     if (!sessionId || !tokenIat || !redisClient.isAvailable()) {
       return false;
     }
@@ -329,7 +329,7 @@ class TokenBlacklistUtil {
    * @param {number} tokenIat - Unix timestamp (segundos) del iat del token (del ID token)
    * @returns {Promise<boolean>} true = sesión invalidada, false = OK o Redis caído
    */
-  static async isUserSessionsInvalidated(userId: string, tokenIat: number) {
+  static async isUserSessionsInvalidated(userId: string, tokenIat: number | undefined): Promise<boolean> {
     if (!userId || !tokenIat || !redisClient.isAvailable()) {
       return false;
     }
