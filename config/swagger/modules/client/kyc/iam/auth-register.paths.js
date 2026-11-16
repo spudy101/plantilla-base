@@ -19,7 +19,7 @@ const { UNMASKED_ROUTE_DESC } = require('../../../../schemas/pii-masking.doc');
 const schemas = {
   RegisterRequest: {
     type: 'object',
-    required: ['email', 'password', 'firstName', 'lastName', 'nationalId', 'birthDate', 'acceptedPrivacyPolicy'],
+    required: ['email', 'password', 'firstName', 'lastName', 'nationalId', 'documentTypeId', 'birthDate', 'acceptedPrivacyPolicy'],
     properties: {
       email: {
         type: 'string',
@@ -43,8 +43,8 @@ const schemas = {
       documentTypeId: {
         type: 'string',
         format: 'uuid',
-        nullable: true,
-        description: 'UUID del tipo de documento.'
+        description:
+          'UUID del tipo de documento. Debe estar activo y visible para clientes (consultar `GET /kyc/maintainers/document-types`).'
       },
       genderId: { type: 'string', format: 'uuid', nullable: true },
       acceptedPrivacyPolicy: {

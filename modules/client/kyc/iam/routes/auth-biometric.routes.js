@@ -59,6 +59,7 @@ router.post(
   AuthMiddleware.authenticate,
   RequestLockMiddleware.forAuthenticatedUsers(),
   AuthBiometricValidator.registerStart(),
+  ValidatorUtil.handleValidationErrors,
   AuditAction.declare('BIOMETRIC_REGISTER_START', { entityType: 'UserTrustedDevice', entityTable: 'user_trusted_devices' }),
   AuthBiometricController.registerStart
 );

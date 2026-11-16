@@ -21,7 +21,7 @@ class AuthRegisterValidator {
       ...BaseValidator.optionalSecondLastName(),
       ...BaseValidator.optionalBirthDate(),
       ...BaseValidator.nationalId(),
-      ...BaseValidator.optionalUuidBody('documentTypeId', 'El tipo de documento'),
+      ...BaseValidator.uuidBody('documentTypeId', 'El tipo de documento'),
       ...BaseValidator.optionalUuidBody('genderId', 'El género'),
       ...BaseValidator.optionalUuidBody('countryId', 'El país de nacionalidad'),
       header('x-client-type')
