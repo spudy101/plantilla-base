@@ -12,35 +12,55 @@
 // El "estado doble aprobación" de cualquier módulo vive en `approval_requests` — no se duplican
 // columnas ni máquina de estados por tabla.
 
-const AppError = require('../../../../shared/utils/app-error.util');
-const { logAudit, logger } = require('../../../../shared/utils/logger.util');
-const { addBusinessHours } = require('../../../../shared/utils/business-hours.util');
-const PaginationHelper = require('../../../../shared/utils/pagination.util');
-const requestContext = require('../../../../shared/utils/request-context.util');
-const approvalRequestRepository = require('../repositories/approval-request.repository');
-const userRepository = require('../../kyc/iam/repositories/user.repository');
-const NotificationCreationService = require('../../../schemas/notification/services/notification-creation.service');
-const DualApprovalNotifierService = require('./dual-approval/dual-approval-notifier.service');
-const { APPROVAL_REQUEST_STATUS } = require('../../../../shared/constants/domain-enums');
-const { WILDCARD_ROLES, CONDITION, DEFAULT_TTL_HOURS, DUAL_APPROVAL_OPS } = require('../../../../shared/constants/dual-approval');
-const { SUPERADMIN_ROLE_NAMES } = require('../../../../shared/constants/rbac');
-const { ApprovalRequestComponent, PendingApprovalComponent } = require('../../../../shared/dtos/core/components-approval.dto');
-const { MetadataDTO } = require('../../../../shared/dtos/kyc/components-catalog.dto');
+import AppError = require('../../../../shared/utils/app-error.util');
+import loggerUtilModule = require('../../../../shared/utils/logger.util');
+const { logAudit, logger } = loggerUtilModule;
+import businessHoursUtilModule = require('../../../../shared/utils/business-hours.util');
+const { addBusinessHours } = businessHoursUtilModule;
+import PaginationHelper = require('../../../../shared/utils/pagination.util');
+import requestContext = require('../../../../shared/utils/request-context.util');
+import approvalRequestRepository = require('../repositories/approval-request.repository');
+import userRepository = require('../../kyc/iam/repositories/user.repository');
+import NotificationCreationService = require('../../../schemas/notification/services/notification-creation.service');
+import DualApprovalNotifierService = require('./dual-approval/dual-approval-notifier.service');
+import domainEnumsModule = require('../../../../shared/constants/domain-enums');
+const { APPROVAL_REQUEST_STATUS } = domainEnumsModule;
+import dualApprovalModule = require('../../../../shared/constants/dual-approval');
+import type DualApprovalConstants = require('../../../../shared/constants/dual-approval');
+import type { SystemGlobalConfigRepositoryPort } from '../../repository-ports';
+const { WILDCARD_ROLES, CONDITION, DEFAULT_TTL_HOURS, DUAL_APPROVAL_OPS } = dualApprovalModule;
+import rbacModule = require('../../../../shared/constants/rbac');
+const { SUPERADMIN_ROLE_NAMES } = rbacModule;
+import componentsApprovalDtoModule = require('../../../../shared/dtos/core/components-approval.dto');
+const { ApprovalRequestComponent, PendingApprovalComponent } = componentsApprovalDtoModule;
+import componentsCatalogDtoModule = require('../../../../shared/dtos/kyc/components-catalog.dto');
+const { MetadataDTO } = componentsCatalogDtoModule;
+import errorMessageModule = require('../../../../shared/utils/error-message.util');
+import type { AdminAuditContext } from '../../../../shared/types/audit-context';
+import type defineApprovalRequest = require('../models/approval-request.model');
 
-const DECISION = { APPROVE: 'approve', REJECT: 'reject' };
+const { errorMessage } = errorMessageModule;
+
+
+const DECISION = { APPROVE: 'approve', REJECT: 'reject' } as const;
 const AUTO_APPROVE_NOTE = 'Auto-aprobado por super_admin (cuatro ojos omitido por rol)';
 
 // Registro de handlers (IoC). Cada módulo registra su reanudación en el bootstrap.
-const HANDLERS = new Map();
+const HANDLERS = new Map<string, { onApprove: DualApprovalService.Handler; onReject: DualApprovalService.Handler | null }>();
 
 class DualApprovalService {
+  approvalRequestRepository: typeof approvalRequestRepository;
+  userRepository: typeof userRepository;
+  NotificationCreationService: typeof NotificationCreationService;
+  notifier: DualApprovalService.Notifier;
+
   /**
    * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
    * reales; en tests u otros contextos se pueden reemplazar:
    *   new DualApprovalService({ approvalRequestRepository: fake })
    * @param {object} [deps]
    */
-  constructor(deps = {}) {
+  constructor(deps: DualApprovalService.Deps = {}) {
     this.approvalRequestRepository = deps.approvalRequestRepository ?? approvalRequestRepository;
     this.userRepository = deps.userRepository ?? userRepository;
     this.NotificationCreationService = deps.NotificationCreationService ?? NotificationCreationService;
@@ -62,8 +82,13 @@ class DualApprovalService {
    *        un estado provisional). Si se omite, el rechazo solo marca el approval_request.
    */
   // eslint-disable-next-line class-methods-use-this
-  register(opKey, onApprove, onReject = null) {
-    if (!DUAL_APPROVAL_OPS[opKey]) {
+  // P: forma del payload que guardó la operación (cada handler declara la suya)
+  register<P>(
+    opKey: string,
+    onApprove: DualApprovalService.Handler<P>,
+    onReject: DualApprovalService.Handler<P> | null = null
+  ) {
+    if (!_findOp(opKey)) {
       throw new Error(`[DualApproval] Operación desconocida al registrar handler: ${opKey}`);
     }
     if (typeof onApprove !== 'function') {
@@ -72,12 +97,13 @@ class DualApprovalService {
     if (onReject !== null && typeof onReject !== 'function') {
       throw new Error(`[DualApproval] onReject inválido para ${opKey}`);
     }
-    HANDLERS.set(opKey, { onApprove, onReject });
+    // El Map guarda handlers de payload desconocido: el tipo P solo vive en el call-site
+    HANDLERS.set(opKey, { onApprove: onApprove as DualApprovalService.Handler, onReject: onReject as DualApprovalService.Handler | null });
   }
 
   // ── Condición de gate ───────────────────────────────────────────────────────
 
-  async requiresApproval(opKey, payload) {
+  async requiresApproval(opKey: string, payload: unknown) {
     // El maker-checker es incondicional: no hay interruptor global que lo apague. Cada operación
     // decide por su `condition` (ALWAYS o THRESHOLD sobre un campo del payload).
     const op = _getOp(opKey);
@@ -85,7 +111,7 @@ class DualApprovalService {
       return true;
     }
     if (op.condition === CONDITION.THRESHOLD) {
-      const value = Number(payload?.[op.thresholdField] ?? 0);
+      const value = Number((payload as Record<string, unknown> | null | undefined)?.[op.thresholdField ?? ''] ?? 0);
       const threshold = await _resolveThreshold(op);
       return value > threshold;
     }
@@ -99,7 +125,7 @@ class DualApprovalService {
    * @param {Object} args — { entityType?, entityId?, payload, ctx }
    * @returns {Promise<{pending:boolean, request?:Object}>}
    */
-  async gate(opKey, { entityType, entityId, payload, ctx }) {
+  async gate(opKey: string, { entityType, entityId, payload, ctx }: DualApprovalService.GateArgs) {
     const op = _getOp(opKey);
 
     const requires = await this.requiresApproval(opKey, payload);
@@ -169,7 +195,7 @@ class DualApprovalService {
    * @returns {boolean} true si el rol es superadministrador (legacy o RBAC).
    */
   // eslint-disable-next-line class-methods-use-this
-  isSuperAdmin(roleName) {
+  isSuperAdmin(roleName: string | null | undefined) {
     return !!roleName && SUPERADMIN_ROLE_NAMES.includes(roleName);
   }
 
@@ -179,7 +205,15 @@ class DualApprovalService {
    * normal ejecute la acción real una sola vez. No invoca el handler IoC.
    */
   // eslint-disable-next-line class-methods-use-this
-  async _gateAutoApprove(opKey, { resolvedEntityType, entityId, payload, ctx }) {
+  async _gateAutoApprove(
+    opKey: string,
+    {
+      resolvedEntityType,
+      entityId,
+      payload,
+      ctx
+    }: Omit<DualApprovalService.GateArgs, 'entityType'> & { resolvedEntityType: string | null }
+  ) {
     const now = new Date();
     const request = await this.approvalRequestRepository.create({
       operation_key: opKey,
@@ -221,7 +255,7 @@ class DualApprovalService {
    * @param {Object} body — { decision: 'approve'|'reject', notes? }
    * @param {Object} approverCtx — { adminUserId, adminRoleName?, adminFirstName?, ... }
    */
-  async resolve(requestId, body, approverCtx) {
+  async resolve(requestId: string, body: DualApprovalService.ResolveBody, approverCtx: AdminAuditContext) {
     const request = await this.approvalRequestRepository.findByIdWithUsers(requestId);
     if (!request) {
       throw AppError.notFound('Solicitud de aprobación no encontrada', { code: 'APPROVAL_REQUEST_NOT_FOUND' });
@@ -247,7 +281,7 @@ class DualApprovalService {
     throw AppError.badRequest('Decisión no reconocida', { code: 'INVALID_RESOLUTION_DECISION' });
   }
 
-  async _approve(request, op, body, approverCtx) {
+  async _approve(request: defineApprovalRequest.Instance, op: DualApprovalConstants.Op, body: DualApprovalService.ResolveBody, approverCtx: AdminAuditContext) {
     const entry = HANDLERS.get(request.operation_key);
     if (!entry || typeof entry.onApprove !== 'function') {
       throw AppError.badRequest(`No hay handler registrado para la operación "${request.operation_key}"`, {
@@ -285,7 +319,7 @@ class DualApprovalService {
     return ApprovalRequestComponent.build(request);
   }
 
-  async _reject(request, op, body, approverCtx) {
+  async _reject(request: defineApprovalRequest.Instance, op: DualApprovalConstants.Op, body: DualApprovalService.ResolveBody, approverCtx: AdminAuditContext) {
     // Reacción opcional del módulo al rechazo (ej: revertir un estado provisional).
     const entry = HANDLERS.get(request.operation_key);
     if (entry && typeof entry.onReject === 'function') {
@@ -325,26 +359,27 @@ class DualApprovalService {
    * Devuelve las mismas `rows` (mutadas) para encadenar.
    */
   // eslint-disable-next-line class-methods-use-this
-  async annotatePending(entityType, rows, idField = null) {
+  async annotatePending<R extends DualApprovalService.AnnotatableRow>(entityType: string, rows: R[], idField: string | null = null) {
     if (!Array.isArray(rows) || rows.length === 0) {
       return rows;
     }
 
-    const pkField = idField ?? rows[0]?.constructor?.primaryKeyAttribute ?? null;
+    // Instancias de Sequelize: la PK sale de la clase del modelo (constructor.primaryKeyAttribute)
+    const pkField = idField ?? (rows[0]?.constructor as { primaryKeyAttribute?: string } | undefined)?.primaryKeyAttribute ?? null;
     if (!pkField) {
       return rows;
     }
 
-    const ids = rows.map(r => r[pkField]).filter(Boolean);
+    const ids = rows.map(r => r[pkField]).filter((id): id is string => typeof id === 'string' && id !== '');
     const pendings = await this.approvalRequestRepository.findPendingByEntityIds(entityType, ids);
 
-    const byEntityId = new Map();
+    const byEntityId = new Map<string | null, defineApprovalRequest.Instance>();
     for (const p of pendings) {
       byEntityId.set(p.entity_id, p);
     }
 
     for (const row of rows) {
-      const pending = byEntityId.get(row[pkField]);
+      const pending = byEntityId.get(row[pkField] as string);
       row.pendingApproval = pending ? PendingApprovalComponent.build(pending) : null;
     }
 
@@ -356,7 +391,7 @@ class DualApprovalService {
   async getPolicy() {
     const entries = await Promise.all(
       Object.entries(DUAL_APPROVAL_OPS).map(async ([opKey, op]) => {
-        const base = {
+        const base: DualApprovalService.PolicyEntry = {
           operationKey: opKey,
           label: op.label,
           condition: op.condition,
@@ -379,10 +414,10 @@ class DualApprovalService {
   // ── List / getById para endpoints admin ───────────────────────────────────────
 
   // eslint-disable-next-line class-methods-use-this
-  async list(query) {
+  async list(query: Record<string, unknown>) {
     const paginationParams = PaginationHelper.getPaginationParams(query);
     const filters = PaginationHelper.buildFilters(query, ['operationKey', 'status', 'entityType']);
-    const searchTerm = query.search || null;
+    const searchTerm = typeof query.search === 'string' && query.search ? query.search : null;
 
     const { rows, count } = await this.approvalRequestRepository.findAllPaginatedWithUsers(filters, paginationParams, searchTerm);
 
@@ -402,7 +437,7 @@ class DualApprovalService {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  async getById(id) {
+  async getById(id: string) {
     const request = await this.approvalRequestRepository.findByIdWithUsers(id);
     if (!request) {
       throw AppError.notFound('Solicitud de aprobación no encontrada', { code: 'APPROVAL_REQUEST_NOT_FOUND' });
@@ -414,37 +449,42 @@ class DualApprovalService {
 
 // ── Helpers privados ────────────────────────────────────────────────────────────
 
-function _getOp(opKey) {
-  const op = DUAL_APPROVAL_OPS[opKey];
+// opKey llega como string (BD / call-sites JS): se busca en el registro sin asumir que es válido
+function _findOp(opKey: string): DualApprovalConstants.Op | undefined {
+  return (DUAL_APPROVAL_OPS as Record<string, DualApprovalConstants.Op | undefined>)[opKey];
+}
+
+function _getOp(opKey: string): DualApprovalConstants.Op {
+  const op = _findOp(opKey);
   if (!op) {
     throw AppError.badRequest(`Operación de doble aprobación desconocida: ${opKey}`, { code: 'UNKNOWN_DUAL_APPROVAL_OP' });
   }
   return op;
 }
 
-async function _resolveThreshold(op) {
+async function _resolveThreshold(op: DualApprovalConstants.Op): Promise<number> {
   if (!op.thresholdConfigKey) {
     return op.thresholdDefault ?? 0;
   }
   try {
     // require perezoso: evita un ciclo de carga con los módulos que dependen de dual-approval
-    const systemGlobalConfigRepository = require('../repositories/system-global-config.repository');
+    const systemGlobalConfigRepository = require('../repositories/system-global-config.repository') as SystemGlobalConfigRepositoryPort;
     const cfg = await systemGlobalConfigRepository.findActive();
-    const raw = cfg ? cfg[op.thresholdConfigKey] : null;
+    const raw = cfg ? (cfg as unknown as Record<string, unknown>)[op.thresholdConfigKey] : null;
     if (raw === null || raw === undefined) {
       return op.thresholdDefault ?? 0;
     }
     return Number(raw);
   } catch (err) {
     logger.warn('[DualApproval] No se pudo leer umbral de SystemGlobalConfig — usando default', {
-      error: err.message,
+      error: errorMessage(err),
       configKey: op.thresholdConfigKey
     });
     return op.thresholdDefault ?? 0;
   }
 }
 
-function _assertApproverRole(op, roleName) {
+function _assertApproverRole(op: DualApprovalConstants.Op, roleName: string | null | undefined) {
   // Si no se conoce el rol (ctx incompleto) no se bloquea por rol; el RBAC de ruta ya filtró.
   if (!roleName) {
     return;
@@ -455,7 +495,7 @@ function _assertApproverRole(op, roleName) {
   }
 }
 
-function _assertSegregation(request, approverUserId) {
+function _assertSegregation(request: defineApprovalRequest.Instance, approverUserId: string) {
   if (request.requested_by === approverUserId) {
     throw AppError.forbidden('El segundo aprobador no puede ser el mismo que originó la operación (segregación de funciones)', {
       code: 'DUAL_APPROVAL_SAME_AS_MAKER'
@@ -464,16 +504,61 @@ function _assertSegregation(request, approverUserId) {
 }
 
 // Guarda en `result` solo datos serializables y acotados (evita persistir instancias Sequelize).
-function _sanitizeResult(result) {
+function _sanitizeResult(result: unknown) {
   if (result === null || result === undefined) {
     return null;
   }
   try {
     return JSON.parse(JSON.stringify(result));
-  } catch (_err) {
+  } catch {
     return null;
   }
 }
 
-module.exports = new DualApprovalService();
-module.exports.DualApprovalService = DualApprovalService;
+// eslint-disable-next-line @typescript-eslint/no-namespace
+namespace DualApprovalService {
+  /** Reanudación (o reacción al rechazo) que registra cada operación. */
+  export type Handler<P = unknown> = (payload: P, ctx: AdminAuditContext) => Promise<unknown>;
+
+  /** Avisos del framework (DualApprovalNotifierService o un doble). */
+  export type Notifier = Pick<DualApprovalNotifierService, 'notifyApprovers' | 'notifyMaker'>;
+
+  export interface GateArgs {
+    entityType?: string | null;
+    entityId?: string | null;
+    payload?: unknown;
+    ctx: AdminAuditContext;
+  }
+
+  export interface ResolveBody {
+    decision: string;
+    notes?: string | null;
+  }
+
+  /** Fila que se puede anotar con pendingApproval (instancia de modelo o fila plana). */
+  export interface AnnotatableRow {
+    [column: string]: unknown;
+    pendingApproval?: unknown;
+  }
+
+  export interface PolicyEntry {
+    operationKey: string;
+    label: string;
+    condition: DualApprovalConstants.Op['condition'];
+    approverRoles: string[];
+    entityType: string;
+    ttlHours: number;
+    thresholdField?: string;
+    threshold?: number;
+  }
+
+  /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
+  export interface Deps {
+    notifier?: Notifier;
+    approvalRequestRepository?: typeof approvalRequestRepository;
+    userRepository?: typeof userRepository;
+    NotificationCreationService?: typeof NotificationCreationService;
+  }
+}
+
+export = Object.assign(new DualApprovalService(), { DualApprovalService });

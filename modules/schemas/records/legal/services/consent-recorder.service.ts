@@ -1,4 +1,4 @@
-// modules/schemas/records/legal/services/consent-recorder.service.js
+// modules/schemas/records/legal/services/consent-recorder.service.ts
 //
 // ============================================================
 // CONSENT RECORDER — registro de consentimientos en user_consents (RF-ADM-04)
@@ -12,19 +12,26 @@
 // Los llamadores deciden si el registro es best-effort (.catch) y qué loguear.
 // ============================================================
 
-const consentTypeRepository = require('../repositories/consent-type.repository');
-const userConsentRepository = require('../repositories/user-consent.repository');
-const privacyPolicyRepository = require('../repositories/privacy-policy.repository');
-const { CONSENT_TYPE_CODES } = require('../../../../../shared/constants');
+import type { Transaction } from 'sequelize';
+import type { UserConsentRepositoryPort } from '../../../repository-ports';
+import consentTypeRepository = require('../repositories/consent-type.repository');
+import userConsentRepository = require('../repositories/user-consent.repository');
+import privacyPolicyRepository = require('../repositories/privacy-policy.repository');
+import constantsModule = require('../../../../../shared/constants');
+const { CONSENT_TYPE_CODES } = constantsModule;
 
 class ConsentRecorderService {
+  consentTypeRepository: typeof consentTypeRepository;
+  userConsentRepository: typeof userConsentRepository;
+  privacyPolicyRepository: typeof privacyPolicyRepository;
+
   /**
    * @param {object} [deps]
    * @param {object} [deps.consentTypeRepository]
    * @param {object} [deps.userConsentRepository]
    * @param {object} [deps.privacyPolicyRepository]
    */
-  constructor(deps = {}) {
+  constructor(deps: ConsentRecorderService.Deps = {}) {
     this.consentTypeRepository = deps.consentTypeRepository ?? consentTypeRepository;
     this.userConsentRepository = deps.userConsentRepository ?? userConsentRepository;
     this.privacyPolicyRepository = deps.privacyPolicyRepository ?? privacyPolicyRepository;
@@ -39,7 +46,18 @@ class ConsentRecorderService {
    * @param {object} [params.transaction] Transacción opcional (Unit of Work).
    * @returns {Promise<object|null>} Registro creado, o null si el tipo de consentimiento no existe.
    */
-  async grantPrivacyPolicy({ userId, privacyPolicyId, ip, transaction }) {
+  async grantPrivacyPolicy({
+    userId,
+    privacyPolicyId,
+    ip,
+    transaction
+  }: {
+    userId: string;
+    /** undefined → se usa la política activa; null → sin política asociada */
+    privacyPolicyId?: string | null;
+    ip?: string | null;
+    transaction?: Transaction;
+  }) {
     const consentType = await this.consentTypeRepository.findByCode(CONSENT_TYPE_CODES.PRIVACY_POLICY);
     if (!consentType) {
       return null;
@@ -63,7 +81,7 @@ class ConsentRecorderService {
    * @param {object} [params.transaction]
    * @returns {Promise<object|null>}
    */
-  async grantCommercialCommunications({ userId, ip, transaction }) {
+  async grantCommercialCommunications({ userId, ip, transaction }: { userId: string; ip?: string | null; transaction?: Transaction }) {
     const consentType = await this.consentTypeRepository.findByCode(CONSENT_TYPE_CODES.COMUNICACIONES_COMERCIALES);
     if (!consentType) {
       return null;
@@ -75,7 +93,7 @@ class ConsentRecorderService {
   }
 
   /** @private — solo pasa la transacción si existe (mantiene la firma del repositorio). */
-  _grant(data, transaction) {
+  _grant(data: Parameters<UserConsentRepositoryPort['grant']>[0], transaction?: Transaction) {
     if (transaction === undefined) {
       return this.userConsentRepository.grant(data);
     }
@@ -83,5 +101,14 @@ class ConsentRecorderService {
   }
 }
 
-module.exports = new ConsentRecorderService();
-module.exports.ConsentRecorderService = ConsentRecorderService;
+// eslint-disable-next-line @typescript-eslint/no-namespace
+namespace ConsentRecorderService {
+  /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
+  export interface Deps {
+    consentTypeRepository?: typeof consentTypeRepository;
+    userConsentRepository?: typeof userConsentRepository;
+    privacyPolicyRepository?: typeof privacyPolicyRepository;
+  }
+}
+
+export = Object.assign(new ConsentRecorderService(), { ConsentRecorderService });

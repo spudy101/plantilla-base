@@ -1,3 +1,4 @@
+import type defineNotificationType = require('../models/notification-type.model');
 // ============================================================
 // NOTIFICATION CONTENT UTIL
 // ============================================================
@@ -25,7 +26,13 @@ class NotificationContentUtil {
    * @param {Object} metadata         - Datos para reemplazar variables
    * @returns {{ title, body, emailSubject, emailBody }}
    */
-  static generarContenido(notificationType, metadata) {
+  static generarContenido(
+    notificationType: Pick<
+      defineNotificationType.Attributes,
+      'title_template' | 'body_template' | 'email_subject_template' | 'email_body_template'
+    >,
+    metadata: unknown
+  ) {
     const title = this.reemplazarVariables(notificationType.title_template, metadata);
     const body = this.reemplazarVariables(notificationType.body_template, metadata);
 
@@ -49,13 +56,14 @@ class NotificationContentUtil {
    * @param {Object} data     - Datos para reemplazar
    * @returns {string}
    */
-  static reemplazarVariables(template, data) {
+  static reemplazarVariables(template: string | null | undefined, data: unknown) {
     if (!template) {
       return '';
     }
 
-    return template.replaceAll(/\{\{(\w+)\}\}/g, (match, variable) => {
-      return data[variable] ?? match;
+    return template.replaceAll(/\{\{(\w+)\}\}/g, (match: string, variable: string) => {
+      const value = (data as Record<string, unknown> | null | undefined)?.[variable];
+      return value === null || value === undefined ? match : String(value);
     });
   }
 
@@ -69,9 +77,9 @@ class NotificationContentUtil {
    * @param {'low'|'normal'|'high'|'urgent'} priority
    * @returns {number}
    */
-  static mapPriority(priority) {
-    return PRIORITY_SCORES[priority] ?? DEFAULT_PRIORITY_SCORE;
+  static mapPriority(priority: string | null | undefined) {
+    return (priority && (PRIORITY_SCORES as Record<string, number>)[priority]) || DEFAULT_PRIORITY_SCORE;
   }
 }
 
-module.exports = NotificationContentUtil;
+export = NotificationContentUtil;

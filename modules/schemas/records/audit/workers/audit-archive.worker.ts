@@ -1,8 +1,15 @@
-const cron = require('node-cron');
-const { logger, logAudit } = require('../../../../../shared/utils/logger.util');
-const requestContext = require('../../../../../shared/utils/request-context.util');
-const { SystemGlobalConfig, AuditLog, sequelize } = require('../../../../../shared/models');
-const { Op } = require('sequelize');
+import cron = require('node-cron');
+import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+const { logger, logAudit } = loggerUtilModule;
+import requestContext = require('../../../../../shared/utils/request-context.util');
+import modelsModule = require('../../../../../shared/models');
+const { SystemGlobalConfig, AuditLog, sequelize } = modelsModule;
+import sequelizeModule = require('sequelize');
+const { Op } = sequelizeModule;
+import errorMessageModule = require('../../../../../shared/utils/error-message.util');
+
+const { errorMessage } = errorMessageModule;
+
 
 // [RF-AUTH-01] | CA-07 | Retención mínima 5 años
 // en BD (hot). Archivado S3 STANDARD_IA posterior.
@@ -27,7 +34,7 @@ const RETENTION_CRON = '0 7 1 * *';
  *      superaron el período caliente. Requiere aprobación explícita del desarrollador
  *      por ser una operación destructiva.
  */
-const run = async (opts = {}) => {
+const run = async (opts: { enableDbPurge?: boolean } = {}) => {
   try {
     const config = await SystemGlobalConfig.findOne({ where: { is_active: true } });
     const hotYears = config?.audit_retention_hot_years ?? DEFAULT_HOT_YEARS;
@@ -38,16 +45,16 @@ const run = async (opts = {}) => {
       await _purgeExpiredFromDb(hotYears);
     }
   } catch (err) {
-    logger.error('audit-archive.worker — error en ejecución', { error: err.message });
+    logger.error('audit-archive.worker — error en ejecución', { error: errorMessage(err) });
   }
 };
 
-async function _logExpiringRecords(hotYears) {
+async function _logExpiringRecords(hotYears: number) {
   const cutoff = new Date();
   cutoff.setFullYear(cutoff.getFullYear() - hotYears + 1);
 
   const expiringCount = await AuditLog.count({
-    where: { created_at: { [Op.lte]: cutoff } }
+    where: { createdAt: { [Op.lte]: cutoff } }
   });
 
   if (expiringCount > 0) {
@@ -65,12 +72,12 @@ async function _logExpiringRecords(hotYears) {
  * Elimina de BD los registros que vencieron el período caliente.
  * Usa SET LOCAL para autorizar la operación ante el trigger de inmutabilidad.
  */
-async function _purgeExpiredFromDb(hotYears) {
+async function _purgeExpiredFromDb(hotYears: number) {
   const cutoff = new Date();
   cutoff.setFullYear(cutoff.getFullYear() - hotYears);
 
   const count = await AuditLog.count({
-    where: { created_at: { [Op.lt]: cutoff } }
+    where: { createdAt: { [Op.lt]: cutoff } }
   });
 
   if (count === 0) {
@@ -91,7 +98,7 @@ async function _purgeExpiredFromDb(hotYears) {
   await sequelize.transaction(async t => {
     await sequelize.query("SET LOCAL app.allow_audit_purge = 'true'", { transaction: t });
     await AuditLog.destroy({
-      where: { created_at: { [Op.lt]: cutoff } },
+      where: { createdAt: { [Op.lt]: cutoff } },
       force: true,
       transaction: t
     });
@@ -126,4 +133,4 @@ function iniciar() {
   logger.info('Worker de retención de auditoría iniciado exitosamente');
 }
 
-module.exports = { run, iniciar };
+export = { run, iniciar };

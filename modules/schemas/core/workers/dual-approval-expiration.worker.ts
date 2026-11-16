@@ -1,8 +1,14 @@
-const cron = require('node-cron');
-const { logger, logAudit } = require('../../../../shared/utils/logger.util');
-const requestContext = require('../../../../shared/utils/request-context.util');
-const approvalRequestRepository = require('../repositories/approval-request.repository');
-const { APPROVAL_REQUEST_STATUS } = require('../../../../shared/constants/domain-enums');
+import cron = require('node-cron');
+import loggerUtilModule = require('../../../../shared/utils/logger.util');
+const { logger, logAudit } = loggerUtilModule;
+import requestContext = require('../../../../shared/utils/request-context.util');
+import approvalRequestRepository = require('../repositories/approval-request.repository');
+import domainEnumsModule = require('../../../../shared/constants/domain-enums');
+const { APPROVAL_REQUEST_STATUS } = domainEnumsModule;
+import errorMessageModule = require('../../../../shared/utils/error-message.util');
+
+const { errorMessage } = errorMessageModule;
+
 
 // Cron hardcodeado (convención del repo: los workers no leen el cron de env vars).
 // Diario a las 3:00 AM — marca `expired` las solicitudes pendientes con TTL vencido.
@@ -51,7 +57,7 @@ class DualApprovalExpirationWorker {
       } catch (error) {
         logger.error('Error al expirar solicitud de doble aprobación', {
           approvalRequestId: request.approval_request_id,
-          error: error.message
+          error: errorMessage(error)
         });
       }
     }
@@ -60,4 +66,4 @@ class DualApprovalExpirationWorker {
   }
 }
 
-module.exports = DualApprovalExpirationWorker;
+export = DualApprovalExpirationWorker;

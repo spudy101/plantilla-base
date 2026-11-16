@@ -1,24 +1,39 @@
-const notificationRepo = require('../repositories/notification.repository');
-const globalNotificationRepo = require('../repositories/global-notification.repository');
-const notificationTypeRepo = require('../repositories/notification-type.repository');
-const userNotificationPreferenceRepo = require('../../kyc/person/repositories/user-notification-preference.repository');
-const NotificationCountUtil = require('../utils/notification-count.util');
-const notificationSchedulerService = require('./notification-scheduler.service');
-const notificationSendingService = require('./notification-sending.service');
-const NotificationContentUtil = require('../utils/notification-content.util');
-const EncryptionUtil = require('../../../../shared/utils/encryption.util');
-const { logger } = require('../../../../shared/utils/logger.util');
-const AppError = require('../../../../shared/utils/app-error.util');
-const { NOTIFICATION_PROCESSING_STATUS } = require('../../../../shared/constants/domain-enums');
+import type defineNotificationType = require('../models/notification-type.model');
+import type { Transaction } from 'sequelize';
+import notificationRepo = require('../repositories/notification.repository');
+import globalNotificationRepo = require('../repositories/global-notification.repository');
+import notificationTypeRepo = require('../repositories/notification-type.repository');
+import userNotificationPreferenceRepo = require('../../kyc/person/repositories/user-notification-preference.repository');
+import NotificationCountUtil = require('../utils/notification-count.util');
+import notificationSchedulerService = require('./notification-scheduler.service');
+import notificationSendingService = require('./notification-sending.service');
+import NotificationContentUtil = require('../utils/notification-content.util');
+import EncryptionUtil = require('../../../../shared/utils/encryption.util');
+import loggerUtilModule = require('../../../../shared/utils/logger.util');
+const { logger } = loggerUtilModule;
+import AppError = require('../../../../shared/utils/app-error.util');
+import domainEnumsModule = require('../../../../shared/constants/domain-enums');
+const { NOTIFICATION_PROCESSING_STATUS } = domainEnumsModule;
+import errorMessageModule = require('../../../../shared/utils/error-message.util');
+
+const { errorMessage } = errorMessageModule;
+
 
 class NotificationCreationService {
+  notificationRepo: typeof notificationRepo;
+  globalNotificationRepo: typeof globalNotificationRepo;
+  notificationTypeRepo: typeof notificationTypeRepo;
+  userNotificationPreferenceRepo: typeof userNotificationPreferenceRepo;
+  notificationSchedulerService: typeof notificationSchedulerService;
+  notificationSendingService: typeof notificationSendingService;
+
   /**
    * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
    * reales; en tests u otros contextos se pueden reemplazar:
    *   new NotificationCreationService({ notificationRepo: fake })
    * @param {object} [deps]
    */
-  constructor(deps = {}) {
+  constructor(deps: NotificationCreationService.Deps = {}) {
     this.notificationRepo = deps.notificationRepo ?? notificationRepo;
     this.globalNotificationRepo = deps.globalNotificationRepo ?? globalNotificationRepo;
     this.notificationTypeRepo = deps.notificationTypeRepo ?? notificationTypeRepo;
@@ -36,7 +51,7 @@ class NotificationCreationService {
    * @param {string} data.email
    * @param {Object} [data.metadata]
    */
-  async crearNotificacionDirecta(data) {
+  async crearNotificacionDirecta(data: { tipoNotificacion: string; email: string; metadata?: Record<string, unknown> }) {
     try {
       const { tipoNotificacion, email, metadata = {} } = data;
 
@@ -59,7 +74,7 @@ class NotificationCreationService {
       const emailDestino = EncryptionUtil.safeDecrypt(email);
 
       // FIX: nombre de archivo corregido de emailNotification.service → email-notification.service
-      const emailService = require('./email-notification.service');
+      const emailService = require('./email-notification.service') as typeof import('./email-notification.service');
       await emailService.enviarNotificacion(emailDestino, notificationType, metadata);
 
       logger.info('Notificación directa enviada exitosamente', { tipo: tipoNotificacion, email: emailDestino });
@@ -70,8 +85,8 @@ class NotificationCreationService {
       };
     } catch (error) {
       logger.error('Error al enviar notificación directa', {
-        error: error.message,
-        stack: error.stack
+        error: errorMessage(error),
+        stack: error instanceof Error ? error.stack : undefined
       });
       throw error;
     }
@@ -87,7 +102,7 @@ class NotificationCreationService {
    * @param {Object}      [data.metadata]
    * @param {Object}      transaction            - Transacción de Sequelize
    */
-  async crearNotificacion(data, transaction = null) {
+  async crearNotificacion(data: NotificationCreationService.CreateInput, transaction: Transaction | null = null) {
     try {
       const { tipoNotificacion, userId = null, relatedEntity = {}, metadata = {} } = data;
 
@@ -119,7 +134,7 @@ class NotificationCreationService {
       }
 
       logger.info('Notificación creada exitosamente', {
-        notification_id: result.notification_id || result.global_notification_id,
+        notification_id: 'notification_id' in result ? result.notification_id : result.global_notification_id,
         tipo: tipoNotificacion,
         userId,
         is_global: !userId
@@ -131,7 +146,7 @@ class NotificationCreationService {
         ...result
       };
     } catch (error) {
-      logger.error('Error al crear notificación', { error: error.message, stack: error.stack });
+      logger.error('Error al crear notificación', { error: errorMessage(error), stack: error instanceof Error ? error.stack : undefined });
       throw error;
     }
   }
@@ -141,7 +156,15 @@ class NotificationCreationService {
   // ============================================================
 
   /** @private */
-  async _crearNotificacionIndividual(userId, notificationType, title, body, relatedEntity, metadata, transaction) {
+  async _crearNotificacionIndividual(
+    userId: string,
+    notificationType: defineNotificationType.Instance,
+    title: string,
+    body: string,
+    relatedEntity: NotificationCreationService.RelatedEntity | null | undefined,
+    metadata: Record<string, unknown>,
+    transaction: Transaction | null
+  ) {
     // 1. Crear notificación in-app
     const notification = await this.notificationRepo.create(
       {
@@ -150,8 +173,9 @@ class NotificationCreationService {
         notification_type_id: notificationType.notification_type_id,
         title,
         body,
-        relatedEntity_type: relatedEntity?.type || null,
-        relatedEntity_id: relatedEntity?.id || null,
+        // Antes relatedEntity_type/relatedEntity_id: columnas inexistentes que Sequelize descartaba en silencio
+        related_entity_type: relatedEntity?.type || null,
+        related_entity_id: relatedEntity?.id || null,
         metadata,
         processing_status: NOTIFICATION_PROCESSING_STATUS.PENDING,
         priority: NotificationContentUtil.mapPriority(notificationType.priority)
@@ -205,7 +229,13 @@ class NotificationCreationService {
   }
 
   /** @private */
-  async _crearNotificacionGlobal(notificationType, title, body, metadata, transaction) {
+  async _crearNotificacionGlobal(
+    notificationType: defineNotificationType.Instance,
+    title: string,
+    body: string,
+    metadata: Record<string, unknown>,
+    transaction: Transaction | null
+  ) {
     // 1. Crear notificación global
     const globalNotification = await this.globalNotificationRepo.create(
       {
@@ -225,7 +255,7 @@ class NotificationCreationService {
 
     // 2. Programar procesamiento masivo en background
     // FIX: nombre de archivo corregido de notificationBatch.service → notification-batch.service
-    const batchService = require('./notification-batch.service');
+    const batchService = require('./notification-batch.service') as typeof import('./notification-batch.service');
 
     setImmediate(() => {
       batchService
@@ -255,5 +285,33 @@ class NotificationCreationService {
   }
 }
 
-module.exports = new NotificationCreationService();
-module.exports.NotificationCreationService = NotificationCreationService;
+// eslint-disable-next-line @typescript-eslint/no-namespace
+namespace NotificationCreationService {
+  /** Entidad de dominio a la que apunta la notificación (p. ej. una ApprovalRequest). */
+  export interface RelatedEntity {
+    type?: string | null;
+    id?: string | null;
+  }
+
+  export interface CreateInput {
+    /** code del notification_type */
+    tipoNotificacion: string;
+    /** null → notificación global (a todos) */
+    userId?: string | null;
+    relatedEntity?: RelatedEntity | null;
+    /** Variables de los templates ({{variable}}) */
+    metadata?: Record<string, unknown>;
+  }
+
+  /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
+  export interface Deps {
+    notificationRepo?: typeof notificationRepo;
+    globalNotificationRepo?: typeof globalNotificationRepo;
+    notificationTypeRepo?: typeof notificationTypeRepo;
+    userNotificationPreferenceRepo?: typeof userNotificationPreferenceRepo;
+    notificationSchedulerService?: typeof notificationSchedulerService;
+    notificationSendingService?: typeof notificationSendingService;
+  }
+}
+
+export = Object.assign(new NotificationCreationService(), { NotificationCreationService });

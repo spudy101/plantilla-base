@@ -7,26 +7,27 @@
 //
 // Se llama UNA vez al arranque desde shared/base/base.server.js.
 
-const { logger } = require('../../../shared/utils/logger.util');
-const DualApproval = require('./services/dual-approval.service');
+import loggerUtilModule = require('../../../shared/utils/logger.util');
+const { logger } = loggerUtilModule;
+import DualApproval = require('./services/dual-approval.service');
 
-const AdminUserService = require('../../admin/kyc/iam/services/admin-user.service');
-const PersonService = require('../../admin/kyc/person/services/admin-person.service');
+import AdminUserService = require('../../admin/kyc/iam/services/admin-user.service');
+import PersonService = require('../../admin/kyc/person/services/admin-person.service');
 
 function registerDualApprovalHandlers() {
   // RBAC — cambio de rol de usuario interno. Reanuda con executeChangeRole (no re-gatea).
-  DualApproval.register('RBAC_ROLE_CHANGE', (payload, ctx) =>
+  DualApproval.register('RBAC_ROLE_CHANGE', (payload: { userId: string; roleId: string }, ctx) =>
     AdminUserService.executeChangeRole(payload.userId, payload.roleId, ctx)
   );
 
   // KYC — eliminación de cuenta de cliente (ofuscación irreversible). La contraseña del maker
   // ya se validó al originar la solicitud; el handler solo ejecuta la eliminación real.
-  DualApproval.register('CLIENT_ACCOUNT_DELETE', (payload, ctx) => PersonService.executeDeleteAccount(payload.userId, ctx));
+  DualApproval.register('CLIENT_ACCOUNT_DELETE', (payload: { userId: string }, ctx) => PersonService.executeDeleteAccount(payload.userId, ctx));
 
   // IAM — eliminación de usuario interno (ofuscación irreversible).
-  DualApproval.register('INTERNAL_USER_DELETE', (payload, ctx) => AdminUserService.executeDeleteUser(payload.userId, ctx));
+  DualApproval.register('INTERNAL_USER_DELETE', (payload: { userId: string }, ctx) => AdminUserService.executeDeleteUser(payload.userId, ctx));
 
   logger.info('✅ DualApproval handlers registrados');
 }
 
-module.exports = { registerDualApprovalHandlers };
+export = { registerDualApprovalHandlers };

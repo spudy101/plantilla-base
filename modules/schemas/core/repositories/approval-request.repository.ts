@@ -48,7 +48,7 @@ class ApprovalRequestRepository extends BaseRepository<defineApprovalRequest.Ins
   async findAllPaginatedWithUsers(
     filters: ApprovalRequestRepository.Filters,
     paginationParams: ReadRepository.PaginationParams,
-    searchTerm: string
+    searchTerm: string | null
   ) {
     const { limit, offset, sortBy, order } = paginationParams;
 

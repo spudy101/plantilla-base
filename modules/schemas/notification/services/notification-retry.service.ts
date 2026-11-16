@@ -1,23 +1,35 @@
-const notificationRepo = require('../repositories/notification.repository');
-const notificationTypeRepo = require('../repositories/notification-type.repository');
-const integrationApiLogRepo = require('../../integration/repositories/integration-api-log.repository');
-const notificationSendingService = require('./notification-sending.service');
-const { logger } = require('../../../../shared/utils/logger.util');
-const { isHardBounce } = require('../../../../shared/constants/aws-error-codes');
+import type defineNotification = require('../models/notification.model');
+import notificationRepo = require('../repositories/notification.repository');
+import notificationTypeRepo = require('../repositories/notification-type.repository');
+import integrationApiLogRepo = require('../../integration/repositories/integration-api-log.repository');
+import notificationSendingService = require('./notification-sending.service');
+import loggerUtilModule = require('../../../../shared/utils/logger.util');
+const { logger } = loggerUtilModule;
+import awsErrorCodesModule = require('../../../../shared/constants/aws-error-codes');
+const { isHardBounce } = awsErrorCodesModule;
+import errorMessageModule = require('../../../../shared/utils/error-message.util');
+
+const { errorMessage } = errorMessageModule;
+
 
 // El producto de integración bajo el que cada canal registra su envío en integration_api_logs.
 // SMS no está mapeado a propósito: no hay clasificación de hard bounce para SMS (SNS no expone un
 // código terminal equivalente), así que reintenta hasta agotar el tope como cualquier fallo temporal.
-const CHANNEL_PRODUCT = { email: 'ses', push: 'sns' };
+const CHANNEL_PRODUCT: Record<string, 'ses' | 'sns' | undefined> = { email: 'ses', push: 'sns' };
 
 class NotificationRetryService {
+  notificationRepo: typeof notificationRepo;
+  notificationTypeRepo: typeof notificationTypeRepo;
+  integrationApiLogRepo: typeof integrationApiLogRepo;
+  notificationSendingService: typeof notificationSendingService;
+
   /**
    * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
    * reales; en tests u otros contextos se pueden reemplazar:
    *   new NotificationRetryService({ notificationRepo: fake })
    * @param {object} [deps]
    */
-  constructor(deps = {}) {
+  constructor(deps: NotificationRetryService.Deps = {}) {
     this.notificationRepo = deps.notificationRepo ?? notificationRepo;
     this.notificationTypeRepo = deps.notificationTypeRepo ?? notificationTypeRepo;
     this.integrationApiLogRepo = deps.integrationApiLogRepo ?? integrationApiLogRepo;
@@ -33,7 +45,7 @@ class NotificationRetryService {
    * @private
    */
   // eslint-disable-next-line class-methods-use-this
-  async _esHardBounceYCerrar(notification, channel) {
+  async _esHardBounceYCerrar(notification: Pick<defineNotification.Instance, 'notification_id'>, channel: string) {
     const product = CHANNEL_PRODUCT[channel];
     if (!product) {
       return false;
@@ -78,7 +90,7 @@ class NotificationRetryService {
           notification.user_id,
           notification.title,
           notification.body,
-          notification.metadata || {},
+          (notification.metadata as Record<string, unknown> | null) || {},
           notification.notification_id
         );
         reintentadas++;
@@ -87,7 +99,7 @@ class NotificationRetryService {
       logger.info('Reintentos de push completados', { reintentadas, cerradas });
       return { reintentadas, cerradas };
     } catch (error) {
-      logger.warn('Error al reintentar push', { error: error.message });
+      logger.warn('Error al reintentar push', { error: errorMessage(error) });
       throw error;
     }
   }
@@ -112,7 +124,7 @@ class NotificationRetryService {
           await this.notificationSendingService.enviarEmailIndividual(
             notification.user_id,
             notificationType,
-            notification.metadata || {},
+            (notification.metadata as Record<string, unknown> | null) || {},
             notification.notification_id
           );
           reintentadas++;
@@ -122,7 +134,7 @@ class NotificationRetryService {
       logger.info('Reintentos de email completados', { reintentadas, cerradas });
       return { reintentadas, cerradas };
     } catch (error) {
-      logger.warn('Error al reintentar email', { error: error.message });
+      logger.warn('Error al reintentar email', { error: errorMessage(error) });
       throw error;
     }
   }
@@ -145,7 +157,7 @@ class NotificationRetryService {
         await this.notificationSendingService.enviarSmsIndividual(
           notification.user_id,
           notification.body,
-          notification.metadata || {},
+          (notification.metadata as Record<string, unknown> | null) || {},
           notification.notification_id
         );
         reintentadas++;
@@ -154,11 +166,21 @@ class NotificationRetryService {
       logger.info('Reintentos de SMS completados', { reintentadas, cerradas });
       return { reintentadas, cerradas };
     } catch (error) {
-      logger.warn('Error al reintentar SMS', { error: error.message });
+      logger.warn('Error al reintentar SMS', { error: errorMessage(error) });
       throw error;
     }
   }
 }
 
-module.exports = new NotificationRetryService();
-module.exports.NotificationRetryService = NotificationRetryService;
+// eslint-disable-next-line @typescript-eslint/no-namespace
+namespace NotificationRetryService {
+  /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
+  export interface Deps {
+    notificationRepo?: typeof notificationRepo;
+    notificationTypeRepo?: typeof notificationTypeRepo;
+    integrationApiLogRepo?: typeof integrationApiLogRepo;
+    notificationSendingService?: typeof notificationSendingService;
+  }
+}
+
+export = Object.assign(new NotificationRetryService(), { NotificationRetryService });

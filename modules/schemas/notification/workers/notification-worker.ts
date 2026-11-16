@@ -1,12 +1,13 @@
 // notificationWorker.js
 
-const cron = require('node-cron');
-const notificationSchedulerService = require('../services/notification-scheduler.service');
-const notificationSendingService = require('../services/notification-sending.service');
-const notificationRetryService = require('../services/notification-retry.service');
-const notificationCleanupService = require('../services/notification-cleanup.service');
-const { logger } = require('../../../../shared/utils/logger.util');
-const requestContext = require('../../../../shared/utils/request-context.util');
+import cron = require('node-cron');
+import notificationSchedulerService = require('../services/notification-scheduler.service');
+import notificationSendingService = require('../services/notification-sending.service');
+import notificationRetryService = require('../services/notification-retry.service');
+import notificationCleanupService = require('../services/notification-cleanup.service');
+import loggerUtilModule = require('../../../../shared/utils/logger.util');
+const { logger } = loggerUtilModule;
+import requestContext = require('../../../../shared/utils/request-context.util');
 
 class NotificationWorker {
   /**
@@ -75,4 +76,4 @@ class NotificationWorker {
   }
 }
 
-module.exports = NotificationWorker;
+export = NotificationWorker;

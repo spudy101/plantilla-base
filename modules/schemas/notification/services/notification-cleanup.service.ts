@@ -1,16 +1,25 @@
-const notificationRepo = require('../repositories/notification.repository');
-const userPushTokenRepo = require('../repositories/user-push-token.repository');
-const verificationCodeRepo = require('../repositories/verification-code.repository');
-const { logger } = require('../../../../shared/utils/logger.util');
+import notificationRepo = require('../repositories/notification.repository');
+import userPushTokenRepo = require('../repositories/user-push-token.repository');
+import verificationCodeRepo = require('../repositories/verification-code.repository');
+import loggerUtilModule = require('../../../../shared/utils/logger.util');
+const { logger } = loggerUtilModule;
+import errorMessageModule = require('../../../../shared/utils/error-message.util');
+
+const { errorMessage } = errorMessageModule;
+
 
 class NotificationCleanupService {
+  notificationRepo: typeof notificationRepo;
+  userPushTokenRepo: typeof userPushTokenRepo;
+  verificationCodeRepo: typeof verificationCodeRepo;
+
   /**
    * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
    * reales; en tests u otros contextos se pueden reemplazar:
    *   new NotificationCleanupService({ notificationRepo: fake })
    * @param {object} [deps]
    */
-  constructor(deps = {}) {
+  constructor(deps: NotificationCleanupService.Deps = {}) {
     this.notificationRepo = deps.notificationRepo ?? notificationRepo;
     this.userPushTokenRepo = deps.userPushTokenRepo ?? userPushTokenRepo;
     this.verificationCodeRepo = deps.verificationCodeRepo ?? verificationCodeRepo;
@@ -35,7 +44,7 @@ class NotificationCleanupService {
         tokens_eliminados: deletedTokens
       };
     } catch (error) {
-      logger.warn('Error en limpieza', { error: error.message });
+      logger.warn('Error en limpieza', { error: errorMessage(error) });
       throw error;
     }
   }
@@ -53,5 +62,14 @@ class NotificationCleanupService {
   }
 }
 
-module.exports = new NotificationCleanupService();
-module.exports.NotificationCleanupService = NotificationCleanupService;
+// eslint-disable-next-line @typescript-eslint/no-namespace
+namespace NotificationCleanupService {
+  /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
+  export interface Deps {
+    notificationRepo?: typeof notificationRepo;
+    userPushTokenRepo?: typeof userPushTokenRepo;
+    verificationCodeRepo?: typeof verificationCodeRepo;
+  }
+}
+
+export = Object.assign(new NotificationCleanupService(), { NotificationCleanupService });

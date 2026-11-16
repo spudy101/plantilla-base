@@ -1,5 +1,11 @@
-const notificationRepo = require('../repositories/notification.repository');
-const { logger } = require('../../../../shared/utils/logger.util');
+import type Types = require('../notification.types');
+import notificationRepo = require('../repositories/notification.repository');
+import loggerUtilModule = require('../../../../shared/utils/logger.util');
+const { logger } = loggerUtilModule;
+import errorMessageModule = require('../../../../shared/utils/error-message.util');
+
+const { errorMessage } = errorMessageModule;
+
 
 const DEFAULT_QUIET_HOURS_DELAY_MINUTES = 15;
 
@@ -7,13 +13,15 @@ const MS_PER_SECOND = 1000;
 const SECONDS_PER_MINUTE = 60;
 
 class NotificationSchedulerService {
+  notificationRepo: typeof notificationRepo;
+
   /**
    * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
    * reales; en tests u otros contextos se pueden reemplazar:
    *   new NotificationSchedulerService({ notificationRepo: fake })
    * @param {object} [deps]
    */
-  constructor(deps = {}) {
+  constructor(deps: NotificationSchedulerService.Deps = {}) {
     this.notificationRepo = deps.notificationRepo ?? notificationRepo;
   }
 
@@ -22,7 +30,7 @@ class NotificationSchedulerService {
    * @param {Object} userPreference - Preferencias del usuario
    * @returns {boolean}
    */
-  isInQuietHours(userPreference) {
+  isInQuietHours(userPreference: NotificationSchedulerService.Preference) {
     if (!userPreference?.quiet_hours_start || !userPreference?.quiet_hours_end) {
       return false;
     }
@@ -47,16 +55,16 @@ class NotificationSchedulerService {
    * @param {Object} userPreference - Preferencias del usuario
    * @returns {Date}
    */
-  calcularFinQuietHours(userPreference) {
+  calcularFinQuietHours(userPreference: NotificationSchedulerService.Preference) {
     if (!userPreference?.quiet_hours_end) {
       return new Date(Date.now() + DEFAULT_QUIET_HOURS_DELAY_MINUTES * SECONDS_PER_MINUTE * MS_PER_SECOND); // +15 min por defecto
     }
 
     const now = new Date();
-    const [hours, minutes] = userPreference.quiet_hours_end.split(':');
+    const [hours = '0', minutes = '0'] = userPreference.quiet_hours_end.split(':');
 
     const endTime = new Date(now);
-    endTime.setHours(Number.parseInt(hours), Number.parseInt(minutes), 0, 0);
+    endTime.setHours(Number.parseInt(hours, 10), Number.parseInt(minutes, 10), 0, 0);
 
     // Si la hora ya pasó hoy, programar para mañana
     if (endTime <= now) {
@@ -71,7 +79,7 @@ class NotificationSchedulerService {
    * @param {string} notificationId - ID de la notificación
    * @param {Object} userPreference - Preferencias del usuario
    */
-  async programarEnvioPush(notificationId, userPreference) {
+  async programarEnvioPush(notificationId: string, userPreference: NotificationSchedulerService.Preference) {
     const nextRetryAt = this.calcularFinQuietHours(userPreference);
 
     await this.notificationRepo.update(notificationId, {
@@ -87,7 +95,7 @@ class NotificationSchedulerService {
    * @param {string} notificationId - ID de la notificación
    * @param {Object} userPreference - Preferencias del usuario
    */
-  async programarEnvioEmail(notificationId, userPreference) {
+  async programarEnvioEmail(notificationId: string, userPreference: NotificationSchedulerService.Preference) {
     const nextRetryAt = this.calcularFinQuietHours(userPreference);
 
     await this.notificationRepo.update(notificationId, {
@@ -103,7 +111,7 @@ class NotificationSchedulerService {
    * @param {string} notificationId - ID de la notificación
    * @param {Object} userPreference - Preferencias del usuario
    */
-  async programarEnvioSms(notificationId, userPreference) {
+  async programarEnvioSms(notificationId: string, userPreference: NotificationSchedulerService.Preference) {
     const nextRetryAt = this.calcularFinQuietHours(userPreference);
 
     await this.notificationRepo.update(notificationId, {
@@ -126,11 +134,21 @@ class NotificationSchedulerService {
 
       return scheduled;
     } catch (error) {
-      logger.warn('Error obteniendo notificaciones programadas', { error: error.message });
+      logger.warn('Error obteniendo notificaciones programadas', { error: errorMessage(error) });
       throw error;
     }
   }
 }
 
-module.exports = new NotificationSchedulerService();
-module.exports.NotificationSchedulerService = NotificationSchedulerService;
+// eslint-disable-next-line @typescript-eslint/no-namespace
+namespace NotificationSchedulerService {
+  /** Preferencias del usuario (solo se leen las quiet hours); null/undefined → sin quiet hours. */
+  export type Preference = Types.UserPreference;
+
+  /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
+  export interface Deps {
+    notificationRepo?: typeof notificationRepo;
+  }
+}
+
+export = Object.assign(new NotificationSchedulerService(), { NotificationSchedulerService });

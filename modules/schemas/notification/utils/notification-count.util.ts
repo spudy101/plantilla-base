@@ -1,7 +1,12 @@
-const notificationRepo = require('../repositories/notification.repository');
-const globalNotificationRepo = require('../repositories/global-notification.repository');
-const notificationEmitter = require('./notification-emitter.util');
-const { logger } = require('../../../../shared/utils/logger.util');
+import notificationRepo = require('../repositories/notification.repository');
+import globalNotificationRepo = require('../repositories/global-notification.repository');
+import notificationEmitter = require('./notification-emitter.util');
+import loggerUtilModule = require('../../../../shared/utils/logger.util');
+const { logger } = loggerUtilModule;
+import errorMessageModule = require('../../../../shared/utils/error-message.util');
+
+const { errorMessage } = errorMessageModule;
+
 
 /**
  * Punto único de refresco del contador SSE de no leídas. Los flujos que alteran el contador
@@ -13,7 +18,7 @@ class NotificationCountUtil {
    * Recalcula el contador del usuario (personales no leídas + globales no leídas) y lo publica
    * por el emitter (`count-updated`, Redis Pub/Sub) hacia las conexiones SSE abiertas.
    */
-  static async emitCountUpdate(userId) {
+  static async emitCountUpdate(userId: string) {
     try {
       const [personalCount, globalUnread] = await Promise.all([
         notificationRepo.countUnreadByUser(userId),
@@ -34,7 +39,7 @@ class NotificationCountUtil {
         localListeners: notificationEmitter.listenerCount('count-updated')
       });
     } catch (error) {
-      logger.error('[NotificationCount] Error emitiendo count-updated', { userId, error: error.message });
+      logger.error('[NotificationCount] Error emitiendo count-updated', { userId, error: errorMessage(error) });
     }
   }
 
@@ -47,9 +52,9 @@ class NotificationCountUtil {
     try {
       notificationEmitter.emit('count-updated', { global: true });
     } catch (error) {
-      logger.error('[NotificationCount] Error emitiendo invalidación global', { error: error.message });
+      logger.error('[NotificationCount] Error emitiendo invalidación global', { error: errorMessage(error) });
     }
   }
 }
 
-module.exports = NotificationCountUtil;
+export = NotificationCountUtil;
