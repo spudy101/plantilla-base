@@ -7,11 +7,14 @@
 
 | Principio | Idea en una línea | Dónde se ve en la plantilla |
 |---|---|---|
-| **S** — Single Responsibility | Una clase, una razón de cambio | `auth-login/`, `admin-person/`, `ConsentRecorderService` |
+| **S** — Single Responsibility | Una clase, una razón de cambio | Fachadas `auth-login/`, `auth-register/`, `mfa/`, `admin-user/`, `admin-person/`; servicios compartidos de sesión y política |
 | **O** — Open/Closed | Extender sin modificar | Canales de notificación como descriptores |
-| **L** — Liskov Substitution | Un hijo sirve donde se espera al padre | `ReadRepository` / `BaseRepository` / `AppendOnlyRepository` |
+| **L** — Liskov Substitution | Un hijo sirve donde se espera al padre | `ReadRepository` / `BaseRepository` / `AppendOnlyRepository` (todos los repos) |
 | **I** — Interface Segregation | No depender de métodos que no usas | Repos con métodos de negocio; jerarquía de repos |
-| **D** — Dependency Inversion | Depender de abstracciones inyectadas | `constructor(deps = {})`, `UnitOfWork`, cero `Op` en services |
+| **D** — Dependency Inversion | Depender de abstracciones inyectadas | `constructor(deps = {})`, `UnitOfWork`, cero `Op`/modelos/`include` en la capa de aplicación |
+
+Las reglas se **verifican automáticamente** en `tests/unit/guards/solid-architecture.test.js`
+(ver [§ Cómo se verifica](#cómo-se-verifica)).
 
 ---
 
@@ -31,7 +34,23 @@ modules/shared-endpoints/kyc/iam/services/
     ├── trusted-device-management.service.js
     ├── session-control.service.js        ← cierre selectivo y límite de sesiones
     ├── login-device.service.js           ← dispositivo durante el login
-    └── sms-login-challenge.service.js    ← MFA por SMS
+    ├── sms-login-challenge.service.js    ← MFA por SMS en el login
+    ├── login-policy-gate.service.js      ← política de privacidad al iniciar sesión (también biométrico)
+    └── session-issuer.service.js         ← tokens + JTI + user_session (también biométrico y registro)
+
+modules/shared-endpoints/kyc/iam/services/
+├── mfa.service.js                        ← fachada: estado, método preferido, validar contraseña
+└── mfa/
+    ├── totp-mfa.service.js               ← setup / activación / verificación / baja TOTP
+    ├── sms-mfa.service.js                ← código de activación / confirmación / baja SMS
+    └── mfa-account.js                    ← lecturas del usuario + bitácora de cambios de MFA
+
+modules/client/kyc/iam/services/
+├── auth-register.service.js              ← registro (crea persona/contacto/usuario/consentimientos)
+├── auth-register/
+│   └── credential-reset.service.js       ← reset de contraseña / MFA por enlace de un solo uso
+└── auth-biometric.service.js             ← enrolamiento + login biométrico (delegando sesión,
+                                            política y criptografía en servicios compartidos)
 
 modules/admin/kyc/person/services/
 ├── admin-person.service.js               ← fachada: eliminación de cuenta + delegación
@@ -41,6 +60,23 @@ modules/admin/kyc/person/services/
     ├── person-access.service.js          ← activar/desactivar, rol
     ├── person-credentials.service.js     ← contraseña, email, documento, MFA
     └── person-guards.js                  ← regla "cuenta eliminada es intocable"
+
+modules/admin/kyc/iam/services/
+├── admin-user.service.js                 ← fachada (usuarios internos)
+└── admin-user/
+    ├── internal-user-query.service.js    ← listados, detalle, roles, sesiones, bitácora
+    ├── internal-user-profile.service.js  ← alta y edición
+    ├── internal-user-access.service.js   ← rol (doble aprobación), estado, cierre de sesiones
+    ├── internal-user-deletion.service.js ← eliminación (re-auth + doble aprobación + ofuscación)
+    └── internal-user-guards.js           ← interno / superadmin / eliminado / invalidar sesiones
+
+modules/schemas/core/services/
+├── dual-approval.service.js              ← motor: register / gate / resolve
+└── dual-approval/
+    └── dual-approval-notifier.service.js ← avisos a aprobadores y al solicitante
+
+shared/utils/es256-signature.util.js      ← verificación ES256 (pura), extraída de auth-biometric
+modules/schemas/kyc/person/helpers/profile.helper.js ← clase ProfileHelper con constructor(deps)
 ```
 
 La fachada mantiene **la misma API pública**, así controllers y tests no cambian:
@@ -52,9 +88,15 @@ refreshToken(refreshTokenStr) {
 }
 ```
 
-También se eliminó lógica **duplicada**: el registro de consentimientos estaba copiado en
-`auth-login`, `auth-register` y `auth-biometric`. Ahora vive en
-`modules/schemas/records/legal/services/consent-recorder.service.js`.
+También se eliminó lógica **duplicada** entre los tres flujos de autenticación
+(contraseña, biométrico, registro):
+
+| Lógica | Estaba copiada en | Ahora vive en |
+|---|---|---|
+| Registro de consentimientos | `auth-login`, `auth-register`, `auth-biometric` | `schemas/records/legal/services/consent-recorder.service.js` |
+| Una sesión por dispositivo + límite de sesiones | `auth-login`, `auth-biometric` | `auth-login/session-control.service.js` |
+| Emisión de tokens + sesión | `auth-login`, `auth-biometric`, `auth-register` | `auth-login/session-issuer.service.js` |
+| Compuerta de política de privacidad | `auth-login`, `auth-biometric` | `auth-login/login-policy-gate.service.js` |
 
 **Regla práctica:** si un service supera ~400 líneas o su nombre necesita un "y" para describirlo
 ("login **y** sesiones **y** dispositivos"), se divide.
@@ -113,8 +155,13 @@ También se corrigieron overrides que **cambiaban la firma** del padre: varios
 `{ transaction }` se ejecutaba **fuera** de la transacción sin avisar. Ahora todos aceptan y
 propagan `options`, igual que la clase base.
 
+`RolePermissionOverrideRepository` era el único repositorio fuera de la jerarquía y definía
+`exists(roleName, moduleName, action)`, incompatible con `ReadRepository.exists(criteria)`. Ahora
+hereda de `BaseRepository` y la verificación de duplicados se llama `existsOverride(...)`.
+
 **Regla práctica:** un override debe aceptar los mismos argumentos que el padre y no lanzar
 errores que el padre no lanza. Si un hijo "no puede" hacer algo del padre, la jerarquía está mal.
+Si necesitas otra semántica, usa otro nombre en vez de redefinir el método del padre.
 
 ---
 
@@ -132,6 +179,9 @@ errores que el padre no lanza. Si un hijo "no puede" hacer algo del padre, la je
 | `bulkUpdate(..., { notification_id: { [Op.in]: ids } })` | `notificationRepository.markAsReadByIds(ids)` |
 | `_buildWhere(query)` con `Op.gte` / `Op.lte` | `auditLogRepository.searchPaginated(query, ...)` |
 | `{ created_at: { [Op.between]: [from, to] } }` | `auditLogRepository.findAuthAttemptsPaginated(criteria, ...)` |
+| `include: [{ model: UserTrustedDevice, as: 'device' }, { model: User, ... }]` | `userSessionRepository.findPaginatedWithDeviceAndUser(where, pagination)` |
+| `_includeExecutor()` con `model: User` / `model: Person` | inclusión por defecto de `auditLogRepository.searchPaginated` / `findByIdFull` |
+| `findByEmail(email, { include: [...] })` en el reset | `personContactRepository.findByEmailWithUser(email)` |
 
 ---
 
@@ -189,16 +239,28 @@ try {
 await this.unitOfWork.run(async transaction => { ... });
 ```
 
-### 3. Los services no conocen el ORM
+### 3. La capa de aplicación no conoce el ORM
 
-- Ningún `*.service.js` importa `sequelize` ni usa `Op`.
-- `SystemGlobalConfig.findOne(...)` (modelo directo desde 4 services) → `SystemGlobalConfigRepository.findActive()`.
-- S3 en banners se inyecta como `fileStorage`.
+Services, helpers, validators, controllers, middlewares y utils **no** importan `sequelize`, `Op`
+ni modelos:
 
-**Pendiente consciente:** algunos services todavía importan modelos para armar `include`
-(`{ model: User, as: 'executor' }`) o leer enums (`Notification.PROCESSING_STATUS`). Es el
-siguiente paso natural: mover esos `include` a métodos del repositorio y los enums a `shared/constants`.
-Los workers (`audit-archive.worker.js`) y bootstraps usan Sequelize a propósito: son adaptadores de infraestructura.
+- **Consultas e `include`** → métodos con nombre de negocio en el repositorio (tabla de § I).
+- **Enums de dominio** → `shared/constants/domain-enums.js` (`NOTIFICATION_PROCESSING_STATUS`,
+  `APPROVAL_REQUEST_STATUS`, `USER_SESSION_STATUS`, `INTEGRATION_PRODUCTS`, `INTEGRATION_RESULTS`).
+  El modelo los usa para su `ENUM`, así que hay una sola fuente de verdad.
+- **Código de `shared/`** que consultaba modelos (`auth.middleware`, `rbac.service`,
+  `mfa-status.util`, `resilience-config.util`) ahora pasa por repositorios cargados de forma diferida.
+  `require` diferido porque esos módulos se cargan al arrancar y un import directo crearía un ciclo.
+- **Clientes de infraestructura** (SNS, S3) se inyectan: `new PushNotificationService({ snsClient })`,
+  `new SmsService({ snsClient })`, `fileStorage` en banners.
+
+**Excepciones deliberadas** (adaptadores de infraestructura, fuera de la regla):
+
+| Dónde | Por qué |
+|---|---|
+| `shared/utils/logger.util.js`, `integration-api-logger.util.js` | Escriben los logs; todo el sistema depende del logger, así que no pueden depender de repositorios. |
+| `audit-archive.worker.js` | Mueve lotes de `audit_logs` a la tabla de archivo con SQL y una transacción propios (operación de mantenimiento, no lógica de negocio). |
+| `shared/base/*`, `servers/*`, `*.bootstrap.js` | Arranque y composición. |
 
 ---
 
@@ -206,15 +268,43 @@ Los workers (`audit-archive.worker.js`) y bootstraps usan Sequelize a propósito
 
 - [ ] El service recibe repos/colaboradores por `constructor(deps = {})` y los usa vía `this.`.
 - [ ] Exporta la instancia **y** la clase.
-- [ ] No importa `sequelize`, `Op` ni modelos para consultar: si necesitas un filtro, agrega un
+- [ ] No importa `sequelize`, `Op` ni modelos: si necesitas un filtro o un `include`, agrega un
       método con nombre de negocio al repositorio.
+- [ ] Enums (estados, catálogos) desde `shared/constants/domain-enums.js`, no desde el modelo.
+- [ ] Nada de `instance.update(...)` sobre lo que devolvió un repositorio: `repo.update(id, data, { transaction })`.
 - [ ] Transacciones con `this.unitOfWork`.
 - [ ] El repositorio hereda de `BaseRepository`, o de `AppendOnlyRepository` / `ReadRepository` si
       la tabla no admite todas las operaciones. Overrides con la misma firma que el padre.
 - [ ] Si el service crece y mezcla responsabilidades, se divide y el original queda como fachada.
+- [ ] Antes de copiar lógica de otro flujo, revisa si ya hay un servicio compartido
+      (`session-issuer`, `session-control`, `login-policy-gate`, `consent-recorder`).
 - [ ] Variantes que van a crecer (canales, proveedores, tipos) → registro/estrategia, no `if` encadenados.
+- [ ] `npm test` en verde, incluida la guarda `tests/unit/guards/solid-architecture.test.js`.
 
 Las plantillas de código actualizadas están en [`implementation-patterns.md`](implementation-patterns.md).
+
+---
+
+## Cómo se verifica
+
+`tests/unit/guards/solid-architecture.test.js` analiza el código fuente (sin cargarlo) y falla si:
+
+| Regla | Principio |
+|---|---|
+| Un service / helper / validator / controller / middleware / util importa modelos | D |
+| La capa de aplicación importa `sequelize` o usa `Op.*` | I / D |
+| Un service arma `include` con `model: X` | D |
+| Un repositorio no hereda de `ReadRepository` / `BaseRepository` / `AppendOnlyRepository` | L |
+| Un service exporta la instancia sin exportar también la clase | D |
+| Un service importa repositorios sin recibirlos por `constructor(deps = {})` | D |
+
+Si falla, la corrección casi siempre es mover la consulta, el enum o el `include` a su lugar. No se
+arregla ampliando el allowlist del test, que solo contiene las excepciones de la tabla de § D.
+
+Lo que la guarda **no** puede medir (y queda a criterio de revisión): si un service mezcla
+responsabilidades. Como referencia, ninguno pasa de ~600 líneas y los que superan 400
+(`auth-login`, `auth-biometric`, `dual-approval`, `profile`, `auth-register`, `person-credentials`,
+`notification-sending`) tienen una sola razón de cambio.
 
 ---
 
@@ -230,5 +320,5 @@ Con lo anterior, pasar a hexagonal es sobre todo **mover y renombrar**:
 | `UnitOfWork` | Puerto `UnitOfWork` + adaptador Sequelize (ya está separado) |
 | `module.exports = new X()` con defaults | *Composition root* que arma todo en un solo lugar |
 
-Lo que faltaría: definir los puertos de forma explícita (en TypeScript serían `interface`),
-sacar los `include` de Sequelize de los services y crear el composition root.
+Lo que faltaría: definir los puertos de forma explícita (en TypeScript serían `interface`) y
+crear el composition root. Los `include` ya viven en los repositorios.
