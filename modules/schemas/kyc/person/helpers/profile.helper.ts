@@ -1,17 +1,21 @@
-const userRepository = require('../../iam/repositories/user.repository');
-const personRepository = require('../repositories/person.repository');
-const personContactRepository = require('../repositories/person-contact.repository');
-const personLocationRepository = require('../repositories/person-location.repository');
-const userConsentRepository = require('../../../records/legal/repositories/user-consent.repository');
-const avatarRepository = require('../../maintainers/repositories/avatar.repository');
-const genderRepository = require('../../maintainers/repositories/gender.repository');
-const documentTypeRepository = require('../../maintainers/repositories/document-type.repository');
-const verificationCodeRepository = require('../../../notification/repositories/verification-code.repository');
-const departmentRepository = require('../../maintainers/repositories/department.repository');
-const cityRepository = require('../../maintainers/repositories/city.repository');
-const KycSharedUtil = require('../utils/kyc-shared.util');
-const AppError = require('../../../../../shared/utils/app-error.util');
-const { logger } = require('../../../../../shared/utils/logger.util');
+import type { Transaction } from 'sequelize';
+import userRepository = require('../../iam/repositories/user.repository');
+import personRepository = require('../repositories/person.repository');
+import personContactRepository = require('../repositories/person-contact.repository');
+import personLocationRepository = require('../repositories/person-location.repository');
+import userConsentRepository = require('../../../records/legal/repositories/user-consent.repository');
+import avatarRepository = require('../../maintainers/repositories/avatar.repository');
+import genderRepository = require('../../maintainers/repositories/gender.repository');
+import documentTypeRepository = require('../../maintainers/repositories/document-type.repository');
+import verificationCodeRepository = require('../../../notification/repositories/verification-code.repository');
+import departmentRepository = require('../../maintainers/repositories/department.repository');
+import cityRepository = require('../../maintainers/repositories/city.repository');
+import KycSharedUtil = require('../utils/kyc-shared.util');
+import type definePerson = require('../models/person.model');
+import type definePersonContact = require('../models/person-contact.model');
+import AppError = require('../../../../../shared/utils/app-error.util');
+import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+const { logger } = loggerUtilModule;
 
 /**
  * ============================================================
@@ -25,8 +29,21 @@ const { logger } = require('../../../../../shared/utils/logger.util');
  *   new ProfileHelper({ personContactRepository: fake })
  */
 class ProfileHelper {
+  userRepository: typeof userRepository;
+  personRepository: typeof personRepository;
+  personContactRepository: typeof personContactRepository;
+  personLocationRepository: typeof personLocationRepository;
+  userConsentRepository: typeof userConsentRepository;
+  avatarRepository: typeof avatarRepository;
+  genderRepository: typeof genderRepository;
+  documentTypeRepository: typeof documentTypeRepository;
+  verificationCodeRepository: typeof verificationCodeRepository;
+  departmentRepository: typeof departmentRepository;
+  cityRepository: typeof cityRepository;
+  kycSharedUtil: typeof KycSharedUtil;
+
   /** @param {object} [deps] */
-  constructor(deps = {}) {
+  constructor(deps: ProfileHelper.Deps = {}) {
     this.userRepository = deps.userRepository ?? userRepository;
     this.personRepository = deps.personRepository ?? personRepository;
     this.personContactRepository = deps.personContactRepository ?? personContactRepository;
@@ -49,7 +66,7 @@ class ProfileHelper {
    * Valida la contraseña actual del usuario.
    * @throws {AppError} Si no coincide
    */
-  async validateCurrentPassword(passwordHash, currentPassword) {
+  async validateCurrentPassword(passwordHash: string, currentPassword: string) {
     const isValid = await this.userRepository.verifyPassword(currentPassword, passwordHash);
     if (!isValid) {
       throw AppError.badRequest('Contraseña actual incorrecta');
@@ -61,7 +78,7 @@ class ProfileHelper {
    * Valida que el email esté verificado (código OTP confirmado en verification_codes).
    * @throws {AppError} Si no está verificado
    */
-  async checkEmailVerified(email) {
+  async checkEmailVerified(email: string) {
     const verificationCode = await this.verificationCodeRepository.findVerifiedByContact('email', email);
     if (!verificationCode) {
       throw AppError.forbidden('El email debe estar verificado antes de poder actualizarlo');
@@ -73,7 +90,7 @@ class ProfileHelper {
    * Valida que el teléfono esté verificado (código OTP confirmado en verification_codes).
    * @throws {AppError} Si no está verificado
    */
-  async checkPhoneVerified(phone) {
+  async checkPhoneVerified(phone: string) {
     const verificationCode = await this.verificationCodeRepository.findVerifiedByContact('phone', phone);
     if (!verificationCode) {
       throw AppError.forbidden('El teléfono debe estar verificado antes de poder actualizarlo');
@@ -87,7 +104,7 @@ class ProfileHelper {
    * @param {string|null} excludePersonId - Excluir este personId del chequeo (para el propio usuario)
    * @throws {AppError} Si ya existe
    */
-  async validateEmailUnique(email, excludePersonId = null) {
+  async validateEmailUnique(email: string, excludePersonId: string | null = null) {
     const existingContact = await this.personContactRepository.findByEmail(email);
     if (existingContact && existingContact.person_id !== excludePersonId) {
       throw AppError.conflict('El email ya está en uso por otro usuario');
@@ -100,7 +117,7 @@ class ProfileHelper {
    * Chequea tanto teléfono primario como secundario.
    * @throws {AppError} Si ya existe
    */
-  async validatePhoneNotInUse(phone, excludePersonId, _phoneType) {
+  async validatePhoneNotInUse(phone: string, excludePersonId: string, _phoneType?: ProfileHelper.PhoneType) {
     const existingPrimary = await this.personContactRepository.findByPrimaryPhone(phone);
     if (existingPrimary && existingPrimary.person_id !== excludePersonId) {
       throw AppError.conflict('El teléfono ya está en uso por otro usuario');
@@ -118,7 +135,7 @@ class ProfileHelper {
    * Valida que el nationalId sea único en el sistema.
    * @throws {AppError} Si ya existe
    */
-  async validateNationalIdUnique(nationalId, excludePersonId = null) {
+  async validateNationalIdUnique(nationalId: string, excludePersonId: string | null = null) {
     const existingPerson = await this.personRepository.findByNationalId(nationalId);
     if (existingPerson && existingPerson.person_id !== excludePersonId) {
       throw AppError.conflict('El National ID ya está registrado');
@@ -130,7 +147,7 @@ class ProfileHelper {
    * Valida que el username sea único en el sistema.
    * @throws {AppError} Si ya existe
    */
-  async validateUsernameUnique(username, excludeUserId = null) {
+  async validateUsernameUnique(username: string, excludeUserId: string | null = null) {
     const existingUser = await this.userRepository.findByUsername(username);
     if (existingUser && existingUser.user_id !== excludeUserId) {
       throw AppError.conflict('El username ya está en uso');
@@ -142,7 +159,7 @@ class ProfileHelper {
    * Valida que un avatar exista y esté activo.
    * @throws {AppError} Si no existe o está inactivo
    */
-  async validateAvatarExists(avatarId) {
+  async validateAvatarExists(avatarId: string) {
     const avatar = await this.avatarRepository.findById(avatarId);
     if (!avatar) {
       throw AppError.notFound('Avatar no encontrado');
@@ -157,7 +174,7 @@ class ProfileHelper {
    * Valida que un género exista y esté activo.
    * @throws {AppError} Si no existe o está inactivo
    */
-  async validateGenderExists(genderId) {
+  async validateGenderExists(genderId: string) {
     const gender = await this.genderRepository.findById(genderId);
     if (!gender) {
       throw AppError.notFound('Gender no encontrado');
@@ -172,7 +189,7 @@ class ProfileHelper {
    * Valida que el tipo de documento exista y esté activo.
    * @throws {AppError} Si no existe o está inactivo
    */
-  async validateDocumentTypeExists(documentTypeId) {
+  async validateDocumentTypeExists(documentTypeId: string) {
     const documentType = await this.documentTypeRepository.findById(documentTypeId);
     if (!documentType) {
       throw AppError.notFound('Tipo de documento no encontrado');
@@ -187,7 +204,7 @@ class ProfileHelper {
   // SNAPSHOT — valores previos para auditoría
   // ============================================================
 
-  async fetchPersonSnapshot(personId) {
+  async fetchPersonSnapshot(personId: string) {
     const [person, location] = await Promise.all([
       this.personRepository.findById(personId),
       this.personLocationRepository.findByPersonId(personId)
@@ -215,7 +232,7 @@ class ProfileHelper {
   /**
    * Actualiza el username del usuario, validando unicidad.
    */
-  async updateUsername(userId, newUsername, transaction) {
+  async updateUsername(userId: string, newUsername: string, transaction: Transaction) {
     await this.validateUsernameUnique(newUsername, userId);
     await this.userRepository.update(userId, { username: newUsername }, { transaction });
   }
@@ -223,7 +240,7 @@ class ProfileHelper {
   /**
    * Actualiza el avatar del usuario, validando que exista.
    */
-  async updateAvatar(userId, avatarId, transaction) {
+  async updateAvatar(userId: string, avatarId: string, transaction: Transaction) {
     await this.validateAvatarExists(avatarId);
     await this.userRepository.update(userId, { avatar_id: avatarId }, { transaction });
   }
@@ -231,7 +248,7 @@ class ProfileHelper {
   /**
    * Actualiza el género de la persona, validando que exista.
    */
-  async updateGender(personId, genderId, transaction) {
+  async updateGender(personId: string, genderId: string, transaction: Transaction) {
     await this.validateGenderExists(genderId);
     await this.personRepository.update(personId, { gender_id: genderId }, { transaction });
   }
@@ -240,7 +257,7 @@ class ProfileHelper {
    * Valida que país, departamento y ciudad existan y sean consistentes entre sí.
    * @throws {AppError} Si alguno no existe o la jerarquía no es correcta
    */
-  async validateLocationHierarchy({ countryId: _countryId, departmentId, cityId }) {
+  async validateLocationHierarchy({ countryId: _countryId, departmentId, cityId }: ProfileHelper.LocationInput) {
     const department = await this.departmentRepository.findById(departmentId);
     if (!department) {
       throw AppError.notFound('El departamento especificado no existe');
@@ -258,7 +275,7 @@ class ProfileHelper {
   /**
    * Upsert de la ubicación de una persona.
    */
-  async updateLocation(personId, locationData, transaction) {
+  async updateLocation(personId: string, locationData: ProfileHelper.LocationInput, transaction: Transaction) {
     await this.validateLocationHierarchy(locationData); // 👈 validar antes de tocar la BD
 
     const mappedData = {
@@ -266,7 +283,8 @@ class ProfileHelper {
       city_id: locationData.cityId,
       postal_code: locationData.postalCode,
       type: locationData.type,
-      address: locationData.address ?? null
+      // address es NOT NULL y el validator la exige
+      address: locationData.address
     };
 
     await this.personLocationRepository.upsertByPersonId(personId, mappedData, { transaction });
@@ -275,7 +293,7 @@ class ProfileHelper {
   /**
    * Actualiza la fecha de nacimiento de la persona.
    */
-  async updateBirthDate(personId, birthDate, transaction) {
+  async updateBirthDate(personId: string, birthDate: string, transaction: Transaction) {
     await this.personRepository.update(personId, { birth_date: birthDate }, { transaction });
   }
 
@@ -284,9 +302,9 @@ class ProfileHelper {
    * `firstName` y `lastName` son obligatorios; `middleName` y `secondLastName` aceptan null para limpiarse.
    * Solo incluye en el update las claves presentes en `fields`.
    */
-  async updateNames(personId, fields, transaction) {
+  async updateNames(personId: string, fields: ProfileHelper.NamesInput, transaction: Transaction) {
     const { firstName, middleName, lastName, secondLastName } = fields;
-    const update = {};
+    const update: Partial<definePerson.Attributes> = {};
 
     if (firstName !== undefined) {
       update.first_name = firstName;
@@ -309,7 +327,7 @@ class ProfileHelper {
    * Prepara el objeto de campos para actualizar el teléfono en personContact.
    * @param {'primary'|'secondary'} phoneType
    */
-  preparePhoneUpdateData(phone, phonePrefixId, phoneType) {
+  preparePhoneUpdateData(phone: string, phonePrefixId: string, phoneType: ProfileHelper.PhoneType): Partial<definePersonContact.Attributes> {
     if (phoneType === 'primary') {
       return {
         phone_primary: phone,
@@ -344,7 +362,7 @@ class ProfileHelper {
    * @param {boolean} params.skipVerificationCheck - true cuando lo hace un admin
    * @returns {Promise<{ oldEmail, newEmail }>}
    */
-  async updateEmailLogic(params) {
+  async updateEmailLogic(params: ProfileHelper.UpdateEmailParams) {
     const {
       userId,
       personId,
@@ -363,7 +381,7 @@ class ProfileHelper {
 
     await this.validateEmailUnique(newEmail, personId);
 
-    const personContact = await this.personContactRepository.findByPersonId(personId);
+    const personContact = await this._requireContact(personId);
     const oldEmail = personContact.email;
 
     if (oldEmail === newEmail) {
@@ -411,14 +429,14 @@ class ProfileHelper {
    *
    * @returns {Promise<{ phone, phonePrefixId, phoneType }>}
    */
-  async updatePhoneLogic(params) {
+  async updatePhoneLogic(params: ProfileHelper.UpdatePhoneParams) {
     const { personId, phone, phonePrefixId, phoneType, transaction } = params;
     const { userId, changedByUserId, changedByRole, auditContext } = params;
 
     await this.checkPhoneVerified(phone);
     await this.validatePhoneNotInUse(phone, personId, phoneType);
 
-    const personContact = await this.personContactRepository.findByPersonId(personId);
+    const personContact = await this._requireContact(personId);
     const oldPhone = phoneType === 'primary' ? personContact.phone_primary : personContact.phone_secondary;
 
     const updateData = this.preparePhoneUpdateData(phone, phonePrefixId, phoneType);
@@ -458,7 +476,7 @@ class ProfileHelper {
    * Lógica completa de actualización de contraseña.
    * Persiste la nueva contraseña (bcrypt) en BD y registra el cambio.
    */
-  async updatePasswordLogic(params) {
+  async updatePasswordLogic(params: ProfileHelper.UpdatePasswordParams) {
     const { userId, newPassword, changedByUserId, changedByRole, changeReason, auditContext, transaction } = params;
 
     await this.userRepository.updatePassword(userId, newPassword, { transaction });
@@ -485,7 +503,7 @@ class ProfileHelper {
    *
    * @returns {Promise<{ oldNationalId, newNationalId }>}
    */
-  async updateNationalIdLogic(params) {
+  async updateNationalIdLogic(params: ProfileHelper.UpdateNationalIdParams) {
     const {
       userId,
       personId,
@@ -500,6 +518,9 @@ class ProfileHelper {
     } = params;
 
     const person = await this.personRepository.findById(personId);
+    if (!person) {
+      throw AppError.notFound('Persona no encontrada');
+    }
     const oldNationalId = person.national_id;
 
     // Idempotente: si el valor no cambió, no se toca la BD ni se audita el cambio.
@@ -511,7 +532,7 @@ class ProfileHelper {
     await this.validateNationalIdUnique(newNationalId, personId);
 
     // Si se envía el tipo de documento, validar que exista y esté activo antes de persistir.
-    const personUpdate = { national_id: newNationalId };
+    const personUpdate: Partial<definePerson.Attributes> = { national_id: newNationalId };
     if (documentTypeId) {
       await this.validateDocumentTypeExists(documentTypeId);
       personUpdate.document_type_id = documentTypeId;
@@ -543,7 +564,7 @@ class ProfileHelper {
    *
    * @returns {Promise<{ deletedEmail, deletedNationalId, firstName }>}
    */
-  async deleteAccountLogic(params) {
+  async deleteAccountLogic(params: ProfileHelper.DeleteAccountParams) {
     const {
       userId,
       personId,
@@ -558,13 +579,13 @@ class ProfileHelper {
       transaction
     } = params;
 
-    const personContact = await this.personContactRepository.findByPersonId(personId);
+    const personContact = await this._requireContact(personId);
 
     const newNationalId = this.kycSharedUtil.formatDeletedNationalId(nationalId);
     const newUsername = this.kycSharedUtil.formatDeletedUsername(username);
     const newEmail = this.kycSharedUtil.formatDeletedEmail(email);
 
-    const contactUpdates = { email: newEmail };
+    const contactUpdates: Partial<definePersonContact.Attributes> = { email: newEmail };
     if (personContact.phone_primary) {
       contactUpdates.phone_primary = this.kycSharedUtil.formatDeletedPhone(personContact.phone_primary);
     }
@@ -625,7 +646,104 @@ class ProfileHelper {
       firstName
     };
   }
+
+  /** Contacto de la persona; 404 si no existe (antes: TypeError → 500 al leer sus campos). */
+  async _requireContact(personId: string) {
+    const contact = await this.personContactRepository.findByPersonId(personId);
+    if (!contact) {
+      throw AppError.notFound('Contacto de la persona no encontrado');
+    }
+    return contact;
+  }
 }
 
-module.exports = new ProfileHelper();
-module.exports.ProfileHelper = ProfileHelper;
+// eslint-disable-next-line @typescript-eslint/no-namespace
+namespace ProfileHelper {
+  export type PhoneType = 'primary' | 'secondary';
+
+  /** Contexto HTTP de auditoría (algunos call-sites lo arman con ip, otros con ipAddress). */
+  export interface AuditInfo {
+    ip?: string | null;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  }
+
+  /** Quién hace el cambio y por qué: va a user_change_logs. */
+  export interface ChangeActor {
+    userId: string;
+    changedByUserId: string;
+    changedByRole: 'admin' | 'user' | 'system';
+    changeReason?: string | null;
+    auditContext: AuditInfo;
+    transaction?: Transaction;
+  }
+
+  export interface LocationInput {
+    countryId?: string | null;
+    departmentId: string;
+    cityId: string;
+    postalCode?: string | null;
+    type?: string | null;
+    address: string;
+  }
+
+  export interface NamesInput {
+    firstName?: string;
+    middleName?: string | null;
+    lastName?: string;
+    secondLastName?: string | null;
+  }
+
+  export interface UpdateEmailParams extends ChangeActor {
+    personId: string;
+    newEmail: string;
+    /** true cuando lo hace un admin (no exige OTP verificado) */
+    skipVerificationCheck?: boolean;
+  }
+
+  export interface UpdatePhoneParams extends Partial<Pick<ChangeActor, 'userId' | 'changedByUserId' | 'changedByRole'>> {
+    personId: string;
+    phone: string;
+    phonePrefixId: string;
+    phoneType: PhoneType;
+    auditContext?: AuditInfo;
+    transaction?: Transaction;
+  }
+
+  export interface UpdatePasswordParams extends ChangeActor {
+    newPassword: string;
+  }
+
+  export interface UpdateNationalIdParams extends ChangeActor {
+    personId: string;
+    newNationalId: string;
+    documentTypeId?: string | null;
+    role: { name: string };
+  }
+
+  export interface DeleteAccountParams extends ChangeActor {
+    personId: string;
+    nationalId: string;
+    email?: string | null;
+    username: string;
+    firstName?: string | null;
+  }
+
+  /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
+  export interface Deps {
+    userRepository?: typeof userRepository;
+    personRepository?: typeof personRepository;
+    personContactRepository?: typeof personContactRepository;
+    personLocationRepository?: typeof personLocationRepository;
+    userConsentRepository?: typeof userConsentRepository;
+    avatarRepository?: typeof avatarRepository;
+    genderRepository?: typeof genderRepository;
+    documentTypeRepository?: typeof documentTypeRepository;
+    verificationCodeRepository?: typeof verificationCodeRepository;
+    departmentRepository?: typeof departmentRepository;
+    cityRepository?: typeof cityRepository;
+    kycSharedUtil?: typeof KycSharedUtil;
+  }
+}
+
+export = Object.assign(new ProfileHelper(), { ProfileHelper });

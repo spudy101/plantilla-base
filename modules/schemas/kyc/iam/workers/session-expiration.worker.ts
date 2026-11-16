@@ -10,13 +10,20 @@
 // El middleware ya cierra reactivamente la sesión (cliente o interno) en su siguiente request;
 // este worker cubre el caso en que ese request nunca llega — "cerró la pestaña/app y no volvió".
 
-const cron = require('node-cron');
-const { logger, logAudit } = require('../../../../../shared/utils/logger.util');
-const requestContext = require('../../../../../shared/utils/request-context.util');
-const userSessionRepository = require('../repositories/user-session.repository');
-const RefreshTokenStore = require('../../../../../shared/utils/refresh-token-store.util');
-const TokenBlacklistUtil = require('../../../../../shared/utils/token-blacklist.util');
-const { SECURITY } = require('../../../../../shared/constants');
+import cron = require('node-cron');
+import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+const { logger, logAudit } = loggerUtilModule;
+import requestContext = require('../../../../../shared/utils/request-context.util');
+import userSessionRepository = require('../repositories/user-session.repository');
+import type defineUserSession = require('../models/user-session.model');
+import RefreshTokenStore = require('../../../../../shared/utils/refresh-token-store.util');
+import TokenBlacklistUtil = require('../../../../../shared/utils/token-blacklist.util');
+import constantsModule = require('../../../../../shared/constants');
+const { SECURITY } = constantsModule;
+import errorMessageModule = require('../../../../../shared/utils/error-message.util');
+
+const { errorMessage } = errorMessageModule;
+
 
 // Cron hardcodeado (convención del repo: los workers no leen el cron de env vars).
 // Cada 5 minutos — cierra sesiones por inactividad o por tope absoluto. Corre seguido para
@@ -56,7 +63,7 @@ class SessionExpirationWorker {
       } catch (error) {
         logger.error('Error al cerrar sesión en worker de expiración', {
           sessionId: session.user_session_id,
-          error: error.message
+          error: errorMessage(error)
         });
       }
     }
@@ -64,7 +71,10 @@ class SessionExpirationWorker {
     return { scanned: closable.length, closed: count };
   }
 
-  static async _closeSession(session, absoluteCutoff) {
+  static async _closeSession(
+    session: Pick<defineUserSession.Instance, 'user_session_id' | 'user_id' | 'jti' | 'last_access_at' | 'started_at'>,
+    absoluteCutoff: Date
+  ) {
     const sessionId = session.user_session_id;
 
     // Causa: si superó el tope absoluto de 8h, prevalece esa razón; si no, es inactividad.
@@ -112,4 +122,4 @@ class SessionExpirationWorker {
   }
 }
 
-module.exports = SessionExpirationWorker;
+export = SessionExpirationWorker;

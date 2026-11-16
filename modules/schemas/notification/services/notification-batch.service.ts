@@ -1,13 +1,23 @@
-const globalNotificationRepo = require('../repositories/global-notification.repository');
-const userNotificationPreferenceRepo = require('../../kyc/person/repositories/user-notification-preference.repository');
-const userPushTokenRepo = require('../repositories/user-push-token.repository');
-const redisClient = require('../../../../shared/utils/redis.util');
-const localCache = require('../../../../shared/utils/cache.util');
-const emailService = require('./email-notification.service');
-const pushService = require('./push-notification.service');
-const rateLimitService = require('./notification-rate-limit.service');
-const { logger } = require('../../../../shared/utils/logger.util');
-const { CLIENT_ROLE_NAMES } = require('../../../../shared/constants');
+import type { KeyValueCache } from '../../../../shared/types/cache';
+import type { UserRepositoryPort } from '../../repository-ports';
+import type defineUser = require('../../kyc/iam/models/user.model');
+import type defineNotificationType = require('../models/notification-type.model');
+import globalNotificationRepo = require('../repositories/global-notification.repository');
+import userNotificationPreferenceRepo = require('../../kyc/person/repositories/user-notification-preference.repository');
+import userPushTokenRepo = require('../repositories/user-push-token.repository');
+import redisClient = require('../../../../shared/utils/redis.util');
+import localCache = require('../../../../shared/utils/cache.util');
+import emailService = require('./email-notification.service');
+import pushService = require('./push-notification.service');
+import rateLimitService = require('./notification-rate-limit.service');
+import loggerUtilModule = require('../../../../shared/utils/logger.util');
+const { logger } = loggerUtilModule;
+import constantsModule = require('../../../../shared/constants');
+const { CLIENT_ROLE_NAMES } = constantsModule;
+import errorMessageModule = require('../../../../shared/utils/error-message.util');
+
+const { errorMessage } = errorMessageModule;
+
 
 const CACHE_TTL_24H = 24 * 60 * 60; // segundos
 const CACHE_CLEANUP_DELAY = 60 * 60 * 1000; // 1 hora en ms
@@ -16,13 +26,20 @@ const EMAIL_BATCH_SIZE = 50;
 const BATCH_SLEEP_MS = 1000;
 
 class NotificationBatchService {
+  globalNotificationRepo: typeof globalNotificationRepo;
+  userNotificationPreferenceRepo: typeof userNotificationPreferenceRepo;
+  userPushTokenRepo: typeof userPushTokenRepo;
+  emailService: typeof emailService;
+  pushService: typeof pushService;
+  rateLimitService: typeof rateLimitService;
+
   /**
    * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
    * reales; en tests u otros contextos se pueden reemplazar:
    *   new NotificationBatchService({ globalNotificationRepo: fake })
    * @param {object} [deps]
    */
-  constructor(deps = {}) {
+  constructor(deps: NotificationBatchService.Deps = {}) {
     this.globalNotificationRepo = deps.globalNotificationRepo ?? globalNotificationRepo;
     this.userNotificationPreferenceRepo = deps.userNotificationPreferenceRepo ?? userNotificationPreferenceRepo;
     this.userPushTokenRepo = deps.userPushTokenRepo ?? userPushTokenRepo;
@@ -31,7 +48,7 @@ class NotificationBatchService {
     this.rateLimitService = deps.rateLimitService ?? rateLimitService;
   }
 
-  async _initBatchState(cache, globalNotificationId, totalUsers) {
+  async _initBatchState(cache: KeyValueCache, globalNotificationId: string, totalUsers: number) {
     await cache.set(
       `global_notif:${globalNotificationId}:batch_state`,
       JSON.stringify({
@@ -46,11 +63,13 @@ class NotificationBatchService {
     );
   }
 
-  _scheduleCacheCleanup(cache, globalNotificationId) {
+  _scheduleCacheCleanup(cache: KeyValueCache, globalNotificationId: string) {
     setTimeout(() => {
-      cache
-        .del(`global_notif:${globalNotificationId}:batch_state`)
-        .catch(err => logger.warn('Error limpiando cache', { error: err.message }));
+      // Promise.resolve: la caché local es síncrona (del() devuelve un número) y encadenar .catch
+      // directo lanzaba TypeError dentro del timer → uncaughtException → process.exit en producción.
+      Promise.resolve()
+        .then(() => cache.del(`global_notif:${globalNotificationId}:batch_state`))
+        .catch((err: unknown) => logger.warn('Error limpiando cache', { error: errorMessage(err) }));
     }, CACHE_CLEANUP_DELAY);
   }
 
@@ -62,10 +81,10 @@ class NotificationBatchService {
    * @param {string} body
    * @param {Object} metadata
    */
-  async procesarNotificacionGlobal(globalNotificationId, notificationType, title, body, metadata) {
+  async procesarNotificacionGlobal(globalNotificationId: string, notificationType: defineNotificationType.Instance, title: string, body: string, metadata: Record<string, unknown>) {
     try {
-      const cache = redisClient.isAvailable() ? redisClient : localCache;
-      const UserRepository = require('../../kyc/iam/repositories/user.repository');
+      const cache: KeyValueCache = redisClient.isAvailable() ? redisClient : localCache;
+      const UserRepository = require('../../kyc/iam/repositories/user.repository') as UserRepositoryPort;
 
       // Las notificaciones globales solo se envían a clientes finales (CLIENTE /
       // CLIENTE_VERIFICADO), nunca a usuarios internos ni entidades externas.
@@ -102,7 +121,7 @@ class NotificationBatchService {
       });
       this._scheduleCacheCleanup(cache, globalNotificationId);
     } catch (error) {
-      logger.warn('Error en procesamiento global', { error: error.message, globalNotificationId });
+      logger.warn('Error en procesamiento global', { error: errorMessage(error), globalNotificationId });
       await this.globalNotificationRepo.update(globalNotificationId, {
         push_processing_status: 'failed',
         email_processing_status: 'failed'
@@ -113,7 +132,15 @@ class NotificationBatchService {
   /**
    * Envía push global por lotes con rate limiting
    */
-  async enviarPushGlobalPorLotes(globalNotificationId, users, title, body, metadata, notificationTypeCode, cache) {
+  async enviarPushGlobalPorLotes(
+    globalNotificationId: string,
+    users: defineUser.Instance[],
+    title: string,
+    body: string,
+    metadata: Record<string, unknown>,
+    notificationTypeCode: string | null,
+    cache: KeyValueCache
+  ) {
     try {
       const usersAllowingPush = await this._filtrarUsuariosPush(users, notificationTypeCode);
 
@@ -173,27 +200,28 @@ class NotificationBatchService {
         failed: totalFailed
       });
     } catch (error) {
-      logger.warn('Error al enviar push global', { error: error.message, globalNotificationId });
+      logger.warn('Error al enviar push global', { error: errorMessage(error), globalNotificationId });
       throw error;
     }
   }
 
-  async _procesarLoteEmail(batch, notificationType, metadata, globalNotificationId) {
-    const EncryptionUtil = require('../../../../shared/utils/encryption.util');
+  async _procesarLoteEmail(batch: defineUser.Instance[], notificationType: defineNotificationType.Instance, metadata: Record<string, unknown>, globalNotificationId: string) {
+    const EncryptionUtil = require('../../../../shared/utils/encryption.util') as typeof import('../../../../shared/utils/encryption.util');
     const GCM_PARTS_COUNT = 3;
 
     const promises = batch.map(user => {
       // Descifrar email si viene en formato GCM cifrado (ivHex:authTagHex:cipherHex)
-      const rawEmail = user.person.contact.email;
-      const parts = rawEmail?.split(':') ?? [];
+      // _filtrarUsuariosEmail ya descartó a quien no tiene email
+      const rawEmail = user.person?.contact?.email ?? '';
+      const parts = rawEmail.split(':');
       const email = parts.length === GCM_PARTS_COUNT ? EncryptionUtil.decrypt(rawEmail) : rawEmail;
 
       return this.emailService
         .enviarNotificacion(email, notificationType, metadata)
         .then(() => ({ success: true }))
-        .catch(err => {
+        .catch((err: unknown) => {
           logger.warn('Error enviando email', {
-            error: err.message,
+            error: errorMessage(err),
             email, // ahora loguea el email real, no el cifrado
             globalNotificationId
           });
@@ -211,7 +239,14 @@ class NotificationBatchService {
   /**
    * Envía email global por lotes con rate limiting
    */
-  async enviarEmailGlobalPorLotes(globalNotificationId, users, notificationType, metadata, notificationTypeCode, cache) {
+  async enviarEmailGlobalPorLotes(
+    globalNotificationId: string,
+    users: defineUser.Instance[],
+    notificationType: defineNotificationType.Instance,
+    metadata: Record<string, unknown>,
+    notificationTypeCode: string | null,
+    cache: KeyValueCache
+  ) {
     try {
       const usersAllowingEmail = await this._filtrarUsuariosEmail(users, notificationTypeCode);
 
@@ -270,14 +305,14 @@ class NotificationBatchService {
         failed: totalFailed
       });
     } catch (error) {
-      logger.warn('Error al enviar email global', { error: error.message, globalNotificationId });
+      logger.warn('Error al enviar email global', { error: errorMessage(error), globalNotificationId });
       throw error;
     }
   }
 
   /** @private */
-  async _filtrarUsuariosPush(users, notificationTypeCode) {
-    const allowed = [];
+  async _filtrarUsuariosPush(users: defineUser.Instance[], notificationTypeCode: string | null) {
+    const allowed: defineUser.Instance[] = [];
     for (const user of users) {
       const allowsPush = await this.userNotificationPreferenceRepo.userAllowsPush(user.user_id, notificationTypeCode);
       if (allowsPush) {
@@ -288,8 +323,8 @@ class NotificationBatchService {
   }
 
   /** @private */
-  async _filtrarUsuariosEmail(users, notificationTypeCode) {
-    const allowed = [];
+  async _filtrarUsuariosEmail(users: defineUser.Instance[], notificationTypeCode: string | null) {
+    const allowed: defineUser.Instance[] = [];
     for (const user of users) {
       const allowsEmail = await this.userNotificationPreferenceRepo.userAllowsEmail(user.user_id, notificationTypeCode);
       if (allowsEmail && user.person?.contact?.email) {
@@ -300,13 +335,13 @@ class NotificationBatchService {
   }
 
   /** @private */
-  async _actualizarEstadoLote(cache, globalNotificationId, batchNumber, batchSize) {
+  async _actualizarEstadoLote(cache: KeyValueCache, globalNotificationId: string, batchNumber: number, batchSize: number) {
     try {
       const stateKey = `global_notif:${globalNotificationId}:batch_state`;
       const stateRaw = await cache.get(stateKey);
 
       if (stateRaw) {
-        const state = typeof stateRaw === 'string' ? JSON.parse(stateRaw) : stateRaw;
+        const state = (typeof stateRaw === 'string' ? JSON.parse(stateRaw) : stateRaw) as Record<string, unknown> & { processed_users: number };
 
         state.processed_users += batchSize;
         state.current_batch = batchNumber;
@@ -315,17 +350,29 @@ class NotificationBatchService {
         await cache.set(stateKey, JSON.stringify(state), CACHE_TTL_24H);
       }
     } catch (error) {
-      logger.warn('Error actualizando estado de lote en Redis', { error: error.message });
+      logger.warn('Error actualizando estado de lote en Redis', { error: errorMessage(error) });
     }
   }
 
   /** @private */
-  _sleep(ms) {
+  _sleep(ms: number) {
     return new Promise(resolve => {
       setTimeout(resolve, ms);
     });
   }
 }
 
-module.exports = new NotificationBatchService();
-module.exports.NotificationBatchService = NotificationBatchService;
+// eslint-disable-next-line @typescript-eslint/no-namespace
+namespace NotificationBatchService {
+  /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
+  export interface Deps {
+    globalNotificationRepo?: typeof globalNotificationRepo;
+    userNotificationPreferenceRepo?: typeof userNotificationPreferenceRepo;
+    userPushTokenRepo?: typeof userPushTokenRepo;
+    emailService?: typeof emailService;
+    pushService?: typeof pushService;
+    rateLimitService?: typeof rateLimitService;
+  }
+}
+
+export = Object.assign(new NotificationBatchService(), { NotificationBatchService });

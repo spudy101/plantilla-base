@@ -17,7 +17,9 @@ const STRING = [
   'traceId', 'origin', 'host', 'eventName', 'accountName', 'phoneNumber', 'tipoNotificacion', 'locale',
   'code', 'token', 'emailHash', 'contactValue', 'version', 'notificationCategoryCode', 'username', 'searchTerm',
   'rawPrefix', 'haystack', 'cityName', 'deviceName', 'password', 'plainPassword', 'newPassword',
-  'hashedPassword', 'operationKey', 'platform', 'acknowledgedBy'
+  'hashedPassword', 'operationKey', 'platform', 'acknowledgedBy', 'passwordHash', 'currentPassword', 'newUsername',
+  'birthDate', 'title', 'body', 'asunto', 'cuerpoHtml', 'destinatario', 'notificationTypeCode', 'endpointArn',
+  'emailOrHash', 'template', 'variable', 'match', 'chars', 'opKey', 'mensaje', 'message', 'subject', 'html'
 ];
 const STRING_ARRAY = ['roleNames', 'names'];
 const NUMBER = [
@@ -27,14 +29,20 @@ const NUMBER = [
   'retentionDays', 'newSignCount'
 ];
 const UNKNOWN = ['value', 'payload', 'meta', 'metadata', 'obj', 'input', 'result', 'details', 'extra'];
-const EXPRESS = { req: 'Request', res: 'Response', next: 'NextFunction' };
+// Tipos que requieren import: nombre → [módulo, tipo]
+const IMPORTED = {
+  req: ['express', 'Request'],
+  res: ['express', 'Response'],
+  next: ['express', 'NextFunction'],
+  transaction: ['sequelize', 'Transaction']
+};
 
 const TYPES = new Map([
   ...STRING.map(n => [n, 'string']),
   ...NUMBER.map(n => [n, 'number']),
   ...STRING_ARRAY.map(n => [n, 'string[]']),
   ...UNKNOWN.map(n => [n, 'unknown']),
-  ...Object.entries(EXPRESS)
+  ...Object.entries(IMPORTED).map(([n, [, t]]) => [n, t])
 ]);
 
 // Sufijos: en este proyecto toda PK/FK es UUID → `fooId: string`, `fooIds: string[]`.
@@ -64,7 +72,7 @@ for (const [file, hits] of byFile) {
   const lines = raw.replace(/\r\n/g, '\n').split('\n');
   // De derecha a izquierda para que las columnas sigan siendo válidas en la misma línea
   hits.sort((a, b) => b.line - a.line || b.col - a.col);
-  let usedExpress = new Set();
+  const usedImports = new Map(); // módulo → Set de tipos
   let changed = 0;
   for (const { line, col, name } of hits) {
     const i = line - 1;
@@ -75,7 +83,11 @@ for (const [file, hits] of byFile) {
     if (/^\s*:/.test(after)) continue; // ya anotado
     let type = typeOf(name);
     if (/^\s*=\s*null\b/.test(after) && type !== 'unknown') type = `${type} | null`;
-    if (EXPRESS[name]) usedExpress.add(EXPRESS[name]);
+    if (IMPORTED[name]) {
+      const [mod, t] = IMPORTED[name];
+      if (!usedImports.has(mod)) usedImports.set(mod, new Set());
+      usedImports.get(mod).add(t);
+    }
     // Parámetro de arrow sin paréntesis: `x => …` → `(x: T) => …`
     const before = text.slice(0, start);
     // Si inmediatamente después del nombre viene `=>`, es un parámetro sin paréntesis (`x => …`).
@@ -86,14 +98,15 @@ for (const [file, hits] of byFile) {
     changed++;
   }
   let s = lines.join('\n');
-  if (usedExpress.size) {
-    const m = s.match(/^import type \{([^}]*)\} from 'express';$/m);
+  for (const [mod, types] of usedImports) {
+    const re = new RegExp(`^import type \\{([^}]*)\\} from '${mod}';$`, 'm');
+    const m = s.match(re);
     if (m) {
       const names = new Set(m[1].split(',').map(x => x.trim()).filter(Boolean));
-      usedExpress.forEach(n => names.add(n));
-      s = s.replace(m[0], `import type { ${[...names].sort().join(', ')} } from 'express';`);
+      types.forEach(n => names.add(n));
+      s = s.replace(m[0], `import type { ${[...names].sort().join(', ')} } from '${mod}';`);
     } else {
-      const imp = `import type { ${[...usedExpress].sort().join(', ')} } from 'express';\n`;
+      const imp = `import type { ${[...types].sort().join(', ')} } from '${mod}';\n`;
       const first = s.match(/^import .*$/m);
       s = first ? s.slice(0, first.index) + imp + s.slice(first.index) : imp + s;
     }

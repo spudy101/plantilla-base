@@ -1,5 +1,6 @@
-const userChangeLogRepository = require('../../../records/audit/repositories/user-change-log.repository');
-const crypto = require('node:crypto');
+import userChangeLogRepository = require('../../../records/audit/repositories/user-change-log.repository');
+import crypto = require('node:crypto');
+import type { UserChangeLogRepositoryPort } from '../../../repository-ports';
 
 /**
  * Utilidades compartidas entre KycPerson y KycProfile services
@@ -26,7 +27,7 @@ class KycSharedUtil {
 
     const allChars = uppercase + lowercase + numbers + symbols;
 
-    const getRandomChar = chars => {
+    const getRandomChar = (chars: string) => {
       const index = crypto.randomInt(0, chars.length);
       return chars[index];
     };
@@ -57,7 +58,7 @@ class KycSharedUtil {
    * @param {Object} options - Opciones (transaction, etc.)
    * @returns {Promise<Object>} Log creado
    */
-  static logChange(logData, options = {}) {
+  static logChange(logData: Parameters<UserChangeLogRepositoryPort['createLog']>[0], options: Parameters<UserChangeLogRepositoryPort['createLog']>[1] = {}) {
     return userChangeLogRepository.createLog(logData, options);
   }
 
@@ -77,7 +78,7 @@ class KycSharedUtil {
    * Ofusca el nationalId para soft-delete.
    * Formato: deleted_<timestamp>_<primeros4chars>
    */
-  static formatDeletedNationalId(nationalId) {
+  static formatDeletedNationalId(nationalId: string) {
     const prefix = (nationalId || 'unknown').slice(0, DELETED_PREFIX_LENGTH);
     return `deleted_${Date.now()}_${prefix}`;
   }
@@ -86,7 +87,7 @@ class KycSharedUtil {
    * Ofusca el username para soft-delete.
    * Formato: deleted_<timestamp>_<primeros4chars>
    */
-  static formatDeletedUsername(username) {
+  static formatDeletedUsername(username: string) {
     const prefix = (username || 'unknown').slice(0, DELETED_PREFIX_LENGTH);
     return `deleted_${Date.now()}_${prefix}`;
   }
@@ -95,7 +96,7 @@ class KycSharedUtil {
    * Ofusca el email para soft-delete.
    * Formato: deleted_<timestamp>@deleted.invalid
    */
-  static formatDeletedEmail(_email) {
+  static formatDeletedEmail(_email?: string | null) {
     return `deleted_${Date.now()}@deleted.invalid`;
   }
 
@@ -103,13 +104,13 @@ class KycSharedUtil {
    * Ofusca un numero de telefono para soft-delete.
    * Formato: 0000000000<timestamp_ultimos4>
    */
-  static formatDeletedPhone(_phone) {
+  static formatDeletedPhone(_phone?: string | null) {
     const PHONE_SUFFIX_LENGTH = -4;
     const suffix = String(Date.now()).slice(PHONE_SUFFIX_LENGTH);
     return `0000000000${suffix}`;
   }
 
-  static validateNationalIdByRole(nationalId, role) {
+  static validateNationalIdByRole(nationalId: string, role: { name: string }) {
     const AppError = require('../../../../../shared/utils/app-error.util');
 
     const isAdmin = role.name.toLowerCase() === 'admin';
@@ -131,4 +132,4 @@ class KycSharedUtil {
   }
 }
 
-module.exports = KycSharedUtil;
+export = KycSharedUtil;

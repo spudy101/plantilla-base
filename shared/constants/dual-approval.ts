@@ -15,7 +15,7 @@ const WILDCARD_ROLES = ['SUPERADMIN', 'ADMIN'];
 const CONDITION = {
   ALWAYS: 'always',
   THRESHOLD: 'threshold'
-};
+} as const;
 
 // TTL por defecto (horas hábiles) si una operación no declara `ttlHours`.
 const DEFAULT_TTL_HOURS = 72;
@@ -35,7 +35,7 @@ const DEFAULT_TTL_HOURS = 72;
  *   thresholdDefault   {number?} — (threshold) umbral por defecto si no hay override en BD
  *   ttlHours           {number}  — horas hábiles hasta expirar la solicitud
  */
-const DUAL_APPROVAL_OPS = {
+const OPS = {
   // Cambio de rol de un usuario. El segundo aprobador es otro ADMIN (SUPERADMIN lo omite por rol).
   RBAC_ROLE_CHANGE: {
     label: 'Cambio de rol de usuario',
@@ -68,9 +68,35 @@ const DUAL_APPROVAL_OPS = {
   }
 };
 
-export = {
+/** Definición de una operación gateada (ver los campos arriba). */
+interface DualApprovalOp {
+  label: string;
+  approverRoles: string[];
+  notificationType: string;
+  entityType: string;
+  entityTable: string;
+  condition: (typeof CONDITION)[keyof typeof CONDITION];
+  thresholdField?: string;
+  thresholdConfigKey?: string;
+  thresholdDefault?: number;
+  ttlHours?: number;
+}
+
+// satisfies valida cada entrada; la anotación conserva las claves literales y deja los campos
+// opcionales (threshold*) accesibles en cualquier operación.
+const DUAL_APPROVAL_OPS: Record<keyof typeof OPS, DualApprovalOp> = OPS satisfies Record<string, DualApprovalOp>;
+
+const DualApproval = {
   WILDCARD_ROLES,
   CONDITION,
   DEFAULT_TTL_HOURS,
   DUAL_APPROVAL_OPS
 };
+
+// eslint-disable-next-line @typescript-eslint/no-namespace, @typescript-eslint/no-redeclare
+declare namespace DualApproval {
+  type Op = DualApprovalOp;
+  type OpKey = keyof typeof OPS;
+}
+
+export = DualApproval;

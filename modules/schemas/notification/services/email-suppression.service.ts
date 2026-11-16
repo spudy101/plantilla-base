@@ -1,7 +1,8 @@
-const emailBounceSuppressionRepo = require('../repositories/email-bounce-suppression.repository');
-const EncryptionUtil = require('../../../../shared/utils/encryption.util');
-const MaskingUtil = require('../../../../shared/utils/masking.util');
-const { logger, logAudit } = require('../../../../shared/utils/logger.util');
+import emailBounceSuppressionRepo = require('../repositories/email-bounce-suppression.repository');
+import EncryptionUtil = require('../../../../shared/utils/encryption.util');
+import MaskingUtil = require('../../../../shared/utils/masking.util');
+import loggerUtilModule = require('../../../../shared/utils/logger.util');
+const { logger, logAudit } = loggerUtilModule;
 
 // Umbral de rebotes duros para bloquear una dirección de correo. Regla de negocio (no configurable
 // por env): a los 3 hard bounces la dirección se suprime.
@@ -16,13 +17,17 @@ class EmailSuppressionService {
    *   new EmailSuppressionService({ emailBounceSuppressionRepo: fake })
    * @param {object} [deps]
    */
-  constructor(deps = {}) {
+  emailBounceSuppressionRepo: typeof emailBounceSuppressionRepo;
+  /** Regla de negocio fija, expuesta para el admin */
+  readonly threshold: number;
+
+  constructor(deps: EmailSuppressionService.Deps = {}) {
     this.emailBounceSuppressionRepo = deps.emailBounceSuppressionRepo ?? emailBounceSuppressionRepo;
     this.threshold = HARD_BOUNCE_SUPPRESSION_THRESHOLD; // regla de negocio fija, expuesta para el admin
   }
 
   /** Normaliza un correo (o hash ya calculado) a su email_hash SHA-256. */
-  _toHash(emailOrHash) {
+  _toHash(emailOrHash: string | null | undefined) {
     if (!emailOrHash) {
       return null;
     }
@@ -34,7 +39,7 @@ class EmailSuppressionService {
   }
 
   /** ¿La dirección está bloqueada para envíos? */
-  isSuppressed(emailOrHash) {
+  isSuppressed(emailOrHash: string) {
     const emailHash = this._toHash(emailOrHash);
     if (!emailHash) {
       return Promise.resolve(false);
@@ -47,7 +52,17 @@ class EmailSuppressionService {
    * bloquea la dirección. Emite auditoría del rebote y del bloqueo (cuando ocurre).
    * @param {{ email?: string, emailHash?: string, errorCode?: string, userId?: string }} params
    */
-  async registerHardBounce({ email = null, emailHash = null, errorCode = null, userId = null }) {
+  async registerHardBounce({
+    email = null,
+    emailHash = null,
+    errorCode = null,
+    userId = null
+  }: {
+    email?: string | null;
+    emailHash?: string | null;
+    errorCode?: string | null;
+    userId?: string | null;
+  }) {
     const hash = this._toHash(emailHash || email);
     if (!hash) {
       return null;
@@ -89,9 +104,9 @@ class EmailSuppressionService {
    * Levanta la supresión de una dirección (des-bloqueo manual por un admin).
    * @param {{ email?: string, emailHash?: string, adminUserId: string }} params
    */
-  async lift({ email = null, emailHash = null, adminUserId }) {
+  async lift({ email = null, emailHash = null, adminUserId }: { email?: string | null; emailHash?: string | null; adminUserId: string }) {
     const hash = this._toHash(emailHash || email);
-    const record = await this.emailBounceSuppressionRepo.lift(hash);
+    const record = hash ? await this.emailBounceSuppressionRepo.lift(hash) : null;
     logAudit(
       'EMAIL_SUPPRESSION_LIFTED',
       adminUserId,
@@ -102,5 +117,12 @@ class EmailSuppressionService {
   }
 }
 
-module.exports = new EmailSuppressionService();
-module.exports.EmailSuppressionService = EmailSuppressionService;
+// eslint-disable-next-line @typescript-eslint/no-namespace
+namespace EmailSuppressionService {
+  /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
+  export interface Deps {
+    emailBounceSuppressionRepo?: typeof emailBounceSuppressionRepo;
+  }
+}
+
+export = Object.assign(new EmailSuppressionService(), { EmailSuppressionService });

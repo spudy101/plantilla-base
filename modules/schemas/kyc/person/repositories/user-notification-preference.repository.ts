@@ -52,7 +52,7 @@ class UserNotificationPreferenceRepository extends BaseRepository<defineUserNoti
    * Busca la preferencia del usuario para una categoría específica.
    * Primero busca la preferencia de esa categoría; si no existe, cae a la global (code = null).
    */
-  async findByUserAndCategory(userId: string, notificationCategoryCode: string) {
+  async findByUserAndCategory(userId: string, notificationCategoryCode: string | null) {
     const specific = await this.findOne({
       user_id: userId,
       notification_category_code: notificationCategoryCode
@@ -163,7 +163,7 @@ class UserNotificationPreferenceRepository extends BaseRepository<defineUserNoti
   /**
    * Verifica si el usuario permite push para una categoría
    */
-  async userAllowsPush(userId: string, notificationCategoryCode: string) {
+  async userAllowsPush(userId: string, notificationCategoryCode: string | null) {
     const preference = await this.findByUserAndCategory(userId, notificationCategoryCode);
     return preference?.allow_push ?? true;
   }
@@ -171,7 +171,7 @@ class UserNotificationPreferenceRepository extends BaseRepository<defineUserNoti
   /**
    * Verifica si el usuario permite email para una categoría
    */
-  async userAllowsEmail(userId: string, notificationCategoryCode: string) {
+  async userAllowsEmail(userId: string, notificationCategoryCode: string | null) {
     const preference = await this.findByUserAndCategory(userId, notificationCategoryCode);
     return preference?.allow_email ?? true;
   }
@@ -179,7 +179,7 @@ class UserNotificationPreferenceRepository extends BaseRepository<defineUserNoti
   /**
    * Verifica si el usuario permite SMS para una categoría
    */
-  async userAllowsSms(userId: string, notificationCategoryCode: string) {
+  async userAllowsSms(userId: string, notificationCategoryCode: string | null) {
     const preference = await this.findByUserAndCategory(userId, notificationCategoryCode);
     return preference?.allow_sms ?? true;
   }
@@ -187,7 +187,7 @@ class UserNotificationPreferenceRepository extends BaseRepository<defineUserNoti
   /**
    * Obtiene usuarios que permiten push para una categoría
    */
-  findUsersAllowingPush(notificationCategoryCode: string, userIds: string[] | null = null) {
+  findUsersAllowingPush(notificationCategoryCode: string | null, userIds: string[] | null = null) {
     const where: WhereClause = {
       [Op.or]: [
         { notification_category_code: notificationCategoryCode, allow_push: true },
@@ -205,7 +205,7 @@ class UserNotificationPreferenceRepository extends BaseRepository<defineUserNoti
   /**
    * Obtiene usuarios que permiten email para una categoría
    */
-  findUsersAllowingEmail(notificationCategoryCode: string, userIds: string[] | null = null) {
+  findUsersAllowingEmail(notificationCategoryCode: string | null, userIds: string[] | null = null) {
     const where: WhereClause = {
       [Op.or]: [
         { notification_category_code: notificationCategoryCode, allow_email: true },

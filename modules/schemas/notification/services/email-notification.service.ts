@@ -1,24 +1,38 @@
-const { SESClient, SendEmailCommand, SendRawEmailCommand } = require('@aws-sdk/client-ses');
-const { logger, logAudit } = require('../../../../shared/utils/logger.util');
-const { notifications, aws } = require('../../../../shared/constants');
-const { withRetry } = require('../../../../shared/utils/retry.util');
-const CircuitBreaker = require('../../../../shared/utils/circuit-breaker.util');
-const ProviderApiLogger = require('../../../../shared/utils/integration-api-logger.util');
-const { resolveAwsGate, awsErrorCode } = require('../../../../shared/utils/aws-provider-meta.util');
-const MaskingUtil = require('../../../../shared/utils/masking.util');
-const emailSuppressionService = require('./email-suppression.service');
+import clientSesModule = require('@aws-sdk/client-ses');
+const { SESClient, SendEmailCommand, SendRawEmailCommand } = clientSesModule;
+import loggerUtilModule = require('../../../../shared/utils/logger.util');
+const { logger, logAudit } = loggerUtilModule;
+import constantsModule = require('../../../../shared/constants');
+const { notifications, aws } = constantsModule;
+import retryUtilModule = require('../../../../shared/utils/retry.util');
+const { withRetry } = retryUtilModule;
+import CircuitBreaker = require('../../../../shared/utils/circuit-breaker.util');
+import ProviderApiLogger = require('../../../../shared/utils/integration-api-logger.util');
+import awsProviderMetaUtilModule = require('../../../../shared/utils/aws-provider-meta.util');
+const { resolveAwsGate, awsErrorCode } = awsProviderMetaUtilModule;
+import MaskingUtil = require('../../../../shared/utils/masking.util');
+import emailSuppressionService = require('./email-suppression.service');
+import NotificationContentUtil = require('../utils/notification-content.util');
+import type Types = require('../notification.types');
+import errorMessageModule = require('../../../../shared/utils/error-message.util');
+
+const { errorMessage } = errorMessageModule;
+
 
 // Límite de tamaño del mensaje raw de SES (SendRawEmailCommand): 10 MB incluyendo adjuntos en base64.
 const SES_RAW_MAX_BYTES = 10 * 1024 * 1024;
 
 class EmailNotificationService {
+  emailSuppressionService: typeof emailSuppressionService;
+  declare _sesClient?: InstanceType<typeof SESClient>;
+
   /**
    * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
    * reales; en tests u otros contextos se pueden reemplazar:
    *   new EmailNotificationService({ emailSuppressionService: fake })
    * @param {object} [deps]
    */
-  constructor(deps = {}) {
+  constructor(deps: EmailNotificationService.Deps = {}) {
     this.emailSuppressionService = deps.emailSuppressionService ?? emailSuppressionService;
   }
 
@@ -33,7 +47,8 @@ class EmailNotificationService {
           accessKeyId: aws.accessKeyId,
           secretAccessKey: aws.secretAccessKey
         },
-        requestTimeout: 30_000
+        // El timeout va en el handler HTTP: como opción directa del cliente el SDK v3 lo ignoraba
+        requestHandler: { requestTimeout: 30_000 }
       });
     }
     return this._sesClient;
@@ -46,7 +61,7 @@ class EmailNotificationService {
    * @param {Object} datos              - Datos para reemplazar en los templates
    * @param {string} [notificationId]   - Para correlacionar el log de integración con la notificación
    */
-  async enviarNotificacion(destinatario, notificationType, datos, notificationId = null) {
+  async enviarNotificacion(destinatario: string, notificationType: EmailNotificationService.TemplateSource, datos: Record<string, unknown>, notificationId: string | null = null) {
     try {
       // El soporte de email lo define la CATEGORÍA del tipo (fuente de verdad).
       const category = notificationType.category || null;
@@ -79,7 +94,7 @@ class EmailNotificationService {
       return await this.enviarEmail(destinatario, asunto, cuerpoHtml, '', notificationId);
     } catch (error) {
       logger.warn('Error al enviar notificación por email', {
-        error: error.message,
+        error: errorMessage(error),
         destinatario,
         notificationType: notificationType.code
       });
@@ -95,7 +110,13 @@ class EmailNotificationService {
    * @param {string} cuerpoTexto  - Cuerpo del email en texto plano (opcional)
    * @param {string} [notificationId] - Para correlacionar el log de integración con la notificación
    */
-  async enviarEmail(destinatario, asunto, cuerpoHtml, cuerpoTexto = '', notificationId = null) {
+  async enviarEmail(
+    destinatario: string,
+    asunto: string,
+    cuerpoHtml: string,
+    cuerpoTexto = '',
+    notificationId: string | null = null
+  ) {
     // Suppression list: si la dirección acumuló rebotes duros no se envía (protege la reputación
     // de envío de SES). No es un error de envío — se omite silenciosamente y se audita.
     if (await this.emailSuppressionService.isSuppressed(destinatario)) {
@@ -161,10 +182,10 @@ class EmailNotificationService {
         responseTimeMs: Date.now() - startTime,
         integrationId,
         errorCode: awsErrorCode(error),
-        errorMessage: error.message,
+        errorMessage: errorMessage(error),
         notificationId
       });
-      logger.warn('Error al enviar email (reintentos agotados)', { error: error.message, destinatario, asunto });
+      logger.warn('Error al enviar email (reintentos agotados)', { error: errorMessage(error), destinatario, asunto });
       throw error;
     }
   }
@@ -179,7 +200,13 @@ class EmailNotificationService {
    * @param {Array<{ filename: string, contentType: string, base64: string }>} adjuntos - ya normalizados
    * @param {string} [notificationId] - Para correlacionar el log de integración con la notificación
    */
-  async enviarEmailConAdjuntos(destinatario, asunto, cuerpoHtml, adjuntos, notificationId = null) {
+  async enviarEmailConAdjuntos(
+    destinatario: string,
+    asunto: string,
+    cuerpoHtml: string,
+    adjuntos: EmailNotificationService.Attachment[],
+    notificationId: string | null = null
+  ) {
     // Suppression list: misma protección de reputación que enviarEmail (rebotes duros → no se envía).
     if (await this.emailSuppressionService.isSuppressed(destinatario)) {
       logger.warn('[EmailNotification] Envío con adjuntos omitido: dirección suprimida por rebotes duros', {
@@ -238,10 +265,10 @@ class EmailNotificationService {
         responseTimeMs: Date.now() - startTime,
         integrationId,
         errorCode: awsErrorCode(error),
-        errorMessage: error.message,
+        errorMessage: errorMessage(error),
         notificationId
       });
-      logger.warn('Error al enviar email con adjuntos (reintentos agotados)', { error: error.message, destinatario });
+      logger.warn('Error al enviar email con adjuntos (reintentos agotados)', { error: errorMessage(error), destinatario });
       throw error;
     }
   }
@@ -254,7 +281,7 @@ class EmailNotificationService {
    * @param {Buffer} pdfBuffer
    * @param {string} pdfFilename
    */
-  enviarEmailConPdf(destinatario, asunto, cuerpoHtml, pdfBuffer, pdfFilename) {
+  enviarEmailConPdf(destinatario: string, asunto: string, cuerpoHtml: string, pdfBuffer: Buffer, pdfFilename: string) {
     const adjuntos = [
       { filename: pdfFilename, contentType: 'application/pdf', base64: pdfBuffer.toString('base64') }
     ];
@@ -266,7 +293,7 @@ class EmailNotificationService {
    * transportar UTF-8 y binarios sin corromperse.
    * @private
    */
-  _construirMimeConAdjuntos(destinatario, asunto, cuerpoHtml, adjuntos) {
+  _construirMimeConAdjuntos(destinatario: string, asunto: string, cuerpoHtml: string, adjuntos: EmailNotificationService.Attachment[]) {
     const boundary = `BaseProjectMIME${Date.now()}`;
     const from = notifications.ses.fromEmail;
     const asuntoEncoded = `=?UTF-8?B?${Buffer.from(asunto).toString('base64')}?=`;
@@ -309,21 +336,23 @@ class EmailNotificationService {
    * descartan. Extensión futura: soportar `url` para descargar el binario antes de adjuntar.
    * @private
    */
-  _resolverAdjuntos(datos) {
+  _resolverAdjuntos(datos: Record<string, unknown> | null | undefined): EmailNotificationService.Attachment[] {
     const raw = datos?.attachments;
     if (!Array.isArray(raw) || raw.length === 0) {
       return [];
     }
-    return raw.map(a => this._normalizarAdjunto(a)).filter(Boolean);
+    return raw.map(a => this._normalizarAdjunto(a)).filter((a): a is EmailNotificationService.Attachment => a !== null);
   }
 
   /** @private */
-  _normalizarAdjunto(adjunto) {
-    if (!adjunto || !adjunto.filename) {
+  _normalizarAdjunto(input: unknown): EmailNotificationService.Attachment | null {
+    // Viene de metadata JSON: se valida la forma en runtime
+    const adjunto = input as { filename?: unknown; contentType?: unknown; content?: unknown } | null;
+    if (!adjunto || typeof adjunto.filename !== 'string' || !adjunto.filename) {
       return null;
     }
 
-    let base64 = null;
+    let base64: string | null = null;
     if (Buffer.isBuffer(adjunto.content)) {
       base64 = adjunto.content.toString('base64');
     } else if (typeof adjunto.content === 'string' && adjunto.content.length > 0) {
@@ -338,7 +367,7 @@ class EmailNotificationService {
 
     return {
       filename: adjunto.filename,
-      contentType: adjunto.contentType || 'application/octet-stream',
+      contentType: typeof adjunto.contentType === 'string' && adjunto.contentType ? adjunto.contentType : 'application/octet-stream',
       base64
     };
   }
@@ -350,7 +379,7 @@ class EmailNotificationService {
    * se devuelve el contenido tal cual sin envolver.
    * @private
    */
-  _envolverEnLayout(contenido, category, datos) {
+  _envolverEnLayout(contenido: string, category: { email_layout_template?: string | null } | null | undefined, datos: Record<string, unknown>) {
     const layout = category?.email_layout_template;
     const yaEsDocumento = /<!doctype|<html/i.test(contenido);
 
@@ -368,15 +397,27 @@ class EmailNotificationService {
    * Reemplaza variables {{variable}} en un template
    * @private
    */
-  _reemplazarVariables(template, datos) {
-    if (!template) {
-      return '';
-    }
-    return template.replaceAll(/\{\{(\w+)\}\}/g, (match, variable) => {
-      return datos[variable] ?? match;
-    });
+  _reemplazarVariables(template: string | null | undefined, datos: unknown) {
+    // Una sola implementación de {{variable}} (antes duplicada aquí)
+    return NotificationContentUtil.reemplazarVariables(template, datos);
   }
 }
 
-module.exports = new EmailNotificationService();
-module.exports.EmailNotificationService = EmailNotificationService;
+// eslint-disable-next-line @typescript-eslint/no-namespace
+namespace EmailNotificationService {
+  /** Adjunto ya normalizado (contenido en base64). */
+  export interface Attachment {
+    filename: string;
+    contentType: string;
+    base64: string;
+  }
+
+  export type TemplateSource = Types.EmailTemplateSource;
+
+  /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
+  export interface Deps {
+    emailSuppressionService?: typeof emailSuppressionService;
+  }
+}
+
+export = Object.assign(new EmailNotificationService(), { EmailNotificationService });

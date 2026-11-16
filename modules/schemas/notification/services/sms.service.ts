@@ -1,13 +1,25 @@
-const { SNSClient, PublishCommand } = require('@aws-sdk/client-sns');
-const { logger } = require('../../../../shared/utils/logger.util');
-const { withRetry } = require('../../../../shared/utils/retry.util');
-const CircuitBreaker = require('../../../../shared/utils/circuit-breaker.util');
-const ProviderApiLogger = require('../../../../shared/utils/integration-api-logger.util');
-const { awsErrorCode } = require('../../../../shared/utils/aws-provider-meta.util');
-const EncryptionUtil = require('../../../../shared/utils/encryption.util');
-const { MOCKS, aws } = require('../../../../shared/constants');
-const smsDeliveryAttemptRepository = require('../repositories/sms-delivery-attempt.repository');
-const phonePrefixRepository = require('../../kyc/maintainers/repositories/phone-prefix.repository');
+import type defineSmsDeliveryAttempt = require('../models/sms-delivery-attempt.model');
+import clientSnsModule = require('@aws-sdk/client-sns');
+const { SNSClient, PublishCommand } = clientSnsModule;
+/** Lo único que se usa del cliente SNS (un doble de test solo necesita send). */
+type SnsSender = Pick<InstanceType<typeof SNSClient>, 'send'>;
+import loggerUtilModule = require('../../../../shared/utils/logger.util');
+const { logger } = loggerUtilModule;
+import retryUtilModule = require('../../../../shared/utils/retry.util');
+const { withRetry } = retryUtilModule;
+import CircuitBreaker = require('../../../../shared/utils/circuit-breaker.util');
+import ProviderApiLogger = require('../../../../shared/utils/integration-api-logger.util');
+import awsProviderMetaUtilModule = require('../../../../shared/utils/aws-provider-meta.util');
+const { awsErrorCode } = awsProviderMetaUtilModule;
+import EncryptionUtil = require('../../../../shared/utils/encryption.util');
+import constantsModule = require('../../../../shared/constants');
+const { MOCKS, aws } = constantsModule;
+import smsDeliveryAttemptRepository = require('../repositories/sms-delivery-attempt.repository');
+import phonePrefixRepository = require('../../kyc/maintainers/repositories/phone-prefix.repository');
+import errorMessageModule = require('../../../../shared/utils/error-message.util');
+
+const { errorMessage } = errorMessageModule;
+
 
 // === Envío de SMS vía AWS SNS ===
 // Canal de SMS transaccional / OTP. Proveedor: AWS SNS. AWS es infraestructura fail-open: no se
@@ -22,20 +34,24 @@ const SMS_MAX_RETRIES = 3;
 const SMS_RETRY_BASE_MS = 1000;
 
 class SmsService {
+  smsDeliveryAttemptRepository: typeof smsDeliveryAttemptRepository;
+  phonePrefixRepository: typeof phonePrefixRepository;
+  _snsClient: SnsSender | null;
+
   /**
    * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
    * reales; en tests u otros contextos se pueden reemplazar:
    *   new SmsService({ smsDeliveryAttemptRepository: fake })
    * @param {object} [deps]
    */
-  constructor(deps = {}) {
+  constructor(deps: SmsService.Deps = {}) {
     this.smsDeliveryAttemptRepository = deps.smsDeliveryAttemptRepository ?? smsDeliveryAttemptRepository;
     this.phonePrefixRepository = deps.phonePrefixRepository ?? phonePrefixRepository;
     // Sin snsClient se crea el cliente real al primer uso (getter snsClient)
     this._snsClient = deps.snsClient ?? null;
   }
 
-  get snsClient() {
+  get snsClient(): SnsSender {
     if (!this._snsClient) {
       this._snsClient = new SNSClient({
         region: aws.region,
@@ -43,7 +59,8 @@ class SmsService {
           accessKeyId: aws.accessKeyId,
           secretAccessKey: aws.secretAccessKey
         },
-        requestTimeout: SMS_TIMEOUT_MS
+        // El timeout va en el handler HTTP: como opción directa del cliente el SDK v3 lo ignoraba
+        requestHandler: { requestTimeout: SMS_TIMEOUT_MS }
       });
     }
     return this._snsClient;
@@ -59,7 +76,17 @@ class SmsService {
    * @param {string}  [params.purpose]    - 'otp_verification' | 'mfa_login'
    * @returns {Promise<{success: boolean, attemptId: string, error?: string}>}
    */
-  async enviarSmsOtp({ phoneNumber, message, userId = null, purpose = 'otp_verification' }) {
+  async enviarSmsOtp({
+    phoneNumber,
+    message,
+    userId = null,
+    purpose = 'otp_verification'
+  }: {
+    phoneNumber: string;
+    message: string;
+    userId?: string | null;
+    purpose?: SmsService.Purpose;
+  }): Promise<SmsService.SendResult> {
     const phoneHash = EncryptionUtil.generateHash(phoneNumber);
 
     const attempt = await this.smsDeliveryAttemptRepository.createAttempt({
@@ -123,7 +150,7 @@ class SmsService {
       const responseTimeMs = Date.now() - startTime;
       await CircuitBreaker.recordFailure(CB_PRODUCT);
       await this.smsDeliveryAttemptRepository.markFailed(attempt.sms_attempt_id, {
-        lastError: error.message,
+        lastError: errorMessage(error),
         retryCount: SMS_MAX_RETRIES
       });
       ProviderApiLogger.log({
@@ -132,15 +159,15 @@ class SmsService {
         result: 'failed',
         responseTimeMs,
         errorCode: awsErrorCode(error),
-        errorMessage: error.message,
+        errorMessage: errorMessage(error),
         requestPayload: { phoneHash, purpose, provider: PROVIDER },
-        responsePayload: { message: error.message }
+        responsePayload: { message: errorMessage(error) }
       });
 
       return {
         success: false,
         attemptId: attempt.sms_attempt_id,
-        error: error.message,
+        error: errorMessage(error),
         serviceUnavailable: true
       };
     }
@@ -156,7 +183,17 @@ class SmsService {
    * @param {string|null} [params.userId] - ID del receptor (null si no tiene cuenta)
    * @param {string} params.purpose      - Propósito para trazabilidad
    */
-  enviarSms({ phoneNumber, message, userId = null, purpose }) {
+  enviarSms({
+    phoneNumber,
+    message,
+    userId = null,
+    purpose
+  }: {
+    phoneNumber: string;
+    message: string;
+    userId?: string | null;
+    purpose: SmsService.Purpose;
+  }) {
     return this.enviarSmsOtp({ phoneNumber, message, userId, purpose });
   }
 
@@ -165,7 +202,7 @@ class SmsService {
    * ni al circuit breaker.
    * @private
    */
-  async _mockEnvio(attempt) {
+  async _mockEnvio(attempt: Pick<defineSmsDeliveryAttempt.Instance, 'sms_attempt_id' | 'purpose'>) {
     logger.warn('[SMS] MODO MOCK ACTIVO — SMS no enviado realmente (OTP fijo en entornos no productivos)', {
       attemptId: attempt.sms_attempt_id,
       purpose: attempt.purpose
@@ -178,7 +215,7 @@ class SmsService {
     ProviderApiLogger.log({
       product: CB_PRODUCT,
       endpoint: 'mock',
-      queryNumber: `MOCK-${attempt.sms_attempt_id}`,
+      responsePayload: { providerMessageId: `MOCK-${attempt.sms_attempt_id}` },
       result: 'success',
       responseTimeMs: 0
     });
@@ -191,7 +228,7 @@ class SmsService {
    * @returns {Promise<{ messageId: string }>}
    * @private
    */
-  async _ejecutarEnvio({ phoneNumber, message }) {
+  async _ejecutarEnvio({ phoneNumber, message }: { phoneNumber: string; message: string }) {
     const response = await this.snsClient.send(
       new PublishCommand({
         Message: message,
@@ -212,7 +249,7 @@ class SmsService {
    * @param {string} [prefixId]  - phone_prefix_id del país (ej: resuelve a '+56')
    * @returns {Promise<string>}
    */
-  async resolveE164(localNumber, prefixId = null) {
+  async resolveE164(localNumber: string, prefixId: string | null = null) {
     if (!localNumber || localNumber.startsWith('+')) {
       return localNumber;
     }
@@ -231,5 +268,26 @@ class SmsService {
   }
 }
 
-module.exports = new SmsService();
-module.exports.SmsService = SmsService;
+// eslint-disable-next-line @typescript-eslint/no-namespace
+namespace SmsService {
+  /** Propósito del SMS, para trazabilidad en sms_delivery_attempts (texto libre en la columna). */
+  export type Purpose = string;
+
+  export interface SendResult {
+    success: boolean;
+    attemptId: string;
+    error?: string;
+    mock?: boolean;
+    circuitOpen?: boolean;
+    serviceUnavailable?: boolean;
+  }
+
+  /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
+  export interface Deps {
+    smsDeliveryAttemptRepository?: typeof smsDeliveryAttemptRepository;
+    phonePrefixRepository?: typeof phonePrefixRepository;
+    snsClient?: SnsSender;
+  }
+}
+
+export = Object.assign(new SmsService(), { SmsService });
