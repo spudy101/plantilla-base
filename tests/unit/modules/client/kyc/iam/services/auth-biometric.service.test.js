@@ -445,6 +445,48 @@ describe('AuthBiometricService', () => {
       vspy.mockRestore();
       pspy.mockRestore();
     });
+
+    // La política de sesiones vive en SessionControlService (compartida con el login por contraseña)
+    describe('política de sesiones', () => {
+      const arrangeHappyPath = svc => {
+        biometricCredentialRepository.findByCredentialId.mockResolvedValue({ user_id: USER_ID, user_trusted_device_id: DEVICE_ID });
+        jest.spyOn(svc, '_verifyLoginChallenge').mockResolvedValue(undefined);
+        jest.spyOn(svc, '_checkPrivacyPolicy').mockResolvedValue(null);
+        userRepository.findByUserId.mockResolvedValue({ user_id: USER_ID, is_active: true, auth_username: 'ana', username: '111' });
+        trustedDeviceRepository.findById.mockResolvedValue(trustedDevice());
+      };
+
+      afterEach(() => jest.restoreAllMocks());
+
+      it('delega en el sessionControl inyectado antes de emitir tokens', async () => {
+        const sessionControl = {
+          closePreviousDeviceSessions: jest.fn().mockResolvedValue(undefined),
+          enforceSessionLimit: jest.fn().mockResolvedValue(undefined)
+        };
+        const svc = new service.AuthBiometricService({ sessionControl });
+        arrangeHappyPath(svc);
+
+        await svc.loginFinish({ credentialId: 'cred-1', challenge: 'c', signature: 's', signCount: 7 }, auditContext);
+
+        expect(sessionControl.closePreviousDeviceSessions).toHaveBeenCalledWith(USER_ID, DEVICE_ID);
+        expect(sessionControl.enforceSessionLimit).toHaveBeenCalledWith(USER_ID);
+        expect(sessionControl.enforceSessionLimit.mock.invocationCallOrder[0]).toBeLessThan(
+          JwtUtil.generateAccessToken.mock.invocationCallOrder[0]
+        );
+      });
+
+      it('con el SessionControlService real cierra la sesión más antigua al alcanzar el límite', async () => {
+        arrangeHappyPath(service);
+        userSessionRepository.countActive.mockResolvedValue(3); // SECURITY.MAX_ACTIVE_SESSIONS = 3 en el mock
+        userSessionRepository.findOldestActive.mockResolvedValue({ user_session_id: 'old-1', jti: 'jti-old' });
+
+        await service.loginFinish({ credentialId: 'cred-1', challenge: 'c', signature: 's', signCount: 7 }, auditContext);
+
+        expect(userSessionRepository.closeSession).toHaveBeenCalledWith('old-1', 'session_limit');
+        expect(RefreshTokenStore.revoke).toHaveBeenCalledWith('jti-old');
+        expect(logAudit).toHaveBeenCalledWith('SESSION_LIMIT_ENFORCED', USER_ID, expect.any(Object), expect.any(Object));
+      });
+    });
   });
 
   // ============================================================
