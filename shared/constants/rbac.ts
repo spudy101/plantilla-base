@@ -27,7 +27,7 @@
 // ============================================================================
 // COMODÍN — se usa tanto para "todos los módulos" como para "todas las acciones".
 // ============================================================================
-const RBAC_WILDCARD = '*';
+const RBAC_WILDCARD = '*' as const;
 
 // ============================================================================
 // ROLES — el valor es el `name` exacto guardado en la tabla `roles`
@@ -253,7 +253,12 @@ const { READ } = RBAC_ACTIONS;
 //   - { '*': [acciones] }           → esas acciones en CUALQUIER módulo
 //   - { [modulo]: [acciones] }      → acciones permitidas en ese módulo
 //   - {}                            → sin permisos (mínimo privilegio)
-const ROLE_PERMISSIONS = {
+/** Acciones permitidas sobre un módulo: lista explícita o comodín ('*' = todas). */
+type ModulePermission = string[] | typeof RBAC_WILDCARD;
+/** Permisos base de un rol: comodín total o mapa módulo → acciones (la clave '*' aplica a todos los módulos). */
+type RolePermissionSet = typeof RBAC_WILDCARD | Record<string, ModulePermission>;
+
+const ROLE_PERMISSIONS: Record<string, RolePermissionSet> = {
   // Acceso total. SUPERADMIN además omite la doble aprobación (ver dual-approval.js).
   [RBAC_ROLES.SUPERADMIN]: RBAC_WILDCARD,
   // Acceso total pero SÍ sujeto a doble aprobación en las operaciones sensibles.

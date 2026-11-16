@@ -59,6 +59,20 @@ interface TokenUser {
   person?: { first_name?: string | null; last_name?: string | null; contact?: { email?: string | null } | null } | null;
 }
 
+/** Claims que emite generateAccessToken (+ las estándar de JWT: iat, exp, sub…). */
+interface AccessTokenClaims extends JWTPayload {
+  sessionId?: string | null;
+  userId?: string;
+  personId?: string | null;
+  roleId?: string | null;
+  roleName?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  nationalId?: string | null;
+  authUsername?: string | null;
+  email?: string | null;
+}
+
 /** Error de jose / AppError: solo se leen estos campos para decidir la respuesta. */
 const errorInfo = (error: unknown): { code?: string; isOperational?: boolean } =>
   error && typeof error === 'object' ? (error as { code?: string; isOperational?: boolean }) : {};
@@ -164,12 +178,13 @@ class JwtUtil {
    * @returns {Promise<Object>} payload con userId, personId, roleId, etc.
    */
   // [RF-AUTH-02] | CA-01, CA-02 | Verifica firma RS256; usado en middleware para validar blacklist
-  static async verifyAccessToken(token: string): Promise<JWTPayload> {
+  static async verifyAccessToken(token: string): Promise<AccessTokenClaims> {
     try {
       const { payload } = await jwtVerify(token, JwtUtil._publicKey, {
         algorithms: [ALGORITHM]
       });
-      return payload;
+      // La firma RS256 propia ya se verificó: las claims son las que emitió generateAccessToken.
+      return payload as AccessTokenClaims;
     } catch (error) {
       logger.warn('JWT access token inválido', { error: errorMessage(error) });
       if (errorInfo(error).code === 'ERR_JWT_EXPIRED') {

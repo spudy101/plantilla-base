@@ -1,4 +1,4 @@
-const FIELD_LABELS = {
+const FIELD_LABELS: Record<string, string> = {
   username: 'nombre de usuario',
   email: 'correo electrónico',
   national_id: 'número de documento',

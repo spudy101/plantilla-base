@@ -16,7 +16,8 @@ const { errorMessage } = errorMessageModule;
  * sessionId/userId al autenticar (la referencia es viva: la mutación se propaga a toda la cadena).
  */
 interface RequestContext {
-  correlationId: string;
+  /** undefined solo si audit.middleware corre sin correlation.middleware antes. */
+  correlationId: string | undefined;
   ip: string | null | undefined;
   userAgent: string | null;
   fingerprintHash: string | null;
