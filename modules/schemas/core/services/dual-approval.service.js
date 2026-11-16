@@ -4,7 +4,8 @@
 //   1. register(opKey, handler) — cada módulo registra su "reanudación" (IoC). Al aprobar,
 //      resolve() invoca ese handler con el payload guardado. NO se re-ejecutan requests HTTP.
 //   2. gate(opKey, {...}) — decide si una operación requiere segunda aprobación; si la requiere
-//      crea el approval_request (status=pending) y notifica a los aprobadores.
+//      crea el approval_request (status=pending) y notifica a los aprobadores
+//      (los avisos viven en dual-approval/dual-approval-notifier.service.js).
 //   3. resolve(requestId, decision, ctx) — el segundo funcionario aprueba/rechaza; al aprobar
 //      invoca el handler registrado y persiste el resultado.
 //
@@ -19,15 +20,14 @@ const requestContext = require('../../../../shared/utils/request-context.util');
 const approvalRequestRepository = require('../repositories/approval-request.repository');
 const userRepository = require('../../kyc/iam/repositories/user.repository');
 const NotificationCreationService = require('../../../schemas/notification/services/notification-creation.service');
-const { ApprovalRequest } = require('../../../../shared/models');
-const { notifications } = require('../../../../shared/constants');
+const DualApprovalNotifierService = require('./dual-approval/dual-approval-notifier.service');
+const { APPROVAL_REQUEST_STATUS } = require('../../../../shared/constants/domain-enums');
 const { WILDCARD_ROLES, CONDITION, DEFAULT_TTL_HOURS, DUAL_APPROVAL_OPS } = require('../../../../shared/constants/dual-approval');
 const { SUPERADMIN_ROLE_NAMES } = require('../../../../shared/constants/rbac');
 const { ApprovalRequestComponent, PendingApprovalComponent } = require('../../../../shared/dtos/core/components-approval.dto');
 const { MetadataDTO } = require('../../../../shared/dtos/kyc/components-catalog.dto');
 
 const DECISION = { APPROVE: 'approve', REJECT: 'reject' };
-const NOTIF_DUAL_APPROVAL_RESOLVED = 'DUAL_APPROVAL_RESOLVED';
 const AUTO_APPROVE_NOTE = 'Auto-aprobado por super_admin (cuatro ojos omitido por rol)';
 
 // Registro de handlers (IoC). Cada módulo registra su reanudación en el bootstrap.
@@ -44,6 +44,13 @@ class DualApprovalService {
     this.approvalRequestRepository = deps.approvalRequestRepository ?? approvalRequestRepository;
     this.userRepository = deps.userRepository ?? userRepository;
     this.NotificationCreationService = deps.NotificationCreationService ?? NotificationCreationService;
+    // Avisos a aprobadores / solicitante (SOLID: S)
+    this.notifier =
+      deps.notifier ??
+      new DualApprovalNotifierService({
+        userRepository: this.userRepository,
+        NotificationCreationService: this.NotificationCreationService
+      });
   }
 
   // ── Registro de handlers ──────────────────────────────────────────────────
@@ -131,13 +138,13 @@ class DualApprovalService {
       payload: payload ?? {},
       requested_by: ctx.adminUserId,
       requested_at: new Date(),
-      status: ApprovalRequest.STATUS.PENDING,
+      status: APPROVAL_REQUEST_STATUS.PENDING,
       expires_at: expiresAt,
       // Sesión del MAKER. El approver resuelve en otra sesión — esa queda en audit_logs, no acá.
       ...requestContext.originFromContext()
     });
 
-    this._notifyApprovers(op, request, ctx);
+    this.notifier.notifyApprovers(op, request, ctx);
 
     logAudit(
       'DUAL_APPROVAL_REQUESTED',
@@ -181,7 +188,7 @@ class DualApprovalService {
       payload: payload ?? {},
       requested_by: ctx.adminUserId,
       requested_at: now,
-      status: ApprovalRequest.STATUS.APPROVED,
+      status: APPROVAL_REQUEST_STATUS.APPROVED,
       second_approver_id: ctx.adminUserId,
       resolved_at: now,
       resolution_notes: AUTO_APPROVE_NOTE,
@@ -220,7 +227,7 @@ class DualApprovalService {
       throw AppError.notFound('Solicitud de aprobación no encontrada', { code: 'APPROVAL_REQUEST_NOT_FOUND' });
     }
 
-    if (request.status !== ApprovalRequest.STATUS.PENDING) {
+    if (request.status !== APPROVAL_REQUEST_STATUS.PENDING) {
       throw AppError.conflict(`La solicitud ya está en estado "${request.status}" y no puede re-resolverse`, {
         code: 'APPROVAL_REQUEST_NOT_PENDING'
       });
@@ -253,14 +260,14 @@ class DualApprovalService {
     const result = await entry.onApprove(request.payload, approverCtx);
 
     await request.update({
-      status: ApprovalRequest.STATUS.APPROVED,
+      status: APPROVAL_REQUEST_STATUS.APPROVED,
       second_approver_id: approverCtx.adminUserId,
       resolved_at: new Date(),
       resolution_notes: body.notes ?? null,
       result: _sanitizeResult(result)
     });
 
-    this._notifyMaker(request, op, DECISION.APPROVE);
+    this.notifier.notifyMaker(request, op, DECISION.APPROVE);
 
     logAudit(
       'DUAL_APPROVAL_APPROVED',
@@ -286,13 +293,13 @@ class DualApprovalService {
     }
 
     await request.update({
-      status: ApprovalRequest.STATUS.REJECTED,
+      status: APPROVAL_REQUEST_STATUS.REJECTED,
       second_approver_id: approverCtx.adminUserId,
       resolved_at: new Date(),
       resolution_notes: body.notes ?? null
     });
 
-    this._notifyMaker(request, op, DECISION.REJECT);
+    this.notifier.notifyMaker(request, op, DECISION.REJECT);
 
     logAudit(
       'DUAL_APPROVAL_REJECTED',
@@ -403,69 +410,6 @@ class DualApprovalService {
     return ApprovalRequestComponent.build(request);
   }
 
-  // ── Notificaciones (privadas) ─────────────────────────────────────────────────
-
-  // eslint-disable-next-line class-methods-use-this
-  async _notifyApprovers(op, request, ctx) {
-    let approvers = [];
-    try {
-      approvers = await this.userRepository.findActiveUsersByRoleNames(op.approverRoles, {
-        attributes: ['user_id'],
-        includePerson: false
-      });
-    } catch (err) {
-      logger.warn('[DualApproval] Error buscando aprobadores', { error: err.message, operationKey: request.operation_key });
-      return;
-    }
-
-    for (const approver of approvers ?? []) {
-      setImmediate(() => {
-        this.NotificationCreationService.crearNotificacion({
-          tipoNotificacion: op.notificationType,
-          userId: approver.user_id,
-          relatedEntity: { type: 'ApprovalRequest', id: request.approval_request_id },
-          metadata: {
-            approvalRequestId: request.approval_request_id,
-            operationLabel: op.label,
-            entityType: request.entity_type,
-            entityId: request.entity_id,
-            firstName: ctx.adminFirstName ?? '',
-            logoUrl: notifications?.ses?.logoUrl ?? ''
-          }
-        }).catch(err =>
-          logger.warn('[DualApproval] Error notificando aprobador', {
-            error: err.message,
-            approvalRequestId: request.approval_request_id
-          })
-        );
-      });
-    }
-  }
-
-  // eslint-disable-next-line class-methods-use-this
-  _notifyMaker(request, op, decision) {
-    if (!request.requested_by) {
-      return;
-    }
-    setImmediate(() => {
-      this.NotificationCreationService.crearNotificacion({
-        tipoNotificacion: NOTIF_DUAL_APPROVAL_RESOLVED,
-        userId: request.requested_by,
-        relatedEntity: { type: 'ApprovalRequest', id: request.approval_request_id },
-        metadata: {
-          approvalRequestId: request.approval_request_id,
-          operationLabel: op.label,
-          decision,
-          logoUrl: notifications?.ses?.logoUrl ?? ''
-        }
-      }).catch(err =>
-        logger.warn('[DualApproval] Error notificando al maker', {
-          error: err.message,
-          approvalRequestId: request.approval_request_id
-        })
-      );
-    });
-  }
 }
 
 // ── Helpers privados ────────────────────────────────────────────────────────────

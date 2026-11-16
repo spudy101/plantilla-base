@@ -1,0 +1,125 @@
+// modules/admin/kyc/iam/services/admin-user/internal-user-profile.service.js
+//
+// Alta y edición de datos básicos de usuarios internos. Extraído de AdminUserService (SOLID: S).
+
+const userRepository = require('../../../../../schemas/kyc/iam/repositories/user.repository');
+const roleRepository = require('../../../../../schemas/kyc/iam/repositories/role.repository');
+const personRepository = require('../../../../../schemas/kyc/person/repositories/person.repository');
+const documentTypeRepository = require('../../../../../schemas/kyc/maintainers/repositories/document-type.repository');
+const InternalUserHelper = require('../../../../../schemas/kyc/iam/helpers/internal-user.helper');
+const ProfileHelper = require('../../../../../schemas/kyc/person/helpers/profile.helper');
+const KycSharedUtil = require('../../../../../schemas/kyc/person/utils/kyc-shared.util');
+const NotificationCreationService = require('../../../../../schemas/notification/services/notification-creation.service');
+const AppError = require('../../../../../../shared/utils/app-error.util');
+const { logger, logAudit } = require('../../../../../../shared/utils/logger.util');
+const { buildAuditDiff } = require('../../../../../../shared/utils/audit-diff.util');
+const { RBAC_ROLES, notifications } = require('../../../../../../shared/constants');
+const { InternalUserDTO, InternalUserCreatedDTO } = require('../../dtos/admin-user.dto');
+const { InternalUserGuards } = require('./internal-user-guards');
+
+class InternalUserProfileService {
+  /** @param {object} [deps] Dependencias inyectables (SOLID: D). Las provee la fachada AdminUserService. */
+  constructor(deps = {}) {
+    this.userRepository = deps.userRepository ?? userRepository;
+    this.roleRepository = deps.roleRepository ?? roleRepository;
+    this.personRepository = deps.personRepository ?? personRepository;
+    this.documentTypeRepository = deps.documentTypeRepository ?? documentTypeRepository;
+    this.profileHelper = deps.profileHelper ?? ProfileHelper;
+    this.internalUserHelper = deps.internalUserHelper ?? InternalUserHelper;
+    this.kycSharedUtil = deps.kycSharedUtil ?? KycSharedUtil;
+    this.NotificationCreationService = deps.NotificationCreationService ?? NotificationCreationService;
+    this.guards = deps.guards ?? new InternalUserGuards(deps);
+  }
+
+  async create(data, auditCtx) {
+    // Mínimo privilegio (criterio #5, RF-ADM-01): todo usuario interno nace como
+    // AUDITOR — solo lectura. El admin sube el rol real después con PATCH /:userId/role.
+    const role = await this.roleRepository.findByName(RBAC_ROLES.AUDITOR);
+    if (!role) {
+      throw AppError.internal(`Rol ${RBAC_ROLES.AUDITOR} no encontrado. Ejecuta el seeder RBAC.`);
+    }
+
+    // Los usuarios internos no tienen documento real: siempre llevan el tipo SYSTEM
+    // ("Usuario de Sistema") para que su national_id sea un identificador de sistema.
+    const systemDocumentType = await this.documentTypeRepository.findByCode('SYSTEM');
+    if (!systemDocumentType) {
+      throw AppError.internal("Tipo de documento 'SYSTEM' no encontrado. Ejecuta el seeder de tipos de documento.");
+    }
+
+    await this.profileHelper.validateNationalIdUnique(data.nationalId);
+    await this.profileHelper.validateEmailUnique(data.email);
+
+    const temporaryPassword = this.kycSharedUtil.generateSecurePassword();
+
+    const { user } = await this.internalUserHelper.createInternalUser({
+      email: data.email,
+      password: temporaryPassword,
+      firstName: data.firstName,
+      middleName: data.middleName,
+      lastName: data.lastName,
+      secondLastName: data.secondLastName,
+      nationalId: data.nationalId,
+      documentTypeId: systemDocumentType.document_type_id,
+      role
+    });
+
+    logAudit(
+      'INTERNAL_USER_CREATED',
+      auditCtx.adminUserId,
+      { roleId: role.role_id, roleName: role.name },
+      { entityId: user.user_id, entityType: 'InternalUser', entityTable: 'users' }
+    );
+
+    setImmediate(() => {
+      const { logoUrl } = notifications.ses;
+      this.NotificationCreationService.crearNotificacion({
+        tipoNotificacion: 'IAM_INTERNAL_USER_CREATED',
+        userId: user.user_id,
+        metadata: { nombre: data.firstName, email: data.email, passwordTemporal: temporaryPassword, logoUrl }
+      }).catch(err => logger.warn('Error enviando IAM_INTERNAL_USER_CREATED', { error: err.message }));
+      this.NotificationCreationService.crearNotificacion({
+        tipoNotificacion: 'IAM_ADMIN_USER_CREATED',
+        userId: auditCtx.adminUserId,
+        relatedEntity: user.user_id,
+        metadata: { nombreUsuario: `${data.firstName} ${data.lastName || ''}`.trim(), email: data.email, logoUrl }
+      }).catch(err => logger.warn('Error enviando IAM_ADMIN_USER_CREATED', { error: err.message }));
+    });
+
+    const fullUser = await this.userRepository.findByUserId(user.user_id, 'basic');
+    // La contraseña temporal se devuelve SOLO en esta respuesta.
+    return InternalUserCreatedDTO(fullUser, temporaryPassword);
+  }
+
+  async update(userId, data, auditCtx) {
+    const user = await this.guards.getInternalUserOrFail(userId);
+    this.guards.assertNotDeleted(user);
+
+    const { person } = user;
+
+    const { before, after } = buildAuditDiff(person, data, {
+      firstName: 'first_name',
+      middleName: 'middle_name',
+      lastName: 'last_name',
+      secondLastName: 'second_last_name'
+    });
+
+    await this.personRepository.update(person.person_id, {
+      first_name: data.firstName ?? person.first_name,
+      middle_name: data.middleName ?? person.middle_name,
+      last_name: data.lastName ?? person.last_name,
+      second_last_name: data.secondLastName ?? person.second_last_name
+    });
+
+    logAudit(
+      'INTERNAL_USER_UPDATED',
+      auditCtx.adminUserId,
+      { before, after },
+      { entityId: userId, entityType: 'InternalUser', entityTable: 'persons' }
+    );
+
+    const fresh = await this.userRepository.findByUserId(userId, 'basic');
+    return InternalUserDTO(fresh);
+  }
+}
+
+module.exports = InternalUserProfileService;

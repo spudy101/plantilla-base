@@ -11,8 +11,13 @@ jest.mock('modules/schemas/kyc/iam/repositories/user.repository', () => ({
   findAllPaginated: jest.fn(),
   findByUserId: jest.fn(),
   findById: jest.fn(),
+  findForAccountDeletion: jest.fn(),
   update: jest.fn().mockResolvedValue(undefined),
   setActiveStatus: jest.fn().mockResolvedValue(undefined)
+}));
+
+jest.mock('modules/schemas/kyc/person/repositories/person.repository', () => ({
+  update: jest.fn().mockResolvedValue(undefined)
 }));
 
 jest.mock('modules/schemas/kyc/iam/repositories/role.repository', () => ({
@@ -110,6 +115,7 @@ jest.mock('modules/admin/kyc/iam/dtos/admin-user.dto', () => ({
 }));
 
 const userRepository = require('modules/schemas/kyc/iam/repositories/user.repository');
+const personRepository = require('modules/schemas/kyc/person/repositories/person.repository');
 const roleRepository = require('modules/schemas/kyc/iam/repositories/role.repository');
 const documentTypeRepository = require('modules/schemas/kyc/maintainers/repositories/document-type.repository');
 const userSessionRepository = require('modules/schemas/kyc/iam/repositories/user-session.repository');
@@ -136,7 +142,7 @@ const makeUser = (over = {}) => ({
   is_active: true,
   deleted_at: null,
   role: { name: 'auditor' },
-  person: { first_name: 'Juan', last_name: 'Perez', update: jest.fn().mockResolvedValue(undefined) },
+  person: { person_id: 'p-1', first_name: 'Juan', last_name: 'Perez' },
   ...over
 });
 
@@ -290,7 +296,8 @@ describe('AdminUserService', () => {
 
       const result = await service.update('u-1', { firstName: 'Nuevo' }, AUDIT_CTX);
 
-      expect(user.person.update).toHaveBeenCalledWith(expect.objectContaining({ first_name: 'Nuevo' }));
+      // Se persiste vía repositorio (no con la instancia ORM)
+      expect(personRepository.update).toHaveBeenCalledWith('p-1', expect.objectContaining({ first_name: 'Nuevo' }));
       expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_UPDATED', 'admin-1', { before: { first_name: 'A' }, after: { first_name: 'B' } }, expect.any(Object));
       expect(result).toMatchObject({ dto: 'user' });
     });
@@ -408,7 +415,7 @@ describe('AdminUserService', () => {
         rollback: jest.fn().mockResolvedValue(undefined),
         finished: false
       });
-      userRepository.findById.mockResolvedValue({
+      userRepository.findForAccountDeletion.mockResolvedValue({
         user_id: 'u-1',
         username: 'jperez',
         person: { person_id: 'p-1', national_id: 'SYS-1', first_name: 'Juan', contact: { email: 'j@x.com' } }
@@ -452,7 +459,7 @@ describe('AdminUserService', () => {
     it('hace rollback y propaga si el usuario no existe dentro de la transacción', async () => {
       const tx = { commit: jest.fn(), rollback: jest.fn().mockResolvedValue(undefined), finished: false };
       sequelize.transaction.mockResolvedValue(tx);
-      userRepository.findById.mockResolvedValue(null);
+      userRepository.findForAccountDeletion.mockResolvedValue(null);
 
       await expect(service.executeDeleteUser('u-1', AUDIT_CTX)).rejects.toThrow('Usuario no encontrado');
       expect(tx.rollback).toHaveBeenCalled();
