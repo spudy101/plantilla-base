@@ -1,53 +1,17 @@
-import type { CookieOptions, Request, Response } from 'express';
+import type { Request } from 'express';
 import AuthLoginService = require('../services/auth-login.service');
 import ApiResponse = require('../../../../../shared/utils/app-response.util');
 import AppError = require('../../../../../shared/utils/app-error.util');
 import errorMiddlewareModule = require('../../../../../shared/middlewares/error.middleware');
 const { asyncHandler } = errorMiddlewareModule;
 import constantsModule = require('../../../../../shared/constants');
-const { jwt: jwtConfig, AUTH_ERROR_CODES } = constantsModule;
+const { AUTH_ERROR_CODES } = constantsModule;
 import authUserUtilModule = require('../../../../../shared/utils/auth-user.util');
 const { requireAuthUser } = authUserUtilModule;
 import routeParamUtilModule = require('../../../../../shared/utils/route-param.util');
 const { routeParam } = routeParamUtilModule;
-
-// ============================================================
-// COOKIE CONFIG
-// ============================================================
-
-const COOKIE_OPTIONS: CookieOptions = {
-  httpOnly: true,
-  secure: true,
-  sameSite: 'none',
-  path: '/'
-};
-
-// El maxAge de cada cookie sigue la vida REAL de su token. Tenerlas vivas más tiempo que el token
-// que transportan hace que el navegador siga mandando credenciales muertas y que el front crea que
-// hay sesión cuando ya no la hay.
-const ACCESS_TOKEN_TTL = jwtConfig.accessTokenExpiry; // 15 min — exp del access token RS256
-const REFRESH_TOKEN_TTL_HOURS = 24;
-const REFRESH_TOKEN_TTL = REFRESH_TOKEN_TTL_HOURS * 60 * 60; // 24h — exp del refresh y TTL del JTI en Redis
-
-const _setAuthCookies = (res: Response, tokens: { accessToken: string; refreshToken: string }) => {
-  res.cookie('access_token', tokens.accessToken, {
-    ...COOKIE_OPTIONS,
-    maxAge: ACCESS_TOKEN_TTL * 1000
-  });
-  res.cookie('refresh_token', tokens.refreshToken, {
-    ...COOKIE_OPTIONS,
-    maxAge: REFRESH_TOKEN_TTL * 1000
-  });
-};
-
-// clearCookie solo borra si los atributos coinciden con los del Set-Cookie original: sin
-// sameSite/secure, varios navegadores dejan la cookie viva y la sesión "cerrada" sigue mandando
-// credenciales. Se repiten los mismos COOKIE_OPTIONS (sin maxAge, que no participa del match).
-const _clearAuthCookies = (res: Response) => {
-  res.clearCookie('access_token', COOKIE_OPTIONS);
-  res.clearCookie('id_token', COOKIE_OPTIONS); // ← limpia cookie legacy durante migración
-  res.clearCookie('refresh_token', COOKIE_OPTIONS);
-};
+import authCookiesUtilModule = require('../../../../../shared/utils/auth-cookies.util');
+const { setAuthCookies, clearAuthCookies } = authCookiesUtilModule;
 
 /**
  * ¿El request viene de un cliente web (cookies) o de mobile (headers)?
@@ -104,7 +68,7 @@ class AuthLoginController {
 
     // MFA / aprobación de dispositivo / política pendiente → respuesta sin tokens (no hay cookies que poner)
     if (_isWebClient(req) && 'tokens' in result && result.tokens) {
-      _setAuthCookies(res, result.tokens);
+      setAuthCookies(res, result.tokens);
     }
 
     return ApiResponse.success(res, 'Inicio de sesión exitoso', result);
@@ -123,7 +87,7 @@ class AuthLoginController {
     });
 
     if (_isWebClient(req) && 'tokens' in result && result.tokens) {
-      _setAuthCookies(res, result.tokens);
+      setAuthCookies(res, result.tokens);
     }
 
     return ApiResponse.success(res, 'Verificación MFA exitosa', result);
@@ -152,7 +116,7 @@ class AuthLoginController {
     const result = await AuthLoginService.refreshToken(refreshTkn);
 
     if (isWeb) {
-      _setAuthCookies(res, result);
+      setAuthCookies(res, result);
     }
 
     return ApiResponse.success(res, 'Token renovado exitosamente', result);
@@ -174,7 +138,7 @@ class AuthLoginController {
     });
 
     if (isWeb) {
-      _clearAuthCookies(res);
+      clearAuthCookies(res);
     }
 
     return ApiResponse.success(res, 'Sesión cerrada exitosamente');
@@ -194,7 +158,7 @@ class AuthLoginController {
     });
 
     if (isWeb) {
-      _clearAuthCookies(res);
+      clearAuthCookies(res);
     }
 
     return ApiResponse.success(res, 'Sesión cerrada en todos los dispositivos');

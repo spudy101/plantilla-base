@@ -20,7 +20,7 @@ const STRING = [
   'rawPrefix', 'haystack', 'cityName', 'deviceName', 'password', 'plainPassword', 'newPassword',
   'hashedPassword', 'operationKey', 'platform', 'acknowledgedBy', 'passwordHash', 'currentPassword', 'newUsername',
   'birthDate', 'title', 'body', 'asunto', 'cuerpoHtml', 'destinatario', 'notificationTypeCode', 'endpointArn',
-  'emailOrHash', 'template', 'variable', 'match', 'chars', 'opKey', 'mensaje', 'message', 'subject', 'html',
+  'emailOrHash', 'template', 'variable', 'match', 'chars', 'opKey', 'mensaje', 'subject', 'html',
   'firstName', 'lastName', 'currentFingerprintHash', 'totpCode', 'refreshTokenStr', 'categoryCode', 'sortBy',
   'clientType', 'serverContext'
 ];

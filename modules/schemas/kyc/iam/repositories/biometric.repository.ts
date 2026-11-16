@@ -119,7 +119,8 @@ class BiometricChallengeRepository extends BaseRepository<defineBiometricChallen
    * Crea un challenge con TTL de 5 minutos.
    */
   override create(
-    data: defineBiometricChallenge.CreationAttributes,
+    // expires_at y used los fija el repositorio (TTL de 5 min, no usado)
+    data: Omit<defineBiometricChallenge.CreationAttributes, 'expires_at' | 'used'>,
     options: CreateOptions<defineBiometricChallenge.Attributes> = {}
   ) {
     return super.create(

@@ -265,7 +265,12 @@ describe('AuthBiometricService', () => {
 
       await flush();
       expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(
-        expect.objectContaining({ tipoNotificacion: 'BIOMETRIC_CREDENTIAL_REGISTERED', userId: USER_ID })
+        expect.objectContaining({
+          tipoNotificacion: 'BIOMETRIC_CREDENTIAL_REGISTERED',
+          userId: USER_ID,
+          // Regresión (fase 4 TS): antes se pasaba el id suelto y la entidad relacionada no se guardaba
+          relatedEntity: { type: 'BiometricCredential', id: 'newcred' }
+        })
       );
       spy.mockRestore();
     });

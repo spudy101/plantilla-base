@@ -1,0 +1,56 @@
+// modules/client/kyc/routes/person-reference.routes.ts
+
+import express = require('express');
+const router = express.Router();
+import PersonReferenceController = require('../controllers/person-reference.controller');
+import PersonReferenceValidator = require('../validators/person-reference.validator');
+import AuthMiddleware = require('../../../../../shared/middlewares/auth.middleware');
+import RateLimitMiddleware = require('../../../../../shared/middlewares/rate-limit.middleware');
+import RequestLockMiddleware = require('../../../../../shared/middlewares/request-lock.middleware');
+import ValidatorUtil = require('../../../../../shared/utils/validators.util');
+import AuditAction = require('../../../../../shared/middlewares/audit-action.middleware');
+import constantsModule = require('../../../../../shared/constants');
+const { CLIENT_ACCESS_ROLES } = constantsModule;
+
+router.get(
+  '/person/person-references',
+  AuthMiddleware.requireRole(CLIENT_ACCESS_ROLES),
+  RateLimitMiddleware.apiLimiter(),
+  AuditAction.declare('PROFILE_REFERENCES_VIEWED', { entityType: 'PersonReference', entityTable: 'person_references' }),
+  PersonReferenceController.list
+);
+
+router.post(
+  '/person/person-references',
+  AuthMiddleware.requireRole(CLIENT_ACCESS_ROLES),
+  RateLimitMiddleware.apiLimiter(),
+  RequestLockMiddleware.forAuthenticatedUsers(),
+  PersonReferenceValidator.create(),
+  ValidatorUtil.handleValidationErrors,
+  AuditAction.declare('PROFILE_REFERENCE_CREATED', { entityType: 'PersonReference', entityTable: 'person_references' }),
+  PersonReferenceController.create
+);
+
+router.put(
+  '/person/person-references/:referenceId',
+  AuthMiddleware.requireRole(CLIENT_ACCESS_ROLES),
+  RateLimitMiddleware.apiLimiter(),
+  RequestLockMiddleware.forAuthenticatedUsers(),
+  PersonReferenceValidator.update(),
+  ValidatorUtil.handleValidationErrors,
+  AuditAction.declare('PROFILE_REFERENCE_UPDATED', { entityType: 'PersonReference', entityTable: 'person_references' }),
+  PersonReferenceController.update
+);
+
+router.delete(
+  '/person/person-references/:referenceId',
+  AuthMiddleware.requireRole(CLIENT_ACCESS_ROLES),
+  RateLimitMiddleware.apiLimiter(),
+  RequestLockMiddleware.forAuthenticatedUsers(),
+  PersonReferenceValidator.remove(),
+  ValidatorUtil.handleValidationErrors,
+  AuditAction.declare('PROFILE_REFERENCE_DELETED', { entityType: 'PersonReference', entityTable: 'person_references' }),
+  PersonReferenceController.remove
+);
+
+export = router;
