@@ -17,13 +17,14 @@ puertos distintos: los tres usan la misma variable `PORT` y **solo corre uno a l
 
 ## Comandos
 
-| Modo        | Con hot-reload (nodemon) | Plano (node)           |
+| Modo        | Con hot-reload (nodemon + tsx) | Build compilado (node dist/) |
 | ----------- | ------------------------ | ---------------------- |
 | Monolito    | `npm run dev`            | `npm start`            |
 | Solo admin  | `npm run dev:admin`      | `npm run start:admin`  |
 | Solo client | `npm run dev:client`     | `npm run start:client` |
 
-`dev:*` recarga al guardar (nodemon); `start:*` es `node` plano (despliegue).
+`dev:*` recarga al guardar (nodemon ejecuta las fuentes .ts/.js con `tsx`); `start:*` corre `node` sobre
+`dist/`, así que antes hay que compilar con `npm run build` (despliegue).
 
 ## Variables de entorno
 

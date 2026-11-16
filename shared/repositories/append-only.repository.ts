@@ -1,4 +1,4 @@
-// shared/repositories/append-only.repository.js
+// shared/repositories/append-only.repository.ts
 //
 // ============================================================
 // APPEND-ONLY REPOSITORY — lecturas + inserción (SOLID: L e I)
@@ -8,16 +8,17 @@
 // No hereda `update`/`delete`, así que ningún consumidor puede llamarlos y
 // no hace falta sobrescribirlos para lanzar error.
 // ============================================================
-const ReadRepository = require('./read.repository');
+import type { Attributes, BulkCreateOptions, CreateOptions, CreationAttributes, Model } from 'sequelize';
+import ReadRepository = require('./read.repository');
 
-class AppendOnlyRepository extends ReadRepository {
-  create(data, options = {}) {
+class AppendOnlyRepository<M extends Model = Model> extends ReadRepository<M> {
+  create(data: CreationAttributes<M>, options: CreateOptions<Attributes<M>> = {}): Promise<M> {
     return this.model.create(data, options);
   }
 
-  bulkCreate(data, options = {}) {
+  bulkCreate(data: ReadonlyArray<CreationAttributes<M>>, options: BulkCreateOptions<Attributes<M>> = {}): Promise<M[]> {
     return this.model.bulkCreate(data, options);
   }
 }
 
-module.exports = AppendOnlyRepository;
+export = AppendOnlyRepository;

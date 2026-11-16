@@ -4,7 +4,7 @@
 # ============================================================
 
 # ── STAGE 1: builder ──────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
@@ -17,8 +17,11 @@ RUN npm ci --frozen-lockfile
 # Copiar el resto del código
 COPY . .
 
+# Compilar TypeScript → dist/ (el runner arranca desde ahí)
+RUN npm run build
+
 # ── STAGE 2: runner ───────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:24-alpine AS runner
 
 # curl        → requerido por el healthcheck del contenedor
 # bash        → requerido por entrypoint.sh
@@ -45,7 +48,7 @@ EXPOSE 4000
 
 # entrypoint.sh se encarga de:
 #   1. Leer secrets desde AWS Secrets Manager
-#   2. Correr migraciones (npx sequelize-cli db:migrate)
+#   2. Correr migraciones (npm run db:migrate — sequelize-cli vía tsx)
 #   3. Correr seeders si RUN_SEEDS=true
-#   4. Arrancar el servidor (node servers/monolith.js)
+#   4. Arrancar el servidor compilado (node dist/servers/monolith.js)
 ENTRYPOINT ["dumb-init", "--", "bash", "entrypoint.sh"]

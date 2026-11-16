@@ -1,11 +1,13 @@
-// shared/utils/es256-signature.util.js
+// shared/utils/es256-signature.util.ts
 //
 // Verificación de firmas ES256 (ECDSA P-256 + SHA-256) para credenciales biométricas.
 // Puro: sin BD ni estado. Extraído de AuthBiometricService (SOLID: S) — la criptografía
 // cambia por razones distintas que el flujo de enrolamiento/login.
 
-const crypto = require('node:crypto');
-const { logger } = require('./logger.util');
+import crypto = require('node:crypto');
+import loggerUtil = require('./logger.util');
+
+const { logger } = loggerUtil as { logger: { info(message: string, meta?: object): void } };
 
 const ES256_RAW_SIGNATURE_LEN = 64; // firma raw r||s: 32 bytes r + 32 bytes s
 const ES256_COMPONENT_LEN = 32; // longitud de r y s individualmente
@@ -14,30 +16,33 @@ const DER_INTEGER_TAG = 0x02; // tag ASN.1 INTEGER
 const DER_SEQUENCE_TAG = 0x30; // tag ASN.1 SEQUENCE
 const PEM_LINE_LENGTH = 64; // caracteres por línea en PEM
 
-/**
- * Convierte una llave pública DER (base64) a formato PEM.
- * @param {string} base64Der
- * @returns {string}
- */
-function derToPem(base64Der) {
+interface Es256SignatureInput {
+  /** Llave pública en base64 (SubjectPublicKeyInfo / DER) o PEM */
+  publicKey: string;
+  /** String base64url que fue firmado */
+  challenge: string;
+  /** Firma en base64url (DER o raw r||s de 64 bytes) */
+  signature: string;
+}
+
+/** Convierte una llave pública DER (base64) a formato PEM. */
+function derToPem(base64Der: string): string {
   const regex = new RegExp(`.{1,${PEM_LINE_LENGTH}}`, 'g');
-  const lines = base64Der.match(regex).join('\n');
+  const lines = (base64Der.match(regex) ?? []).join('\n');
   return `-----BEGIN PUBLIC KEY-----\n${lines}\n-----END PUBLIC KEY-----`;
 }
 
 /**
  * Convierte una firma raw (r||s, 64 bytes) a formato DER.
  * Los dispositivos móviles a veces envían la firma en formato raw.
- * @param {Buffer} rawSignature
- * @returns {Buffer}
  */
-function rawToDer(rawSignature) {
+function rawToDer(rawSignature: Buffer): Buffer {
   const r = rawSignature.subarray(0, ES256_COMPONENT_LEN);
   const s = rawSignature.subarray(ES256_COMPONENT_LEN, ES256_RAW_SIGNATURE_LEN);
 
-  const encodeInt = buf => {
+  const encodeInt = (buf: Buffer): Buffer => {
     // Si el bit más significativo es 1, agregar byte 0x00 para indicar positivo
-    const needsPad = buf[0] & DER_POSITIVE_PAD;
+    const needsPad = (buf[0] ?? 0) & DER_POSITIVE_PAD;
     const padded = needsPad ? Buffer.concat([Buffer.from([0x00]), buf]) : buf;
     return Buffer.concat([Buffer.from([DER_INTEGER_TAG, padded.length]), padded]);
   };
@@ -48,14 +53,9 @@ function rawToDer(rawSignature) {
 
 /**
  * Verifica una firma ES256 del challenge con la llave pública registrada.
- *
- * @param {{ publicKey: string, challenge: string, signature: string }} params
- *   - publicKey:  llave pública en base64 (SubjectPublicKeyInfo / DER) o PEM
- *   - challenge:  string base64url que fue firmado
- *   - signature:  firma en base64url (DER o raw r||s de 64 bytes)
- * @returns {boolean} false ante firma inválida o datos corruptos (nunca lanza)
+ * @returns false ante firma inválida o datos corruptos (nunca lanza)
  */
-function verifyEs256Signature({ publicKey, challenge, signature }) {
+function verifyEs256Signature({ publicKey, challenge, signature }: Es256SignatureInput): boolean {
   try {
     const verify = crypto.createVerify('SHA256');
     verify.update(Buffer.from(challenge, 'base64url'));
@@ -67,9 +67,11 @@ function verifyEs256Signature({ publicKey, challenge, signature }) {
 
     return verify.verify(pemKey, derSignature);
   } catch (error) {
-    logger.info('Biometric signature verification error', { error: error.message });
+    logger.info('Biometric signature verification error', {
+      error: error instanceof Error ? error.message : String(error)
+    });
     return false;
   }
 }
 
-module.exports = { verifyEs256Signature, derToPem, rawToDer };
+export = { verifyEs256Signature, derToPem, rawToDer };

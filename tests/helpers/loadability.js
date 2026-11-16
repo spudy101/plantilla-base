@@ -24,9 +24,10 @@ const EXCLUDES = [
 ];
 
 /**
- * Recorre recursivamente `dir` y devuelve las rutas absolutas de los .js no excluidos.
+ * Recorre recursivamente `dir` y devuelve las rutas absolutas de los .js / .ts no excluidos
+ * (migración gradual a TypeScript: ambos deben seguir siendo cargables).
  * @param {string} dir Ruta absoluta del directorio a recorrer.
- * @returns {string[]} Rutas absolutas de los archivos .js cargables.
+ * @returns {string[]} Rutas absolutas de los archivos .js / .ts cargables.
  */
 function collectJsFiles(dir) {
   const out = [];
@@ -34,7 +35,7 @@ function collectJsFiles(dir) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       out.push(...collectJsFiles(full));
-    } else if (entry.isFile() && entry.name.endsWith('.js')) {
+    } else if (entry.isFile() && /\.(js|ts)$/.test(entry.name) && !entry.name.endsWith('.d.ts')) {
       if (!EXCLUDES.some((re) => re.test(full))) {out.push(full);}
     }
   }

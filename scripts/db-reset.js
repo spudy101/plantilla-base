@@ -26,10 +26,10 @@ async function main() {
   await sequelize.close();
 
   console.log('[db:reset] Esquema recreado. Aplicando migraciones...');
-  execSync('npx sequelize-cli db:migrate', { stdio: 'inherit' });
+  execSync('npm run db:migrate', { stdio: 'inherit' });
 
   console.log('[db:reset] Aplicando seeders...');
-  execSync('npx sequelize-cli db:seed:all', { stdio: 'inherit' });
+  execSync('npm run db:seed', { stdio: 'inherit' });
 
   console.log('[db:reset] OK — esquema reconstruido, migraciones y seeders aplicados.');
 }

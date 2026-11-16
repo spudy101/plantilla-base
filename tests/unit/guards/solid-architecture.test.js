@@ -15,16 +15,19 @@ function walk(dir) {
     if (entry.isDirectory()) {
       return entry.name === 'node_modules' ? [] : walk(full);
     }
-    return entry.name.endsWith('.js') ? [full] : [];
+    // .js y .ts conviven durante la migración a TypeScript (los .d.ts solo declaran tipos)
+    return /\.(js|ts)$/.test(entry.name) && !entry.name.endsWith('.d.ts') ? [full] : [];
   });
 }
 
 const rel = file => path.relative(ROOT, file).split(path.sep).join('/');
 const read = file => fs.readFileSync(file, 'utf8');
 const sourceFiles = [...walk(path.join(ROOT, 'modules')), ...walk(path.join(ROOT, 'shared'))];
+const isService = f => /\.service\.(js|ts)$/.test(f);
+const isRepository = f => /\.repository\.(js|ts)$/.test(f);
 
 // Capa de aplicación: lo que NO debe conocer el ORM.
-const APPLICATION_LAYER = /\.(service|helper|validator|controller|middleware|util)\.js$/;
+const APPLICATION_LAYER = /\.(service|helper|validator|controller|middleware|util)\.(js|ts)$/;
 
 // Adaptadores de infraestructura que escriben/arrancan con Sequelize a propósito (ver docs/solid.md § D).
 const ORM_ALLOWLIST = new Set([
@@ -32,8 +35,12 @@ const ORM_ALLOWLIST = new Set([
   'shared/utils/integration-api-logger.util.js' // escribe integration_api_logs (mismo motivo)
 ]);
 
-const MODELS_REQUIRE = /require\(\s*['"][^'"]*(?:shared\/models|\.\.\/models)['"]\s*\)/;
-const SEQUELIZE_REQUIRE = /require\(\s*['"]sequelize['"]\s*\)/;
+// require('…') (JS), `import x = require('…')` e `import … from '…'` (TS).
+// `import type` se excluye: solo trae tipos, no acopla en runtime.
+const MODELS_REQUIRE = /(?:require\(\s*|(?<!import type [^\n]*)from\s+)['"][^'"]*(?:shared\/models|\.\.\/models)['"]/;
+const SEQUELIZE_REQUIRE = /(?:require\(\s*|^import (?!type)[^\n]*from\s+)['"]sequelize['"]/m;
+const REPOSITORY_REQUIRE = /(?:require\(|from\s+)\s*['"][^'"]*\.repository['"]/;
+const CONSTRUCTOR_DEPS = /constructor\(deps(?::\s*[^=)]+)?\s*=\s*\{\}\)/;
 
 describe('SOLID — guardas de arquitectura', () => {
   const applicationFiles = sourceFiles.filter(f => APPLICATION_LAYER.test(f) && !ORM_ALLOWLIST.has(rel(f)));
@@ -50,7 +57,7 @@ describe('SOLID — guardas de arquitectura', () => {
 
   it('los services no arman include con modelos (`model: X`) — los include viven en el repositorio', () => {
     const offenders = sourceFiles
-      .filter(f => f.endsWith('.service.js'))
+      .filter(isService)
       .filter(f => /\bmodel:\s*[A-Z]\w*/.test(read(f)))
       .map(rel);
     expect(offenders).toEqual([]);
@@ -58,7 +65,7 @@ describe('SOLID — guardas de arquitectura', () => {
 
   it('todo repositorio pertenece a la jerarquía Read/Base/AppendOnly (L)', () => {
     const offenders = sourceFiles
-      .filter(f => f.endsWith('.repository.js') && !rel(f).startsWith('shared/repositories/'))
+      .filter(f => isRepository(f) && !rel(f).startsWith('shared/repositories/'))
       .filter(f => !/extends\s+(ReadRepository|BaseRepository|AppendOnlyRepository)\b/.test(read(f)))
       .map(rel);
     expect(offenders).toEqual([]);
@@ -66,11 +73,16 @@ describe('SOLID — guardas de arquitectura', () => {
 
   it('los services de clase exportan también la clase para inyectar dependencias en tests (D)', () => {
     const offenders = sourceFiles
-      .filter(f => f.endsWith('.service.js'))
+      .filter(isService)
       .filter(f => {
         const src = read(f);
-        const instance = src.match(/module\.exports\s*=\s*new\s+(\w+)\(/);
-        return instance && !new RegExp(`module\\.exports\\.${instance[1]}\\s*=\\s*${instance[1]}`).test(src);
+        // JS:  module.exports = new X();  module.exports.X = X;
+        const js = src.match(/module\.exports\s*=\s*new\s+(\w+)\(/);
+        if (js) {
+          return !new RegExp(`module\\.exports\\.${js[1]}\\s*=\\s*${js[1]}`).test(src);
+        }
+        // TS:  export = Object.assign(new X(), { X });   (export = new X() sin la clase no vale)
+        return /export\s*=\s*new\s+\w+\(/.test(src);
       })
       .map(rel);
     expect(offenders).toEqual([]);
@@ -78,10 +90,10 @@ describe('SOLID — guardas de arquitectura', () => {
 
   it('los services con repositorios los reciben por constructor(deps) (D)', () => {
     const offenders = sourceFiles
-      .filter(f => f.endsWith('.service.js'))
+      .filter(isService)
       .filter(f => {
         const src = read(f);
-        return /require\([^)]*\.repository['"]\)/.test(src) && !/constructor\(deps = \{\}\)/.test(src);
+        return REPOSITORY_REQUIRE.test(src) && !CONSTRUCTOR_DEPS.test(src);
       })
       .map(rel);
     expect(offenders).toEqual([]);

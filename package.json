@@ -2,20 +2,23 @@
   "name": "base-project",
   "version": "1.0.0",
   "description": "Boilerplate reutilizable de API REST con Node.js, Express, PostgreSQL y Redis: autenticación JWT + sesiones, RBAC, MFA, auditoría, doble aprobación (maker-checker) y notificaciones.",
-  "main": "servers/monolith.js",
+  "main": "dist/servers/monolith.js",
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "scripts": {
     "comment": "========== MODO MONOLITO (Cliente + Admin) ==========",
     "dev": "nodemon servers/monolith.js",
-    "start": "node servers/monolith.js",
+    "start": "node dist/servers/monolith.js",
     "comment2": "========== MODO CLIENTE (Solo Cliente) ==========",
     "dev:client": "nodemon servers/client.js",
-    "start:client": "node servers/client.js",
+    "start:client": "node dist/servers/client.js",
     "comment3": "========== MODO ADMIN (Solo Admin) ==========",
     "dev:admin": "nodemon servers/admin.js",
-    "start:admin": "node servers/admin.js",
+    "start:admin": "node dist/servers/admin.js",
+    "comment_build": "========== TYPESCRIPT ==========",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.test.json",
     "comment4": "========== TESTING ==========",
     "test": "cross-env NODE_ENV=test jest --passWithNoTests",
     "test:unit": "cross-env NODE_ENV=test jest --passWithNoTests --selectProjects unit",
@@ -23,15 +26,15 @@
     "test:watch": "cross-env NODE_ENV=test jest --passWithNoTests --watch",
     "test:coverage": "cross-env NODE_ENV=test jest --passWithNoTests --coverage",
     "comment5": "========== DATABASE ==========",
-    "db:migrate": "sequelize-cli db:migrate",
-    "db:migrate:undo": "sequelize-cli db:migrate:undo",
-    "db:seed": "sequelize-cli db:seed:all",
-    "db:seed:undo": "sequelize-cli db:seed:undo:all",
-    "db:reset": "node scripts/db-reset.js",
+    "db:migrate": "tsx node_modules/sequelize-cli/lib/sequelize db:migrate",
+    "db:migrate:undo": "tsx node_modules/sequelize-cli/lib/sequelize db:migrate:undo",
+    "db:seed": "tsx node_modules/sequelize-cli/lib/sequelize db:seed:all",
+    "db:seed:undo": "tsx node_modules/sequelize-cli/lib/sequelize db:seed:undo:all",
+    "db:reset": "tsx scripts/db-reset.js",
     "db:fresh": "npm run db:reset",
     "comment6": "========== LINTING & FORMAT ==========",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "lint": "eslint . --ext .js,.ts",
+    "lint:fix": "eslint . --ext .js,.ts --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -42,13 +45,19 @@
       "shared",
       "config"
     ],
-    "ext": "js,json",
+    "ext": "js,ts,json",
     "ignore": [
       "node_modules",
+      "dist",
       "tests",
-      "*.test.js"
+      "*.test.js",
+      "*.test.ts"
     ],
-    "delay": 1000
+    "delay": 1000,
+    "execMap": {
+      "js": "tsx",
+      "ts": "tsx"
+    }
   },
   "repository": {
     "type": "git",
@@ -93,6 +102,11 @@
   "devDependencies": {
     "@babel/core": "^7.29.7",
     "@babel/preset-env": "^7.29.7",
+    "@types/express": "^4.17.25",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^24.19.2",
+    "@typescript-eslint/eslint-plugin": "^8.72.2",
+    "@typescript-eslint/parser": "^8.72.2",
     "babel-jest": "^30.4.1",
     "cross-env": "^7.0.3",
     "eslint": "^8.57.1",
@@ -103,7 +117,10 @@
     "prettier": "^3.8.2",
     "sequelize-cli": "^6.6.3",
     "sqlite3": "^5.1.7",
-    "supertest": "^7.1.4"
+    "supertest": "^7.1.4",
+    "ts-jest": "^29.4.15",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3"
   },
   "overrides": {
     "js-cookie": "^3.0.7",

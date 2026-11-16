@@ -48,13 +48,13 @@ eval "$EXPORTS"
 
 echo "✅ Variables cargadas"
 echo "🔄 Ejecutando migraciones..."
-npx sequelize-cli db:migrate
+npm run db:migrate --silent
 echo "✅ Migraciones completadas"
 
 if [ "$RUN_SEEDS" = "true" ]; then
   echo "🌱 Ejecutando seeders..."
-  npx sequelize-cli db:seed:all && echo "✅ Seeders completados" || echo "⚠️  Seeders fallaron (no crítico)"
+  npm run db:seed --silent && echo "✅ Seeders completados" || echo "⚠️  Seeders fallaron (no crítico)"
 fi
 
 echo "🚀 Iniciando servidor en puerto 4000..."
-exec node servers/monolith.js
+exec node dist/servers/monolith.js
