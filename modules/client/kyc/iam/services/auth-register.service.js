@@ -1,10 +1,8 @@
 const { v4: uuidv4 } = require('uuid');
-const crypto = require('node:crypto');
 const userRepository = require('../../../../schemas/kyc/iam/repositories/user.repository');
 const personRepository = require('../../../../schemas/kyc/person/repositories/person.repository');
 const personContactRepository = require('../../../../schemas/kyc/person/repositories/person-contact.repository');
 const documentTypeRepository = require('../../../../schemas/kyc/maintainers/repositories/document-type.repository');
-const resetCredentialsRepository = require('../../../../schemas/kyc/iam/repositories/reset-credentials.repository');
 // eslint-disable-next-line max-len
 const userNotificationPreferenceRepository = require('../../../../schemas/kyc/person/repositories/user-notification-preference.repository');
 const countryRepository = require('../../../../schemas/kyc/maintainers/repositories/country.repository');
@@ -13,18 +11,16 @@ const consentRecorder = require('../../../../schemas/records/legal/services/cons
 const genderRepository = require('../../../../schemas/kyc/maintainers/repositories/gender.repository');
 const verificationCodeRepository = require('../../../../schemas/notification/repositories/verification-code.repository');
 const roleRepository = require('../../../../schemas/kyc/iam/repositories/role.repository');
-const JwtUtil = require('../../../../../shared/utils/jwt.util');
-const RefreshTokenStore = require('../../../../../shared/utils/refresh-token-store.util');
-const KycSharedUtil = require('../../../../schemas/kyc/person/utils/kyc-shared.util');
-const TokenBlacklistUtil = require('../../../../../shared/utils/token-blacklist.util');
 const userSessionRepository = require('../../../../schemas/kyc/iam/repositories/user-session.repository');
 const NotificationUtil = require('../../../../schemas/notification/services/notification-creation.service');
 const AppError = require('../../../../../shared/utils/app-error.util');
-const { logger, logAudit } = require('../../../../../shared/utils/logger.util'); // ← logAudit agregado
+const { logger, logAudit } = require('../../../../../shared/utils/logger.util');
 const requestContext = require('../../../../../shared/utils/request-context.util');
 const unitOfWork = require('../../../../../shared/database/unit-of-work');
+const CredentialResetService = require('./auth-register/credential-reset.service');
+const SessionIssuerService = require('../../../../shared-endpoints/kyc/iam/services/auth-login/session-issuer.service');
 const { RegisterResponseDTO } = require('../dtos/auth-register.dto');
-const { frontend, SECURITY, RBAC_ROLES, server, notifications, jwt: jwtConfig } = require('../../../../../shared/constants');
+const { RBAC_ROLES, server, notifications } = require('../../../../../shared/constants');
 
 // === RF-AUTH-01: Registro de Usuario (confirmación de correo y celular) ===
 
@@ -32,7 +28,6 @@ const { frontend, SECURITY, RBAC_ROLES, server, notifications, jwt: jwtConfig } 
 // BYPASS DE AUTENTICACIÓN (solo desarrollo)
 // ============================================================
 const IS_BYPASS_ENABLED = server.nodeEnv === 'development' && server.bypass === 'true';
-const API_KEY_RANDOM_BYTES = 32;
 
 class AuthRegisterService {
   /**
@@ -47,7 +42,6 @@ class AuthRegisterService {
     this.personRepository = deps.personRepository ?? personRepository;
     this.personContactRepository = deps.personContactRepository ?? personContactRepository;
     this.documentTypeRepository = deps.documentTypeRepository ?? documentTypeRepository;
-    this.resetCredentialsRepository = deps.resetCredentialsRepository ?? resetCredentialsRepository;
     this.userNotificationPreferenceRepository = deps.userNotificationPreferenceRepository ?? userNotificationPreferenceRepository;
     this.countryRepository = deps.countryRepository ?? countryRepository;
     this.privacyPolicyRepository = deps.privacyPolicyRepository ?? privacyPolicyRepository;
@@ -57,6 +51,19 @@ class AuthRegisterService {
     this.roleRepository = deps.roleRepository ?? roleRepository;
     this.userSessionRepository = deps.userSessionRepository ?? userSessionRepository;
     this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+
+    // Sub-servicios por responsabilidad (SOLID: S). Reciben las mismas dependencias compartidas.
+    this.sessionIssuer =
+      deps.sessionIssuer ?? new SessionIssuerService({ userSessionRepository: this.userSessionRepository });
+    this.credentialReset =
+      deps.credentialReset ??
+      new CredentialResetService({
+        unitOfWork: this.unitOfWork,
+        userRepository: this.userRepository,
+        personContactRepository: this.personContactRepository,
+        userSessionRepository: this.userSessionRepository,
+        NotificationUtil: this.NotificationUtil
+      });
   }
 
   // ============================================================
@@ -200,32 +207,12 @@ class AuthRegisterService {
    */
   async _issueAuthTokens(userId, auditContext = {}) {
     const user = await this.userRepository.findByUserId(userId, 'login');
-
-    const sessionId = crypto.randomUUID();
-    const jti = crypto.randomUUID();
-    const accessToken = await JwtUtil.generateAccessToken(user, sessionId);
-    const refreshToken = await JwtUtil.generateRefreshToken(userId, jti, sessionId);
-
-    // JTI en Redis — awaited: si falla, el refresh no servirá pero el registro no se bloquea.
-    const jtiSaved = await RefreshTokenStore.save(jti, userId);
-    if (!jtiSaved) {
-      logger.warn('No se pudo guardar JTI de refresh token en registro', { userId });
-    }
-
-    this.userSessionRepository
-      .create({
-        user_session_id: sessionId,
-        user_id: userId,
-        device_id: null,
-        jti,
-        ip_address: auditContext?.ip || null,
-        user_agent: auditContext?.userAgent || null,
-        started_at: new Date(),
-        last_access_at: new Date()
-      })
-      .catch(err => logger.warn('Error creando registro de sesión en registro', { error: err.message, userId }));
-
-    return { accessToken, refreshToken, expiresIn: jwtConfig.accessTokenExpiry };
+    const { tokens } = await this.sessionIssuer.issue(user, {
+      ip: auditContext?.ip,
+      userAgent: auditContext?.userAgent,
+      source: 'registro'
+    });
+    return tokens;
   }
 
   /** @private */
@@ -241,242 +228,15 @@ class AuthRegisterService {
   }
 
   // ============================================================
-  // RESET CREDENTIALS
+  // RESET CREDENTIALS → CredentialResetService
   // ============================================================
 
-  // [RF-AUTH-02] | CA-03 | Genera token de un solo uso (15 min), persiste y envía por email. Anti-enumeración
-  async requestResetCredentials(data) {
-    const { email, type } = data;
-
-    const personContact = await this.personContactRepository.findByEmail(email, {
-      include: [
-        {
-          association: 'person',
-          include: [
-            {
-              association: 'user',
-              attributes: ['user_id', 'is_active']
-            }
-          ],
-          attributes: ['person_id', 'first_name']
-        }
-      ]
-    });
-
-    if (!personContact?.person?.user) {
-      logger.info('Reset requested for non-existent email', { type });
-      return false;
-    }
-
-    const { user } = personContact.person;
-
-    if (!user.is_active) {
-      logger.info('Reset requested for inactive user', { type });
-      return false;
-    }
-
-    const invalidated = await this.resetCredentialsRepository.invalidateUserTokens(user.user_id);
-    if (invalidated > 0) {
-      logger.info('Previous reset tokens invalidated', {
-        userId: user.user_id,
-        count: invalidated,
-        type
-      });
-    }
-
-    const token = crypto.randomBytes(API_KEY_RANDOM_BYTES).toString('hex');
-    const expiresAt = new Date(Date.now() + SECURITY.RESET_TOKEN_EXPIRATION_MINUTES * 60 * 1000);
-
-    await this.resetCredentialsRepository.createResetToken({
-      user_id: user.user_id,
-      email,
-      token,
-      type,
-      expires_at: expiresAt
-    });
-
-    logAudit(
-      'CREDENTIALS_RESET_REQUESTED',
-      user.user_id,
-      { type },
-      { entityId: user.user_id, entityType: 'User', entityTable: 'users' }
-    );
-
-    const firstName = personContact.person.first_name || 'Usuario';
-    const resetUrl = `${frontend.resetCredentialUrl}-${type === 'password' ? 'password' : 'totp'}?token=${token}&type=${type}`;
-
-    setImmediate(() => {
-      this.NotificationUtil.crearNotificacionDirecta({
-        tipoNotificacion: type === 'password' ? 'SOLICITUD_RESET_PASSWORD' : 'SOLICITUD_RESET_MFA',
-        email,
-        metadata: {
-          nombre: firstName,
-          email,
-          enlace: resetUrl,
-          minutosExpiracion: SECURITY.RESET_TOKEN_EXPIRATION_MINUTES,
-          logoUrl: notifications.ses.logoUrl
-        }
-      }).catch(err => logger.warn('Error sending reset notification', { error: err.message }));
-    });
-
-    logger.info('Reset credentials requested', { userId: user.user_id, type });
-    return true;
+  requestResetCredentials(data) {
+    return this.credentialReset.requestResetCredentials(data);
   }
 
-  // [RF-AUTH-02] | CA-03 | Valida token, aplica reset, marca used=true, invalida todas las sesiones
-  async confirmResetCredentials(data) {
-    const { token, newPassword, type } = data;
-
-    const resetRecord = await this._findValidResetRecord(token);
-
-    if (resetRecord.type !== type) {
-      throw AppError.badRequest('Tipo de reset incorrecto');
-    }
-
-    const { user } = resetRecord;
-    if (!user) {
-      throw AppError.notFound('Usuario no encontrado');
-    }
-
-    const transaction = await this.unitOfWork.begin();
-    try {
-      const tipoNotif = await this._applyCredentialReset(type, user, newPassword, transaction);
-      await this.resetCredentialsRepository.markAsUsed(resetRecord.reset_credentials_id, {
-        transaction
-      });
-      await transaction.commit();
-      logAudit(
-        type === 'password' ? 'PASSWORD_RESET_CONFIRMED' : 'MFA_RESET_CONFIRMED',
-        user.user_id,
-        { type },
-        { entityId: user.user_id, entityType: 'User', entityTable: 'users' }
-      );
-      this._sendResetConfirmationNotification(user, tipoNotif);
-      if (type === 'password') {
-        this._invalidateSessionsAfterPasswordReset(user.user_id);
-      }
-      return null;
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
-  }
-
-  /** @private */
-  async _findValidResetRecord(token) {
-    const resetRecord = await this.resetCredentialsRepository.findValidToken(token, {
-      include: [
-        {
-          association: 'user',
-          attributes: ['user_id', 'auth_username'],
-          include: [
-            {
-              association: 'person',
-              attributes: ['person_id', 'first_name'],
-              include: [{ association: 'contact', attributes: ['email'] }]
-            }
-          ]
-        }
-      ]
-    });
-    if (!resetRecord) {
-      throw AppError.badRequest('Token inválido o expirado');
-    }
-    return resetRecord;
-  }
-
-  /** @private */
-  async _applyCredentialReset(type, user, newPassword, transaction) {
-    if (type === 'password') {
-      if (!newPassword) {
-        throw AppError.badRequest('La nueva contraseña es requerida');
-      }
-      await this.userRepository.updatePassword(user.user_id, newPassword, { transaction });
-      return 'RESET_PASSWORD';
-    }
-
-    if (type === 'mfa') {
-      // Reset total del MFA: baja TOTP (y borra su secreto) y SMS, todo en BD propia.
-      await this.userRepository.update(
-        user.user_id,
-        {
-          totp_enabled: false,
-          totp_secret: null,
-          sms_mfa_enabled: false,
-          preferred_mfa_method: 'none'
-        },
-        { transaction }
-      );
-
-      await KycSharedUtil.logChange(
-        {
-          userId: user.user_id,
-          changedByUserId: null,
-          changedByRole: 'system',
-          changeType: 'mfa_status',
-          previousValue: 'enabled',
-          newValue: 'disabled',
-          changeReason: 'Reset de MFA por pérdida de dispositivo',
-          ipAddress: null,
-          userAgent: null
-        },
-        { transaction }
-      );
-
-      await KycSharedUtil.logChange(
-        {
-          userId: user.user_id,
-          changedByUserId: null,
-          changedByRole: 'system',
-          changeType: 'sms_mfa_status',
-          previousValue: 'enabled',
-          newValue: 'disabled',
-          changeReason: 'Reset de MFA por pérdida de dispositivo',
-          ipAddress: null,
-          userAgent: null
-        },
-        { transaction }
-      );
-
-      return 'RESET_MFA';
-    }
-
-    throw AppError.badRequest('Tipo de reset no soportado');
-  }
-
-  /** @private */
-  _invalidateSessionsAfterPasswordReset(userId) {
-    TokenBlacklistUtil.invalidateUserSessions(userId).catch(err =>
-      logger.warn('Error invalidando sesiones en Redis tras reset de contraseña', {
-        error: err.message,
-        userId
-      })
-    );
-    this.userSessionRepository.closeAllByUser(userId, 'password_reset').catch(err =>
-      logger.warn('Error cerrando sesiones en BD tras reset de contraseña', {
-        error: err.message,
-        userId
-      })
-    );
-  }
-
-  /** @private */
-  _sendResetConfirmationNotification(user, tipoNotificacion) {
-    const firstName = user.person?.first_name || 'Usuario';
-    const email = user.person?.contact?.email;
-    setImmediate(() => {
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion,
-        userId: user.user_id,
-        relatedEntity: null,
-        metadata: { nombre: firstName, email, logoUrl: notifications.ses.logoUrl }
-      }).catch(err =>
-        logger.warn('Error sending reset confirmation notification', {
-          error: err.message,
-          userId: user.user_id
-        })
-      );
-    });
+  confirmResetCredentials(data) {
+    return this.credentialReset.confirmResetCredentials(data);
   }
 
   // ============================================================
@@ -612,18 +372,30 @@ class AuthRegisterService {
       { transaction }
     );
 
-    // [RF-AUTH-01] | CA-01 | Registra consentimientos en
-    // user_consents: PRIVACY_POLICY (obligatorio) y
-    // COMUNICACIONES_COMERCIALES (opcional).
-    // RF-ADM-04: trazabilidad de aceptación inicial de política en user_consents
-    await this._recordPrivacyPolicyConsent(
+    await this._recordRegistrationConsents(
       user.user_id,
+      { privacyPolicyVersion, privacyPolicyAcceptedIp, comunicacionesComerciales },
+      transaction
+    );
+
+    return { user, person, personContact, role: defaultRole };
+  }
+
+  /**
+   * [RF-AUTH-01] | CA-01 | Registra consentimientos en user_consents: PRIVACY_POLICY (obligatorio)
+   * y COMUNICACIONES_COMERCIALES (opcional). RF-ADM-04: trazabilidad de la aceptación inicial.
+   * @private
+   */
+  async _recordRegistrationConsents(userId, consentData, transaction) {
+    const { privacyPolicyVersion, privacyPolicyAcceptedIp, comunicacionesComerciales } = consentData;
+    await this._recordPrivacyPolicyConsent(
+      userId,
       privacyPolicyVersion,
       privacyPolicyAcceptedIp,
       transaction
     ).catch(err => {
       logger.warn('auth-register: no se pudo registrar user_consent de privacy policy', {
-        userId: user.user_id,
+        userId,
         error: err.message
       });
       // La escritura es best-effort para no tumbar el registro por un fallo secundario, pero NO puede ser
@@ -632,10 +404,10 @@ class AuthRegisterService {
       // `users.privacy_policy_accepted_at/_ip`, pero la fila probatoria falta y hay que reponerla.
       logAudit(
         'CONSENT_RECORD_FAILED',
-        user.user_id,
+        userId,
         { consentType: 'PRIVACY_POLICY', version: privacyPolicyVersion, error: err.message },
         {
-          entityId: user.user_id,
+          entityId: userId,
           entityType: 'User',
           entityTable: 'users',
           outcome: 'failure',
@@ -645,15 +417,13 @@ class AuthRegisterService {
     });
 
     if (comunicacionesComerciales) {
-      await this._recordComercialConsent(user.user_id, privacyPolicyAcceptedIp, transaction).catch(err =>
+      await this._recordComercialConsent(userId, privacyPolicyAcceptedIp, transaction).catch(err =>
         logger.warn('auth-register: no se pudo registrar user_consent de comunicaciones comerciales', {
-          userId: user.user_id,
+          userId,
           error: err.message
         })
       );
     }
-
-    return { user, person, personContact, role: defaultRole };
   }
 
   /** @private — RF-ADM-04: delega en ConsentRecorder y deja traza granular vía logger (NO logAudit). */

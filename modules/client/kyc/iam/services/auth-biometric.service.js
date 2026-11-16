@@ -9,21 +9,22 @@ const {
   biometricCredentialRepository,
   biometricChallengeRepository
 } = require('../../../../schemas/kyc/iam/repositories/biometric.repository');
-const JwtUtil = require('../../../../../shared/utils/jwt.util');
-const RefreshTokenStore = require('../../../../../shared/utils/refresh-token-store.util');
 const userSessionRepository = require('../../../../schemas/kyc/iam/repositories/user-session.repository');
 const SessionControlService = require('../../../../shared-endpoints/kyc/iam/services/auth-login/session-control.service');
+const SessionIssuerService = require('../../../../shared-endpoints/kyc/iam/services/auth-login/session-issuer.service');
+const LoginPolicyGateService = require('../../../../shared-endpoints/kyc/iam/services/auth-login/login-policy-gate.service');
+const { verifyEs256Signature } = require('../../../../../shared/utils/es256-signature.util');
 const NotificationUtil = require('../../../../schemas/notification/services/notification-creation.service');
 const AppError = require('../../../../../shared/utils/app-error.util');
 const { logger, logAudit } = require('../../../../../shared/utils/logger.util');
-const { INTERNAL_ROLE_NAMES, notifications, jwt: jwtConfig } = require('../../../../../shared/constants');
+const { notifications } = require('../../../../../shared/constants');
 const {
   BiometricRegisterStartDTO,
   BiometricRegisterFinishDTO,
   BiometricLoginStartDTO,
   BiometricCredentialListDTO
 } = require('../dtos/auth-biometric.dto');
-const { LoginResponseDTO, PolicyUpdateRequiredDTO } = require('../../../../shared-endpoints/kyc/iam/dtos/auth-login.dto');
+const { LoginResponseDTO } = require('../../../../shared-endpoints/kyc/iam/dtos/auth-login.dto');
 
 // ============================================================
 // CONSTANTES
@@ -32,14 +33,7 @@ const { LoginResponseDTO, PolicyUpdateRequiredDTO } = require('../../../../share
 // ES256 = ECDSA con P-256 y SHA-256
 const SUPPORTED_ALGORITHM = -7;
 
-// Tamaños de bytes para criptografía ES256 / P-256
 const CHALLENGE_BYTES = 32; // bytes para crypto.randomBytes
-const ES256_RAW_SIGNATURE_LEN = 64; // firma raw r||s: 32 bytes r + 32 bytes s
-const ES256_COMPONENT_LEN = 32; // longitud de r y s individualmente
-const DER_POSITIVE_PAD = 0x80; // bit MSB: si está activo, el entero es negativo en DER
-const DER_INTEGER_TAG = 0x02; // tag ASN.1 INTEGER
-const DER_SEQUENCE_TAG = 0x30; // tag ASN.1 SEQUENCE
-const PEM_LINE_LENGTH = 64; // caracteres por línea en PEM
 
 class AuthBiometricService {
   /**
@@ -60,6 +54,16 @@ class AuthBiometricService {
     // Misma política de sesiones que el login por contraseña (una por dispositivo + límite simultáneo)
     this.sessionControl =
       deps.sessionControl ?? new SessionControlService({ userSessionRepository: this.userSessionRepository });
+    this.sessionIssuer =
+      deps.sessionIssuer ?? new SessionIssuerService({ userSessionRepository: this.userSessionRepository });
+    this.policyGate =
+      deps.policyGate ??
+      new LoginPolicyGateService({
+        userRepository: this.userRepository,
+        privacyPolicyRepository: this.privacyPolicyRepository,
+        consentRecorder: this.consentRecorder
+      });
+    this.verifySignature = deps.verifySignature ?? verifyEs256Signature;
     this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
   }
 
@@ -296,37 +300,12 @@ class AuthBiometricService {
     // La firma ES256 verificada YA autenticó al usuario: la huella desbloqueó la llave
     // privada en el secure enclave del dispositivo. Emitimos tokens propios RS256 igual
     // que _completeSuccessfulLogin del login por contraseña — sin Cognito ni contraseña.
-    const sessionId = crypto.randomUUID();
-    const jti = crypto.randomUUID();
-    const accessToken = await JwtUtil.generateAccessToken(user, sessionId);
-    const refreshToken = await JwtUtil.generateRefreshToken(user.user_id, jti, sessionId);
-
-    // Guardar JTI (awaited — si falla, el refresh token no servirá)
-    const jtiSaved = await RefreshTokenStore.save(jti, userId);
-    if (!jtiSaved) {
-      logger.warn('No se pudo guardar JTI de refresh token en login biométrico', { userId });
-    }
-
-    // Crear registro de sesión activa en BD (fire-and-forget) — igual que el login normal
-    this.userSessionRepository
-      .create({
-        user_session_id: sessionId,
-        user_id: userId,
-        device_id: device.user_trusted_device_id || null,
-        jti,
-        ip_address: ip || null,
-        user_agent: userAgent || null,
-        started_at: new Date(),
-        last_access_at: new Date()
-      })
-      .catch(err =>
-        logger.warn('Error creando registro de sesión en BD (login biométrico)', {
-          error: err.message,
-          userId
-        })
-      );
-
-    const tokens = { accessToken, refreshToken, expiresIn: jwtConfig.accessTokenExpiry };
+    const { sessionId, tokens } = await this.sessionIssuer.issue(user, {
+      deviceId: device.user_trusted_device_id,
+      ip,
+      userAgent,
+      source: 'login biométrico'
+    });
 
     // Actualizar sign_count, last_seen y registrar intento — en paralelo
     await Promise.all([
@@ -475,66 +454,10 @@ class AuthBiometricService {
    * y deja continuar el login en un solo paso.
    * @private
    */
-  async _checkPrivacyPolicy(user, acceptPolicy, ip) {
-    const activePolicy = await this.privacyPolicyRepository.findActive();
-
-    // Los usuarios internos no están sujetos a la política de privacidad de clientes
-    const roleName = user.role?.name;
-    if (INTERNAL_ROLE_NAMES.includes(roleName)) {
-      return null;
-    }
-    if (!activePolicy) {
-      return null;
-    }
-    if (user.privacy_policy_version === activePolicy.version) {
-      return null;
-    }
-
-    if (acceptPolicy === true) {
-      await this.userRepository.updatePrivacyPolicy(user.user_id, {
-        version: activePolicy.version,
-        acceptedAt: new Date(),
-        acceptedIp: ip || null
-      });
-
-      // RF-ADM-04: trazabilidad granular en user_consents
-      await this.consentRecorder
-        .grantPrivacyPolicy({ userId: user.user_id, privacyPolicyId: activePolicy.privacy_policy_id, ip }).catch(err =>
-        logger.warn('auth-biometric: no se pudo registrar user_consent de privacy policy', {
-          userId: user.user_id,
-          error: err.message
-        })
-      );
-
-      logAudit(
-        'PRIVACY_POLICY_ACCEPTED',
-        user.user_id,
-        {
-          version: activePolicy.version,
-          ip: ip || null
-        },
-        { entityType: 'PrivacyPolicy', entityTable: 'privacy_policies' }
-      );
-
-      return null;
-    }
-
-    logAudit(
-      'BIOMETRIC_LOGIN_BLOCKED_POLICY_UPDATE',
-      user.user_id,
-      {
-        userVersion: user.privacy_policy_version || 'ninguna',
-        activeVersion: activePolicy.version
-      },
-      { entityType: 'PrivacyPolicy', entityTable: 'privacy_policies', outcome: 'failure' }
-    );
-
-    return PolicyUpdateRequiredDTO({
-      currentVersion: user.privacy_policy_version || null,
-      newVersion: activePolicy.version,
-      documentUrl: activePolicy.document_url,
-      summary: activePolicy.summary,
-      effectiveDate: activePolicy.effective_date
+  _checkPrivacyPolicy(user, acceptPolicy, ip) {
+    return this.policyGate.check(user, acceptPolicy, ip, {
+      blockedAuditAction: 'BIOMETRIC_LOGIN_BLOCKED_POLICY_UPDATE',
+      source: 'auth-biometric'
     });
   }
 
@@ -543,71 +466,13 @@ class AuthBiometricService {
   // ============================================================
 
   /**
-   * Verifica una firma ES256 (ECDSA P-256 + SHA-256).
-   *
-   * El dispositivo móvil firma el challenge con su llave privada.
-   * Nosotros verificamos con la llave pública guardada.
-   *
-   * @param {{ publicKey: string, challenge: string, signature: string }} params
-   *   - publicKey:  llave pública en base64 (formato SubjectPublicKeyInfo / DER) o PEM
-   *   - challenge:  string base64url que fue firmado
-   *   - signature:  firma en base64url (formato DER o raw r||s de 64 bytes)
+   * Verifica una firma ES256 (ECDSA P-256 + SHA-256). La criptografía vive en
+   * shared/utils/es256-signature.util.js; aquí solo se delega (inyectable para tests).
    * @returns {boolean}
    * @private
    */
   _verifySignature({ publicKey, challenge, signature }) {
-    try {
-      const verify = crypto.createVerify('SHA256');
-
-      // El challenge fue firmado como bytes — lo convertimos desde base64url
-      const challengeBuffer = Buffer.from(challenge, 'base64url');
-      verify.update(challengeBuffer);
-
-      // La llave pública puede venir en base64 (DER/SPKI) o ya en PEM
-      const pemKey = publicKey.startsWith('-----') ? publicKey : this._derToPem(publicKey);
-
-      // La firma puede venir en base64url (raw 64 bytes r||s) o DER
-      const signatureBuffer = Buffer.from(signature, 'base64url');
-      const derSignature = signatureBuffer.length === ES256_RAW_SIGNATURE_LEN ? this._rawToDer(signatureBuffer) : signatureBuffer;
-
-      return verify.verify(pemKey, derSignature);
-    } catch (error) {
-      logger.info('Biometric signature verification error', { error: error.message });
-      return false;
-    }
-  }
-
-  /**
-   * Convierte una llave pública DER (base64) a formato PEM.
-   * @private
-   */
-  _derToPem(base64Der) {
-    const regex = new RegExp(`.{1,${PEM_LINE_LENGTH}}`, 'g');
-    const lines = base64Der.match(regex).join('\n');
-    return `-----BEGIN PUBLIC KEY-----\n${lines}\n-----END PUBLIC KEY-----`;
-  }
-
-  /**
-   * Convierte firma raw (r||s, 64 bytes) a formato DER.
-   * Los dispositivos móviles a veces envían la firma en formato raw.
-   * @private
-   */
-  _rawToDer(rawSignature) {
-    const r = rawSignature.slice(0, ES256_COMPONENT_LEN);
-    const s = rawSignature.slice(ES256_COMPONENT_LEN, ES256_RAW_SIGNATURE_LEN);
-
-    const encodeInt = buf => {
-      // Si el bit más significativo es 1, agregar byte 0x00 para indicar positivo
-      const needsPad = buf[0] & DER_POSITIVE_PAD;
-      const padded = needsPad ? Buffer.concat([Buffer.from([0x00]), buf]) : buf;
-      return Buffer.concat([Buffer.from([DER_INTEGER_TAG, padded.length]), padded]);
-    };
-
-    const rDer = encodeInt(r);
-    const sDer = encodeInt(s);
-    const seq = Buffer.concat([rDer, sDer]);
-
-    return Buffer.concat([Buffer.from([DER_SEQUENCE_TAG, seq.length]), seq]);
+    return this.verifySignature({ publicKey, challenge, signature });
   }
 }
 

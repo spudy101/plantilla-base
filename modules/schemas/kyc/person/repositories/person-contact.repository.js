@@ -13,6 +13,22 @@ class PersonContactRepository extends BaseRepository {
     return this.findOne({ email_hash: hash }, options);
   }
 
+  /**
+   * Contacto por email con la persona (nombre) y su usuario (id, estado).
+   * Usado por el reset de credenciales para resolver al titular del email.
+   */
+  findByEmailWithUser(email) {
+    return this.findByEmail(email, {
+      include: [
+        {
+          association: 'person',
+          attributes: ['person_id', 'first_name'],
+          include: [{ association: 'user', attributes: ['user_id', 'is_active'] }]
+        }
+      ]
+    });
+  }
+
   findByPhone(phone) {
     const hash = HashUtil.hashForSearch(phone);
     return this.findOne({ phone_primary_hash: hash });

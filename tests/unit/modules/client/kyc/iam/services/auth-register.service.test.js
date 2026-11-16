@@ -26,6 +26,7 @@ jest.mock('modules/schemas/kyc/person/repositories/person.repository', () => ({
 }));
 jest.mock('modules/schemas/kyc/person/repositories/person-contact.repository', () => ({
   findByEmail: jest.fn(),
+  findByEmailWithUser: jest.fn(),
   create: jest.fn()
 }));
 jest.mock('modules/schemas/kyc/maintainers/repositories/document-type.repository', () => ({
@@ -34,7 +35,7 @@ jest.mock('modules/schemas/kyc/maintainers/repositories/document-type.repository
 jest.mock('modules/schemas/kyc/iam/repositories/reset-credentials.repository', () => ({
   invalidateUserTokens: jest.fn(),
   createResetToken: jest.fn(),
-  findValidToken: jest.fn(),
+  findValidTokenWithUser: jest.fn(),
   markAsUsed: jest.fn()
 }));
 jest.mock('modules/schemas/kyc/person/repositories/user-notification-preference.repository', () => ({
@@ -311,19 +312,19 @@ describe('AuthRegisterService', () => {
 
   describe('requestResetCredentials — anti-enumeración', () => {
     it('devuelve false si el email no corresponde a un usuario', async () => {
-      personContactRepository.findByEmail.mockResolvedValue(null);
+      personContactRepository.findByEmailWithUser.mockResolvedValue(null);
       await expect(service.requestResetCredentials({ email: 'x@x.com', type: 'password' })).resolves.toBe(false);
       expect(resetCredentialsRepository.createResetToken).not.toHaveBeenCalled();
     });
 
     it('devuelve false si el usuario está inactivo', async () => {
-      personContactRepository.findByEmail.mockResolvedValue({ person: { first_name: 'Ada', user: { user_id: 'u-1', is_active: false } } });
+      personContactRepository.findByEmailWithUser.mockResolvedValue({ person: { first_name: 'Ada', user: { user_id: 'u-1', is_active: false } } });
       await expect(service.requestResetCredentials({ email: 'x@x.com', type: 'password' })).resolves.toBe(false);
       expect(resetCredentialsRepository.createResetToken).not.toHaveBeenCalled();
     });
 
     it('genera y persiste el token, audita, notifica y devuelve true (password)', async () => {
-      personContactRepository.findByEmail.mockResolvedValue({
+      personContactRepository.findByEmailWithUser.mockResolvedValue({
         person: { first_name: 'Ada', user: { user_id: 'u-1', is_active: true } }
       });
       resetCredentialsRepository.invalidateUserTokens.mockResolvedValue(1);
@@ -345,7 +346,7 @@ describe('AuthRegisterService', () => {
     });
 
     it('usa la plantilla de MFA cuando el tipo es mfa', async () => {
-      personContactRepository.findByEmail.mockResolvedValue({
+      personContactRepository.findByEmailWithUser.mockResolvedValue({
         person: { first_name: 'Ada', user: { user_id: 'u-1', is_active: true } }
       });
       resetCredentialsRepository.invalidateUserTokens.mockResolvedValue(0);
@@ -368,14 +369,14 @@ describe('AuthRegisterService', () => {
     }
 
     it('lanza badRequest si el token es inválido o expiró', async () => {
-      resetCredentialsRepository.findValidToken.mockResolvedValue(null);
+      resetCredentialsRepository.findValidTokenWithUser.mockResolvedValue(null);
       await expect(service.confirmResetCredentials({ token: 't', type: 'password', newPassword: 'x' })).rejects.toMatchObject({
         statusCode: 400
       });
     });
 
     it('lanza badRequest si el tipo del registro no coincide con el solicitado', async () => {
-      resetCredentialsRepository.findValidToken.mockResolvedValue({ type: 'mfa', user: { user_id: 'u-1' } });
+      resetCredentialsRepository.findValidTokenWithUser.mockResolvedValue({ type: 'mfa', user: { user_id: 'u-1' } });
       await expect(service.confirmResetCredentials({ token: 't', type: 'password', newPassword: 'x' })).rejects.toMatchObject({
         statusCode: 400
       });
@@ -383,7 +384,7 @@ describe('AuthRegisterService', () => {
 
     it('resetea la contraseña, commitea, audita e invalida sesiones', async () => {
       const tx = txOk();
-      resetCredentialsRepository.findValidToken.mockResolvedValue({
+      resetCredentialsRepository.findValidTokenWithUser.mockResolvedValue({
         reset_credentials_id: 'rc-1',
         type: 'password',
         user: { user_id: 'u-1', person: { first_name: 'Ada', contact: { email: 'x@x.com' } } }
@@ -405,7 +406,7 @@ describe('AuthRegisterService', () => {
 
     it('lanza badRequest si es reset de password sin newPassword y hace rollback', async () => {
       const tx = txOk();
-      resetCredentialsRepository.findValidToken.mockResolvedValue({
+      resetCredentialsRepository.findValidTokenWithUser.mockResolvedValue({
         reset_credentials_id: 'rc-1',
         type: 'password',
         user: { user_id: 'u-1' }
@@ -416,7 +417,7 @@ describe('AuthRegisterService', () => {
 
     it('resetea el MFA (baja TOTP/SMS) y registra los cambios', async () => {
       const tx = txOk();
-      resetCredentialsRepository.findValidToken.mockResolvedValue({
+      resetCredentialsRepository.findValidTokenWithUser.mockResolvedValue({
         reset_credentials_id: 'rc-1',
         type: 'mfa',
         user: { user_id: 'u-1', person: { first_name: 'Ada', contact: { email: 'x@x.com' } } }
@@ -442,7 +443,7 @@ describe('AuthRegisterService', () => {
 
     it('hace rollback y propaga si falla la aplicación del reset', async () => {
       const tx = txOk();
-      resetCredentialsRepository.findValidToken.mockResolvedValue({
+      resetCredentialsRepository.findValidTokenWithUser.mockResolvedValue({
         reset_credentials_id: 'rc-1',
         type: 'password',
         user: { user_id: 'u-1' }
