@@ -2,7 +2,7 @@
 //
 // AuthRegisterService — registro público y reset de credenciales. Servicio grande: cubrimos las
 // ramas principales de register() (prerrequisitos, validación de unicidad, creación transaccional,
-// emisión de tokens, notificaciones best-effort), el bypass de desarrollo, y los flujos de
+// emisión de tokens, notificaciones best-effort), y los flujos de
 // requestResetCredentials() (anti-enumeración) y confirmResetCredentials() (password/mfa/guardas).
 // Todo dependencia se mockea inline; crypto real; AppError real (autocontenido).
 
@@ -100,14 +100,13 @@ jest.mock('shared/utils/logger.util', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
 
-// mockConstants es la MISMA referencia devuelta por la factory (permite mutar server para el
-// test de bypass y que un require aislado lo lea).
+// mockConstants es la MISMA referencia devuelta por la factory.
 const mockConstants = {
   CONSENT_TYPE_CODES: { PRIVACY_POLICY: 'PRIVACY_POLICY', COMUNICACIONES_COMERCIALES: 'COMUNICACIONES_COMERCIALES' },
   frontend: { resetCredentialUrl: 'https://front/reset' },
   SECURITY: { RESET_TOKEN_EXPIRATION_MINUTES: 15 },
   RBAC_ROLES: { CLIENTE: 'CLIENTE' },
-  server: { nodeEnv: 'test', bypass: 'false' },
+  server: { nodeEnv: 'test' },
   notifications: { ses: { logoUrl: 'https://logo' } },
   jwt: { accessTokenExpiry: '15m' }
 };
@@ -185,21 +184,6 @@ describe('AuthRegisterService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockConstants.server.nodeEnv = 'test';
-    mockConstants.server.bypass = 'false';
-  });
-
-  describe('register — bypass de desarrollo', () => {
-    it('lanza badRequest cuando el bypass está habilitado (dev + bypass=true)', async () => {
-      // El flag IS_BYPASS_ENABLED se evalúa al cargar el módulo → re-require aislado con constants mutadas.
-      mockConstants.server.nodeEnv = 'development';
-      mockConstants.server.bypass = 'true';
-      let bypassSvc;
-      jest.isolateModules(() => {
-        bypassSvc = require('modules/client/kyc/iam/services/auth-register.service');
-      });
-
-      await expect(bypassSvc.register(VALID_USER_DATA, {})).rejects.toMatchObject({ statusCode: 400 });
-    });
   });
 
   describe('register — camino feliz', () => {

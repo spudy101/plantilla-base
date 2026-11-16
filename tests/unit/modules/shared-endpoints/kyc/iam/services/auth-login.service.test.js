@@ -168,7 +168,7 @@ jest.mock('shared/constants', () => ({
     SESSION_COMPROMISED: 'SESSION_COMPROMISED',
     SESSION_ABSOLUTE_LIFETIME: 'SESSION_ABSOLUTE_LIFETIME'
   },
-  server: { nodeEnv: 'test', bypass: 'false' },
+  server: { nodeEnv: 'test' },
   notifications: { ses: { logoUrl: 'http://logo' } },
   CLIENT_ACCESS_ROLES: ['CLIENTE'],
   INTERNAL_ROLE_NAMES: ['SUPERADMIN', 'ADMIN', 'AUDITOR'],

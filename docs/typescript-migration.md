@@ -102,13 +102,12 @@ Tipos y helpers compartidos:
 - **Webhook con `apiKey` repetida en la query** (`?apiKey=a&apiKey=b`): llegaba un array a la verificación de
   la API key, `crypto` lanzaba y respondía 500. Ahora solo se acepta un string → 401.
 
-### Para decidir (sin cambios de comportamiento)
+### Código residual eliminado
 
-- **El bypass de autenticación de desarrollo está apagado de hecho.** `auth.middleware`, `auth-login`,
-  `token-refresh` y `auth-register` leen `server.bypass`, pero `shared/constants/config.ts` nunca expone
-  esa propiedad (no hay variable de entorno), así que `IS_BYPASS_ENABLED` siempre es `false`. Se dejó tal cual
-  (es lo seguro). Opciones: borrar el código muerto del bypass, o agregar una variable explícita
-  (p. ej. `AUTH_BYPASS=true`, solo con `NODE_ENV=development`) si se quiere usar.
+- **Bypass de autenticación de desarrollo** (residuo de la integración con Cognito: sus tokens falsos
+  incluían un `idToken`). Estaba apagado de hecho — la config nunca expuso `server.bypass` — y se
+  eliminó de `auth.middleware`, `auth-login`, `token-refresh` y `auth-register`. Si en algún momento se
+  necesita un modo de pruebas sin login, debe diseñarse aparte (variable explícita, solo en desarrollo).
 
 ## Qué queda fuera a propósito (por ahora)
 

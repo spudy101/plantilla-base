@@ -20,14 +20,9 @@ const unitOfWork = require('../../../../../shared/database/unit-of-work');
 const CredentialResetService = require('./auth-register/credential-reset.service');
 const SessionIssuerService = require('../../../../shared-endpoints/kyc/iam/services/auth-login/session-issuer.service');
 const { RegisterResponseDTO } = require('../dtos/auth-register.dto');
-const { RBAC_ROLES, server, notifications } = require('../../../../../shared/constants');
+const { RBAC_ROLES, notifications } = require('../../../../../shared/constants');
 
 // === RF-AUTH-01: Registro de Usuario (confirmación de correo y celular) ===
-
-// ============================================================
-// BYPASS DE AUTENTICACIÓN (solo desarrollo)
-// ============================================================
-const IS_BYPASS_ENABLED = server.nodeEnv === 'development' && server.bypass === 'true';
 
 class AuthRegisterService {
   /**
@@ -71,10 +66,6 @@ class AuthRegisterService {
   // ============================================================
 
   async register(userData, auditContext = {}) {
-    if (IS_BYPASS_ENABLED) {
-      throw AppError.badRequest('[DEV] El registro no esta disponible en modo bypass...');
-    }
-
     const {
       email,
       password,
