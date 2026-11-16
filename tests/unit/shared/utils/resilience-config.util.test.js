@@ -3,12 +3,12 @@
 // ResilienceConfig: resuelve la config de resiliencia de integraciones desde
 // SystemGlobalConfig.integration_resilience (snake_case), la mapea a camelCase,
 // la cachea 60s y NUNCA lanza (fallback duro / último valor ante error de BD).
-// Mockeamos el modelo (nada de BD) y el logger.
+// Mockeamos el repositorio (nada de BD) y el logger.
 
 const mockFindOne = jest.fn();
 
-jest.mock('shared/models', () => ({
-  SystemGlobalConfig: { findOne: (...args) => mockFindOne(...args) }
+jest.mock('modules/schemas/core/repositories/system-global-config.repository', () => ({
+  findActiveResilience: (...args) => mockFindOne(...args)
 }));
 
 jest.mock('shared/utils/logger.util', () => ({

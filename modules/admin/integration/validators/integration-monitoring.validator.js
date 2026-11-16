@@ -1,9 +1,9 @@
 const { query } = require('express-validator');
 const BaseValidator = require('../../../../shared/validators/base.validator');
-const { IntegrationApiLog } = require('../../../../shared/models');
-
-const PRODUCTS = IntegrationApiLog.rawAttributes.product.values;
-const RESULTS = IntegrationApiLog.rawAttributes.result.values;
+const {
+  INTEGRATION_PRODUCTS: PRODUCTS,
+  INTEGRATION_RESULTS: RESULTS
+} = require('../../../../shared/constants/domain-enums');
 
 class IntegrationMonitoringValidator {
   static dashboardQuery() {

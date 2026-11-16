@@ -36,16 +36,7 @@ jest.mock('modules/schemas/notification/services/notification-scheduler.service'
 
 jest.mock('shared/utils/encryption.util', () => ({ safeDecrypt: jest.fn(v => v) }));
 
-jest.mock('shared/models', () => ({
-  Notification: {
-    PROCESSING_STATUS: {
-      PROCESSING: 'processing',
-      COMPLETED: 'completed',
-      PARTIAL_FAILURE: 'partial_failure',
-      FAILED: 'failed'
-    }
-  }
-}));
+jest.mock('shared/models', () => ({}));
 
 jest.mock('shared/utils/logger.util', () => ({
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn() },
@@ -350,7 +341,7 @@ describe('NotificationSendingService — canales extensibles (Open/Closed)', () 
     expect(whatsapp.send).not.toHaveBeenCalled();
   });
 
-  it('el estado de entrega considera los flags <canal>_sent / <canal>_error del canal nuevo', async () => {
+  it('el estado de entrega considera los flags <canal>_sent / <canal>_error del canal nuevo', () => {
     const service = new NotificationSendingService({ notificationRepo: makeFakeRepo({}), channels: [whatsappChannel()] });
     const type = { category: { supports_whatsapp: true } };
 

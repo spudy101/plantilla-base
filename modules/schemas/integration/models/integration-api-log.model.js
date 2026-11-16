@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const { database } = require('../../../../shared/constants');
+const { INTEGRATION_PRODUCTS, INTEGRATION_RESULTS } = require('../../../../shared/constants/domain-enums');
 
 // Bitácora central de consumos de integraciones externas (solo AWS en este template:
 // SES / S3 / SNS / SMS por SNS). Una fila por llamada al proveedor. Alimenta el
@@ -19,7 +20,7 @@ module.exports = sequelize => {
       },
 
       product: {
-        type: DataTypes.ENUM('ses', 's3', 'sns', 'aws_sms'),
+        type: DataTypes.ENUM(...INTEGRATION_PRODUCTS),
         allowNull: false,
         comment: 'Producto/servicio AWS consumido (SES/S3/SNS/SMS por SNS)'
       },
@@ -45,7 +46,7 @@ module.exports = sequelize => {
       },
 
       result: {
-        type: DataTypes.ENUM('success', 'failed', 'circuit_open'),
+        type: DataTypes.ENUM(...INTEGRATION_RESULTS),
         allowNull: false,
         comment: 'success | failed | circuit_open (bloqueada por el circuit breaker)'
       },

@@ -11,7 +11,7 @@ const { MetadataDTO } = require('../../../../shared/dtos/kyc/components-catalog.
 const AppError = require('../../../../shared/utils/app-error.util');
 const { logger, logAudit } = require('../../../../shared/utils/logger.util');
 const { notifications } = require('../../../../shared/constants');
-const { Notification } = require('../../../../shared/models');
+const { NOTIFICATION_PROCESSING_STATUS } = require('../../../../shared/constants/domain-enums');
 const {
   NotificationDeliveryListDTO,
   NotificationDeliveryDetailDTO,
@@ -109,7 +109,7 @@ class AdminNotificationDeliveryService {
       throw AppError.notFound('Notificación no encontrada');
     }
 
-    if (notification.processing_status === Notification.PROCESSING_STATUS.COMPLETED) {
+    if (notification.processing_status === NOTIFICATION_PROCESSING_STATUS.COMPLETED) {
       throw AppError.badRequest('La notificación ya fue entregada exitosamente en todos los canales');
     }
 
@@ -180,7 +180,7 @@ class AdminNotificationDeliveryService {
         const finalStatus = await this.notificationSendingService.actualizarEstadoEntrega(notificationId, notificationType);
         logger.info('[NotificationDelivery] Reintento procesado', { notificationId, effectiveChannel, finalStatus });
       } catch (err) {
-        await this.notificationRepo.updateProcessingStatus(notificationId, Notification.PROCESSING_STATUS.FAILED);
+        await this.notificationRepo.updateProcessingStatus(notificationId, NOTIFICATION_PROCESSING_STATUS.FAILED);
         logger.warn('[NotificationDelivery] Error en reintento admin', { notificationId, error: err.message });
       }
     });
@@ -241,7 +241,7 @@ function _resolverCanal(notification, requestedChannel) {
   // Nada falló explícitamente pero processing_status es failed — reintentar todo, salvo que algún
   // canal esté cerrado por hard bounce (no re-abrir un buzón muerto vía el fallback).
   if (
-    notification.processing_status === Notification.PROCESSING_STATUS.FAILED &&
+    notification.processing_status === NOTIFICATION_PROCESSING_STATUS.FAILED &&
     !emailClosed &&
     !pushClosed &&
     !smsClosed

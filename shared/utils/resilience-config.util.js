@@ -32,11 +32,8 @@ let _cacheAt = 0;
 // camelCase para el consumo interno, a partir del snake_case persistido en la global.
 async function _load() {
   // require lazy: evita ciclos de carga (models ↔ utils) al arrancar.
-  const { SystemGlobalConfig } = require('../models');
-  const config = await SystemGlobalConfig.findOne({
-    where: { is_active: true },
-    attributes: ['integration_resilience']
-  });
+  const systemGlobalConfigRepository = require('../../modules/schemas/core/repositories/system-global-config.repository');
+  const config = await systemGlobalConfigRepository.findActiveResilience();
   const r = config?.integration_resilience ?? {};
   const cb = r.circuit_breaker ?? {};
   const st = r.screening_throttle ?? {};

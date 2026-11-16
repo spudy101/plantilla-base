@@ -5,7 +5,6 @@ const PaginationHelper = require('../../../../../shared/utils/pagination.util');
 const { MetadataDTO } = require('../../../../../shared/dtos/kyc/components-catalog.dto');
 const auditLogRepository = require('../../../../schemas/records/audit/repositories/audit-log.repository');
 const { AuditLogListDTO, AuditLogDTO } = require('../dtos/admin-audit-log.dto');
-const { User, Person } = require('../../../../../shared/models');
 
 const EXPORT_LIMIT = 50000;
 
@@ -51,8 +50,7 @@ class AdminAuditLogService {
         offset: paginationParams.offset,
         sortBy: PaginationHelper.toSnakeCase(paginationParams.sortBy),
         order: paginationParams.order
-      },
-      [_includeExecutor()]
+      }
     );
 
     const activeFilters = PaginationHelper.buildFilters(query, [
@@ -93,7 +91,7 @@ class AdminAuditLogService {
   }
 
   async getById(auditLogId, adminUserId) {
-    const record = await this.auditLogRepository.findByIdFull(auditLogId, [_includeExecutor()]);
+    const record = await this.auditLogRepository.findByIdFull(auditLogId);
     if (!record) {
       throw AppError.notFound('Log de auditoría no encontrado');
     }
@@ -179,16 +177,6 @@ async function _streamXlsx(res, rows, truncated) {
   }
 
   await workbook.commit();
-}
-
-function _includeExecutor() {
-  return {
-    model: User,
-    as: 'executor',
-    required: false,
-    attributes: ['user_id', 'username'],
-    include: [{ model: Person, as: 'person', attributes: ['first_name', 'last_name'] }]
-  };
 }
 
 module.exports = new AdminAuditLogService();

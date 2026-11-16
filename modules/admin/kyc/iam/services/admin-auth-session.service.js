@@ -10,7 +10,7 @@ const { logger, logAudit } = require('../../../../../shared/utils/logger.util');
 const { notifications } = require('../../../../../shared/constants');
 const NotificationCreationService = require('../../../../schemas/notification/services/notification-creation.service');
 const PaginationHelper = require('../../../../../shared/utils/pagination.util');
-const { UserTrustedDevice, User, Person, UserSession } = require('../../../../../shared/models');
+const { USER_SESSION_STATUS } = require('../../../../../shared/constants/domain-enums');
 const { SessionListDTO, AuthAttemptListDTO } = require('../dtos/admin-auth-session.dto');
 
 const AUTH_CATEGORY = 'Autenticación';
@@ -24,16 +24,6 @@ const LOGIN_ACTIONS = [
   'LOGIN_BLOCKED_POLICY_UPDATE', // inicio bloqueado por política pendiente
   'ACCOUNT_BLOCKED', // cuenta bloqueada por múltiples fallos
   'REFRESH_TOKEN_REUSE_ATTACK' // reuso de refresh token detectado
-];
-
-const ATTEMPTS_INCLUDE = [
-  {
-    model: User,
-    as: 'executor',
-    required: false,
-    attributes: ['user_id', 'username'],
-    include: [{ model: Person, as: 'person', attributes: ['first_name', 'last_name'] }]
-  }
 ];
 
 class AdminAuthSessionService {
@@ -56,23 +46,7 @@ class AdminAuthSessionService {
     const pagination = PaginationHelper.getPaginationParams(query);
     const where = this.userSessionRepository.buildWhere(query);
 
-    const include = [
-      {
-        model: UserTrustedDevice,
-        as: 'device',
-        required: false,
-        attributes: ['user_trusted_device_id', 'device_name', 'device_type', 'browser', 'os', 'status']
-      },
-      {
-        model: User,
-        as: 'sessionUser',
-        required: false,
-        attributes: ['user_id', 'username'],
-        include: [{ model: Person, as: 'person', attributes: ['first_name', 'last_name'] }]
-      }
-    ];
-
-    const { rows, count } = await this.userSessionRepository.findPaginated(where, pagination, include);
+    const { rows, count } = await this.userSessionRepository.findPaginatedWithDeviceAndUser(where, pagination);
 
     logAudit(
       'AUTH_SESSION_LIST_VIEWED',
@@ -103,23 +77,7 @@ class AdminAuthSessionService {
     const pagination = PaginationHelper.getPaginationParams(query);
     const where = this.userSessionRepository.buildWhere({ userId, status: query.status });
 
-    const include = [
-      {
-        model: UserTrustedDevice,
-        as: 'device',
-        required: false,
-        attributes: ['user_trusted_device_id', 'device_name', 'device_type', 'browser', 'os', 'status']
-      },
-      {
-        model: User,
-        as: 'sessionUser',
-        required: false,
-        attributes: ['user_id', 'username'],
-        include: [{ model: Person, as: 'person', attributes: ['first_name', 'last_name'] }]
-      }
-    ];
-
-    const { rows, count } = await this.userSessionRepository.findPaginated(where, pagination, include);
+    const { rows, count } = await this.userSessionRepository.findPaginatedWithDeviceAndUser(where, pagination);
 
     logAudit(
       'AUTH_SESSION_BY_USER_VIEWED',
@@ -146,7 +104,7 @@ class AdminAuthSessionService {
     if (!session) {
       throw AppError.notFound('Sesión no encontrada');
     }
-    if (session.status !== UserSession.STATUS.ACTIVE) {
+    if (session.status !== USER_SESSION_STATUS.ACTIVE) {
       throw AppError.badRequest('La sesión ya está cerrada');
     }
 
@@ -225,7 +183,7 @@ class AdminAuthSessionService {
     const pagination = PaginationHelper.getPaginationParams(query);
     const criteria = this._buildAttemptsCriteria(query);
 
-    const { rows, count } = await this.auditLogRepository.findAuthAttemptsPaginated(criteria, pagination, ATTEMPTS_INCLUDE);
+    const { rows, count } = await this.auditLogRepository.findAuthAttemptsPaginated(criteria, pagination);
 
     const scope = query.scope || 'all';
     logAudit(
@@ -249,7 +207,7 @@ class AdminAuthSessionService {
     const pagination = PaginationHelper.getPaginationParams(query);
     const criteria = this._buildAttemptsCriteria(query, userId);
 
-    const { rows, count } = await this.auditLogRepository.findAuthAttemptsPaginated(criteria, pagination, ATTEMPTS_INCLUDE);
+    const { rows, count } = await this.auditLogRepository.findAuthAttemptsPaginated(criteria, pagination);
 
     const scope = query.scope || 'all';
     logAudit(

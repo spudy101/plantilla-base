@@ -7,7 +7,8 @@
 
 jest.mock('modules/schemas/kyc/iam/repositories/user-session.repository', () => ({
   buildWhere: jest.fn(),
-  findPaginated: jest.fn(),
+  findPaginatedWithDeviceAndUser: jest.fn(),
+  findByIdWithDeviceAndUser: jest.fn(),
   findById: jest.fn(),
   closeSession: jest.fn().mockResolvedValue(undefined)
 }));
@@ -37,12 +38,6 @@ jest.mock('shared/constants', () => ({
   notifications: { ses: { logoUrl: 'https://logo.test/logo.png' } }
 }));
 
-jest.mock('shared/models', () => ({
-  UserTrustedDevice: {},
-  User: {},
-  Person: {},
-  UserSession: { STATUS: { ACTIVE: 'active' } }
-}));
 
 jest.mock('modules/admin/kyc/iam/dtos/admin-auth-session.dto', () => ({
   SessionListDTO: jest.fn(() => ({ dto: 'sessions' })),
@@ -70,7 +65,7 @@ describe('AdminAuthSessionService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     userSessionRepository.buildWhere.mockReturnValue({});
-    userSessionRepository.findPaginated.mockResolvedValue({ rows: [{ user_session_id: 's1' }], count: 1 });
+    userSessionRepository.findPaginatedWithDeviceAndUser.mockResolvedValue({ rows: [{ user_session_id: 's1' }], count: 1 });
     auditLogRepository.findAuthAttemptsPaginated.mockResolvedValue({ rows: [{ audit_log_id: 'a1' }], count: 1 });
   });
 
@@ -78,7 +73,7 @@ describe('AdminAuthSessionService', () => {
     it('pagina, audita y delega en SessionListDTO', async () => {
       const result = await service.listSessions({ page: '2', limit: '5' }, ADMIN_ID);
 
-      expect(userSessionRepository.findPaginated).toHaveBeenCalledTimes(1);
+      expect(userSessionRepository.findPaginatedWithDeviceAndUser).toHaveBeenCalledTimes(1);
       expect(logAudit).toHaveBeenCalledWith(
         'AUTH_SESSION_LIST_VIEWED',
         ADMIN_ID,

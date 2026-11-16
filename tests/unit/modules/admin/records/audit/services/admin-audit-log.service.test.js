@@ -42,8 +42,8 @@ jest.mock('modules/admin/records/audit/dtos/admin-audit-log.dto', () => ({
   AuditLogDTO: row => ({ dto: 'detail', ...row })
 }));
 
-// Modelos solo aportan referencias para el include del executor.
-jest.mock('shared/models', () => ({ User: { name: 'User' }, Person: { name: 'Person' } }));
+// El include del executor vive en el repositorio; el mock vacío evita cargar Sequelize real.
+jest.mock('shared/models', () => ({}));
 
 const ExcelJS = require('exceljs');
 const { logAudit, logger } = require('shared/utils/logger.util');

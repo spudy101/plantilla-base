@@ -13,7 +13,8 @@ jest.mock('modules/schemas/records/audit/repositories/audit-log.repository', () 
 
 jest.mock('modules/schemas/kyc/iam/repositories/user-session.repository', () => ({
   buildWhere: jest.fn(),
-  findPaginated: jest.fn(),
+  findPaginatedWithDeviceAndUser: jest.fn(),
+  findByIdWithDeviceAndUser: jest.fn(),
   findById: jest.fn()
 }));
 
@@ -40,7 +41,6 @@ jest.mock('shared/utils/logger.util', () => ({
   logAudit: jest.fn()
 }));
 
-jest.mock('shared/models', () => ({ UserTrustedDevice: {}, User: {}, Person: {} }));
 
 jest.mock('modules/admin/records/audit/dtos/admin-session-trace.dto', () => ({
   SessionTraceListDTO: jest.fn(() => ({ dto: 'list' })),
@@ -70,7 +70,7 @@ describe('AdminSessionTraceService', () => {
 
   describe('listSessions', () => {
     it('lista sesiones y arma el countMap de acciones por sesión', async () => {
-      userSessionRepository.findPaginated.mockResolvedValue({
+      userSessionRepository.findPaginatedWithDeviceAndUser.mockResolvedValue({
         rows: [{ user_session_id: 's1' }, { user_session_id: 's2' }],
         count: 2
       });
@@ -99,13 +99,13 @@ describe('AdminSessionTraceService', () => {
 
   describe('getSessionTimeline', () => {
     it('lanza 404 cuando la sesión no existe', async () => {
-      userSessionRepository.findById.mockResolvedValue(null);
+      userSessionRepository.findByIdWithDeviceAndUser.mockResolvedValue(null);
 
       await expect(service.getSessionTimeline('nope', {}, ADMIN_ID)).rejects.toThrow('Sesión no encontrada');
     });
 
     it('devuelve el timeline y marca hasDetail solo para tablas registradas con id', async () => {
-      userSessionRepository.findById.mockResolvedValue({ user_session_id: 's1' });
+      userSessionRepository.findByIdWithDeviceAndUser.mockResolvedValue({ user_session_id: 's1' });
       auditLogRepository.findPaginatedWithExecutor.mockResolvedValue({
         rows: [
           { entity_table: 'user_consents', entity_id: 'c1' },

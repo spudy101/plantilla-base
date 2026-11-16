@@ -6,7 +6,8 @@
 //
 // Fuente de verdad: totp_enabled || sms_mfa_enabled en la tabla `users`.
 
-const { User } = require('../models');
+// Lazy require: el repositorio vive en modules/ (evita ciclos de carga al arrancar). SOLID: D.
+const userRepository = () => require('../../modules/schemas/kyc/iam/repositories/user.repository');
 
 /**
  * @param {string} userId
@@ -16,10 +17,7 @@ async function isMfaActive(userId) {
   if (!userId) {
     return false;
   }
-  const user = await User.findOne({
-    where: { user_id: userId },
-    attributes: ['totp_enabled', 'sms_mfa_enabled']
-  });
+  const user = await userRepository().findMfaFlags(userId);
   if (!user) {
     return false;
   }

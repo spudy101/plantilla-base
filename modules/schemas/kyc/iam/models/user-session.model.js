@@ -1,4 +1,5 @@
 const { DataTypes } = require('sequelize');
+const { USER_SESSION_STATUS } = require('../../../../../shared/constants/domain-enums');
 const { database } = require('../../../../../shared/constants');
 
 module.exports = sequelize => {
@@ -63,10 +64,7 @@ module.exports = sequelize => {
     }
   );
 
-  UserSession.STATUS = {
-    ACTIVE: 'active',
-    CLOSED: 'closed'
-  };
+  UserSession.STATUS = USER_SESSION_STATUS;
 
   UserSession.associate = models => {
     UserSession.belongsTo(models.UserTrustedDevice, {

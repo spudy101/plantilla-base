@@ -1,4 +1,5 @@
 const { DataTypes } = require('sequelize');
+const { NOTIFICATION_PROCESSING_STATUS } = require('../../../../shared/constants/domain-enums');
 const { database } = require('../../../../shared/constants');
 
 module.exports = sequelize => {
@@ -163,13 +164,7 @@ module.exports = sequelize => {
     }
   );
 
-  Notification.PROCESSING_STATUS = {
-    PENDING: 'pending',
-    PROCESSING: 'processing',
-    COMPLETED: 'completed',
-    PARTIAL_FAILURE: 'partial_failure',
-    FAILED: 'failed'
-  };
+  Notification.PROCESSING_STATUS = NOTIFICATION_PROCESSING_STATUS;
 
   Notification.associate = models => {
     Notification.belongsTo(models.User, {

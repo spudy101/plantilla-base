@@ -30,6 +30,21 @@ const CACHE_TTL_SECONDS = 60;
 const CACHE_KEY_PREFIX = 'rbac:overrides:';
 
 class RbacService {
+  /**
+   * @param {object} [deps] Dependencias inyectables (SOLID: D). Sin overrideRepository se carga el
+   *   repositorio real de forma perezosa (evita ciclos de carga al arrancar).
+   */
+  constructor(deps = {}) {
+    this._overrideRepository = deps.overrideRepository ?? null;
+  }
+
+  get overrideRepository() {
+    if (!this._overrideRepository) {
+      this._overrideRepository = require('../../modules/schemas/kyc/iam/repositories/role-permission-override.repository');
+    }
+    return this._overrideRepository;
+  }
+
   // ============================================================
   // RESOLUCIÓN DE PERMISOS
   // ============================================================
@@ -237,12 +252,7 @@ class RbacService {
       return cached;
     }
 
-    const { RolePermissionOverride } = require('../models');
-    const rows = await RolePermissionOverride.findAll({
-      where: { role_name: roleName },
-      attributes: ['module_name', 'action']
-    });
-    const overrides = rows.map(r => ({ module_name: r.module_name, action: r.action }));
+    const overrides = await this.overrideRepository.findLookupByRole(roleName);
 
     await redisClient.set(cacheKey, overrides, CACHE_TTL_SECONDS);
 
@@ -259,3 +269,4 @@ class RbacService {
 }
 
 module.exports = new RbacService();
+module.exports.RbacService = RbacService;

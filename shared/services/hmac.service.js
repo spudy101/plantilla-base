@@ -16,12 +16,27 @@ const EncryptionUtil = require('../utils/encryption.util');
 const AppError = require('../utils/app-error.util');
 const { logger } = require('../utils/logger.util');
 
-// Lazy require para evitar dependencia circular al arrancar
-const getTrustedDeviceRepo = () => require('../../modules/schemas/kyc/iam/repositories/auth-trusted-device.repository');
 
 const TIMESTAMP_TOLERANCE_SECONDS = 10;
 
 class HmacService {
+  /**
+   * Dependencias inyectables (SOLID: D). Sin trustedDeviceRepository se carga el real de forma
+   * perezosa: auth-trusted-device.repository importa este service (generateDeviceSecret), así que
+   * un require eager crearía un ciclo de carga.
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this._trustedDeviceRepository = deps.trustedDeviceRepository ?? null;
+  }
+
+  get trustedDeviceRepository() {
+    if (!this._trustedDeviceRepository) {
+      this._trustedDeviceRepository = require('../../modules/schemas/kyc/iam/repositories/auth-trusted-device.repository');
+    }
+    return this._trustedDeviceRepository;
+  }
+
   /**
    * Verifica la firma HMAC de un request mobile.
    *
@@ -33,7 +48,7 @@ class HmacService {
    * @param {import('express').Request} req
    * @throws {AppError} si el timestamp expiró o la firma es inválida
    */
-  static async verifyRequestSignature(req) {
+  async verifyRequestSignature(req) {
     const timestamp = req.headers['x-timestamp'];
     const signature = req.headers['x-signature'];
     const fingerprintHash = req.headers['x-device-id'];
@@ -69,7 +84,7 @@ class HmacService {
     // ── 2. Obtener secret del dispositivo desde BD ────────────
     // El hmac_secret está cifrado en BD — el hook afterFind lo descifra
     // automáticamente antes de llegar aquí.
-    const device = await getTrustedDeviceRepo().findOne({ fingerprint_hash: fingerprintHash });
+    const device = await this.trustedDeviceRepository.findOne({ fingerprint_hash: fingerprintHash });
 
     if (!device?.hmac_secret) {
       logger.warn('HMAC — dispositivo sin secret registrado', { fingerprintHash });
@@ -97,11 +112,13 @@ class HmacService {
    *
    * @returns {string} 64 chars hex (32 bytes de entropía)
    */
-  static generateDeviceSecret() {
+  // eslint-disable-next-line class-methods-use-this
+  generateDeviceSecret() {
     const crypto = require('node:crypto');
     const DEVICE_SECRET_BYTES = 32;
     return crypto.randomBytes(DEVICE_SECRET_BYTES).toString('hex');
   }
 }
 
-module.exports = HmacService;
+module.exports = new HmacService();
+module.exports.HmacService = HmacService;

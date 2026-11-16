@@ -9,7 +9,7 @@ const NotificationContentUtil = require('../utils/notification-content.util');
 const EncryptionUtil = require('../../../../shared/utils/encryption.util');
 const { logger } = require('../../../../shared/utils/logger.util');
 const AppError = require('../../../../shared/utils/app-error.util');
-const { Notification } = require('../../../../shared/models');
+const { NOTIFICATION_PROCESSING_STATUS } = require('../../../../shared/constants/domain-enums');
 
 class NotificationCreationService {
   /**
@@ -153,7 +153,7 @@ class NotificationCreationService {
         relatedEntity_type: relatedEntity?.type || null,
         relatedEntity_id: relatedEntity?.id || null,
         metadata,
-        processing_status: Notification.PROCESSING_STATUS.PENDING,
+        processing_status: NOTIFICATION_PROCESSING_STATUS.PENDING,
         priority: NotificationContentUtil.mapPriority(notificationType.priority)
       },
       { transaction }

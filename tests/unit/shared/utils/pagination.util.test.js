@@ -1,9 +1,8 @@
 // tests/unit/shared/pagination.util.test.js
 //
-// PaginationHelper: parseo/validación de paginación, metadata, condición de búsqueda Sequelize
-// y conversores de caso. Lógica pura; usamos el `Op` real de sequelize para verificar las keys.
+// PaginationHelper: parseo/validación de paginación, metadata, filtros y conversores de caso.
+// Lógica pura (la búsqueda con operadores de Sequelize vive en ReadRepository).
 
-const { Op } = require('sequelize');
 const PaginationHelper = require('shared/utils/pagination.util');
 
 describe('PaginationHelper', () => {
@@ -99,26 +98,6 @@ describe('PaginationHelper', () => {
     it('agrega sort cuando se provee', () => {
       const meta = PaginationHelper.buildMetadata(10, 1, 10, null, { field: 'name', order: 'ASC' });
       expect(meta.sort).toEqual({ field: 'name', order: 'ASC' });
-    });
-  });
-
-  describe('buildSearchCondition', () => {
-    it('devuelve objeto vacío si no hay término de búsqueda', () => {
-      expect(PaginationHelper.buildSearchCondition('', ['name'])).toEqual({});
-      expect(PaginationHelper.buildSearchCondition(null, ['name'])).toEqual({});
-    });
-
-    it('devuelve objeto vacío si no hay campos donde buscar', () => {
-      expect(PaginationHelper.buildSearchCondition('juan', [])).toEqual({});
-    });
-
-    it('construye un Op.or con Op.iLike por cada campo', () => {
-      const cond = PaginationHelper.buildSearchCondition('juan', ['name', 'email']);
-      const orConditions = cond[Op.or];
-      expect(Array.isArray(orConditions)).toBe(true);
-      expect(orConditions).toHaveLength(2);
-      expect(orConditions[0].name[Op.iLike]).toBe('%juan%');
-      expect(orConditions[1].email[Op.iLike]).toBe('%juan%');
     });
   });
 

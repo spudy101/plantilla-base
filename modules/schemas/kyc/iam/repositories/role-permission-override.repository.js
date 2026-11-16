@@ -1,9 +1,15 @@
+const BaseRepository = require('../../../../../shared/repositories/base.repository');
 const { RolePermissionOverride } = require('../../../../../shared/models');
 
-class RolePermissionOverrideRepository {
+// Hereda findById / create / delete de BaseRepository (SOLID: L — misma firma que el padre).
+class RolePermissionOverrideRepository extends BaseRepository {
+  constructor() {
+    super(RolePermissionOverride);
+  }
+
   /** Todos los overrides de un rol, ordenados por módulo + acción. */
   findByRole(roleName) {
-    return RolePermissionOverride.findAll({
+    return this.model.findAll({
       where: { role_name: roleName },
       include: [
         {
@@ -19,33 +25,23 @@ class RolePermissionOverrideRepository {
     });
   }
 
-  findById(rolePermissionId) {
-    return RolePermissionOverride.findByPk(rolePermissionId);
-  }
-
-  create(data) {
-    return RolePermissionOverride.create(data);
-  }
-
   /** @returns {Promise<boolean>} true si se eliminó un registro */
-  async deleteById(rolePermissionId) {
-    const deleted = await RolePermissionOverride.destroy({
-      where: { role_permission_id: rolePermissionId }
-    });
+  async deleteById(rolePermissionId, options = {}) {
+    const deleted = await this.delete(rolePermissionId, options);
     return deleted > 0;
   }
 
-  /** Verifica si ya existe el override exacto (para detectar duplicados). */
-  async exists(roleName, moduleName, action) {
-    const count = await RolePermissionOverride.count({
-      where: { role_name: roleName, module_name: moduleName, action }
-    });
-    return count > 0;
+  /**
+   * ¿Ya existe el override exacto? (detección de duplicados).
+   * Nombre propio: no sobrescribe ReadRepository.exists(criteria), que tiene otra firma.
+   */
+  existsOverride(roleName, moduleName, action) {
+    return this.exists({ role_name: roleName, module_name: moduleName, action });
   }
 
   /** Carga solo module_name + action para usar en RbacService (lookup ligero). */
   async findLookupByRole(roleName) {
-    const rows = await RolePermissionOverride.findAll({
+    const rows = await this.model.findAll({
       where: { role_name: roleName },
       attributes: ['module_name', 'action']
     });

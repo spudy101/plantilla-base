@@ -1,4 +1,3 @@
-const { Op } = require('sequelize');
 
 /**
  * Helper global para manejar paginación, ordenamiento y búsqueda
@@ -65,28 +64,6 @@ class PaginationHelper {
     }
 
     return metadata;
-  }
-
-  /**
-   * Construye condición WHERE para búsqueda en múltiples campos
-   * @param {string} searchTerm - Término de búsqueda
-   * @param {Array<string>} searchFields - Campos donde buscar
-   * @returns {Object} Condición WHERE de Sequelize
-   */
-  static buildSearchCondition(searchTerm, searchFields = []) {
-    if (!searchTerm || searchFields.length === 0) {
-      return {};
-    }
-
-    const searchConditions = searchFields.map(field => ({
-      [field]: {
-        [Op.iLike]: `%${searchTerm}%`
-      }
-    }));
-
-    return {
-      [Op.or]: searchConditions
-    };
   }
 
   /**

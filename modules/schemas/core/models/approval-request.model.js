@@ -1,12 +1,7 @@
 const { DataTypes } = require('sequelize');
 const { database } = require('../../../../shared/constants');
 
-const STATUS = {
-  PENDING: 'pending',
-  APPROVED: 'approved',
-  REJECTED: 'rejected',
-  EXPIRED: 'expired'
-};
+const { APPROVAL_REQUEST_STATUS: STATUS } = require('../../../../shared/constants/domain-enums');
 
 module.exports = sequelize => {
   const ApprovalRequest = sequelize.define(

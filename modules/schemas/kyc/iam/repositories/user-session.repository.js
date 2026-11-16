@@ -2,6 +2,22 @@ const BaseRepository = require('../../../../../shared/repositories/base.reposito
 const { UserSession } = require('../../../../../shared/models');
 const { Op } = require('sequelize');
 
+// Cabecera de sesión para vistas admin: dispositivo + usuario (sessionUser es el alias que consume
+// UserSessionComponent). Declarada por nombre de asociación (SOLID: D).
+const DEVICE_AND_USER_INCLUDE = Object.freeze([
+  {
+    association: 'device',
+    required: false,
+    attributes: ['user_trusted_device_id', 'device_name', 'device_type', 'browser', 'os', 'status']
+  },
+  {
+    association: 'sessionUser',
+    required: false,
+    attributes: ['user_id', 'username'],
+    include: [{ association: 'person', attributes: ['first_name', 'last_name'] }]
+  }
+]);
+
 class UserSessionRepository extends BaseRepository {
   constructor() {
     super(UserSession);
@@ -30,6 +46,16 @@ class UserSessionRepository extends BaseRepository {
       where: { user_id: userId, status: 'active' },
       order: [['started_at', 'DESC']]
     });
+  }
+
+  /** Sesión por id solo si sigue activa (null si no existe o ya se cerró). */
+  findActiveById(sessionId) {
+    return this.model.findOne({ where: { user_session_id: sessionId, status: 'active' } });
+  }
+
+  /** Renueva last_access_at (ventana deslizante de inactividad). */
+  touchLastAccess(sessionId) {
+    return this.model.update({ last_access_at: new Date() }, { where: { user_session_id: sessionId } });
   }
 
   updateJtiAndLastAccess(sessionId, newJti) {
@@ -115,6 +141,16 @@ class UserSessionRepository extends BaseRepository {
       },
       attributes: ['user_session_id', 'user_id', 'jti', 'last_access_at', 'started_at']
     });
+  }
+
+  /** Listado paginado admin con dispositivo y usuario de cada sesión. */
+  findPaginatedWithDeviceAndUser(where, pagination) {
+    return this.findPaginated(where, pagination, DEVICE_AND_USER_INCLUDE);
+  }
+
+  /** Detalle de una sesión con dispositivo y usuario. */
+  findByIdWithDeviceAndUser(sessionId) {
+    return this.findById(sessionId, { include: DEVICE_AND_USER_INCLUDE });
   }
 
   findPaginated(where = {}, { limit = 20, offset = 0 } = {}, include = []) {

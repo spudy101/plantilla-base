@@ -1,7 +1,7 @@
 // tests/unit/shared/rbac.service.test.js
 //
 // RbacService resuelve "¿este rol puede esta acción en este módulo?" combinando la matriz BASE
-// (código, inmutable) con los overrides en BD (runtime). Mockeamos Redis (caché) y el modelo
+// (código, inmutable) con los overrides en BD (runtime). Mockeamos Redis (caché) y el repositorio
 // de overrides para probar la lógica de resolución de forma determinística.
 
 jest.mock('shared/utils/redis.util', () => ({
@@ -10,12 +10,12 @@ jest.mock('shared/utils/redis.util', () => ({
   del: jest.fn()
 }));
 
-jest.mock('shared/models', () => ({
-  RolePermissionOverride: { findAll: jest.fn() }
+jest.mock('modules/schemas/kyc/iam/repositories/role-permission-override.repository', () => ({
+  findLookupByRole: jest.fn()
 }));
 
 const redisClient = require('shared/utils/redis.util');
-const { RolePermissionOverride } = require('shared/models');
+const overrideRepository = require('modules/schemas/kyc/iam/repositories/role-permission-override.repository');
 const rbacService = require('shared/services/rbac.service');
 const { RBAC_ROLES, RBAC_MODULES, RBAC_ACTIONS } = require('shared/constants/rbac');
 
@@ -24,13 +24,13 @@ describe('RbacService', () => {
     redisClient.get.mockReset().mockResolvedValue(null); // caché miss por defecto
     redisClient.set.mockReset().mockResolvedValue(undefined);
     redisClient.del.mockReset().mockResolvedValue(undefined);
-    RolePermissionOverride.findAll.mockReset().mockResolvedValue([]); // sin overrides por defecto
+    overrideRepository.findLookupByRole.mockReset().mockResolvedValue([]); // sin overrides por defecto
   });
 
   describe('can — matriz base', () => {
     it('SUPERADMIN puede cualquier acción sin consultar BD', async () => {
       await expect(rbacService.can(RBAC_ROLES.SUPERADMIN, RBAC_MODULES.INTERNAL_USERS, RBAC_ACTIONS.DELETE)).resolves.toBe(true);
-      expect(RolePermissionOverride.findAll).not.toHaveBeenCalled();
+      expect(overrideRepository.findLookupByRole).not.toHaveBeenCalled();
     });
 
     it('ADMIN (wildcard) puede cualquier acción', async () => {
@@ -43,7 +43,7 @@ describe('RbacService', () => {
 
     it('AUDITOR no puede escribir (y consulta overrides al no hallarlo en base)', async () => {
       await expect(rbacService.can(RBAC_ROLES.AUDITOR, RBAC_MODULES.GLOBAL_LOGS, RBAC_ACTIONS.CREATE)).resolves.toBe(false);
-      expect(RolePermissionOverride.findAll).toHaveBeenCalled();
+      expect(overrideRepository.findLookupByRole).toHaveBeenCalled();
     });
 
     it('CLIENTE no tiene permisos', async () => {
@@ -57,7 +57,7 @@ describe('RbacService', () => {
 
   describe('can — overrides en BD', () => {
     it('un override concede un permiso que la base no da', async () => {
-      RolePermissionOverride.findAll.mockResolvedValue([
+      overrideRepository.findLookupByRole.mockResolvedValue([
         { module_name: RBAC_MODULES.CLIENTS_LIST, action: RBAC_ACTIONS.CREATE }
       ]);
       await expect(rbacService.can(RBAC_ROLES.AUDITOR, RBAC_MODULES.CLIENTS_LIST, RBAC_ACTIONS.CREATE)).resolves.toBe(true);
@@ -66,7 +66,7 @@ describe('RbacService', () => {
     it('usa la caché de Redis cuando hay hit y no toca BD', async () => {
       redisClient.get.mockResolvedValue([{ module_name: RBAC_MODULES.CLIENTS_LIST, action: RBAC_ACTIONS.CREATE }]);
       await expect(rbacService.can(RBAC_ROLES.AUDITOR, RBAC_MODULES.CLIENTS_LIST, RBAC_ACTIONS.CREATE)).resolves.toBe(true);
-      expect(RolePermissionOverride.findAll).not.toHaveBeenCalled();
+      expect(overrideRepository.findLookupByRole).not.toHaveBeenCalled();
     });
 
     it('cachea en Redis el resultado leído de BD', async () => {
@@ -102,7 +102,7 @@ describe('RbacService', () => {
 
   describe('getRoleMatrix', () => {
     it('separa permisos base de los agregados por override', async () => {
-      RolePermissionOverride.findAll.mockResolvedValue([
+      overrideRepository.findLookupByRole.mockResolvedValue([
         { module_name: RBAC_MODULES.CLIENTS_LIST, action: RBAC_ACTIONS.CREATE }
       ]);
       const [entry] = await rbacService.getRoleMatrix([RBAC_ROLES.AUDITOR]);

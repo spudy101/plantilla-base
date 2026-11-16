@@ -54,17 +54,7 @@ jest.mock('shared/constants', () => ({
   notifications: { ses: { logoUrl: 'https://logo.test/x.png' } }
 }));
 
-jest.mock('shared/models', () => ({
-  Notification: {
-    PROCESSING_STATUS: {
-      PENDING: 'pending',
-      PROCESSING: 'processing',
-      COMPLETED: 'completed',
-      PARTIAL_FAILURE: 'partial_failure',
-      FAILED: 'failed'
-    }
-  }
-}));
+jest.mock('shared/models', () => ({}));
 
 const notificationRepo = require('modules/schemas/notification/repositories/notification.repository');
 const notificationTypeRepo = require('modules/schemas/notification/repositories/notification-type.repository');

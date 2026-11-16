@@ -2,7 +2,7 @@ const cron = require('node-cron');
 const { logger, logAudit } = require('../../../../shared/utils/logger.util');
 const requestContext = require('../../../../shared/utils/request-context.util');
 const approvalRequestRepository = require('../repositories/approval-request.repository');
-const { ApprovalRequest } = require('../../../../shared/models');
+const { APPROVAL_REQUEST_STATUS } = require('../../../../shared/constants/domain-enums');
 
 // Cron hardcodeado (convención del repo: los workers no leen el cron de env vars).
 // Diario a las 3:00 AM — marca `expired` las solicitudes pendientes con TTL vencido.
@@ -28,7 +28,7 @@ class DualApprovalExpirationWorker {
     let count = 0;
     for (const request of expired) {
       try {
-        await request.update({ status: ApprovalRequest.STATUS.EXPIRED, resolved_at: now });
+        await request.update({ status: APPROVAL_REQUEST_STATUS.EXPIRED, resolved_at: now });
 
         logAudit(
           'DUAL_APPROVAL_EXPIRED',
