@@ -1,4 +1,3 @@
-const crypto = require('node:crypto');
 const userRepository = require('../../../../schemas/kyc/iam/repositories/user.repository');
 const userLoginAttemptRepository = require('../../../../schemas/records/audit/repositories/user-login-attempt.repository');
 const verificationCodeRepository = require('../../../../schemas/notification/repositories/verification-code.repository');
@@ -9,7 +8,6 @@ const consentRecorder = require('../../../../schemas/records/legal/services/cons
 const JwtUtil = require('../../../../../shared/utils/jwt.util');
 const TotpUtil = require('../../../../../shared/utils/totp.util');
 const EncryptionUtil = require('../../../../../shared/utils/encryption.util');
-const RefreshTokenStore = require('../../../../../shared/utils/refresh-token-store.util');
 const TokenBlacklistUtil = require('../../../../../shared/utils/token-blacklist.util');
 const NotificationUtil = require('../../../../schemas/notification/services/notification-creation.service');
 const SmsService = require('../../../../schemas/notification/services/sms.service');
@@ -20,16 +18,17 @@ const {
   LOGIN_RATE_LIMIT,
   server,
   CLIENT_ACCESS_ROLES,
-  INTERNAL_ROLE_NAMES,
-  jwt: jwtConfig
+  INTERNAL_ROLE_NAMES
 } = require('../../../../../shared/constants');
-const { LoginResponseDTO, PolicyUpdateRequiredDTO, MFARequiredResponseDTO } = require('../dtos/auth-login.dto');
+const { LoginResponseDTO, MFARequiredResponseDTO } = require('../dtos/auth-login.dto');
 const TokenRefreshService = require('./auth-login/token-refresh.service');
 const AuthLogoutService = require('./auth-login/auth-logout.service');
 const TrustedDeviceManagementService = require('./auth-login/trusted-device-management.service');
 const SessionControlService = require('./auth-login/session-control.service');
 const LoginDeviceService = require('./auth-login/login-device.service');
 const SmsLoginChallengeService = require('./auth-login/sms-login-challenge.service');
+const LoginPolicyGateService = require('./auth-login/login-policy-gate.service');
+const SessionIssuerService = require('./auth-login/session-issuer.service');
 
 // ============================================================
 // CONSTANTES
@@ -49,6 +48,8 @@ const IS_BYPASS_ENABLED = server.nodeEnv === 'development' && server.bypass === 
 //   - SessionControlService           → cierre selectivo y límite de sesiones
 //   - LoginDeviceService              → resolución del dispositivo en el login
 //   - SmsLoginChallengeService        → desafío MFA por SMS
+//   - LoginPolicyGateService          → política de privacidad al iniciar sesión (también biométrico)
+//   - SessionIssuerService            → emisión de tokens + sesión (también biométrico y registro)
 // La API pública no cambia: los métodos movidos se delegan al final de la clase.
 // ============================================================
 
@@ -88,6 +89,8 @@ class AuthLoginService {
     this.sessionControl = deps.sessionControl ?? new SessionControlService(shared);
     this.loginDevices = deps.loginDevices ?? new LoginDeviceService(shared);
     this.smsChallenge = deps.smsChallenge ?? new SmsLoginChallengeService(shared);
+    this.policyGate = deps.policyGate ?? new LoginPolicyGateService(shared);
+    this.sessionIssuer = deps.sessionIssuer ?? new SessionIssuerService(shared);
   }
 
   // ============================================================
@@ -235,72 +238,10 @@ class AuthLoginService {
    * @param {string|null} ip
    * @private
    */
-  async _checkPrivacyPolicy(user, acceptPolicy, ip) {
-    const activePolicy = await this.privacyPolicyRepository.findActive();
-
-    // Los usuarios internos no están sujetos a la política de privacidad de clientes.
-    const roleName = user.role?.name;
-    const isInternalUser = INTERNAL_ROLE_NAMES.includes(roleName);
-    if (isInternalUser) {
-      return null;
-    }
-
-    // Sin política activa configurada → dejamos pasar
-    if (!activePolicy) {
-      return null;
-    }
-
-    // Ya tiene la versión activa → OK
-    if (user.privacy_policy_version === activePolicy.version) {
-      return null;
-    }
-
-    // El cliente aceptó en este mismo request → registrar y dejar pasar
-    if (acceptPolicy === true) {
-      await this.userRepository.updatePrivacyPolicy(user.user_id, {
-        version: activePolicy.version,
-        acceptedAt: new Date(),
-        acceptedIp: ip || null
-      });
-
-      // RF-ADM-04: registrar trazabilidad granular en user_consents
-      await this.consentRecorder
-        .grantPrivacyPolicy({ userId: user.user_id, privacyPolicyId: activePolicy.privacy_policy_id, ip }).catch(err =>
-        logger.warn('auth-login: no se pudo registrar user_consent de privacy policy', {
-          userId: user.user_id,
-          error: err.message
-        })
-      );
-
-      logAudit(
-        'PRIVACY_POLICY_ACCEPTED',
-        user.user_id,
-        {
-          version: activePolicy.version,
-          ip: ip || null
-        },
-        { entityType: 'PrivacyPolicy', entityTable: 'privacy_policies' }
-      );
-
-      return null;
-    }
-
-    logAudit(
-      'LOGIN_BLOCKED_POLICY_UPDATE',
-      user.user_id,
-      {
-        userVersion: user.privacy_policy_version || 'ninguna',
-        activeVersion: activePolicy.version
-      },
-      { entityType: 'PrivacyPolicy', entityTable: 'privacy_policies', outcome: 'failure' }
-    );
-
-    return PolicyUpdateRequiredDTO({
-      currentVersion: user.privacy_policy_version || null,
-      newVersion: activePolicy.version,
-      documentUrl: activePolicy.document_url,
-      summary: activePolicy.summary,
-      effectiveDate: activePolicy.effective_date
+  _checkPrivacyPolicy(user, acceptPolicy, ip) {
+    return this.policyGate.check(user, acceptPolicy, ip, {
+      blockedAuditAction: 'LOGIN_BLOCKED_POLICY_UPDATE',
+      source: 'auth-login'
     });
   }
 
@@ -477,42 +418,13 @@ class AuthLoginService {
       })
     );
 
-    // ── Emitir tokens RS256 propios ───────────────────────────────────────────────
-    const sessionId = crypto.randomUUID();
-    const jti = crypto.randomUUID();
-    const accessToken = await JwtUtil.generateAccessToken(user, sessionId);
-    const refreshToken = await JwtUtil.generateRefreshToken(user.user_id, jti, sessionId);
-
-    // Guardar JTI (awaited — si falla el refresh token no servirá)
-    const jtiSaved = await RefreshTokenStore.save(jti, user.user_id);
-    if (!jtiSaved) {
-      logger.warn('No se pudo guardar JTI de refresh token en login', {
-        userId: user.user_id
-      });
-      // No bloqueamos el login — el refresh simplemente no funcionará hasta que Redis esté disponible
-    }
-
-    // Crear registro de sesión activa en BD (fire-and-forget)
-    // [RF-AUTH-02] | CA-04 | Registra IP, user-agent, started_at, last_access_at al crear sesión
-    this.userSessionRepository
-      .create({
-        user_session_id: sessionId,
-        user_id: user.user_id,
-        device_id: deviceResult.deviceId || null,
-        jti,
-        ip_address: ip || null,
-        user_agent: userAgent || null,
-        started_at: new Date(),
-        last_access_at: new Date()
-      })
-      .catch(err =>
-        logger.warn('Error creando registro de sesión en BD', {
-          error: err.message,
-          userId: user.user_id
-        })
-      );
-
-    const tokens = { accessToken, refreshToken, expiresIn: jwtConfig.accessTokenExpiry };
+    // ── Emitir tokens RS256 propios + sesión activa ──────────────────────────────
+    const { sessionId, tokens } = await this.sessionIssuer.issue(user, {
+      deviceId: deviceResult.deviceId,
+      ip,
+      userAgent,
+      source: 'login'
+    });
 
     // ── Registro push token (solo mobile, fire-and-forget) ───────────────────────
     // No bloquea el login — si falla, se loguea el error y se continúa

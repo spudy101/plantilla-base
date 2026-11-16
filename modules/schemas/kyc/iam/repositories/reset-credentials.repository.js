@@ -27,6 +27,30 @@ class ResetCredentialsRepository extends BaseRepository {
   }
 
   /**
+   * Token válido con el usuario, su persona y el email de contacto
+   * (lo necesario para aplicar el reset y notificar la confirmación).
+   * @param {string} token
+   * @returns {Promise<ResetCredentials|null>}
+   */
+  findValidTokenWithUser(token) {
+    return this.findValidToken(token, {
+      include: [
+        {
+          association: 'user',
+          attributes: ['user_id', 'auth_username'],
+          include: [
+            {
+              association: 'person',
+              attributes: ['person_id', 'first_name'],
+              include: [{ association: 'contact', attributes: ['email'] }]
+            }
+          ]
+        }
+      ]
+    });
+  }
+
+  /**
    * Busca un token por su valor (sin validar expiración ni uso)
    * @param {string} token - Token a buscar
    * @returns {Promise<ResetCredentials|null>}
