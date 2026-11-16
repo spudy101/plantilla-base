@@ -16,7 +16,6 @@ const { logger, logAudit } = require('../../../../../shared/utils/logger.util');
 const LoginRateLimiter = require('../../../../../shared/utils/login-rate-limiter.util');
 const {
   LOGIN_RATE_LIMIT,
-  server,
   CLIENT_ACCESS_ROLES,
   INTERNAL_ROLE_NAMES
 } = require('../../../../../shared/constants');
@@ -29,12 +28,6 @@ const LoginDeviceService = require('./auth-login/login-device.service');
 const SmsLoginChallengeService = require('./auth-login/sms-login-challenge.service');
 const LoginPolicyGateService = require('./auth-login/login-policy-gate.service');
 const SessionIssuerService = require('./auth-login/session-issuer.service');
-
-// ============================================================
-// CONSTANTES
-// ============================================================
-
-const IS_BYPASS_ENABLED = server.nodeEnv === 'development' && server.bypass === 'true';
 
 // ============================================================
 // AUTH LOGIN SERVICE — fachada
@@ -117,11 +110,6 @@ class AuthLoginService {
       await this._handleFailedLogin(user, nationalId, { ip, userAgent, fingerprintHash }, 'Contrasena invalida');
     }
 
-    if (IS_BYPASS_ENABLED) {
-      logger.warn('[DEV] Bypass de autenticación activo en login', { userId: user.user_id });
-      return this._completeSuccessfulLogin(user, nationalId, auditContext);
-    }
-
     // ── Segundo factor (MFA) — gestionado íntegramente por nosotros ──────────────
     // La contraseña ya se validó arriba contra el hash bcrypt local. Si el usuario
     // tiene un método MFA preferido, emitimos el reto correspondiente en lugar de
@@ -155,10 +143,6 @@ class AuthLoginService {
   }
 
   async verifyMFA(data, auditContext) {
-    if (IS_BYPASS_ENABLED) {
-      throw AppError.badRequest('[DEV] MFA no disponible en modo bypass. Usa /auth/login directamente.');
-    }
-
     const { nationalId, totpCode, smsCode, session, acceptPolicy = false } = data;
     const { ip, userAgent, fingerprintHash } = auditContext;
 

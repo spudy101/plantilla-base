@@ -3,7 +3,7 @@
 // Propiedades que los middlewares del proyecto agregan a `req`. Al ampliar el tipo Request de
 // Express (declaration merging) el resto del código las ve tipadas sin casts.
 
-/** Usuario autenticado (lo arma AuthMiddleware a partir del access token, o del bypass de dev). */
+/** Usuario autenticado (lo arma AuthMiddleware a partir del access token RS256). */
 export interface AuthenticatedUser {
   sessionId: string | null;
   userId: string;
@@ -18,8 +18,8 @@ export interface AuthenticatedUser {
   email: string | null;
   tokenIat: number | undefined;
   tokenExp: number | undefined;
-  /** Canal por el que se autenticó (web / mobile / bypass…) */
-  canal: string;
+  /** Canal por el que se autenticó: cookie (web) o Bearer (mobile). */
+  canal: 'web' | 'mobile';
 }
 
 declare global {

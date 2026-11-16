@@ -52,14 +52,6 @@ const MS_PER_MINUTE = 60 * 1000;
 
 const API_KEY_LOG_LENGTH = 24;
 
-// ⚠️ Hoy SIEMPRE es false: la config (shared/constants/config.ts) no expone `server.bypass`, así que el
-// bypass de dev está apagado de hecho. Se conserva el chequeo tal cual (sin habilitarlo) — ver
-// docs/typescript-migration.md § Hallazgos.
-const IS_BYPASS_ENABLED = server.nodeEnv === 'development' && (server as { bypass?: string }).bypass === 'true';
-
-if (IS_BYPASS_ENABLED) {
-  logger.warn('⚠️  AUTH BYPASS ACTIVO — solo para desarrollo local. Nunca usar en producción.');
-}
 
 class AuthMiddleware {
   static authenticate = async (req: Request, res: Response, next: NextFunction) => {
@@ -180,9 +172,6 @@ class AuthMiddleware {
 
   /** Autentica y deja el usuario en `req.user`; lo devuelve para que el llamador no dependa de `req.user!`. */
   static _performAuthentication(req: Request, requireRole = false): Promise<AuthenticatedUser> {
-    if (IS_BYPASS_ENABLED) {
-      return Promise.resolve(AuthMiddleware._performBypassAuthentication(req));
-    }
     return AuthMiddleware._performJwtAuthentication(req, requireRole);
   }
 
@@ -330,52 +319,6 @@ class AuthMiddleware {
         code: 'MFA_REQUIRED'
       });
     }
-  }
-
-  static _performBypassAuthentication(req: Request): AuthenticatedUser {
-    const devUserHeader = req.headers['authorization'];
-    if (!devUserHeader) {
-      throw AppError.unauthorized(
-        '[DEV] Bypass de autenticación activo pero falta el header authorization. ' +
-          'Genera uno con: Buffer.from(JSON.stringify({ userId: "...", personId: "...", roleId: "..." })).toString("base64")'
-      );
-    }
-
-    let devUser;
-    try {
-      devUser = JSON.parse(Buffer.from(devUserHeader, 'base64').toString('utf-8'));
-    } catch {
-      throw AppError.unauthorized('[DEV] Header authorization inválido — no es un JSON base64 válido');
-    }
-
-    if (!devUser.userId) {
-      throw AppError.unauthorized('[DEV] authorization debe incluir al menos el campo userId');
-    }
-
-    req.user = {
-      sessionId: devUser.sessionId || null,
-      userId: devUser.userId,
-      personId: devUser.personId || null,
-      roleId: devUser.roleId || null,
-      roleName: devUser.roleName || null,
-      firstName: devUser.firstName || null,
-      lastName: devUser.lastName || null,
-      nationalId: devUser.nationalId || null,
-      username: devUser.username || devUser.userId,
-      authUsername: devUser.authUsername || devUser.username || devUser.userId,
-      email: devUser.email || null,
-      tokenIat: Math.floor(Date.now() / 1000),
-      tokenExp: Math.floor(Date.now() / 1000) + 3600,
-      canal: 'bypass'
-    };
-
-    // Mismo enriquecimiento del auditContext que en el flujo JWT: si el dev incluye
-    // sessionId en el header base64, los logs de dev quedan trazados a esa sesión en vez
-    // de session_id: null. Debe ser un UUID válido (la columna audit_logs.session_id es UUID).
-    AuthMiddleware._injectSessionIntoAuditContext(req.user.sessionId, req.user.userId);
-
-    logger.debug('[DEV] Bypass auth', { userId: req.user.userId });
-    return req.user;
   }
 
   static _extractBearerToken(req: Request): string {

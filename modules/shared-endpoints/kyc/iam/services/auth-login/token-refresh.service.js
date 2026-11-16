@@ -12,20 +12,7 @@ const TokenBlacklistUtil = require('../../../../../../shared/utils/token-blackli
 const redisClient = require('../../../../../../shared/utils/redis.util');
 const AppError = require('../../../../../../shared/utils/app-error.util');
 const { logger, logAudit } = require('../../../../../../shared/utils/logger.util');
-const { SECURITY, AUTH_ERROR_CODES, server, jwt: jwtConfig } = require('../../../../../../shared/constants');
-
-// ============================================================
-// CONSTANTES
-// ============================================================
-
-const IS_BYPASS_ENABLED = server.nodeEnv === 'development' && server.bypass === 'true';
-
-const BYPASS_TOKENS = {
-  accessToken: 'bypass-access-token',
-  idToken: 'bypass-id-token',
-  refreshToken: 'bypass-refresh-token',
-  expiresIn: 3600
-};
+const { SECURITY, AUTH_ERROR_CODES, jwt: jwtConfig } = require('../../../../../../shared/constants');
 
 class TokenRefreshService {
   /**
@@ -51,15 +38,6 @@ class TokenRefreshService {
   // verifica started_at + ABSOLUTE_SESSION_LIFETIME_HOURS (8h) y se rechaza si se superó,
   // aunque el usuario siga activo (Circular 052/2007 SFC).
   async refreshToken(refreshTokenStr) {
-    if (IS_BYPASS_ENABLED) {
-      logger.warn('[DEV] Bypass de autenticación activo en refreshToken');
-      return {
-        accessToken: BYPASS_TOKENS.accessToken,
-        refreshToken: refreshTokenStr,
-        expiresIn: 3600
-      };
-    }
-
     // 1. Verificar firma RS256 y expiración
     const decoded = await JwtUtil.verifyRefreshToken(refreshTokenStr);
 
