@@ -1,0 +1,86 @@
+import type defineUser = require('../../../../../schemas/kyc/iam/models/user.model');
+// modules/shared-endpoints/kyc/iam/services/auth-login/session-issuer.service.ts
+//
+// Emisión de una sesión autenticada: par de tokens RS256 propios + JTI en Redis + fila en
+// user_sessions. Lo usan el login por contraseña, el biométrico y el login automático
+// post-registro (antes el bloque estaba copiado en los tres). Extraído por SOLID: S.
+
+import crypto = require('node:crypto');
+import userSessionRepository = require('../../../../../schemas/kyc/iam/repositories/user-session.repository');
+import JwtUtil = require('../../../../../../shared/utils/jwt.util');
+import RefreshTokenStore = require('../../../../../../shared/utils/refresh-token-store.util');
+import loggerUtilModule = require('../../../../../../shared/utils/logger.util');
+const { logger } = loggerUtilModule;
+import constantsModule = require('../../../../../../shared/constants');
+const { jwt: jwtConfig } = constantsModule;
+
+class SessionIssuerService {
+  userSessionRepository: typeof userSessionRepository;
+  jwt: typeof JwtUtil;
+  refreshTokenStore: typeof RefreshTokenStore;
+
+  /**
+   * @param {object} [deps] Dependencias inyectables (SOLID: D).
+   */
+  constructor(deps: SessionIssuerService.Deps = {}) {
+    this.userSessionRepository = deps.userSessionRepository ?? userSessionRepository;
+    this.jwt = deps.jwt ?? JwtUtil;
+    this.refreshTokenStore = deps.refreshTokenStore ?? RefreshTokenStore;
+  }
+
+  /**
+   * @param {Object} user - usuario con las asociaciones que el access token necesita (rol, persona)
+   * @param {{ deviceId?: string|null, ip?: string|null, userAgent?: string|null, source: string }} options
+   *   source: etiqueta para los logs (p. ej. 'login', 'login biométrico', 'registro')
+   * @returns {Promise<{ sessionId: string, tokens: { accessToken, refreshToken, expiresIn } }>}
+   */
+  async issue(
+    user: defineUser.Instance,
+    {
+      deviceId = null,
+      ip = null,
+      userAgent = null,
+      source
+    }: { deviceId?: string | null; ip?: string | null; userAgent?: string | null; source: string }
+  ) {
+    const userId = user.user_id;
+    const sessionId = crypto.randomUUID();
+    const jti = crypto.randomUUID();
+    const accessToken = await this.jwt.generateAccessToken(user, sessionId);
+    const refreshToken = await this.jwt.generateRefreshToken(userId, jti, sessionId);
+
+    // JTI awaited: si falla, el refresh no servirá, pero no bloqueamos la autenticación
+    const jtiSaved = await this.refreshTokenStore.save(jti, userId);
+    if (!jtiSaved) {
+      logger.warn(`No se pudo guardar JTI de refresh token en ${source}`, { userId });
+    }
+
+    // [RF-AUTH-02] | CA-04 | Sesión activa con IP, user-agent, started_at y last_access_at (fire-and-forget)
+    this.userSessionRepository
+      .create({
+        user_session_id: sessionId,
+        user_id: userId,
+        device_id: deviceId || null,
+        jti,
+        ip_address: ip || null,
+        user_agent: userAgent || null,
+        started_at: new Date(),
+        last_access_at: new Date()
+      })
+      .catch(err => logger.warn(`Error creando registro de sesión en BD (${source})`, { error: err.message, userId }));
+
+    return { sessionId, tokens: { accessToken, refreshToken, expiresIn: jwtConfig.accessTokenExpiry } };
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-namespace
+namespace SessionIssuerService {
+  /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
+  export interface Deps {
+    userSessionRepository?: typeof userSessionRepository;
+    jwt?: typeof JwtUtil;
+    refreshTokenStore?: typeof RefreshTokenStore;
+  }
+}
+
+export = SessionIssuerService;

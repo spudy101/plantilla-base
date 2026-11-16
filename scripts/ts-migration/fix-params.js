@@ -5,6 +5,7 @@
 // Los nombres fuera del diccionario NO se tocan (quedan para revisión manual).
 // Uso: node fix-params.js [prefijo-de-ruta]
 const fs = require('node:fs');
+const path = require('node:path');
 const { execSync } = require('node:child_process');
 
 const STRING = [
@@ -19,9 +20,13 @@ const STRING = [
   'rawPrefix', 'haystack', 'cityName', 'deviceName', 'password', 'plainPassword', 'newPassword',
   'hashedPassword', 'operationKey', 'platform', 'acknowledgedBy', 'passwordHash', 'currentPassword', 'newUsername',
   'birthDate', 'title', 'body', 'asunto', 'cuerpoHtml', 'destinatario', 'notificationTypeCode', 'endpointArn',
-  'emailOrHash', 'template', 'variable', 'match', 'chars', 'opKey', 'mensaje', 'message', 'subject', 'html'
+  'emailOrHash', 'template', 'variable', 'match', 'chars', 'opKey', 'mensaje', 'message', 'subject', 'html',
+  'firstName', 'lastName', 'currentFingerprintHash', 'totpCode', 'refreshTokenStr', 'categoryCode', 'sortBy',
+  'clientType', 'serverContext'
 ];
 const STRING_ARRAY = ['roleNames', 'names'];
+// req.query y similares: claves arbitrarias, se normalizan con PaginationHelper
+const RECORD = ['query'];
 const NUMBER = [
   'tokenExp', 'tokenIat', 'beforeIat', 'rotationTs', 'ttl', 'ttlSeconds', 'seconds', 'limit', 'offset', 'page',
   'ms', 'delayMs', 'timeoutMs', 'expiresIn', 'maxRetries', 'statusCode',
@@ -34,13 +39,16 @@ const IMPORTED = {
   req: ['express', 'Request'],
   res: ['express', 'Response'],
   next: ['express', 'NextFunction'],
-  transaction: ['sequelize', 'Transaction']
+  transaction: ['sequelize', 'Transaction'],
+  // Rutas del proyecto (desde la raíz): el import se escribe relativo al archivo
+  auditContext: ['shared/types/audit-context', 'RequestAuditContext']
 };
 
 const TYPES = new Map([
   ...STRING.map(n => [n, 'string']),
   ...NUMBER.map(n => [n, 'number']),
   ...STRING_ARRAY.map(n => [n, 'string[]']),
+  ...RECORD.map(n => [n, 'Record<string, unknown>']),
   ...UNKNOWN.map(n => [n, 'unknown']),
   ...Object.entries(IMPORTED).map(([n, [, t]]) => [n, t])
 ]);
@@ -98,7 +106,10 @@ for (const [file, hits] of byFile) {
     changed++;
   }
   let s = lines.join('\n');
-  for (const [mod, types] of usedImports) {
+  for (const [rawMod, types] of usedImports) {
+    const mod = rawMod.startsWith('shared/')
+      ? (r => (r.startsWith('.') ? r : `./${r}`))(path.relative(path.dirname(path.resolve(file)), path.resolve(rawMod)).split(path.sep).join('/'))
+      : rawMod;
     const re = new RegExp(`^import type \\{([^}]*)\\} from '${mod}';$`, 'm');
     const m = s.match(re);
     if (m) {

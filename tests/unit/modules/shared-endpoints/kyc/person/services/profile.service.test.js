@@ -4,7 +4,7 @@
 // nombres/email/telefono/password + baja de cuenta). Aislamos repositorios, helper de perfil, util de
 // trazabilidad, notificaciones y DTOs (passthrough). Probamos: consultas (found / notFound), cada
 // mutacion (helper llamado + commit + logAudit + notificacion diferida en setImmediate + DTO), y las
-// ramas de error (rollback + repropagacion; InvalidPasswordException -> badRequest). Se usa el
+// ramas de error (rollback + repropagacion). Se usa el
 // AppError real para assertar statusCode. Las notificaciones fire-and-forget se vacian con `flush`.
 
 jest.mock('shared/models', () => ({ sequelize: { transaction: jest.fn() } }));
@@ -363,7 +363,9 @@ describe('ProfileService', () => {
       expect(result).toBeNull();
     });
 
-    it('InvalidPasswordException: rollback y traduce a AppError.badRequest (400)', async () => {
+    // InvalidPasswordException era un error de Cognito (código residual eliminado): cualquier error
+    // del helper se repropaga tal cual tras el rollback.
+    it('error del helper: rollback y repropaga el error original', async () => {
       userRepository.findByUserId.mockResolvedValue({ password_hash: 'hash' });
       const err = new Error('weak');
       err.name = 'InvalidPasswordException';
@@ -371,7 +373,7 @@ describe('ProfileService', () => {
 
       await expect(
         service.updatePassword({ currentPassword: 'old', newPassword: 'weak' }, 'u-1', 'Ana', {})
-      ).rejects.toMatchObject({ statusCode: 400, code: 'BAD_REQUEST' });
+      ).rejects.toBe(err);
       expect(transaction.rollback).toHaveBeenCalled();
     });
   });

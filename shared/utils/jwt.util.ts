@@ -73,6 +73,14 @@ interface AccessTokenClaims extends JWTPayload {
   email?: string | null;
 }
 
+/** Claims del refresh token ya validados (generateRefreshToken los emite siempre). */
+interface RefreshTokenClaims extends JWTPayload {
+  userId: string;
+  jti: string;
+  sessionId: string | null;
+  type: 'refresh';
+}
+
 /** Error de jose / AppError: solo se leen estos campos para decidir la respuesta. */
 const errorInfo = (error: unknown): { code?: string; isOperational?: boolean } =>
   error && typeof error === 'object' ? (error as { code?: string; isOperational?: boolean }) : {};
@@ -116,7 +124,7 @@ class JwtUtil {
    * @returns {Promise<string>} JWT firmado
    */
   // [RF-AUTH-02] | CA-01 | Genera access token RS256 con claims de sesión
-  static generateAccessToken(user: TokenUser, sessionId: string): Promise<string> {
+  static generateAccessToken(user: TokenUser, sessionId: string | null): Promise<string> {
     const nowSecs = Math.floor(Date.now() / 1000);
 
     const payload = {
@@ -154,7 +162,7 @@ class JwtUtil {
    * @returns {Promise<string>} JWT firmado
    */
   // [RF-AUTH-02] | CA-01 | Genera refresh token RS256 con jti para rotación (tope absoluto 24h)
-  static generateRefreshToken(userId: string, jti: string, sessionId: string): Promise<string> {
+  static generateRefreshToken(userId: string, jti: string, sessionId: string | null): Promise<string> {
     const nowSecs = Math.floor(Date.now() / 1000);
 
     return new SignJWT({ userId, sessionId: sessionId || null, type: 'refresh' })
@@ -226,7 +234,7 @@ class JwtUtil {
    * @returns {Promise<Object>} payload con userId, jti, type
    */
   // [RF-AUTH-02] | CA-01 | Verifica tipo 'refresh' y firma RS256
-  static async verifyRefreshToken(token: string): Promise<JWTPayload> {
+  static async verifyRefreshToken(token: string): Promise<RefreshTokenClaims> {
     try {
       const { payload } = await jwtVerify(token, JwtUtil._publicKey, {
         algorithms: [ALGORITHM]
@@ -235,8 +243,18 @@ class JwtUtil {
       if (payload.type !== 'refresh') {
         throw AppError.unauthorized('Token de tipo incorrecto', { code: AUTH_ERROR_CODES.REFRESH_TOKEN_INVALID });
       }
+      // Firma válida pero sin los claims que usa la rotación → inválido (no seguir con undefined)
+      if (typeof payload.userId !== 'string' || typeof payload.jti !== 'string') {
+        throw AppError.unauthorized('Refresh token inválido', { code: AUTH_ERROR_CODES.REFRESH_TOKEN_INVALID });
+      }
 
-      return payload;
+      return {
+        ...payload,
+        userId: payload.userId,
+        jti: payload.jti,
+        sessionId: typeof payload.sessionId === 'string' ? payload.sessionId : null,
+        type: 'refresh'
+      };
     } catch (error) {
       if (errorInfo(error).isOperational) {
         throw error;
@@ -303,6 +321,12 @@ class JwtUtil {
       throw AppError.unauthorized('Token de reto MFA inválido');
     }
   }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-namespace
+namespace JwtUtil {
+  export type RefreshClaims = RefreshTokenClaims;
+  export type AccessClaims = AccessTokenClaims;
 }
 
 export = JwtUtil;

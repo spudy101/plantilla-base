@@ -98,7 +98,8 @@ describe('SendVerificationService', () => {
       const result = await service.sendVerificationCode({ type: 'email', contact: 'a@b.cl' });
 
       expect(verificationCodeRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'email', contact_value: 'a@b.cl', attempts: 0 }),
+        // attempts no se envía: el repositorio no lo acepta y la columna arranca en 0
+        expect.objectContaining({ type: 'email', contact_value: 'a@b.cl' }),
         { transaction: tx }
       );
       expect(tx.commit).toHaveBeenCalled();

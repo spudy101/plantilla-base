@@ -6,7 +6,7 @@ const { Op, literal } = sequelizeModule;
 import loggerUtilModule = require('../../../../shared/utils/logger.util');
 const { logger } = loggerUtilModule;
 import requestContext = require('../../../../shared/utils/request-context.util');
-import type { CreateOptions, DestroyOptions } from 'sequelize';
+import type { CreateOptions, DestroyOptions, UpdateOptions } from 'sequelize';
 import type defineVerificationCode = require('../models/verification-code.model');
 
 class VerificationCodeRepository extends BaseRepository<defineVerificationCode.Instance> {
@@ -111,7 +111,8 @@ class VerificationCodeRepository extends BaseRepository<defineVerificationCode.I
   /**
    * Incrementa contador de intentos
    */
-  async incrementAttempts(verificationCodeId: string) {
+  // options: { transaction } (antes no se aceptaba y el incremento corría fuera de la transacción del llamador)
+  async incrementAttempts(verificationCodeId: string, options: Omit<UpdateOptions<defineVerificationCode.Attributes>, 'where'> = {}) {
     const [affectedRows] = await this.model.update(
       { attempts: literal('attempts + 1') },
       {
@@ -119,7 +120,8 @@ class VerificationCodeRepository extends BaseRepository<defineVerificationCode.I
           verification_code_id: verificationCodeId,
           verified_at: null,
           expires_at: { [Op.gt]: new Date() }
-        }
+        },
+        ...options
       }
     );
 

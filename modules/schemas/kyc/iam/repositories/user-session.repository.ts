@@ -90,18 +90,19 @@ class UserSessionRepository extends BaseRepository<defineUserSession.Instance> {
     );
   }
 
-  closeAllByUserExcept(userId: string, exceptSessionId: string, reason: string) {
+  closeAllByUserExcept(userId: string, exceptSessionId: string | null, reason: string) {
     return this.model.update(
       { status: 'closed', closed_at: new Date(), close_reason: reason },
       {
-        where: { user_id: userId, status: 'active', user_session_id: { [Op.ne]: exceptSessionId } }
+        // Sin sesión actual (token viejo) no se excluye ninguna — igual que antes ({ [Op.ne]: null } → IS NOT NULL)
+        where: { user_id: userId, status: 'active', ...(exceptSessionId ? { user_session_id: { [Op.ne]: exceptSessionId } } : {}) }
       }
     );
   }
 
-  findActiveByUserExcept(userId: string, exceptSessionId: string) {
+  findActiveByUserExcept(userId: string, exceptSessionId: string | null) {
     return this.model.findAll({
-      where: { user_id: userId, status: 'active', user_session_id: { [Op.ne]: exceptSessionId } },
+      where: { user_id: userId, status: 'active', ...(exceptSessionId ? { user_session_id: { [Op.ne]: exceptSessionId } } : {}) },
       attributes: ['user_session_id', 'jti']
     });
   }
