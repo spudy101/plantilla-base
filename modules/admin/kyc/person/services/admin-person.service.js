@@ -45,6 +45,7 @@ class PersonService {
    */
   constructor(deps = {}) {
     this.unitOfWork = deps.unitOfWork ?? unitOfWork;
+    this.profileHelper = deps.profileHelper ?? ProfileHelper;
     this.userRepository = deps.userRepository ?? userRepository;
     this.personRepository = deps.personRepository ?? personRepository;
     this.personContactRepository = deps.personContactRepository ?? personContactRepository;
@@ -55,6 +56,7 @@ class PersonService {
     // Sub-servicios por responsabilidad (SOLID: S). Reciben las mismas dependencias.
     const shared = {
       unitOfWork: this.unitOfWork,
+      profileHelper: this.profileHelper,
       userRepository: this.userRepository,
       personRepository: this.personRepository,
       personContactRepository: this.personContactRepository,
@@ -78,7 +80,7 @@ class PersonService {
     if (!adminUser) {
       throw AppError.notFound('Administrador no encontrado');
     }
-    await ProfileHelper.validateCurrentPassword(adminUser.password_hash, currentPassword);
+    await this.profileHelper.validateCurrentPassword(adminUser.password_hash, currentPassword);
 
     // La cuenta objetivo debe existir y no estar ya eliminada (no se re-elimina).
     const target = await this.userRepository.findById(userId, {
@@ -130,7 +132,7 @@ class PersonService {
         throw AppError.notFound('Usuario no encontrado');
       }
 
-      const result = await ProfileHelper.deleteAccountLogic({
+      const result = await this.profileHelper.deleteAccountLogic({
         userId,
         personId: user.person.person_id,
         nationalId: user.person.national_id,

@@ -46,6 +46,7 @@ class AdminUserService {
    */
   constructor(deps = {}) {
     this.unitOfWork = deps.unitOfWork ?? unitOfWork;
+    this.profileHelper = deps.profileHelper ?? ProfileHelper;
     this.userRepository = deps.userRepository ?? userRepository;
     this.roleRepository = deps.roleRepository ?? roleRepository;
     this.documentTypeRepository = deps.documentTypeRepository ?? documentTypeRepository;
@@ -183,8 +184,8 @@ class AdminUserService {
       throw AppError.internal("Tipo de documento 'SYSTEM' no encontrado. Ejecuta el seeder de tipos de documento.");
     }
 
-    await ProfileHelper.validateNationalIdUnique(data.nationalId);
-    await ProfileHelper.validateEmailUnique(data.email);
+    await this.profileHelper.validateNationalIdUnique(data.nationalId);
+    await this.profileHelper.validateEmailUnique(data.email);
 
     const temporaryPassword = KycSharedUtil.generateSecurePassword();
 
@@ -439,7 +440,7 @@ class AdminUserService {
     if (!adminUser) {
       throw AppError.notFound('Administrador no encontrado');
     }
-    await ProfileHelper.validateCurrentPassword(adminUser.password_hash, currentPassword);
+    await this.profileHelper.validateCurrentPassword(adminUser.password_hash, currentPassword);
 
     // Debe ser un interno existente, no superadmin y no estar ya eliminado.
     const user = await this._getInternalUserOrFail(userId);
@@ -488,7 +489,7 @@ class AdminUserService {
         throw AppError.notFound('Usuario no encontrado');
       }
 
-      await ProfileHelper.deleteAccountLogic({
+      await this.profileHelper.deleteAccountLogic({
         userId,
         personId: user.person.person_id,
         nationalId: user.person.national_id,
