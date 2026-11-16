@@ -31,7 +31,11 @@ const TokenBlacklistUtil = require('../utils/token-blacklist.util');
 const JwtUtil = require('../utils/jwt.util');
 const redisClient = require('../utils/redis.util');
 const requestContext = require('../utils/request-context.util');
-const { UserSession } = require('../models');
+const { USER_SESSION_STATUS } = require('../constants/domain-enums');
+
+// Lazy require: el repositorio vive en modules/ y cargarlo al arrancar crearía un ciclo
+// (igual que auth-trusted-device.repository más abajo). SOLID: D — el middleware no consulta modelos.
+const sessionRepository = () => require('../../modules/schemas/kyc/iam/repositories/user-session.repository');
 const { isMfaActive } = require('../utils/mfa-status.util');
 
 const MS_PER_MINUTE = 60 * 1000;
@@ -249,9 +253,7 @@ class AuthMiddleware {
       return;
     }
 
-    const session = await UserSession.findOne({
-      where: { user_session_id: sessionId, status: 'active' }
-    });
+    const session = await sessionRepository().findActiveById(sessionId);
 
     if (!session) {
       throw AppError.unauthorized('Sesión no activa. Inicia sesión nuevamente.', {
@@ -263,10 +265,7 @@ class AuthMiddleware {
     const maxIdleMs = SECURITY.SESSION_INACTIVITY_MINUTES * MS_PER_MINUTE;
 
     if (idleMs > maxIdleMs) {
-      await UserSession.update(
-        { status: 'closed', closed_at: new Date(), close_reason: 'inactivity_timeout' },
-        { where: { user_session_id: sessionId, status: 'active' } }
-      );
+      await sessionRepository().closeSession(sessionId, 'inactivity_timeout');
       logger.info('Sesión expirada por inactividad', { userId, sessionId });
       const isInternal = roleName && INTERNAL_ROLE_NAMES.includes(roleName);
       throw AppError.unauthorized(
@@ -280,7 +279,7 @@ class AuthMiddleware {
     // Ventana deslizante con throttle: cada request renueva el contador, pero solo escribimos
     // en BD si pasó el umbral de throttle, para no golpear la BD en ráfagas de requests.
     if (idleMs > SECURITY.SESSION_ACCESS_THROTTLE_SECONDS * 1000) {
-      await UserSession.update({ last_access_at: new Date() }, { where: { user_session_id: sessionId } });
+      await sessionRepository().touchLastAccess(sessionId);
     }
   }
 
@@ -464,9 +463,9 @@ class AuthMiddleware {
       return;
     }
 
-    const session = await UserSession.findOne({ where: { user_session_id: sessionId } });
+    const session = await sessionRepository().findById(sessionId);
 
-    if (!session || session.status !== UserSession.STATUS.ACTIVE) {
+    if (!session || session.status !== USER_SESSION_STATUS.ACTIVE) {
       logger.warn('AuthMiddleware: acceso denegado — sesión cerrada (fallback BD, Redis caído)', {
         userId,
         sessionId

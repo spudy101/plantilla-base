@@ -9,7 +9,6 @@
 const AppError = require('../../../../../shared/utils/app-error.util');
 const { logAudit } = require('../../../../../shared/utils/logger.util');
 const PaginationHelper = require('../../../../../shared/utils/pagination.util');
-const { UserTrustedDevice, User, Person } = require('../../../../../shared/models');
 
 const auditLogRepository = require('../../../../schemas/records/audit/repositories/audit-log.repository');
 const userSessionRepository = require('../../../../schemas/kyc/iam/repositories/user-session.repository');
@@ -57,37 +56,6 @@ function _isHydratable(entityTable, entityId) {
   return Boolean(entityTable) && Boolean(entityId) && Boolean(ENTITY_REGISTRY[entityTable]);
 }
 
-// Include para cabecera de sesión (dispositivo + usuario). sessionUser: alias que consume UserSessionComponent.
-function _sessionInclude() {
-  return [
-    {
-      model: UserTrustedDevice,
-      as: 'device',
-      required: false,
-      attributes: ['user_trusted_device_id', 'device_name', 'device_type', 'browser', 'os', 'status']
-    },
-    {
-      model: User,
-      as: 'sessionUser',
-      required: false,
-      attributes: ['user_id', 'username'],
-      include: [{ model: Person, as: 'person', attributes: ['first_name', 'last_name'] }]
-    }
-  ];
-}
-
-function _timelineExecutorInclude() {
-  return [
-    {
-      model: User,
-      as: 'executor',
-      required: false,
-      attributes: ['user_id', 'username'],
-      include: [{ model: Person, as: 'person', attributes: ['first_name', 'last_name'] }]
-    }
-  ];
-}
-
 class AdminSessionTraceService {
   /**
    * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
@@ -105,7 +73,7 @@ class AdminSessionTraceService {
     const pagination = PaginationHelper.getPaginationParams(query);
     const where = this.userSessionRepository.buildWhere(query);
 
-    const { rows, count } = await this.userSessionRepository.findPaginated(where, pagination, _sessionInclude());
+    const { rows, count } = await this.userSessionRepository.findPaginatedWithDeviceAndUser(where, pagination);
 
     // Conteo de acciones por sesión, solo para las sesiones de esta página (un query agrupado).
     const sessionIds = rows.map(s => s.user_session_id);
@@ -136,7 +104,7 @@ class AdminSessionTraceService {
 
   // GET /records/audit/sessions/:sessionId — cabecera + timeline cronológico de audit_logs.
   async getSessionTimeline(sessionId, query, adminUserId) {
-    const session = await this.userSessionRepository.findById(sessionId, { include: _sessionInclude() });
+    const session = await this.userSessionRepository.findByIdWithDeviceAndUser(sessionId);
     if (!session) {
       throw AppError.notFound('Sesión no encontrada');
     }
@@ -145,8 +113,7 @@ class AdminSessionTraceService {
 
     const { rows, count } = await this.auditLogRepository.findPaginatedWithExecutor(
       { session_id: sessionId },
-      { limit: pagination.limit, offset: pagination.offset, sortBy: 'created_at', order: 'ASC' },
-      _timelineExecutorInclude()
+      { limit: pagination.limit, offset: pagination.offset, sortBy: 'created_at', order: 'ASC' }
     );
 
     logAudit(

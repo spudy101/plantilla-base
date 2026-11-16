@@ -62,9 +62,7 @@ jest.mock('shared/utils/logger.util', () => ({
 }));
 
 // El modelo solo aporta la constante de estado de procesamiento que usa el fuente.
-jest.mock('shared/models', () => ({
-  Notification: { PROCESSING_STATUS: { PENDING: 'pending' } }
-}));
+jest.mock('shared/models', () => ({}));
 
 const notificationRepo = require('modules/schemas/notification/repositories/notification.repository');
 const globalNotificationRepo = require('modules/schemas/notification/repositories/global-notification.repository');

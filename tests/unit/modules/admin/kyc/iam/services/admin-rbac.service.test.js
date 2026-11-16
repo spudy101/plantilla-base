@@ -36,7 +36,7 @@ jest.mock('modules/schemas/notification/services/notification-creation.service',
 
 jest.mock('modules/schemas/kyc/iam/repositories/role-permission-override.repository', () => ({
   findByRole: jest.fn(),
-  exists: jest.fn(),
+  existsOverride: jest.fn(),
   create: jest.fn(),
   findById: jest.fn(),
   deleteById: jest.fn().mockResolvedValue(undefined)
@@ -124,7 +124,7 @@ describe('AdminRbacService', () => {
 
   describe('grantPermission', () => {
     it('otorga el permiso, invalida caché, audita, notifica y devuelve el override', async () => {
-      overrideRepo.exists.mockResolvedValue(false);
+      overrideRepo.existsOverride.mockResolvedValue(false);
       overrideRepo.create.mockResolvedValue({ role_permission_id: 'rp-9', role_name: 'admin', module_name: 'users', action: 'delete' });
 
       const result = await service.grantPermission('admin', 'users', 'delete', 'admin-1');
@@ -139,14 +139,14 @@ describe('AdminRbacService', () => {
     });
 
     it('rechaza (409) si el rol ya tiene ese permiso en el módulo', async () => {
-      overrideRepo.exists.mockResolvedValue(true);
+      overrideRepo.existsOverride.mockResolvedValue(true);
       await expect(service.grantPermission('admin', 'users', 'delete', 'admin-1')).rejects.toThrow(/ya tiene el permiso/);
       expect(overrideRepo.create).not.toHaveBeenCalled();
     });
 
     it('rechaza (400) un rol inválido antes de tocar el repositorio', async () => {
       await expect(service.grantPermission('nope', 'users', 'delete', 'admin-1')).rejects.toThrow(/no es un rol RBAC válido/);
-      expect(overrideRepo.exists).not.toHaveBeenCalled();
+      expect(overrideRepo.existsOverride).not.toHaveBeenCalled();
     });
   });
 

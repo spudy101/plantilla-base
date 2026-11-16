@@ -79,7 +79,7 @@ class AdminRbacService {
   async grantPermission(roleName, moduleName, action, grantedByUserId) {
     this._assertValidRole(roleName);
 
-    const alreadyExists = await this.rolePermissionOverrideRepository.exists(roleName, moduleName, action);
+    const alreadyExists = await this.rolePermissionOverrideRepository.existsOverride(roleName, moduleName, action);
     if (alreadyExists) {
       throw AppError.conflict(`El rol '${roleName}' ya tiene el permiso '${action}' en '${moduleName}'`);
     }

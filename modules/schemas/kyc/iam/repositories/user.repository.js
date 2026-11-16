@@ -10,6 +10,42 @@ class UserRepository extends BaseRepository {
   }
 
   /**
+   * Lo mínimo para ofuscar una cuenta al eliminarla: username + persona (documento, nombre)
+   * + contacto (email). Acepta { transaction }.
+   */
+  findForAccountDeletion(userId, options = {}) {
+    return this.findById(userId, {
+      include: [
+        {
+          association: 'person',
+          attributes: ['person_id', 'national_id', 'first_name'],
+          include: [{ association: 'contact', attributes: ['person_contact_id', 'email'] }]
+        }
+      ],
+      attributes: ['user_id', 'username'],
+      ...options
+    });
+  }
+
+  /** Usuario con el teléfono principal de su contacto (activación de SMS MFA). */
+  findWithPrimaryPhone(userId) {
+    return this.findById(userId, {
+      include: [
+        {
+          association: 'person',
+          attributes: ['person_id'],
+          include: [{ association: 'contact', attributes: ['phone_primary', 'phone_primary_prefix_id'] }]
+        }
+      ]
+    });
+  }
+
+  /** Solo los flags de MFA (lectura ligera para el gate de 2FA en cada request). */
+  findMfaFlags(userId) {
+    return this.model.findOne({ where: { user_id: userId }, attributes: ['totp_enabled', 'sms_mfa_enabled'] });
+  }
+
+  /**
    * ============================================================
    * USER MODEL - INCLUDES CENTRALIZADOS
    * ============================================================

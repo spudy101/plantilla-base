@@ -7,7 +7,7 @@ const pushService = require('./push-notification.service');
 const smsService = require('./sms.service');
 const schedulerService = require('./notification-scheduler.service');
 const EncryptionUtil = require('../../../../shared/utils/encryption.util');
-const { Notification } = require('../../../../shared/models');
+const { NOTIFICATION_PROCESSING_STATUS } = require('../../../../shared/constants/domain-enums');
 const { logger, logAudit } = require('../../../../shared/utils/logger.util');
 
 const TOKEN_LOG_PREVIEW_LENGTH = 20;
@@ -126,7 +126,7 @@ class NotificationSendingService {
       await this.actualizarEstadoEntrega(notificationId, notificationType);
     } catch (error) {
       logger.warn('Error en procesamiento individual', { error: error.message, notificationId });
-      await this.notificationRepo.updateProcessingStatus(notificationId, Notification.PROCESSING_STATUS.FAILED);
+      await this.notificationRepo.updateProcessingStatus(notificationId, NOTIFICATION_PROCESSING_STATUS.FAILED);
     }
   }
 
@@ -162,19 +162,19 @@ class NotificationSendingService {
     // Los diferidos por quiet hours aún no se intentaron → se ignoran.
     const attempted = channels.filter(channel => channel.sent || channel.error);
     if (attempted.length === 0) {
-      return Notification.PROCESSING_STATUS.COMPLETED;
+      return NOTIFICATION_PROCESSING_STATUS.COMPLETED;
     }
 
     const anyFailed = attempted.some(channel => !channel.sent && channel.error);
     const anyDelivered = attempted.some(channel => channel.sent);
 
     if (!anyFailed) {
-      return Notification.PROCESSING_STATUS.COMPLETED;
+      return NOTIFICATION_PROCESSING_STATUS.COMPLETED;
     }
     if (!anyDelivered) {
-      return Notification.PROCESSING_STATUS.FAILED;
+      return NOTIFICATION_PROCESSING_STATUS.FAILED;
     }
-    return Notification.PROCESSING_STATUS.PARTIAL_FAILURE;
+    return NOTIFICATION_PROCESSING_STATUS.PARTIAL_FAILURE;
   }
 
   /**
@@ -358,7 +358,7 @@ class NotificationSendingService {
   async procesarNotificacionProgramada(notification) {
     try {
       // FIX: notification.notification_id en vez de notification.id
-      await this.notificationRepo.updateProcessingStatus(notification.notification_id, Notification.PROCESSING_STATUS.PROCESSING);
+      await this.notificationRepo.updateProcessingStatus(notification.notification_id, NOTIFICATION_PROCESSING_STATUS.PROCESSING);
 
       const notificationType = await this.notificationTypeRepo.findById(notification.notification_type_id, {
         include: [{ association: 'category' }]
@@ -397,7 +397,7 @@ class NotificationSendingService {
         notification_id: notification.notification_id
       });
       // FIX: notification.notification_id en vez de notification.id
-      await this.notificationRepo.updateProcessingStatus(notification.notification_id, Notification.PROCESSING_STATUS.FAILED);
+      await this.notificationRepo.updateProcessingStatus(notification.notification_id, NOTIFICATION_PROCESSING_STATUS.FAILED);
     }
   }
 }

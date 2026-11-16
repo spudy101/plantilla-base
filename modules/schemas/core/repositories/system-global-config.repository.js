@@ -13,6 +13,11 @@ class SystemGlobalConfigRepository extends BaseRepository {
   }
 
   /** Configuración global activa (o null si no existe). */
+  /** Solo la configuración de resiliencia de integraciones de la global activa. */
+  findActiveResilience() {
+    return this.findOne({ is_active: true }, { attributes: ['integration_resilience'] });
+  }
+
   findActive() {
     return this.findOne({ is_active: true });
   }

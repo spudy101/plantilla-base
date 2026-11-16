@@ -2,6 +2,17 @@ const AppendOnlyRepository = require('../../../../../shared/repositories/append-
 const { AuditLog } = require('../../../../../shared/models');
 const { Op } = require('sequelize');
 
+// Quién ejecutó la acción (usuario + nombre). Inclusión por defecto de los listados/detalle admin,
+// declarada por nombre de asociación para que los services no importen modelos (SOLID: D).
+const EXECUTOR_INCLUDE = Object.freeze([
+  {
+    association: 'executor',
+    required: false,
+    attributes: ['user_id', 'username'],
+    include: [{ association: 'person', attributes: ['first_name', 'last_name'] }]
+  }
+]);
+
 class AuditLogRepository extends AppendOnlyRepository {
   constructor() {
     super(AuditLog);
@@ -193,12 +204,12 @@ class AuditLogRepository extends AppendOnlyRepository {
   }
 
   /**
-   * Paginación genérica con include configurable (ej: executor con User+Person).
+   * Paginación genérica; por defecto incluye al executor (User + Person).
    * @param {object} where
    * @param {{limit: number, offset: number}} pagination
    * @param {object[]} include
    */
-  findPaginatedWithExecutor(where, { limit, offset, sortBy = 'created_at', order = 'DESC' }, include = []) {
+  findPaginatedWithExecutor(where, { limit, offset, sortBy = 'created_at', order = 'DESC' }, include = EXECUTOR_INCLUDE) {
     return this.model.findAndCountAll({
       where,
       include,
@@ -210,11 +221,11 @@ class AuditLogRepository extends AppendOnlyRepository {
   }
 
   /**
-   * Detalle de un log con include configurable (ej: executor).
+   * Detalle de un log; por defecto incluye al executor.
    * @param {string} auditLogId
    * @param {object[]} include
    */
-  findByIdFull(auditLogId, include = []) {
+  findByIdFull(auditLogId, include = EXECUTOR_INCLUDE) {
     return this.model.findOne({
       where: { [this.model.primaryKeyAttribute]: auditLogId },
       include
@@ -281,7 +292,7 @@ class AuditLogRepository extends AppendOnlyRepository {
   }
 
   /** Listado paginado de auditoría a partir de filtros de negocio. */
-  searchPaginated(filters, pagination, include = []) {
+  searchPaginated(filters, pagination, include = EXECUTOR_INCLUDE) {
     return this.findPaginatedWithExecutor(this.buildSearchWhere(filters), pagination, include);
   }
 
@@ -317,7 +328,7 @@ class AuditLogRepository extends AppendOnlyRepository {
   }
 
   /** Intentos de autenticación paginados. */
-  findAuthAttemptsPaginated(criteria, pagination, include = []) {
+  findAuthAttemptsPaginated(criteria, pagination, include = EXECUTOR_INCLUDE) {
     return this.findPaginatedWithExecutor(this.buildAuthAttemptsWhere(criteria), pagination, include);
   }
 
