@@ -15,6 +15,7 @@
 const fs = require('node:fs');
 
 const ASSIGN = /^ {4}this\.(\w+) = deps\.(\w+) \?\? ([\w$]+(?:\.[\w$]+)*);$/;
+const ASSIGN_NEW = /^ {4}this\.(\w+) = deps\.(\w+) \?\? new ([\w$]+(?:\.[\w$]+)*)\(.*\);$/;
 
 for (const file of process.argv.slice(2)) {
   const raw = fs.readFileSync(file, 'utf8');
@@ -40,8 +41,12 @@ for (const file of process.argv.slice(2)) {
     const fields = [];
     for (const line of body.split('\n')) {
       const m = line.match(ASSIGN);
+      const n = line.match(ASSIGN_NEW);
       if (m && m[3] !== 'null' && m[3] !== 'undefined') {
         fields.push({ name: m[1], key: m[2], type: `typeof ${m[3]}` });
+      } else if (n) {
+        // `deps.x ?? new X(...)` → la instancia de esa clase
+        fields.push({ name: n[1], key: n[2], type: `InstanceType<typeof ${n[3]}>` });
       } else if (/^ {4}this\.\w+ =/.test(line)) {
         report.push(`${cls}: ${line.trim()}`);
       }

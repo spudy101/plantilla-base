@@ -77,7 +77,7 @@ class TokenBlacklistUtil {
    * @param {string} accessToken
    * @param {number} [tokenExp] - Unix timestamp (segundos) de expiración del token
    */
-  static async blacklistAccessToken(accessToken: string, tokenExp: number | null = null) {
+  static async blacklistAccessToken(accessToken: string | null | undefined, tokenExp: number | null = null) {
     if (!accessToken) {
       return false;
     }

@@ -78,7 +78,7 @@ class KycSharedUtil {
    * Ofusca el nationalId para soft-delete.
    * Formato: deleted_<timestamp>_<primeros4chars>
    */
-  static formatDeletedNationalId(nationalId: string) {
+  static formatDeletedNationalId(nationalId: string | null | undefined) {
     const prefix = (nationalId || 'unknown').slice(0, DELETED_PREFIX_LENGTH);
     return `deleted_${Date.now()}_${prefix}`;
   }
@@ -87,7 +87,7 @@ class KycSharedUtil {
    * Ofusca el username para soft-delete.
    * Formato: deleted_<timestamp>_<primeros4chars>
    */
-  static formatDeletedUsername(username: string) {
+  static formatDeletedUsername(username: string | null | undefined) {
     const prefix = (username || 'unknown').slice(0, DELETED_PREFIX_LENGTH);
     return `deleted_${Date.now()}_${prefix}`;
   }

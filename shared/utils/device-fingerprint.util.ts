@@ -32,7 +32,7 @@ class DeviceFingerprintUtil {
    * @param {string} userAgent
    * @returns {string}
    */
-  static generateDeviceName(userAgent: string) {
+  static generateDeviceName(userAgent: string | null | undefined) {
     if (!userAgent) {
       return 'Dispositivo desconocido';
     }
@@ -88,7 +88,7 @@ class DeviceFingerprintUtil {
    * @param {string} userAgent
    * @returns {{ browser: string|null, os: string|null, deviceType: string }}
    */
-  static parseUserAgent(userAgent: string) {
+  static parseUserAgent(userAgent: string | null | undefined) {
     if (!userAgent) {
       return { browser: null, os: null, deviceType: 'desktop' };
     }
@@ -127,7 +127,7 @@ class DeviceFingerprintUtil {
    * @param {string} ip
    * @returns {{ city: string|null, country: string|null, countryCode: string|null }}
    */
-  static geolocateIp(ip: string) {
+  static geolocateIp(ip: string | null | undefined) {
     if (!ip) {
       return { city: null, country: null, countryCode: null };
     }
@@ -172,7 +172,7 @@ class DeviceFingerprintUtil {
   // (browser/os/deviceType) y geoip-lite (city/country/countryCode offline)
   // Nota: la detección de "dispositivo nuevo" usa solo fingerprint (hash de
   // User-Agent), no IP. Decisión técnica consciente — ver CA-03
-  static enrichDevice(userAgent: string, ip: string) {
+  static enrichDevice(userAgent: string | null | undefined, ip: string | null | undefined) {
     const { browser, os, deviceType } = DeviceFingerprintUtil.parseUserAgent(userAgent);
     const { city, country, countryCode } = DeviceFingerprintUtil.geolocateIp(ip);
     const deviceName = DeviceFingerprintUtil.generateDeviceName(userAgent);

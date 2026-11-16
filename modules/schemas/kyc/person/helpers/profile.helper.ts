@@ -1,3 +1,4 @@
+import type Types = require('./profile.types');
 import type { Transaction } from 'sequelize';
 import userRepository = require('../../iam/repositories/user.repository');
 import personRepository = require('../repositories/person.repository');
@@ -659,75 +660,16 @@ class ProfileHelper {
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 namespace ProfileHelper {
-  export type PhoneType = 'primary' | 'secondary';
-
-  /** Contexto HTTP de auditoría (algunos call-sites lo arman con ip, otros con ipAddress). */
-  export interface AuditInfo {
-    ip?: string | null;
-    ipAddress?: string | null;
-    userAgent?: string | null;
-  }
-
-  /** Quién hace el cambio y por qué: va a user_change_logs. */
-  export interface ChangeActor {
-    userId: string;
-    changedByUserId: string;
-    changedByRole: 'admin' | 'user' | 'system';
-    changeReason?: string | null;
-    auditContext: AuditInfo;
-    transaction?: Transaction;
-  }
-
-  export interface LocationInput {
-    countryId?: string | null;
-    departmentId: string;
-    cityId: string;
-    postalCode?: string | null;
-    type?: string | null;
-    address: string;
-  }
-
-  export interface NamesInput {
-    firstName?: string;
-    middleName?: string | null;
-    lastName?: string;
-    secondLastName?: string | null;
-  }
-
-  export interface UpdateEmailParams extends ChangeActor {
-    personId: string;
-    newEmail: string;
-    /** true cuando lo hace un admin (no exige OTP verificado) */
-    skipVerificationCheck?: boolean;
-  }
-
-  export interface UpdatePhoneParams extends Partial<Pick<ChangeActor, 'userId' | 'changedByUserId' | 'changedByRole'>> {
-    personId: string;
-    phone: string;
-    phonePrefixId: string;
-    phoneType: PhoneType;
-    auditContext?: AuditInfo;
-    transaction?: Transaction;
-  }
-
-  export interface UpdatePasswordParams extends ChangeActor {
-    newPassword: string;
-  }
-
-  export interface UpdateNationalIdParams extends ChangeActor {
-    personId: string;
-    newNationalId: string;
-    documentTypeId?: string | null;
-    role: { name: string };
-  }
-
-  export interface DeleteAccountParams extends ChangeActor {
-    personId: string;
-    nationalId: string;
-    email?: string | null;
-    username: string;
-    firstName?: string | null;
-  }
+  export type PhoneType = Types.PhoneType;
+  export type AuditInfo = Types.AuditInfo;
+  export type ChangeActor = Types.ChangeActor;
+  export type LocationInput = Types.LocationInput;
+  export type NamesInput = Types.NamesInput;
+  export type UpdateEmailParams = Types.UpdateEmailParams;
+  export type UpdatePhoneParams = Types.UpdatePhoneParams;
+  export type UpdatePasswordParams = Types.UpdatePasswordParams;
+  export type UpdateNationalIdParams = Types.UpdateNationalIdParams;
+  export type DeleteAccountParams = Types.DeleteAccountParams;
 
   /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
   export interface Deps {

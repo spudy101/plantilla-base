@@ -19,7 +19,9 @@ const fakeModel = extra => ({
 const mockModels = {
   UserPushToken: fakeModel(),
   AuditLog: fakeModel(),
-  UserChangeLog: fakeModel()
+  UserChangeLog: fakeModel(),
+  VerificationCode: fakeModel(),
+  UserTrustedDevice: fakeModel()
 };
 
 jest.mock('shared/models', () => mockModels);
@@ -30,6 +32,7 @@ jest.mock('shared/utils/logger.util', () => ({
 const userPushTokenRepository = require('modules/schemas/notification/repositories/user-push-token.repository');
 const auditLogRepository = require('modules/schemas/records/audit/repositories/audit-log.repository');
 const userChangeLogRepository = require('modules/schemas/records/audit/repositories/user-change-log.repository');
+const verificationCodeRepository = require('modules/schemas/notification/repositories/verification-code.repository');
 
 beforeEach(() => jest.clearAllMocks());
 
@@ -93,5 +96,20 @@ describe('UserChangeLogRepository: filtros de los atajos', () => {
     const where = whereOfLastQuery();
     expect(where).toContain('"changed_by_user_id":"admin-1"');
     expect(where).toContain('"changed_by_role":"admin"');
+  });
+});
+
+describe('VerificationCodeRepository.incrementAttempts', () => {
+  // Antes no aceptaba opciones: el incremento corría fuera de la transacción del llamador.
+  it('propaga la transacción al update', async () => {
+    mockModels.VerificationCode.update.mockResolvedValue([1]);
+    const tx = { id: 'tx' };
+
+    await verificationCodeRepository.incrementAttempts('vc-1', { transaction: tx });
+
+    expect(mockModels.VerificationCode.update).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ transaction: tx, where: expect.objectContaining({ verification_code_id: 'vc-1' }) })
+    );
   });
 });

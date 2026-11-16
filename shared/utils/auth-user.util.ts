@@ -14,4 +14,16 @@ function requireAuthUser(req: Request): AuthenticatedUser {
   return req.user;
 }
 
-export = { requireAuthUser };
+/**
+ * Usuario autenticado que además tiene persona asociada (clientes y funcionarios la tienen siempre;
+ * un token viejo sin el claim personId → 401 en vez de consultar con null).
+ */
+function requireAuthPerson(req: Request): AuthenticatedUser & { personId: string } {
+  const user = requireAuthUser(req);
+  if (!user.personId) {
+    throw AppError.unauthorized('Sesión sin persona asociada');
+  }
+  return user as AuthenticatedUser & { personId: string };
+}
+
+export = { requireAuthUser, requireAuthPerson };
