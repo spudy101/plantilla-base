@@ -121,3 +121,4 @@ function _countBy(field) {
 }
 
 module.exports = new AdminAuditActionCatalogService();
+module.exports.AdminAuditActionCatalogService = AdminAuditActionCatalogService;
