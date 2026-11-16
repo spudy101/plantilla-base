@@ -81,7 +81,7 @@ class InternalUserHelper {
         { transaction }
       );
 
-      const user = await userRepository.create(
+      const user = await userRepository.createWithPassword(
         {
           username: data.authUsername,
           auth_username: data.authUsername,

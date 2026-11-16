@@ -1,5 +1,6 @@
 // shared/repositories/read.repository.ts
 import { Op } from 'sequelize';
+import type { WhereClause } from './query';
 import type {
   Attributes,
   CountOptions,
@@ -8,6 +9,7 @@ import type {
   Includeable,
   Model,
   ModelStatic,
+  Sequelize,
   WhereOptions
 } from 'sequelize';
 
@@ -39,6 +41,15 @@ class ReadRepository<M extends Model = Model> {
     this._filterIdField = config.filterIdField ?? null;
     this._filterIdKey = config.filterIdKey ?? null;
     this._defaultInclude = config.defaultInclude ?? [];
+  }
+
+  /** Instancia de Sequelize del modelo (para query() crudas). Siempre existe tras sequelize.define. */
+  protected get sequelize(): Sequelize {
+    const { sequelize } = this.model;
+    if (!sequelize) {
+      throw new Error(`${this.model.name}: el modelo no está inicializado`);
+    }
+    return sequelize;
   }
 
   // ─── Queries ──────────────────────────────────────────────────────────────
@@ -89,6 +100,15 @@ class ReadRepository<M extends Model = Model> {
     return (await this.count(criteria)) > 0;
   }
 
+  /**
+   * findAll con raw: true para agregados (COUNT/AVG/SUM con alias, GROUP BY). Las filas no son
+   * instancias del modelo sino las columnas que pide el llamador: R describe esa forma.
+   */
+  protected async aggregate<R extends object>(options: Omit<FindOptions<Attributes<M>>, 'raw'>): Promise<R[]> {
+    const rows: unknown = await this.model.findAll({ ...options, raw: true });
+    return rows as R[];
+  }
+
   // ─── Paginated ────────────────────────────────────────────────────────────
 
   /**
@@ -108,7 +128,7 @@ class ReadRepository<M extends Model = Model> {
     const { limit, offset, sortBy, order } = paginationParams;
 
     // ── Criteria ──
-    const criteria: Record<string, unknown> = {};
+    const criteria: WhereClause = {};
 
     if (filters.isActive !== undefined) {
       criteria.is_active = filters.isActive;
@@ -176,7 +196,7 @@ namespace ReadRepository {
   /** Opciones de findAllPaginated: opciones Sequelize + extensiones del repositorio. */
   export type PaginatedOptions<M extends Model> = Omit<FindAndCountOptions<Attributes<M>>, 'where'> & {
     /** Filtros extra que se mergean al WHERE */
-    _extraFilters?: WhereOptions<Attributes<M>>;
+    _extraFilters?: WhereClause;
     /** Sobreescribe searchFields del constructor */
     _searchFields?: string[];
   };

@@ -110,7 +110,7 @@ class PersonCreationService {
       { transaction }
     );
 
-    return this.userRepository.create(
+    return this.userRepository.createWithPassword(
       {
         username: authUsername,
         auth_username: authUsername,

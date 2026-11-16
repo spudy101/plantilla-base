@@ -25,7 +25,7 @@ jest.mock('modules/schemas/kyc/iam/repositories/user.repository', () => ({
   findByUserId: jest.fn(),
   findById: jest.fn(),
   findAllPaginated: jest.fn(),
-  create: jest.fn(),
+  createWithPassword: jest.fn(),
   setActiveStatus: jest.fn(),
   updatePassword: jest.fn(),
   update: jest.fn()
@@ -270,7 +270,7 @@ describe('PersonService (admin)', () => {
       roleRepository.findByName.mockResolvedValue({ role_id: 'rc1', name: 'cliente' });
       personRepository.create.mockResolvedValue({ person_id: 'p1' });
       personContactRepository.create.mockResolvedValue({});
-      userRepository.create.mockResolvedValue({ user_id: 'u1' });
+      userRepository.createWithPassword.mockResolvedValue({ user_id: 'u1' });
       userRepository.findByUserId.mockResolvedValue({ user_id: 'u1' });
     });
 
@@ -284,7 +284,7 @@ describe('PersonService (admin)', () => {
         expect.objectContaining({ first_name: 'Juan', national_id: '11111111-1', origin_session_id: 'sess-1' }),
         { transaction: txn }
       );
-      expect(userRepository.create).toHaveBeenCalledWith(
+      expect(userRepository.createWithPassword).toHaveBeenCalledWith(
         expect.objectContaining({ auth_username: 'user_uuid-fixed', person_id: 'p1', role_id: 'rc1', password: 'TempPass123!' }),
         { transaction: txn }
       );

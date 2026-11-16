@@ -1,0 +1,93 @@
+// shared/models/registry.ts
+//
+// Registro tipado de modelos (generado con scripts/ts-migration/gen-model-types.js). Solo tipos: el
+// valor lo arma shared/models/index.ts. Separado del índice para que los modelos puedan referenciarlo
+// (en associate) sin ciclos de carga.
+import type { Sequelize } from 'sequelize';
+import type defineApprovalRequest = require('../../modules/schemas/core/models/approval-request.model');
+import type defineAuditAlert = require('../../modules/schemas/records/audit/models/audit-alert.model');
+import type defineAuditLog = require('../../modules/schemas/records/audit/models/audit-log.model');
+import type defineAvatar = require('../../modules/schemas/kyc/maintainers/models/avatar.model');
+import type defineAvatarTheme = require('../../modules/schemas/kyc/maintainers/models/avatar-theme.model');
+import type defineBiometricChallenge = require('../../modules/schemas/kyc/iam/models/biometric-challenge.model');
+import type defineCity = require('../../modules/schemas/kyc/maintainers/models/city.model');
+import type defineConsentType = require('../../modules/schemas/records/legal/models/consent-type.model');
+import type defineCountry = require('../../modules/schemas/kyc/maintainers/models/country.model');
+import type defineDepartment = require('../../modules/schemas/kyc/maintainers/models/department.model');
+import type defineDocumentType = require('../../modules/schemas/kyc/maintainers/models/document-type.model');
+import type defineEmailBounceSuppression = require('../../modules/schemas/notification/models/email-bounce-suppression.model');
+import type defineGender = require('../../modules/schemas/kyc/maintainers/models/gender.model');
+import type defineGlobalNotification = require('../../modules/schemas/notification/models/global-notification.model');
+import type defineGlobalNotificationRead = require('../../modules/schemas/notification/models/global-notification-read.model');
+import type defineIntegrationApiLog = require('../../modules/schemas/integration/models/integration-api-log.model');
+import type defineNotification = require('../../modules/schemas/notification/models/notification.model');
+import type defineNotificationCategory = require('../../modules/schemas/notification/models/notification-category.model');
+import type defineNotificationType = require('../../modules/schemas/notification/models/notification-type.model');
+import type definePerson = require('../../modules/schemas/kyc/person/models/person.model');
+import type definePersonContact = require('../../modules/schemas/kyc/person/models/person-contact.model');
+import type definePersonLocation = require('../../modules/schemas/kyc/person/models/person-location.model');
+import type definePersonReference = require('../../modules/schemas/kyc/person/models/person-reference.model');
+import type definePhonePrefix = require('../../modules/schemas/kyc/maintainers/models/phone-prefix.model');
+import type definePrivacyPolicy = require('../../modules/schemas/records/legal/models/privacy-policy.model');
+import type defineProviderFallbackEvent = require('../../modules/schemas/integration/models/provider-fallback-event.model');
+import type defineResetCredentials = require('../../modules/schemas/kyc/iam/models/reset-credentials.model');
+import type defineRole = require('../../modules/schemas/kyc/iam/models/role.model');
+import type defineRolePermissionOverride = require('../../modules/schemas/kyc/iam/models/role-permission-override.model');
+import type defineSmsDeliveryAttempt = require('../../modules/schemas/notification/models/sms-delivery-attempt.model');
+import type defineSystemGlobalConfig = require('../../modules/schemas/core/models/system-global-config.model');
+import type defineUser = require('../../modules/schemas/kyc/iam/models/user.model');
+import type defineUserBiometricCredential = require('../../modules/schemas/kyc/iam/models/user-biometric-credential.model');
+import type defineUserChangeLog = require('../../modules/schemas/records/audit/models/user-change-log.model');
+import type defineUserConsent = require('../../modules/schemas/records/legal/models/user-consent.model');
+import type defineUserLoginAttempt = require('../../modules/schemas/records/audit/models/user-login-attempt.model');
+import type defineUserNotificationPreference = require('../../modules/schemas/kyc/person/models/user-notification-preference.model');
+import type defineUserPushToken = require('../../modules/schemas/notification/models/user-push-token.model');
+import type defineUserSession = require('../../modules/schemas/kyc/iam/models/user-session.model');
+import type defineUserTrustedDevice = require('../../modules/schemas/kyc/iam/models/user-trusted-device.model');
+import type defineVerificationCode = require('../../modules/schemas/notification/models/verification-code.model');
+
+export interface ModelRegistry {
+  sequelize: Sequelize;
+  Sequelize: typeof import('sequelize').Sequelize;
+  ApprovalRequest: defineApprovalRequest.Static;
+  AuditAlert: defineAuditAlert.Static;
+  AuditLog: defineAuditLog.Static;
+  Avatar: defineAvatar.Static;
+  AvatarTheme: defineAvatarTheme.Static;
+  BiometricChallenge: defineBiometricChallenge.Static;
+  City: defineCity.Static;
+  ConsentType: defineConsentType.Static;
+  Country: defineCountry.Static;
+  Department: defineDepartment.Static;
+  DocumentType: defineDocumentType.Static;
+  EmailBounceSuppression: defineEmailBounceSuppression.Static;
+  Gender: defineGender.Static;
+  GlobalNotification: defineGlobalNotification.Static;
+  GlobalNotificationRead: defineGlobalNotificationRead.Static;
+  IntegrationApiLog: defineIntegrationApiLog.Static;
+  Notification: defineNotification.Static;
+  NotificationCategory: defineNotificationCategory.Static;
+  NotificationType: defineNotificationType.Static;
+  Person: definePerson.Static;
+  PersonContact: definePersonContact.Static;
+  PersonLocation: definePersonLocation.Static;
+  PersonReference: definePersonReference.Static;
+  PhonePrefix: definePhonePrefix.Static;
+  PrivacyPolicy: definePrivacyPolicy.Static;
+  ProviderFallbackEvent: defineProviderFallbackEvent.Static;
+  ResetCredentials: defineResetCredentials.Static;
+  Role: defineRole.Static;
+  RolePermissionOverride: defineRolePermissionOverride.Static;
+  SmsDeliveryAttempt: defineSmsDeliveryAttempt.Static;
+  SystemGlobalConfig: defineSystemGlobalConfig.Static;
+  User: defineUser.Static;
+  UserBiometricCredential: defineUserBiometricCredential.Static;
+  UserChangeLog: defineUserChangeLog.Static;
+  UserConsent: defineUserConsent.Static;
+  UserLoginAttempt: defineUserLoginAttempt.Static;
+  UserNotificationPreference: defineUserNotificationPreference.Static;
+  UserPushToken: defineUserPushToken.Static;
+  UserSession: defineUserSession.Static;
+  UserTrustedDevice: defineUserTrustedDevice.Static;
+  VerificationCode: defineVerificationCode.Static;
+}

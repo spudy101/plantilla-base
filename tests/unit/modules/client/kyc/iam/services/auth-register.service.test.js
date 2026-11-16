@@ -16,7 +16,7 @@ jest.mock('uuid', () => ({ v4: jest.fn(() => 'uuid-fijo') }));
 
 jest.mock('modules/schemas/kyc/iam/repositories/user.repository', () => ({
   findByUserId: jest.fn(),
-  create: jest.fn(),
+  createWithPassword: jest.fn(),
   update: jest.fn(),
   updatePassword: jest.fn()
 }));
@@ -167,7 +167,7 @@ function armHappyRegister() {
   roleRepository.findByName.mockResolvedValue({ role_id: 'role-cliente' });
   personRepository.create.mockResolvedValue({ person_id: 'p-1' });
   personContactRepository.create.mockResolvedValue({ person_contact_id: 'pc-1' });
-  userRepository.create.mockResolvedValue({ user_id: 'u-1' });
+  userRepository.createWithPassword.mockResolvedValue({ user_id: 'u-1' });
   userNotificationPreferenceRepository.create.mockResolvedValue({});
   consentTypeRepository.findByCode.mockResolvedValue({ consent_type_id: 'ct-1' });
   userConsentRepository.grant.mockResolvedValue({ user_consent_id: 'uc-1' });
@@ -193,7 +193,7 @@ describe('AuthRegisterService', () => {
       const result = await service.register(VALID_USER_DATA, { ip: '9.9.9.9', userAgent: 'jest' });
 
       expect(personRepository.create).toHaveBeenCalled();
-      expect(userRepository.create).toHaveBeenCalledWith(
+      expect(userRepository.createWithPassword).toHaveBeenCalledWith(
         expect.objectContaining({ auth_username: 'user_uuid-fijo', person_id: 'p-1', role_id: 'role-cliente' }),
         expect.any(Object)
       );
