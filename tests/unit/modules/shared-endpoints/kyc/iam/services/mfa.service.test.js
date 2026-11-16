@@ -13,6 +13,7 @@ jest.mock('shared/models', () => ({
 
 jest.mock('modules/schemas/kyc/iam/repositories/user.repository', () => ({
   findById: jest.fn(),
+  findWithPrimaryPhone: jest.fn(),
   update: jest.fn().mockResolvedValue(undefined),
   updateTOTPStatus: jest.fn().mockResolvedValue(undefined),
   setTOTPStatus: jest.fn().mockResolvedValue(undefined),
@@ -107,6 +108,8 @@ describe('MFAService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // El lookup con teléfono (findWithPrimaryPhone) devuelve lo mismo que el stub de findById.
+    userRepo.findWithPrimaryPhone.mockImplementation((...args) => userRepo.findById(...args));
     constants.MOCKS.EXTERNAL_PROVIDERS = false;
     tx = makeTx();
     sequelize.transaction.mockResolvedValue(tx);
