@@ -477,7 +477,7 @@ module.exports = {
     // valores por defecto numéricos que son semánticamente claros en contexto.
     // -------------------------------------------------------------------------
     {
-      files: ['**/shared/constants/**/*.js', '**/shared/constants.js', '**/tests/**/*.js', '**/shared/utils/hash.util.js'],
+      files: ['**/shared/constants/**/*.{js,ts}', '**/shared/constants.js', '**/tests/**/*.js', '**/shared/utils/hash.util.{js,ts}'],
       rules: {
         'no-process-env': 'off',
         'no-magic-numbers': 'off'

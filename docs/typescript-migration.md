@@ -63,14 +63,31 @@
 | Fase | Alcance | Estado |
 |---|---|---|
 | **1. Infraestructura + núcleo** | tsconfig, build, dev, Jest, ESLint, Docker, CLI de BD vía tsx; `AppError`, `ReadRepository` / `BaseRepository` / `AppendOnlyRepository` (genéricos `<M extends Model>`), `UnitOfWork` (con su puerto `Port`), `domain-enums` (uniones literales), `es256-signature.util` | ✅ |
-| **2. Resto de `shared/`** | constants, utils, dtos, middlewares, services, validators, models (tipar modelos Sequelize con `InferAttributes`) | ⏳ |
-| **3. Repositorios** | `modules/**/repositories` → `extends BaseRepository<UserModel>`; definir **interfaces de puerto** (`UserRepositoryPort`) que consumen los services | ⏳ |
+| **2. Resto de `shared/`** | ✅ `constants/` (23) y `utils/` (30) · ⏳ `dtos/`, `middlewares/`, `services/`, `validators/`, `base/`, `models/index` + mixin | 🔄 |
+| **3. Modelos + repositorios** | Tipar los 45 modelos de `modules/schemas/*/models` (`InferAttributes`) junto a su repositorio; `modules/**/repositories` → `extends BaseRepository<UserModel>`; definir **interfaces de puerto** (`UserRepositoryPort`) que consumen los services | ⏳ |
 | **4. Dominios** (uno por commit) | `schemas/kyc`, `schemas/notification`, `schemas/records`, `schemas/core`, `schemas/integration`; luego `shared-endpoints`, `client`, `admin` (services, controllers, routes, dtos, validators) | ⏳ |
 | **5. Arranque y config** | `servers/`, `config/`, `shared/base/` | ⏳ |
 | **6. Cierre** | Tests a `.ts`, `allowJs: false`, pasar de `export =` a `import`/`export` nativos (ya sin consumidores JS), quitar `babel-jest`, migraciones/seeders a `.ts` | ⏳ |
 
 Orden pensado de abajo hacia arriba: cada fase solo depende de capas ya tipadas, así los tipos
 "suben" sin `any` intermedios.
+
+## Utilidades para migrar
+
+- `shared/utils/error-message.util.ts`: `errorMessage(e)`, `errorName(e)`, `isOperationalError(e)` para los
+  `catch` (con `strict` el error es `unknown`). Si una función recibe un parámetro llamado
+  `errorMessage`, usar `errorMessageModule.errorMessage(…)` para no taparlo.
+- `shared/types/express.d.ts`: propiedades que los middlewares agregan a `req` (`user`, `correlationId`,
+  `serverContext`, `externalService`, `lockKey`).
+- Campos de clase opcionales que no siempre se asignan: `declare campo?: T`. Con target ES2023
+  (`useDefineForClassFields`) un campo sin `declare` se crea como `undefined` en cada instancia.
+
+## Bugs encontrados por los tipos
+
+- **Ventana de gracia de rotación de refresh token** (`refresh-token-store.util`): se guardaba con
+  `JSON.stringify` y se leía con `JSON.parse` sobre lo que `redisClient.get` ya devuelve parseado →
+  `getRotation` siempre devolvía `null` y dos `/auth/refresh` concurrentes podían detectarse como
+  reuse attack. Corregido (acepta también el formato viejo) y cubierto con test.
 
 ## Qué queda fuera a propósito (por ahora)
 

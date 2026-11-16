@@ -31,8 +31,8 @@ const APPLICATION_LAYER = /\.(service|helper|validator|controller|middleware|uti
 
 // Adaptadores de infraestructura que escriben/arrancan con Sequelize a propósito (ver docs/solid.md § D).
 const ORM_ALLOWLIST = new Set([
-  'shared/utils/logger.util.js', // escribe audit_logs (require diferido: el resto del sistema depende del logger)
-  'shared/utils/integration-api-logger.util.js' // escribe integration_api_logs (mismo motivo)
+  'shared/utils/logger.util.ts', // escribe audit_logs (require diferido: el resto del sistema depende del logger)
+  'shared/utils/integration-api-logger.util.ts' // escribe integration_api_logs (mismo motivo)
 ]);
 
 // require('…') (JS), `import x = require('…')` e `import … from '…'` (TS).
