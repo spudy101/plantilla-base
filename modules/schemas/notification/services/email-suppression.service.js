@@ -11,6 +11,16 @@ const SHA256_HEX = /^[a-f0-9]{64}$/i;
 const ENTITY = { entityType: 'EmailBounceSuppression', entityTable: 'email_bounce_suppressions' };
 
 class EmailSuppressionService {
+  /**
+   * Dependencias inyectables (SOLID: D):
+   *   new EmailSuppressionService({ emailBounceSuppressionRepo: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this.emailBounceSuppressionRepo = deps.emailBounceSuppressionRepo ?? emailBounceSuppressionRepo;
+    this.threshold = HARD_BOUNCE_SUPPRESSION_THRESHOLD; // regla de negocio fija, expuesta para el admin
+  }
+
   /** Normaliza un correo (o hash ya calculado) a su email_hash SHA-256. */
   _toHash(emailOrHash) {
     if (!emailOrHash) {
@@ -29,7 +39,7 @@ class EmailSuppressionService {
     if (!emailHash) {
       return Promise.resolve(false);
     }
-    return emailBounceSuppressionRepo.isSuppressed(emailHash);
+    return this.emailBounceSuppressionRepo.isSuppressed(emailHash);
   }
 
   /**
@@ -43,7 +53,7 @@ class EmailSuppressionService {
       return null;
     }
 
-    const result = await emailBounceSuppressionRepo.registerHardBounce(hash, {
+    const result = await this.emailBounceSuppressionRepo.registerHardBounce(hash, {
       userId,
       errorCode,
       threshold: HARD_BOUNCE_SUPPRESSION_THRESHOLD
@@ -81,7 +91,7 @@ class EmailSuppressionService {
    */
   async lift({ email = null, emailHash = null, adminUserId }) {
     const hash = this._toHash(emailHash || email);
-    const record = await emailBounceSuppressionRepo.lift(hash);
+    const record = await this.emailBounceSuppressionRepo.lift(hash);
     logAudit(
       'EMAIL_SUPPRESSION_LIFTED',
       adminUserId,
@@ -92,6 +102,5 @@ class EmailSuppressionService {
   }
 }
 
-const instance = new EmailSuppressionService();
-instance.threshold = HARD_BOUNCE_SUPPRESSION_THRESHOLD;
-module.exports = instance;
+module.exports = new EmailSuppressionService();
+module.exports.EmailSuppressionService = EmailSuppressionService;

@@ -54,3 +54,4 @@ class NotificationRateLimitService {
 }
 
 module.exports = new NotificationRateLimitService();
+module.exports.NotificationRateLimitService = NotificationRateLimitService;

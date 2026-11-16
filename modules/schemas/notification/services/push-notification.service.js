@@ -7,6 +7,15 @@ const ProviderApiLogger = require('../../../../shared/utils/integration-api-logg
 const { resolveAwsGate, awsErrorCode } = require('../../../../shared/utils/aws-provider-meta.util');
 
 class PushNotificationService {
+  /**
+   * Dependencias inyectables (SOLID: D). Sin snsClient se crea el cliente real al primer uso.
+   *   new PushNotificationService({ snsClient: fake })
+   * @param {object} [deps]
+   */
+  constructor(deps = {}) {
+    this._snsClient = deps.snsClient ?? null;
+  }
+
   get snsClient() {
     if (!this._snsClient) {
       this._snsClient = new SNSClient({
@@ -199,3 +208,4 @@ class PushNotificationService {
 }
 
 module.exports = new PushNotificationService();
+module.exports.PushNotificationService = PushNotificationService;

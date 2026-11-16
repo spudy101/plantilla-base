@@ -31,6 +31,8 @@ class SmsService {
   constructor(deps = {}) {
     this.smsDeliveryAttemptRepository = deps.smsDeliveryAttemptRepository ?? smsDeliveryAttemptRepository;
     this.phonePrefixRepository = deps.phonePrefixRepository ?? phonePrefixRepository;
+    // Sin snsClient se crea el cliente real al primer uso (getter snsClient)
+    this._snsClient = deps.snsClient ?? null;
   }
 
   get snsClient() {
