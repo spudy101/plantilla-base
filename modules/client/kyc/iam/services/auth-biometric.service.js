@@ -11,12 +11,12 @@ const {
 } = require('../../../../schemas/kyc/iam/repositories/biometric.repository');
 const JwtUtil = require('../../../../../shared/utils/jwt.util');
 const RefreshTokenStore = require('../../../../../shared/utils/refresh-token-store.util');
-const TokenBlacklistUtil = require('../../../../../shared/utils/token-blacklist.util');
 const userSessionRepository = require('../../../../schemas/kyc/iam/repositories/user-session.repository');
+const SessionControlService = require('../../../../shared-endpoints/kyc/iam/services/auth-login/session-control.service');
 const NotificationUtil = require('../../../../schemas/notification/services/notification-creation.service');
 const AppError = require('../../../../../shared/utils/app-error.util');
 const { logger, logAudit } = require('../../../../../shared/utils/logger.util');
-const { INTERNAL_ROLE_NAMES, notifications, SECURITY, jwt: jwtConfig } = require('../../../../../shared/constants');
+const { INTERNAL_ROLE_NAMES, notifications, jwt: jwtConfig } = require('../../../../../shared/constants');
 const {
   BiometricRegisterStartDTO,
   BiometricRegisterFinishDTO,
@@ -54,7 +54,12 @@ class AuthBiometricService {
     this.trustedDeviceRepository = deps.trustedDeviceRepository ?? trustedDeviceRepository;
     this.privacyPolicyRepository = deps.privacyPolicyRepository ?? privacyPolicyRepository;
     this.consentRecorder = deps.consentRecorder ?? consentRecorder;
+    this.biometricCredentialRepository = deps.biometricCredentialRepository ?? biometricCredentialRepository;
+    this.biometricChallengeRepository = deps.biometricChallengeRepository ?? biometricChallengeRepository;
     this.userSessionRepository = deps.userSessionRepository ?? userSessionRepository;
+    // Misma política de sesiones que el login por contraseña (una por dispositivo + límite simultáneo)
+    this.sessionControl =
+      deps.sessionControl ?? new SessionControlService({ userSessionRepository: this.userSessionRepository });
     this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
   }
 
@@ -76,14 +81,14 @@ class AuthBiometricService {
     }
 
     // Verificar que el dispositivo no tiene ya una credencial activa
-    const existing = await biometricCredentialRepository.findByUserAndDevice(userId, device.user_trusted_device_id);
+    const existing = await this.biometricCredentialRepository.findByUserAndDevice(userId, device.user_trusted_device_id);
     if (existing) {
       throw AppError.conflict('Este dispositivo ya tiene una huella registrada. Elimínala primero.');
     }
 
     const challenge = crypto.randomBytes(CHALLENGE_BYTES).toString('base64url');
 
-    await biometricChallengeRepository.create({
+    await this.biometricChallengeRepository.create({
       user_id: userId,
       challenge,
       type: 'registration'
@@ -122,7 +127,7 @@ class AuthBiometricService {
     }
 
     // Verificar y consumir el challenge
-    const challengeRecord = await biometricChallengeRepository.findValid(challenge);
+    const challengeRecord = await this.biometricChallengeRepository.findValid(challenge);
     if (!challengeRecord) {
       throw AppError.badRequest('Challenge inválido, expirado o ya utilizado');
     }
@@ -134,7 +139,7 @@ class AuthBiometricService {
     }
 
     // Marcar como usado ANTES de verificar la firma — evita race conditions
-    await biometricChallengeRepository.markAsUsed(challengeRecord.challenge_id);
+    await this.biometricChallengeRepository.markAsUsed(challengeRecord.challenge_id);
 
     // Verificar la firma ES256
     const isValid = this._verifySignature({ publicKey, challenge, signature });
@@ -154,13 +159,13 @@ class AuthBiometricService {
     }
 
     // Verificar que el credentialId no esté ya registrado
-    const existingCred = await biometricCredentialRepository.findByCredentialId(credentialId);
+    const existingCred = await this.biometricCredentialRepository.findByCredentialId(credentialId);
     if (existingCred) {
       throw AppError.conflict('Esta credencial biométrica ya está registrada');
     }
 
     // Guardar la credencial
-    const credential = await biometricCredentialRepository.create({
+    const credential = await this.biometricCredentialRepository.create({
       user_id: userId,
       user_trusted_device_id: device.user_trusted_device_id,
       credential_id: credentialId,
@@ -215,7 +220,7 @@ class AuthBiometricService {
 
     const challenge = crypto.randomBytes(CHALLENGE_BYTES).toString('base64url');
 
-    await biometricChallengeRepository.create({
+    await this.biometricChallengeRepository.create({
       user_id: user.user_id,
       challenge,
       type: 'authentication'
@@ -246,7 +251,7 @@ class AuthBiometricService {
     const { ip, userAgent, fingerprintHash } = auditContext;
 
     // Buscar la credencial
-    const credential = await biometricCredentialRepository.findByCredentialId(credentialId);
+    const credential = await this.biometricCredentialRepository.findByCredentialId(credentialId);
     if (!credential) {
       throw AppError.unauthorized('Credencial biométrica no encontrada');
     }
@@ -285,8 +290,8 @@ class AuthBiometricService {
     }
 
     // Una sesión por dispositivo + límite de sesiones simultáneas — igual que el login por contraseña
-    await this._closePreviousDeviceSessions(userId, device.user_trusted_device_id);
-    await this._enforceSessionLimit(userId);
+    await this.sessionControl.closePreviousDeviceSessions(userId, device.user_trusted_device_id);
+    await this.sessionControl.enforceSessionLimit(userId);
 
     // La firma ES256 verificada YA autenticó al usuario: la huella desbloqueó la llave
     // privada en el secure enclave del dispositivo. Emitimos tokens propios RS256 igual
@@ -325,7 +330,7 @@ class AuthBiometricService {
 
     // Actualizar sign_count, last_seen y registrar intento — en paralelo
     await Promise.all([
-      biometricCredentialRepository.updateAfterLogin(credentialId, signCount),
+      this.biometricCredentialRepository.updateAfterLogin(credentialId, signCount),
       this.trustedDeviceRepository.updateLastSeen(userId, device.fingerprint_hash),
       this.userLoginAttemptRepository.recordAttempt({
         user_id: userId,
@@ -367,7 +372,7 @@ class AuthBiometricService {
    */
   async _verifyLoginChallenge({ credential, challenge, signature, signCount, userId, credentialId }) {
     // Verificar y consumir el challenge
-    const challengeRecord = await biometricChallengeRepository.findValid(challenge);
+    const challengeRecord = await this.biometricChallengeRepository.findValid(challenge);
     if (!challengeRecord) {
       throw AppError.badRequest('Challenge inválido, expirado o ya utilizado');
     }
@@ -379,7 +384,7 @@ class AuthBiometricService {
     }
 
     // Marcar como usado ANTES de verificar — evita race conditions
-    await biometricChallengeRepository.markAsUsed(challengeRecord.challenge_id);
+    await this.biometricChallengeRepository.markAsUsed(challengeRecord.challenge_id);
 
     // Verificar sign_count — debe ser mayor al guardado (anti-replay)
     if (signCount <= credential.sign_count) {
@@ -423,7 +428,7 @@ class AuthBiometricService {
    * Lista las credenciales biométricas activas del usuario.
    */
   async getCredentials(userId) {
-    const credentials = await biometricCredentialRepository.findAllByUser(userId);
+    const credentials = await this.biometricCredentialRepository.findAllByUser(userId);
 
     logAudit(
       'BIOMETRIC_CREDENTIALS_VIEWED',
@@ -440,7 +445,7 @@ class AuthBiometricService {
    */
   async deleteCredential(userId, biometricCredentialId) {
     // Verificar que la credencial pertenece al usuario
-    const credential = await biometricCredentialRepository.findOne({
+    const credential = await this.biometricCredentialRepository.findOne({
       biometric_credential_id: biometricCredentialId,
       user_id: userId
     });
@@ -448,7 +453,7 @@ class AuthBiometricService {
       throw AppError.notFound('Credencial biométrica no encontrada');
     }
 
-    await biometricCredentialRepository.deactivate(biometricCredentialId);
+    await this.biometricCredentialRepository.deactivate(biometricCredentialId);
 
     logAudit(
       'BIOMETRIC_CREDENTIAL_DELETED',
@@ -458,106 +463,6 @@ class AuthBiometricService {
     );
 
     return null;
-  }
-
-  // ============================================================
-  // PRIVATE — Sesiones (replicado de auth-login.service para paridad)
-  // ============================================================
-
-  /**
-   * Una sesión por dispositivo: al iniciar sesión, cierra e invalida cualquier
-   * sesión activa previa del MISMO dispositivo (mismo device_id). El token del
-   * login anterior en ese dispositivo deja de servir de inmediato. Las sesiones
-   * en OTROS dispositivos no se tocan.
-   *
-   * @private
-   */
-  async _closePreviousDeviceSessions(userId, deviceId) {
-    if (!deviceId) {
-      return;
-    }
-
-    const previous = await this.userSessionRepository.findActiveByUserAndDevice(userId, deviceId);
-    if (previous.length === 0) {
-      return;
-    }
-
-    for (const session of previous) {
-      this.userSessionRepository.closeSession(session.user_session_id, 'reauth_same_device').catch(err =>
-        logger.warn('Error cerrando sesión previa del mismo dispositivo', {
-          error: err.message,
-          sessionId: session.user_session_id
-        })
-      );
-
-      RefreshTokenStore.revoke(session.jti).catch(err =>
-        logger.warn('Error revocando JTI de sesión previa del mismo dispositivo', {
-          error: err.message,
-          sessionId: session.user_session_id,
-          jti: session.jti
-        })
-      );
-
-      TokenBlacklistUtil.blacklistSession(session.user_session_id).catch(err =>
-        logger.warn('Error invalidando sesión previa del mismo dispositivo', {
-          error: err.message,
-          sessionId: session.user_session_id
-        })
-      );
-    }
-
-    logAudit(
-      'PREVIOUS_DEVICE_SESSIONS_CLOSED',
-      userId,
-      {
-        closedCount: previous.length
-      },
-      { entityId: deviceId, entityType: 'UserTrustedDevice', entityTable: 'user_trusted_devices' }
-    );
-  }
-
-  /**
-   * Aplica el límite de sesiones simultáneas: si se alcanzó el máximo, cierra la
-   * más antigua en BD, revoca su JTI en Redis y la invalida en blacklist.
-   *
-   * @private
-   */
-  async _enforceSessionLimit(userId) {
-    const activeCount = await this.userSessionRepository.countActive(userId);
-    if (activeCount < SECURITY.MAX_ACTIVE_SESSIONS) {
-      return;
-    }
-
-    const oldest = await this.userSessionRepository.findOldestActive(userId);
-    if (!oldest) {
-      return;
-    }
-
-    await this.userSessionRepository.closeSession(oldest.user_session_id, 'session_limit');
-
-    RefreshTokenStore.revoke(oldest.jti).catch(err =>
-      logger.warn('Error revocando JTI al aplicar límite de sesiones', {
-        error: err.message,
-        sessionId: oldest.user_session_id,
-        jti: oldest.jti
-      })
-    );
-
-    TokenBlacklistUtil.blacklistSession(oldest.user_session_id).catch(err =>
-      logger.warn('Error invalidando sesión en blacklist al aplicar límite de sesiones', {
-        error: err.message,
-        sessionId: oldest.user_session_id
-      })
-    );
-
-    logAudit(
-      'SESSION_LIMIT_ENFORCED',
-      userId,
-      {
-        activeCount
-      },
-      { entityId: oldest.user_session_id, entityType: 'UserSession', entityTable: 'user_sessions' }
-    );
   }
 
   // ============================================================
