@@ -4,7 +4,7 @@ import modelsModule = require('../../../../../shared/models');
 const { Role } = modelsModule;
 import sequelizeModule = require('sequelize');
 const { Op } = sequelizeModule;
-import type { WhereOperators } from 'sequelize';
+import type { FindOptions, WhereOperators } from 'sequelize';
 import type defineRole = require('../models/role.model');
 
 class RoleRepository extends BaseRepository<defineRole.Instance> {
@@ -13,8 +13,9 @@ class RoleRepository extends BaseRepository<defineRole.Instance> {
   }
 
   /** @param {string} name */
-  findByName(name: string) {
-    return this.findOne({ name });
+  // options: { transaction } (antes no se aceptaba y la lectura corría fuera de la transacción del llamador)
+  findByName(name: string, options: FindOptions<defineRole.Attributes> = {}) {
+    return this.findOne({ name }, options);
   }
 
   /**

@@ -120,4 +120,12 @@ async function confirmSnsSubscription(message: SnsMessage): Promise<void> {
   logger.info('SNS: suscripción confirmada', { topicArn: message.TopicArn });
 }
 
-export = { verifySnsSignature, confirmSnsSubscription };
+const SnsSignature = { verifySnsSignature, confirmSnsSubscription };
+
+// eslint-disable-next-line @typescript-eslint/no-namespace, @typescript-eslint/no-redeclare
+declare namespace SnsSignature {
+  /** Envelope de SNS (notificación o confirmación de suscripción). */
+  type Message = SnsMessage;
+}
+
+export = SnsSignature;

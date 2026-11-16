@@ -65,7 +65,7 @@
 | **1. Infraestructura + núcleo** | tsconfig, build, dev, Jest, ESLint, Docker, CLI de BD vía tsx; `AppError`, `ReadRepository` / `BaseRepository` / `AppendOnlyRepository` (genéricos `<M extends Model>`), `UnitOfWork` (con su puerto `Port`), `domain-enums` (uniones literales), `es256-signature.util` | ✅ |
 | **2. Resto de `shared/`** | `constants/`, `utils/`, `dtos/`, `middlewares/`, `services/`, `validators/`, `base/`, `models/index` + mixin: **`shared/` ya no tiene `.js`** | ✅ |
 | **3. Modelos + repositorios** | Los 41 modelos tipados **desde su definición real** (`gen-model-types.js`: `Attributes`, `CreationAttributes`, `Instance` con asociaciones, `Static`) y registro tipado `shared/models/registry.ts`; los 41 repositorios en TS con `extends BaseRepository<defineX.Instance>`; contratos `XRepositoryPort` en `modules/schemas/repository-ports.ts` de los que cada service deriva su puerto con `Pick<…>` | ✅ |
-| **4. Dominios** (uno por commit) | `schemas/kyc`, `schemas/notification`, `schemas/records`, `schemas/core`, `schemas/integration`; luego `shared-endpoints`, `client`, `admin` (services, controllers, routes, dtos, validators) | ⏳ |
+| **4. Dominios** (uno por commit) | `modules/schemas` ✅ · `modules/shared-endpoints` ✅ · `modules/client` ✅ · `modules/admin` ⏳ (services, controllers, routes, dtos, validators) | 🔶 3/4 |
 | **5. Arranque y config** | `servers/`, `config/` | ⏳ |
 | **6. Cierre** | Tests a `.ts`, `allowJs: false`, pasar de `export =` a `import`/`export` nativos (ya sin consumidores JS), quitar `babel-jest`, migraciones/seeders a `.ts` | ⏳ |
 
@@ -104,6 +104,18 @@ Tipos y helpers compartidos:
   `gen-repository-ports.js`): `UserRepositoryPort = typeof userRepository`, etc. Un service no depende
   del contrato entero sino de lo que usa: `type UserReader = Pick<UserRepositoryPort, 'findByUserId'>`
   (ejemplo en `shared/services/rbac.service.ts`).
+- **Services con dependencias** (`constructor(deps = {})`): `class-deps.js` declara cada campo con el
+  tipo de su default (`userRepository: typeof userRepository`) y genera `XService.Deps`. Composiciones
+  (`deps.x ?? new X(...)`) quedan como `InstanceType<typeof X>`.
+- **Controllers**: `requireAuthUser(req)` / `requireAuthPerson(req)` (un `const user` por handler) y
+  `routeParam(req, 'id')` (`shared/utils/route-param.util`): string garantizado o 400. Lo aplica
+  `req-user.js`. Cookies de sesión web: `shared/utils/auth-cookies.util` (una sola definición).
+- **Contextos**: `shared/types/audit-context.ts` — `RequestAuditContext` (HTTP: ip, userAgent,
+  fingerprint…) y `AdminAuditContext` (quién hace la acción admin). `KeyValueCache`
+  (`shared/types/cache.ts`) para código que recibe Redis o la caché local indistintamente.
+- **Tipos que cruzan archivos** van en un `*.types.ts` del dominio (`notification.types`,
+  `notification-feed.types`, `profile.types`): un módulo que exporta una instancia (`export =
+  new X()`) no deja alcanzar los tipos de su namespace desde otro archivo.
 - Campos de clase opcionales que no siempre se asignan: `declare campo?: T`. Con target ES2023
   (`useDefineForClassFields`) un campo sin `declare` se crea como `undefined` en cada instancia.
 
@@ -126,6 +138,26 @@ Tipos y helpers compartidos:
   snake_case que `findAllPaginated` no lee, y devolvían los logs de todos (sin llamadores hoy). Corregido
   (se agregó el filtro `changedByUserId`) y con test.
 
+#### Fase 4 (dominios)
+
+- **Push en frío**: `registrarDispositivo` usaba el campo `_snsClient` (null hasta el primer uso del
+  getter) → registrar un dispositivo fallaba siempre en un proceso recién levantado. Junto con el bug de
+  `upsertToken` (fase 3), el push nunca funcionó. Test.
+- **Caída del servidor sin Redis**: tras una notificación global, `cache.del(...).catch` sobre la caché
+  local (síncrona) lanzaba `TypeError` en un timer → `uncaughtException` → `process.exit(1)` en
+  producción. Test.
+- **Entidad relacionada de notificaciones**: se escribía `relatedEntity_type`/`relatedEntity_id`
+  (columnas inexistentes, Sequelize las descartaba) y el biométrico pasaba el id suelto en vez de
+  `{ type, id }`. Nunca se guardó. Tests.
+- **Clientes SES/SNS sin timeout**: `requestTimeout` no es opción del cliente en el SDK v3 y se ignoraba;
+  ahora va en `requestHandler`.
+- **`blocked_by_device_id`** nunca se guardaba al bloquear un dispositivo. Test.
+- **Transacciones ignoradas**: `incrementAttempts` y `roleRepository.findByName` no aceptaban
+  `{ transaction }` y corrían fuera de la del llamador. Test.
+- **`user_login_attempts.username_attempt`** es NOT NULL y se llenaba con `auth_username` (nullable):
+  fallback a `username`.
+- **TOTP**: sin `username` en el token, la etiqueta de la app autenticadora quedaba en `'null'`.
+
 ### Cambios de contrato
 
 - **`UserRepository#create` → `createWithPassword`**: recibía `password` en claro en vez de
@@ -133,6 +165,9 @@ Tipos y helpers compartidos:
   método propio y `create` vuelve a ser el genérico. Se actualizaron los 3 llamadores y sus tests.
 - Overrides que solo llamaban a `super` (`findById`/`delete` en `privacy-policy-admin` y
   `auth-trusted-device`) se eliminaron.
+- `JwtUtil.verifyRefreshToken` valida y devuelve claims tipados (`userId`/`jti` obligatorios → 401).
+- Recursos inexistentes que antes terminaban en `TypeError` → 500 (contacto/persona del perfil, usuario
+  recién creado, fingerprint ausente) ahora responden 404/400 explícitos.
 
 ### Código residual eliminado
 
@@ -140,6 +175,8 @@ Tipos y helpers compartidos:
   incluían un `idToken`). Estaba apagado de hecho — la config nunca expuso `server.bypass` — y se
   eliminó de `auth.middleware`, `auth-login`, `token-refresh` y `auth-register`. Si en algún momento se
   necesita un modo de pruebas sin login, debe diseñarse aparte (variable explícita, solo en desarrollo).
+- **`InvalidPasswordException`** en `updatePassword` (error de Cognito) y la limpieza de la cookie
+  `id_token` (token de Cognito) en logout.
 
 ## Qué queda fuera a propósito (por ahora)
 

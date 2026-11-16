@@ -13,6 +13,9 @@ revisión manual: resuelven la parte mecánica y dejan lo que no saben resolver 
 | `type-repositories.js` | Agrega el genérico del modelo a cada repositorio (`extends BaseRepository<defineX.Instance>`) y su `import type`. | `node scripts/ts-migration/type-repositories.js <repos.ts…>` |
 | `where-builders.js` | `const where = {}` → `WhereClause` y los bloques `where.x = {}; where.x[Op.gte] = …` → `range()`/`dateRange()`. | `node scripts/ts-migration/where-builders.js <archivos.ts…>` |
 | `gen-repository-ports.js` | Genera `modules/schemas/repository-ports.ts` (`XRepositoryPort` por repositorio). Regenerar al agregar o renombrar un repositorio. | `node scripts/ts-migration/gen-repository-ports.js` |
+| `class-deps.js` | Services con `constructor(deps = {})`: declara los campos (`typeof default` o `InstanceType<typeof X>`), genera `XService.Deps` y tipa el constructor. | `node scripts/ts-migration/class-deps.js <archivos.ts…>` |
+| `req-user.js` | Controllers: `req.user.x` → `requireAuthUser(req).x` (un `const user` por handler; `requireAuthPerson` si lee personId) y `req.params.x` → `routeParam(req, 'x')`. | `node scripts/ts-migration/req-user.js <archivos.ts…>` |
+| `dto-picks.js` | DTOs que desestructuran su entrada: `({ a, b })` → `({ a, b }: Pick<Campos, 'a' \| 'b'>)` contra una interfaz escrita a mano. | `node scripts/ts-migration/dto-picks.js <archivo.dto.ts> <Interfaz>` |
 | `edit.js` | Helper para scripts de edición: pares `[buscar, reemplazar]` exactos; respeta CRLF; no escribe nada si algún texto no aparece. | `require('./scripts/ts-migration/edit.js')(archivo, pares, { all })` |
 
 ## Flujo recomendado por carpeta
@@ -21,6 +24,8 @@ revisión manual: resuelven la parte mecánica y dejan lo que no saben resolver 
 2. `node scripts/ts-migration/fix-unknown-catch.js <carpeta>` y `node scripts/ts-migration/fix-params.js <carpeta>`
 3. `npx tsc -p tsconfig.json --noEmit` → tipar a mano el resto (interfaces de entrada/salida, `as const`, etc.)
 4. `npm run typecheck && npm run lint && npm test`
+
+Para **services y controllers** (fase 4), después del paso 1: `class-deps.js` y `req-user.js`.
 
 Para **repositorios**, entre el paso 1 y el 2: `type-repositories.js` (genérico del modelo) y
 `where-builders.js` (where por partes y rangos); al final, `gen-repository-ports.js`.
@@ -37,6 +42,9 @@ Para **repositorios**, entre el paso 1 y el 2: `type-repositories.js` (genérico
   comentario, inclúyelo en el texto a buscar.
 - **`fix-params.js` y los sufijos `Id`/`Ids`.** En este proyecto toda PK/FK es UUID, por eso
   `fooId` → `string` y `fooIds` → `string[]`. Si algún día hay PKs numéricas, revisar esa regla.
+- **`x = null` sin anotar** se infiere como tipo `null`: los llamadores TS no pueden pasar un valor.
+  Anotar `x: T | null = null`. Dentro de un patrón desestructurado no se puede anotar en línea.
+- **`perl -pi`/`sed -i` con una lista de archivos vacía** se queda leyendo stdin: verificar la lista antes.
 - **Backticks en `node -e` desde bash.** El shell interpreta `` `…` `` dentro de comillas dobles: los
   template literals se pierden. Escribir el script de edición a un archivo.
 - **Regex en heredocs de bash.** El shell de este entorno se come los backslashes: para editar código
