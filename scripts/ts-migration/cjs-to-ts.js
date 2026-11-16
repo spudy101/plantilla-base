@@ -69,7 +69,11 @@ for (const file of process.argv.slice(2)) {
   const src = fs.readFileSync(file, 'utf8');
   const { out, notes } = convert(src, file);
   const target = file.replace(/\.js$/, '.ts');
-  execFileSync('git', ['mv', file, target]);
+  try {
+    execFileSync('git', ['mv', file, target], { stdio: 'pipe' }); // conserva el historial
+  } catch {
+    fs.renameSync(file, target); // archivo aún no versionado
+  }
   fs.writeFileSync(target, out);
   console.log(`${target}${notes.length ? '\n   ⚠ ' + notes.join('\n   ⚠ ') : ''}`);
 }

@@ -14,12 +14,17 @@ const STRING = [
   'fileName', 'contentType', 'mimeType', 'bucket', 'folder', 'correlationId', 'requestId', 'entityTable',
   'entityType', 'entityId', 'tableName', 'channel', 'secret', 'plainText', 'encryptedText', 'hash', 'salt',
   'iv', 'region', 'operation', 'provider', 'product', 'serviceName', 'breakerName', 'name', 'reason', 'source',
-  'traceId', 'origin', 'host', 'eventName', 'accountName', 'phoneNumber', 'tipoNotificacion', 'locale'
+  'traceId', 'origin', 'host', 'eventName', 'accountName', 'phoneNumber', 'tipoNotificacion', 'locale',
+  'code', 'token', 'emailHash', 'contactValue', 'version', 'notificationCategoryCode', 'username', 'searchTerm',
+  'rawPrefix', 'haystack', 'cityName', 'deviceName', 'password', 'plainPassword', 'newPassword',
+  'hashedPassword', 'operationKey', 'platform', 'acknowledgedBy'
 ];
+const STRING_ARRAY = ['roleNames', 'names'];
 const NUMBER = [
   'tokenExp', 'tokenIat', 'beforeIat', 'rotationTs', 'ttl', 'ttlSeconds', 'seconds', 'limit', 'offset', 'page',
   'ms', 'delayMs', 'timeoutMs', 'expiresIn', 'maxRetries', 'statusCode',
-  'durationMs', 'startTime', 'count', 'size', 'bytes', 'retryAfter', 'windowMs', 'max', 'threshold'
+  'durationMs', 'startTime', 'count', 'size', 'bytes', 'retryAfter', 'windowMs', 'max', 'threshold',
+  'retentionDays', 'newSignCount'
 ];
 const UNKNOWN = ['value', 'payload', 'meta', 'metadata', 'obj', 'input', 'result', 'details', 'extra'];
 const EXPRESS = { req: 'Request', res: 'Response', next: 'NextFunction' };
@@ -27,9 +32,14 @@ const EXPRESS = { req: 'Request', res: 'Response', next: 'NextFunction' };
 const TYPES = new Map([
   ...STRING.map(n => [n, 'string']),
   ...NUMBER.map(n => [n, 'number']),
+  ...STRING_ARRAY.map(n => [n, 'string[]']),
   ...UNKNOWN.map(n => [n, 'unknown']),
   ...Object.entries(EXPRESS)
 ]);
+
+// Sufijos: en este proyecto toda PK/FK es UUID → `fooId: string`, `fooIds: string[]`.
+const typeOf = name =>
+  TYPES.get(name) ?? (/[a-z]Id$/.test(name) ? 'string' : /[a-z]Ids$/.test(name) ? 'string[]' : undefined);
 
 const prefix = (process.argv[2] || '').replace(/\\/g, '/');
 let out = '';
@@ -43,7 +53,7 @@ const byFile = new Map();
 for (const m of out.matchAll(/^(.+?\.ts)\((\d+),(\d+)\): error TS7006: Parameter '([\w$]+)' implicitly has an 'any' type\./gm)) {
   const [, file, line, col, name] = m;
   if (prefix && !file.replace(/\\/g, '/').startsWith(prefix)) continue;
-  if (!TYPES.has(name)) continue;
+  if (!typeOf(name)) continue;
   if (!byFile.has(file)) byFile.set(file, []);
   byFile.get(file).push({ line: Number(line), col: Number(col), name });
 }
@@ -63,7 +73,7 @@ for (const [file, hits] of byFile) {
     if (text.slice(start, start + name.length) !== name) continue;
     const after = text.slice(start + name.length);
     if (/^\s*:/.test(after)) continue; // ya anotado
-    let type = TYPES.get(name);
+    let type = typeOf(name);
     if (/^\s*=\s*null\b/.test(after) && type !== 'unknown') type = `${type} | null`;
     if (EXPRESS[name]) usedExpress.add(EXPRESS[name]);
     // Parámetro de arrow sin paréntesis: `x => …` → `(x: T) => …`

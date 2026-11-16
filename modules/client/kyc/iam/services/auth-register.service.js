@@ -334,7 +334,7 @@ class AuthRegisterService {
       { transaction }
     );
 
-    const user = await this.userRepository.create(
+    const user = await this.userRepository.createWithPassword(
       {
         username: authUsername,
         auth_username: authUsername,

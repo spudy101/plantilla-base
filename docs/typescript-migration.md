@@ -64,7 +64,7 @@
 |---|---|---|
 | **1. Infraestructura + núcleo** | tsconfig, build, dev, Jest, ESLint, Docker, CLI de BD vía tsx; `AppError`, `ReadRepository` / `BaseRepository` / `AppendOnlyRepository` (genéricos `<M extends Model>`), `UnitOfWork` (con su puerto `Port`), `domain-enums` (uniones literales), `es256-signature.util` | ✅ |
 | **2. Resto de `shared/`** | `constants/`, `utils/`, `dtos/`, `middlewares/`, `services/`, `validators/`, `base/`, `models/index` + mixin: **`shared/` ya no tiene `.js`** | ✅ |
-| **3. Modelos + repositorios** | Tipar los 45 modelos de `modules/schemas/*/models` (`InferAttributes`) junto a su repositorio; `modules/**/repositories` → `extends BaseRepository<UserModel>`; definir **interfaces de puerto** (`UserRepositoryPort`) que consumen los services | ⏳ |
+| **3. Modelos + repositorios** | Los 41 modelos tipados **desde su definición real** (`gen-model-types.js`: `Attributes`, `CreationAttributes`, `Instance` con asociaciones, `Static`) y registro tipado `shared/models/registry.ts`; los 41 repositorios en TS con `extends BaseRepository<defineX.Instance>`; contratos `XRepositoryPort` en `modules/schemas/repository-ports.ts` de los que cada service deriva su puerto con `Pick<…>` | ✅ |
 | **4. Dominios** (uno por commit) | `schemas/kyc`, `schemas/notification`, `schemas/records`, `schemas/core`, `schemas/integration`; luego `shared-endpoints`, `client`, `admin` (services, controllers, routes, dtos, validators) | ⏳ |
 | **5. Arranque y config** | `servers/`, `config/` | ⏳ |
 | **6. Cierre** | Tests a `.ts`, `allowJs: false`, pasar de `export =` a `import`/`export` nativos (ya sin consumidores JS), quitar `babel-jest`, migraciones/seeders a `.ts` | ⏳ |
@@ -88,6 +88,22 @@ Tipos y helpers compartidos:
   que leen los DTOs sin depender de los modelos (estructurales: los modelos tipados de la fase 3 encajan).
 - `shared/utils/auth-user.util.ts`: `requireAuthUser(req)` — el usuario autenticado tipado, o 401 si la
   ruta quedó sin AuthMiddleware (antes era un `TypeError` → 500).
+- **Modelos** (`modules/schemas/**/models/*.model.ts`): la factory `defineX(sequelize)` y sus tipos en un
+  namespace fusionado (`defineX.Attributes`, `defineX.CreationAttributes`, `defineX.Instance`,
+  `defineX.Static`). Esos tipos los **genera** `gen-model-types.js` desde `rawAttributes`/`associations`:
+  al cambiar una columna o asociación se vuelve a correr y no hay desincronización posible. Lo que no se
+  genera (métodos de instancia, estáticos como `STATUS`) va en un namespace manual antes del bloque
+  generado, que el script conserva. Los timestamps están en `Attributes` como opcionales (`createdAt?`) y
+  en `Instance` como `readonly`: en un `where` literal se usa el atributo (`createdAt`), que en los modelos
+  `underscored` es la misma columna `created_at`.
+- `shared/repositories/query.ts`: `WhereClause` + `toWhere()` para los `where` que se arman por partes
+  según filtros opcionales, y `range()` / `dateRange()` para rangos `[Op.gte, Op.lte]`.
+- `ReadRepository#aggregate<R>(options)`: `findAll` con `raw: true` para COUNT/AVG/GROUP BY; `R` describe
+  las columnas que devuelve (no son instancias del modelo). `ReadRepository#sequelize` para `query()` crudas.
+- **Puertos de repositorio** (`modules/schemas/repository-ports.ts`, generado con
+  `gen-repository-ports.js`): `UserRepositoryPort = typeof userRepository`, etc. Un service no depende
+  del contrato entero sino de lo que usa: `type UserReader = Pick<UserRepositoryPort, 'findByUserId'>`
+  (ejemplo en `shared/services/rbac.service.ts`).
 - Campos de clase opcionales que no siempre se asignan: `declare campo?: T`. Con target ES2023
   (`useDefineForClassFields`) un campo sin `declare` se crea como `undefined` en cada instancia.
 
@@ -101,6 +117,22 @@ Tipos y helpers compartidos:
   reuse attack. Corregido (acepta también el formato viejo) y cubierto con test.
 - **Webhook con `apiKey` repetida en la query** (`?apiKey=a&apiKey=b`): llegaba un array a la verificación de
   la API key, `crypto` lanzaba y respondía 500. Ahora solo se acepta un string → 401.
+- **Push token nunca se guardaba al iniciar sesión** (`user-push-token.repository#upsertToken`): faltaban los
+  `await` de `findByDeviceId`/`findByToken`, así que `existing` era siempre una Promise y
+  `existing.update()` lanzaba `TypeError`; `auth-login` lo tragaba en su `catch`. Corregido y con test.
+- **`AuditLogRepository#register` sí podía lanzar** pese a su contrato ("nunca lanza"): el `try/catch`
+  envolvía una Promise sin `await`, así que el rechazo de BD escapaba al llamador. Corregido y con test.
+- **Filtros perdidos en `UserChangeLogRepository`**: `findByChangeType` y `findByAdminUser` pasaban claves
+  snake_case que `findAllPaginated` no lee, y devolvían los logs de todos (sin llamadores hoy). Corregido
+  (se agregó el filtro `changedByUserId`) y con test.
+
+### Cambios de contrato
+
+- **`UserRepository#create` → `createWithPassword`**: recibía `password` en claro en vez de
+  `password_hash`, así que no era sustituible por el `create` del `BaseRepository` (Liskov). Ahora es un
+  método propio y `create` vuelve a ser el genérico. Se actualizaron los 3 llamadores y sus tests.
+- Overrides que solo llamaban a `super` (`findById`/`delete` en `privacy-policy-admin` y
+  `auth-trusted-device`) se eliminaron.
 
 ### Código residual eliminado
 

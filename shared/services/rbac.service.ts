@@ -30,16 +30,16 @@ import redisClient = require('../utils/redis.util');
 const CACHE_TTL_SECONDS = 60;
 const CACHE_KEY_PREFIX = 'rbac:overrides:';
 
+import type { RolePermissionOverrideRepositoryPort } from '../../modules/schemas/repository-ports';
+
 /** Override de permiso en BD (role_permission_overrides): concede una acción extra sobre un módulo. */
 interface PermissionOverride {
   module_name: string;
   action: string;
 }
 
-/** Repositorio que RbacService necesita (lookup liviano de overrides por rol). */
-interface OverrideRepositoryPort {
-  findLookupByRole(roleName: string): Promise<PermissionOverride[]>;
-}
+/** Repositorio que RbacService necesita (lookup liviano de overrides por rol): solo ese método (ISP). */
+type OverrideRepositoryPort = Pick<RolePermissionOverrideRepositoryPort, 'findLookupByRole'>;
 
 type ModulePermission = string[] | string | undefined;
 
