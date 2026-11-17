@@ -52,11 +52,11 @@ class NotificationRetryService {
     }
 
     const lastLog = await this.integrationApiLogRepo.findLatestByNotification(notification.notificationId, product);
-    if (!lastLog || !isHardBounce(channel, lastLog.error_code)) {
+    if (!lastLog || !isHardBounce(channel, lastLog.errorCode)) {
       return false;
     }
 
-    const reason = `hard_bounce:${lastLog.error_code}`;
+    const reason = `hard_bounce:${lastLog.errorCode}`;
     if (channel === 'email') {
       await this.notificationRepo.markEmailPermanentFailure(notification.notificationId, reason);
     } else {
@@ -66,7 +66,7 @@ class NotificationRetryService {
     logger.info('Canal cerrado por hard bounce', {
       notificationId: notification.notificationId,
       channel,
-      errorCode: lastLog.error_code
+      errorCode: lastLog.errorCode
     });
     return true;
   }

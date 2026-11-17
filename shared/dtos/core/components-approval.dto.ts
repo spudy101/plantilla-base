@@ -1,40 +1,44 @@
 // Componentes shared del framework de doble aprobación global (approval_requests).
 // Todas las keys de respuesta en camelCase.
 
-import type { DbDate, Maybe, UserRefRow } from '../../types/db-rows';
+import type { DbDate, Maybe } from '../../types/db-rows';
+
+/** Usuario incluido en la solicitud (Prisma): firstName/lastName viven en Person. */
+interface ApprovalUserRow {
+  userId: string;
+  username?: Maybe<string>;
+  person?: Maybe<{ firstName?: Maybe<string>; lastName?: Maybe<string> }>;
+}
 
 /** Fila de approval_requests con sus asociaciones (requester / secondApprover). */
 interface ApprovalRequestRow {
-  approval_request_id: string;
-  operation_key: string;
-  entity_type?: Maybe<string>;
-  entity_id?: Maybe<string>;
+  approvalRequestId: string;
+  operationKey: string;
+  entityType?: Maybe<string>;
+  entityId?: Maybe<string>;
   status: string;
-  requester?: Maybe<UserRefRow>;
-  requested_at?: Maybe<DbDate>;
-  secondApprover?: Maybe<UserRefRow>;
-  resolved_at?: Maybe<DbDate>;
-  resolution_notes?: Maybe<string>;
-  expires_at?: Maybe<DbDate>;
+  requester?: Maybe<ApprovalUserRow>;
+  requestedAt?: Maybe<DbDate>;
+  secondApprover?: Maybe<ApprovalUserRow>;
+  resolvedAt?: Maybe<DbDate>;
+  resolutionNotes?: Maybe<string>;
+  expiresAt?: Maybe<DbDate>;
   payload?: unknown;
   result?: unknown;
-  origin_session_id?: Maybe<string>;
-  // El modelo es underscored: el atributo es createdAt; created_at solo si se seleccionó por columna
+  originSessionId?: Maybe<string>;
   createdAt?: Maybe<DbDate>;
   updatedAt?: Maybe<DbDate>;
-  created_at?: Maybe<DbDate>;
-  updated_at?: Maybe<DbDate>;
 }
 
-function _userRef(user: Maybe<UserRefRow>) {
+function _userRef(user: Maybe<ApprovalUserRow>) {
   if (!user) {
     return null;
   }
   return {
-    userId: user.user_id,
+    userId: user.userId,
     username: user.username ?? null,
-    firstName: user.person?.first_name ?? null,
-    lastName: user.person?.last_name ?? null
+    firstName: user.person?.firstName ?? null,
+    lastName: user.person?.lastName ?? null
   };
 }
 
@@ -48,24 +52,23 @@ class ApprovalRequestComponent {
       return null;
     }
     return {
-      approvalRequestId: request.approval_request_id,
-      operationKey: request.operation_key,
-      entityType: request.entity_type ?? null,
-      entityId: request.entity_id ?? null,
+      approvalRequestId: request.approvalRequestId,
+      operationKey: request.operationKey,
+      entityType: request.entityType ?? null,
+      entityId: request.entityId ?? null,
       status: request.status,
       requestedBy: _userRef(request.requester),
-      requestedAt: request.requested_at ?? null,
+      requestedAt: request.requestedAt ?? null,
       secondApprover: _userRef(request.secondApprover),
-      resolvedAt: request.resolved_at ?? null,
-      resolutionNotes: request.resolution_notes ?? null,
-      expiresAt: request.expires_at ?? null,
+      resolvedAt: request.resolvedAt ?? null,
+      resolutionNotes: request.resolutionNotes ?? null,
+      expiresAt: request.expiresAt ?? null,
       payload: request.payload ?? null,
       result: request.result ?? null,
       // Sesión del maker que abrió la solicitud. Solo en el detalle (admin); el listado no lo lleva.
-      originSessionId: request.origin_session_id ?? null,
-      // Antes solo leía created_at/updated_at, que en una consulta normal no existen → siempre null
-      createdAt: request.createdAt ?? request.created_at ?? null,
-      updatedAt: request.updatedAt ?? request.updated_at ?? null
+      originSessionId: request.originSessionId ?? null,
+      createdAt: request.createdAt ?? null,
+      updatedAt: request.updatedAt ?? null
     };
   }
 
@@ -75,17 +78,17 @@ class ApprovalRequestComponent {
       return null;
     }
     return {
-      approvalRequestId: request.approval_request_id,
-      operationKey: request.operation_key,
-      entityType: request.entity_type ?? null,
-      entityId: request.entity_id ?? null,
+      approvalRequestId: request.approvalRequestId,
+      operationKey: request.operationKey,
+      entityType: request.entityType ?? null,
+      entityId: request.entityId ?? null,
       status: request.status,
       requestedBy: _userRef(request.requester),
-      requestedAt: request.requested_at ?? null,
+      requestedAt: request.requestedAt ?? null,
       secondApprover: _userRef(request.secondApprover),
-      resolvedAt: request.resolved_at ?? null,
-      expiresAt: request.expires_at ?? null,
-      createdAt: request.createdAt ?? request.created_at ?? null
+      resolvedAt: request.resolvedAt ?? null,
+      expiresAt: request.expiresAt ?? null,
+      createdAt: request.createdAt ?? null
     };
   }
 }
@@ -100,12 +103,12 @@ class PendingApprovalComponent {
       return null;
     }
     return {
-      approvalRequestId: request.approval_request_id,
-      operationKey: request.operation_key,
+      approvalRequestId: request.approvalRequestId,
+      operationKey: request.operationKey,
       status: request.status,
       requestedBy: _userRef(request.requester),
-      requestedAt: request.requested_at ?? null,
-      expiresAt: request.expires_at ?? null
+      requestedAt: request.requestedAt ?? null,
+      expiresAt: request.expiresAt ?? null
     };
   }
 }

@@ -21,7 +21,7 @@ import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
 import DualApprovalExpirationWorker from 'modules/schemas/core/workers/dual-approval-expiration.worker';
 
-const request = (id: string) => ({ approval_request_id: id, operation_key: 'OP', entity_type: 'User', entity_id: 'u-1', expires_at: new Date() });
+const request = (id: string) => ({ approvalRequestId: id, operationKey: 'OP', entityType: 'User', entityId: 'u-1', expiresAt: new Date() });
 
 describe('DualApprovalExpirationWorker._processExpired', () => {
   beforeEach(() => jest.clearAllMocks());

@@ -35,7 +35,7 @@ const RETENTION_CRON = '0 7 1 * *';
 const run = async (opts: { enableDbPurge?: boolean } = {}) => {
   try {
     const config = await systemGlobalConfigRepository.findActive();
-    const hotYears = config?.audit_retention_hot_years ?? DEFAULT_HOT_YEARS;
+    const hotYears = config?.auditRetentionHotYears ?? DEFAULT_HOT_YEARS;
 
     await _logExpiringRecords(hotYears);
 
@@ -114,7 +114,7 @@ function iniciar() {
     requestContext.runAsWorker('audit-archive.retention', async () => {
       logger.info('Ejecutando worker: retención/archivado de auditoría');
       const config = await systemGlobalConfigRepository.findActive();
-      await run({ enableDbPurge: config?.audit_hot_purge_enabled === true });
+      await run({ enableDbPurge: config?.auditHotPurgeEnabled === true });
     })
   );
   logger.info('Worker de retención de auditoría iniciado exitosamente');

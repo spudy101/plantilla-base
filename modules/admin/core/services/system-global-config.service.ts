@@ -1,9 +1,8 @@
-import type defineSystemGlobalConfig from '../../../schemas/core/models/system-global-config.model';
+import type { Prisma, SystemGlobalConfig } from '../../../../shared/database/generated/prisma/client';
 import type { AdminAuditContext } from '../../../../shared/types/audit-context';
 import AppError from '../../../../shared/utils/app-error.util';
 import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import requestContext from '../../../../shared/utils/request-context.util';
 import systemGlobalConfigRepository from '../../../schemas/core/repositories/system-global-config.repository';
 import systemGlobalConfigDtoModule from '../dtos/system-global-config.dto';
 const { SystemGlobalConfigDTO } = systemGlobalConfigDtoModule;
@@ -36,7 +35,7 @@ class SystemGlobalConfigService {
       'SYSTEM_GLOBAL_CONFIG_VIEWED',
       adminUserId,
       {},
-      { entityId: config.config_id, entityType: 'SystemGlobalConfig', entityTable: 'system_global_config' }
+      { entityId: config.configId, entityType: 'SystemGlobalConfig', entityTable: 'system_global_config' }
     );
 
     return SystemGlobalConfigDTO(config);
@@ -47,13 +46,13 @@ class SystemGlobalConfigService {
 
     if (!config) {
       logger.warn('SystemGlobalConfigService.update — no existe config activa, creando con defaults');
-      config = await this.systemGlobalConfigRepository.createActive(requestContext.originFromContext());
+      config = await this.systemGlobalConfigRepository.createActive();
     }
 
     const updatePayload = _buildUpdatePayload(data, config);
-    const previousVersion = config.config_version;
+    const previousVersion = config.configVersion;
 
-    const updated = await this.systemGlobalConfigRepository.update(config.config_id, updatePayload);
+    const updated = await this.systemGlobalConfigRepository.update(config.configId, updatePayload);
     if (!updated) {
       throw AppError.notFound('Configuración global no encontrada');
     }
@@ -63,9 +62,9 @@ class SystemGlobalConfigService {
       adminUserId,
       {
         updatedFields: Object.keys(data),
-        configVersion: { before: previousVersion, after: updated.config_version }
+        configVersion: { before: previousVersion, after: updated.configVersion }
       },
-      { entityId: config.config_id, entityType: 'SystemGlobalConfig', entityTable: 'system_global_config' }
+      { entityId: config.configId, entityType: 'SystemGlobalConfig', entityTable: 'system_global_config' }
     );
 
     setImmediate(() => {
@@ -73,11 +72,11 @@ class SystemGlobalConfigService {
         .crearNotificacion({
           tipoNotificacion: NOTIF_SYSTEM_CONFIG_UPDATED,
           userId: null,
-          relatedEntity: { type: 'SystemGlobalConfig', id: config.config_id },
+          relatedEntity: { type: 'SystemGlobalConfig', id: config.configId },
           metadata: {
             camposActualizados: Object.keys(data),
             versionAnterior: previousVersion,
-            versionNueva: updated.config_version,
+            versionNueva: updated.configVersion,
             adminUserId
           }
         })
@@ -87,30 +86,30 @@ class SystemGlobalConfigService {
     logger.info('SystemGlobalConfigService.update', {
       adminUserId,
       fields: Object.keys(data),
-      newVersion: updated.config_version
+      newVersion: updated.configVersion
     });
 
     return SystemGlobalConfigDTO(updated);
   }
 }
 
-function _buildUpdatePayload(data: SystemGlobalConfigService.UpdateInput, current: defineSystemGlobalConfig.Instance) {
-  const payload: Partial<defineSystemGlobalConfig.Attributes> = { config_version: current.config_version + 1 };
+function _buildUpdatePayload(data: SystemGlobalConfigService.UpdateInput, current: SystemGlobalConfig) {
+  const payload: Prisma.SystemGlobalConfigUpdateManyMutationInput = { configVersion: { increment: 1 } };
 
   if (data.currency !== undefined) {
     payload.currency = data.currency;
   }
   if (data.auditRetentionHotYears !== undefined) {
-    payload.audit_retention_hot_years = data.auditRetentionHotYears;
+    payload.auditRetentionHotYears = data.auditRetentionHotYears;
   }
   if (data.auditRetentionColdYears !== undefined) {
-    payload.audit_retention_cold_years = data.auditRetentionColdYears;
+    payload.auditRetentionColdYears = data.auditRetentionColdYears;
   }
   if (data.auditHotPurgeEnabled !== undefined) {
-    payload.audit_hot_purge_enabled = data.auditHotPurgeEnabled;
+    payload.auditHotPurgeEnabled = data.auditHotPurgeEnabled;
   }
   if (data.integrationResilience !== undefined) {
-    payload.integration_resilience = _mergeResilience(current.integration_resilience as StoredResilience | null, data.integrationResilience);
+    payload.integrationResilience = _mergeResilience(current.integrationResilience as StoredResilience | null, data.integrationResilience) as Prisma.InputJsonValue;
   }
 
   return payload;

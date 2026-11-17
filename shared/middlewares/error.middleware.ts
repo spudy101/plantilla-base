@@ -24,6 +24,18 @@ interface HandledError {
   isOperational?: boolean;
   /** SequelizeValidationError / UniqueConstraintError */
   errors?: Array<{ path?: string; message?: string; value?: unknown }>;
+  /** PrismaClientKnownRequestError: campos de la restricción violada (según versión/adaptador) */
+  meta?: {
+    target?: string[] | string;
+    driverAdapterError?: { cause?: { constraint?: { fields?: string[] } } };
+  };
+}
+
+/** Campos de la restricción que violó un error de Prisma, en snake_case (como FIELD_LABELS). */
+function _prismaConstraintFields(err: HandledError): string[] {
+  const target = err.meta?.target ?? err.meta?.driverAdapterError?.cause?.constraint?.fields ?? [];
+  const fields = Array.isArray(target) ? target : [target];
+  return fields.map(f => String(f).replace(/"/g, '').replace(/[A-Z]/g, c => `_${c.toLowerCase()}`));
 }
 
 type AsyncRequestHandler = (req: Request, res: Response, next: NextFunction) => unknown;
@@ -105,6 +117,9 @@ class ErrorMiddleware {
   static _handleKnownErrors(err: HandledError, res: Response, req: Request): Response | null {
     if (err.name?.startsWith('Sequelize')) {
       return ErrorMiddleware._handleSequelizeError(err, res, req.correlationId);
+    }
+    if (err.name === 'PrismaClientKnownRequestError') {
+      return ErrorMiddleware._handlePrismaError(err, res, req.correlationId);
     }
     if (err.name === 'JsonWebTokenError') {
       return ApiResponse.unauthorized(res, ERROR_MESSAGES.TOKEN_INVALID);
@@ -259,6 +274,30 @@ class ErrorMiddleware {
   // ==============================================
   // PRIVATE
   // ==============================================
+
+  // Mismas respuestas que con Sequelize para las restricciones de la base (docs/prisma-migration.md, fase 5):
+  // P2002 UNIQUE → 409 con la etiqueta del campo; P2003 FK → 400; P2025 fila inexistente → 404.
+  static _handlePrismaError(err: HandledError, res: Response, correlationId: string | undefined): Response {
+    switch (err.code) {
+      case 'P2002': {
+        const field = _prismaConstraintFields(err).find(f => FIELD_LABELS[f]);
+        const label = (field && FIELD_LABELS[field]) || DEFAULT_FIELD_LABEL;
+        return ApiResponse.conflict(res, `Ya existe un registro con ese ${label}`);
+      }
+      case 'P2003':
+        return ApiResponse.badRequest(res, 'Referencia inválida');
+      case 'P2025':
+        return ApiResponse.notFound(res, 'Recurso no encontrado');
+      default:
+        return ApiResponse.error(
+          res,
+          'Error de base de datos',
+          HTTP_STATUS.INTERNAL_SERVER_ERROR,
+          ERROR_CODES.DATABASE_ERROR,
+          correlationId ? { correlationId } : null
+        );
+    }
+  }
 
   static _handleSequelizeError(err: HandledError, res: Response, correlationId: string | undefined): Response {
     switch (err.name) {

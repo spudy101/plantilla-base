@@ -81,7 +81,7 @@ describe('NotificationRetryService', () => {
 
     it('cierra el canal por hard bounce (no reenvía) y lo cuenta como cerrada', async () => {
       notificationRepo.findPendingPushRetries.mockResolvedValue([notif({ notificationId: 'n-1' })]);
-      integrationApiLogRepo.findLatestByNotification.mockResolvedValue({ error_code: 'EndpointDisabled' });
+      integrationApiLogRepo.findLatestByNotification.mockResolvedValue({ errorCode: 'EndpointDisabled' });
       isHardBounce.mockReturnValue(true);
 
       const result = await retry.reintentarEnviosPush();
@@ -133,7 +133,7 @@ describe('NotificationRetryService', () => {
 
     it('cierra el canal email por hard bounce', async () => {
       notificationRepo.findPendingEmailRetries.mockResolvedValue([notif({ notificationId: 'n-9' })]);
-      integrationApiLogRepo.findLatestByNotification.mockResolvedValue({ error_code: 'Bounce' });
+      integrationApiLogRepo.findLatestByNotification.mockResolvedValue({ errorCode: 'Bounce' });
       isHardBounce.mockReturnValue(true);
 
       const result = await retry.reintentarEnviosEmail();

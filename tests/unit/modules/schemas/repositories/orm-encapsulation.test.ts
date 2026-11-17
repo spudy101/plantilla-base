@@ -1,7 +1,7 @@
 // tests/unit/modules/schemas/repositories/orm-encapsulation.test.ts
 //
 // Fase 3 de docs/prisma-migration.md: lo que antes hacían services y workers sobre instancias o modelos
-// de Sequelize (`request.update()` + `reload()`, `AuditLog.destroy`) vive
+// de Sequelize (`AuditLog.destroy`) vive
 // ahora en métodos con nombre de negocio del repositorio. Acá se cubre su traducción a Sequelize.
 
 import { Op } from 'sequelize';
@@ -21,45 +21,13 @@ const mockMakeModel = (extra: Record<string, unknown> = {}) => ({
 });
 
 jest.mock('shared/models', () => ({
-  ApprovalRequest: mockMakeModel({ STATUS: { PENDING: 'pending', APPROVED: 'approved', REJECTED: 'rejected', EXPIRED: 'expired' } }),
-  AuditLog: mockMakeModel(),
-  User: mockMakeModel(),
-  Person: mockMakeModel()
+  AuditLog: mockMakeModel()
 }));
 
 import { mocked } from 'tests/helpers/mock';
 import modelsModule from 'shared/models';
-const { ApprovalRequest, AuditLog } = mocked(modelsModule);
-import approvalRequestRepository from 'modules/schemas/core/repositories/approval-request.repository';
+const { AuditLog } = mocked(modelsModule);
 import auditLogRepository from 'modules/schemas/records/audit/repositories/audit-log.repository';
-
-describe('ApprovalRequestRepository — cierre y vencimiento', () => {
-  beforeEach(() => jest.clearAllMocks());
-
-  it('resolve() actualiza por id y devuelve la solicitud recargada con sus usuarios', async () => {
-    const reloaded = { approval_request_id: 'req-1', status: 'approved' };
-    ApprovalRequest.update.mockResolvedValue([1]);
-    const spy = jest.spyOn(approvalRequestRepository, 'findByIdWithUsers').mockResolvedValue(reloaded as never);
-    const changes = { status: 'approved' as const, second_approver_id: 'a-2', resolved_at: new Date(), resolution_notes: null };
-
-    await expect(approvalRequestRepository.resolve('req-1', changes)).resolves.toBe(reloaded);
-    expect(ApprovalRequest.update).toHaveBeenCalledWith(changes, { where: { approval_request_id: 'req-1' } });
-    expect(spy).toHaveBeenCalledWith('req-1');
-    spy.mockRestore();
-  });
-
-  it('markExpired() solo marca si sigue pendiente y dice si lo hizo', async () => {
-    const now = new Date('2026-01-01T03:00:00Z');
-    ApprovalRequest.update.mockResolvedValueOnce([1]).mockResolvedValueOnce([0]);
-
-    await expect(approvalRequestRepository.markExpired('req-1', now)).resolves.toBe(true);
-    await expect(approvalRequestRepository.markExpired('req-2', now)).resolves.toBe(false);
-    expect(ApprovalRequest.update).toHaveBeenCalledWith(
-      { status: 'expired', resolved_at: now },
-      { where: { approval_request_id: 'req-1', status: 'pending' } }
-    );
-  });
-});
 
 describe('AuditLogRepository — retención', () => {
   beforeEach(() => jest.clearAllMocks());

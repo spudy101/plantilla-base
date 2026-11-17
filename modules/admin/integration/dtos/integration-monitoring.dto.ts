@@ -1,5 +1,5 @@
-import type defineIntegrationApiLog from '../../../schemas/integration/models/integration-api-log.model';
-import type defineProviderFallbackEvent from '../../../schemas/integration/models/provider-fallback-event.model';
+import type { ProviderFallbackEvent } from '../../../../shared/database/generated/prisma/client';
+import type { IntegrationLogRow } from '../../../schemas/integration/repositories/integration-api-log.repository';
 import type { IntegrationApiLogRepositoryPort } from '../../../schemas/repository-ports';
 // DTOs del monitoreo de integraciones externas (solo AWS). Vistas de solo lectura: el template
 // no gestiona integraciones, solo las observa.
@@ -47,7 +47,7 @@ function IntegrationDashboardDTO({
   summary: Record<string, unknown>;
   products: Array<ReturnType<typeof buildProductView>>;
   activeFallbacks: number;
-  recentFallbacks: defineProviderFallbackEvent.Instance[];
+  recentFallbacks: ProviderFallbackEvent[];
   meta: { from: unknown; to: unknown; generatedAt: string };
   minSuccessRate: number;
 }) {
@@ -89,54 +89,53 @@ function buildProductView(stat: ProductStats, circuit: CircuitStatus | null | un
 }
 
 // Ítem del drill-down por llamada: incluye QUIÉN llamó y en QUÉ sesión (lo que pediste ver).
-function IntegrationLogListItemDTO(row: defineIntegrationApiLog.Instance) {
+function IntegrationLogListItemDTO(row: IntegrationLogRow) {
   return {
-    apiLogId: row.api_log_id,
+    apiLogId: row.apiLogId,
     product: row.product,
     endpoint: row.endpoint,
     result: row.result,
-    responseTimeMs: row.response_time_ms,
-    errorCode: row.error_code,
-    isSystemError: row.is_system_error,
-    notificationId: row.notification_id,
-    // Atributo del modelo underscored (antes row.created_at → siempre undefined)
+    responseTimeMs: row.responseTimeMs,
+    errorCode: row.errorCode,
+    isSystemError: row.isSystemError,
+    notificationId: row.notificationId,
     createdAt: row.createdAt,
-    user: row.user ? { userId: row.user.user_id, username: row.user.username } : null,
+    user: row.user ? { userId: row.user.userId, username: row.user.username } : null,
     session: row.session
       ? {
-          sessionId: row.session.user_session_id,
-          ipAddress: row.session.ip_address,
-          userAgent: row.session.user_agent,
+          sessionId: row.session.userSessionId,
+          ipAddress: row.session.ipAddress,
+          userAgent: row.session.userAgent,
           status: row.session.status,
-          startedAt: row.session.started_at
+          startedAt: row.session.startedAt
         }
       : null
   };
 }
 
 // Detalle forense de una llamada: agrega los payloads sanitizados.
-function IntegrationLogDetailDTO(row: defineIntegrationApiLog.Instance) {
+function IntegrationLogDetailDTO(row: IntegrationLogRow) {
   return {
     ...IntegrationLogListItemDTO(row),
-    errorMessage: row.error_message,
-    requestPayload: row.request_payload,
-    responsePayload: row.response_payload
+    errorMessage: row.errorMessage,
+    requestPayload: row.requestPayload,
+    responsePayload: row.responsePayload
   };
 }
 
-function FallbackEventDTO(row: defineProviderFallbackEvent.Instance) {
-  const startedAt = row.started_at ? new Date(row.started_at) : null;
-  const endedAt = row.ended_at ? new Date(row.ended_at) : null;
+function FallbackEventDTO(row: ProviderFallbackEvent) {
+  const startedAt = row.startedAt ? new Date(row.startedAt) : null;
+  const endedAt = row.endedAt ? new Date(row.endedAt) : null;
   const MS_PER_SECOND = 1000;
   return {
-    fallbackEventId: row.fallback_event_id,
+    fallbackEventId: row.fallbackEventId,
     provider: row.provider,
-    circuitProduct: row.circuit_product,
-    startedAt: row.started_at,
-    endedAt: row.ended_at,
-    active: row.ended_at === null,
+    circuitProduct: row.circuitProduct,
+    startedAt: row.startedAt,
+    endedAt: row.endedAt,
+    active: row.endedAt === null,
     durationSeconds: startedAt && endedAt ? Math.round((endedAt.getTime() - startedAt.getTime()) / MS_PER_SECOND) : null,
-    affectedProcessesCount: row.affected_processes_count
+    affectedProcessesCount: row.affectedProcessesCount
   };
 }
 
