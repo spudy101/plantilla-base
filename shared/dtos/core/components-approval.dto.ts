@@ -19,6 +19,9 @@ interface ApprovalRequestRow {
   payload?: unknown;
   result?: unknown;
   origin_session_id?: Maybe<string>;
+  // El modelo es underscored: el atributo es createdAt; created_at solo si se seleccionó por columna
+  createdAt?: Maybe<DbDate>;
+  updatedAt?: Maybe<DbDate>;
   created_at?: Maybe<DbDate>;
   updated_at?: Maybe<DbDate>;
 }
@@ -60,8 +63,9 @@ class ApprovalRequestComponent {
       result: request.result ?? null,
       // Sesión del maker que abrió la solicitud. Solo en el detalle (admin); el listado no lo lleva.
       originSessionId: request.origin_session_id ?? null,
-      createdAt: request.created_at ?? null,
-      updatedAt: request.updated_at ?? null
+      // Antes solo leía created_at/updated_at, que en una consulta normal no existen → siempre null
+      createdAt: request.createdAt ?? request.created_at ?? null,
+      updatedAt: request.updatedAt ?? request.updated_at ?? null
     };
   }
 
@@ -81,7 +85,7 @@ class ApprovalRequestComponent {
       secondApprover: _userRef(request.secondApprover),
       resolvedAt: request.resolved_at ?? null,
       expiresAt: request.expires_at ?? null,
-      createdAt: request.created_at ?? null
+      createdAt: request.createdAt ?? request.created_at ?? null
     };
   }
 }

@@ -268,7 +268,7 @@ class IntegrationCircuitBreaker {
     return current;
   }
 
-  async _getFailures(product: string) {
+  async _getFailures(product: string): Promise<number> {
     const key = `${_memKey(product)}:failures`;
 
     const redis = redisClient.getClient?.() ?? null;
@@ -281,7 +281,9 @@ class IntegrationCircuitBreaker {
       }
     }
 
-    return _inMemory.get(key) || 0;
+    // _inMemory guarda estados y contadores en el mismo Map: aquí solo vale un número
+    const mem = _inMemory.get(key);
+    return typeof mem === 'number' ? mem : 0;
   }
 }
 

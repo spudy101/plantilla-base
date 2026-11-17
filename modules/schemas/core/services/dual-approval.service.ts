@@ -370,7 +370,9 @@ class DualApprovalService {
       return rows;
     }
 
-    const ids = rows.map(r => r[pkField]).filter((id): id is string => typeof id === 'string' && id !== '');
+    // Instancias de modelo o filas planas: se lee la PK y se anota pendingApproval por nombre
+    const asRecord = (r: R) => r as unknown as Record<string, unknown>;
+    const ids = rows.map(r => asRecord(r)[pkField]).filter((id): id is string => typeof id === 'string' && id !== '');
     const pendings = await this.approvalRequestRepository.findPendingByEntityIds(entityType, ids);
 
     const byEntityId = new Map<string | null, defineApprovalRequest.Instance>();
@@ -379,8 +381,8 @@ class DualApprovalService {
     }
 
     for (const row of rows) {
-      const pending = byEntityId.get(row[pkField] as string);
-      row.pendingApproval = pending ? PendingApprovalComponent.build(pending) : null;
+      const pending = byEntityId.get(asRecord(row)[pkField] as string);
+      asRecord(row).pendingApproval = pending ? PendingApprovalComponent.build(pending) : null;
     }
 
     return rows;
@@ -536,7 +538,9 @@ namespace DualApprovalService {
   }
 
   /** Fila que se puede anotar con pendingApproval (instancia de modelo o fila plana). */
-  export interface AnnotatableRow {
+  export type AnnotatableRow = object;
+  /** @deprecated forma anterior; se mantiene el nombre para los call-sites */
+  export interface AnnotatableRowShape {
     [column: string]: unknown;
     pendingApproval?: unknown;
   }

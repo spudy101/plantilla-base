@@ -19,7 +19,7 @@ const STRING = [
   'code', 'token', 'emailHash', 'contactValue', 'version', 'notificationCategoryCode', 'username', 'searchTerm',
   'rawPrefix', 'haystack', 'cityName', 'deviceName', 'password', 'plainPassword', 'newPassword',
   'hashedPassword', 'operationKey', 'platform', 'acknowledgedBy', 'passwordHash', 'currentPassword', 'newUsername',
-  'birthDate', 'title', 'body', 'asunto', 'cuerpoHtml', 'destinatario', 'notificationTypeCode', 'endpointArn',
+  'birthDate', 'title', 'asunto', 'cuerpoHtml', 'destinatario', 'notificationTypeCode', 'endpointArn',
   'emailOrHash', 'template', 'variable', 'match', 'chars', 'opKey', 'mensaje', 'subject', 'html',
   'firstName', 'lastName', 'currentFingerprintHash', 'totpCode', 'refreshTokenStr', 'categoryCode', 'sortBy',
   'clientType', 'serverContext'
@@ -41,7 +41,9 @@ const IMPORTED = {
   next: ['express', 'NextFunction'],
   transaction: ['sequelize', 'Transaction'],
   // Rutas del proyecto (desde la raíz): el import se escribe relativo al archivo
-  auditContext: ['shared/types/audit-context', 'RequestAuditContext']
+  auditContext: ['shared/types/audit-context', 'RequestAuditContext'],
+  // Contexto de la acción admin (adminUserId, rol, ip…): lo arman los controllers de modules/admin
+  auditCtx: ['shared/types/audit-context', 'AdminAuditContext']
 };
 
 const TYPES = new Map([
@@ -70,6 +72,8 @@ for (const m of out.matchAll(/^(.+?\.ts)\((\d+),(\d+)\): error TS7006: Parameter
   const [, file, line, col, name] = m;
   if (prefix && !file.replace(/\\/g, '/').startsWith(prefix)) continue;
   if (!typeOf(name)) continue;
+  // req/res/next solo son de Express en controllers/middlewares/rutas (en un service `next` puede ser cualquier cosa)
+  if (['req', 'res', 'next'].includes(name) && !/(controller|middleware|routes?|app|server)\.ts$/.test(file)) continue;
   if (!byFile.has(file)) byFile.set(file, []);
   byFile.get(file).push({ line: Number(line), col: Number(col), name });
 }

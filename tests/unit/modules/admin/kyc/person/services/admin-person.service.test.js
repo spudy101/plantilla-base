@@ -65,6 +65,8 @@ jest.mock('modules/schemas/core/services/dual-approval.service', () => ({
   gate: jest.fn()
 }));
 jest.mock('shared/utils/pagination.util', () => ({
+  stringParam: jest.requireActual('shared/utils/pagination.util').stringParam,
+  booleanParam: jest.requireActual('shared/utils/pagination.util').booleanParam,
   getPaginationParams: jest.fn(() => ({ page: 1, limit: 10, sortBy: 'created_at', order: 'DESC' }))
 }));
 jest.mock('shared/utils/request-context.util', () => ({
@@ -77,6 +79,12 @@ jest.mock('shared/utils/logger.util', () => ({
 }));
 
 // AppError real-ish: factories que devuelven Error con statusCode/code para poder usar .rejects.
+// Dos roles de cliente para poder probar el cambio entre ellos (la plantilla trae solo CLIENTE).
+jest.mock('shared/constants/rbac', () => ({
+  ...jest.requireActual('shared/constants/rbac'),
+  CLIENT_ROLE_NAMES: ['CLIENTE', 'CLIENTE_VERIFICADO']
+}));
+
 jest.mock('shared/utils/app-error.util', () => {
   const make = (statusCode, code) => (message, details = null) => {
     const err = new Error(message);
@@ -87,6 +95,7 @@ jest.mock('shared/utils/app-error.util', () => {
   };
   return {
     badRequest: make(400, 'BAD_REQUEST'),
+    forbidden: make(403, 'FORBIDDEN'),
     notFound: make(404, 'NOT_FOUND'),
     conflict: make(409, 'CONFLICT'),
     internal: make(500, 'INTERNAL_ERROR')
@@ -538,12 +547,12 @@ describe('PersonService (admin)', () => {
       role_id: 'rc1',
       deleted_at: null,
       person: { first_name: 'Juan', contact: { email: 'juan@test.com' } },
-      role: { role_id: 'rc1', name: 'cliente', description: 'Cliente base' }
+      role: { role_id: 'rc1', name: 'CLIENTE', description: 'Cliente base' }
     };
 
     it('cambia el rol, registra cambio, commitea, audita y notifica', async () => {
       userRepository.findById.mockResolvedValue(user);
-      roleRepository.findById.mockResolvedValue({ role_id: 'rc2', name: 'cliente_verificado', description: 'Verificado' });
+      roleRepository.findById.mockResolvedValue({ role_id: 'rc2', name: 'CLIENTE_VERIFICADO', description: 'Verificado' });
 
       const result = await service.changeRole('u1', 'rc2', AUDIT_CTX);
 
@@ -551,18 +560,29 @@ describe('PersonService (admin)', () => {
       expect(logAudit).toHaveBeenCalledWith(
         'PERSON_ROLE_CHANGED',
         AUDIT_CTX.adminUserId,
-        { before: { role: 'cliente' }, after: { role: 'cliente_verificado' } },
+        { before: { role: 'CLIENTE' }, after: { role: 'CLIENTE_VERIFICADO' } },
         expect.any(Object)
       );
-      expect(result).toEqual({ dto: 'ChangeRoleDTO', oldR: 'cliente', newR: 'cliente_verificado' });
+      expect(result).toEqual({ dto: 'ChangeRoleDTO', oldR: 'CLIENTE', newR: 'CLIENTE_VERIFICADO' });
 
       await flushMacrotasks();
       expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(expect.objectContaining({ tipoNotificacion: 'ROL_CHANGE' }));
     });
 
-    it('lanza 400 si el usuario es administrador', async () => {
-      userRepository.findById.mockResolvedValue({ ...user, role: { role_id: 'ra', name: 'admin' } });
-      await expect(service.changeRole('u1', 'rc2', AUDIT_CTX)).rejects.toThrow(/administrador/);
+    // Regresión (fase 4 TS): antes comparaba contra 'admin' en minúsculas (nunca coincidía) y este
+    // endpoint podía cambiar el rol de un ADMIN o promover un cliente a interno.
+    it('lanza 403 si la cuenta no es de cliente (p. ej. ADMIN)', async () => {
+      userRepository.findById.mockResolvedValue({ ...user, role: { role_id: 'ra', name: 'ADMIN' } });
+      await expect(service.changeRole('u1', 'rc2', AUDIT_CTX)).rejects.toMatchObject({ statusCode: 403 });
+      expect(userRepository.update).not.toHaveBeenCalled();
+      expect(txn.rollback).toHaveBeenCalled();
+    });
+
+    it('lanza 400 si el rol destino no es de cliente (no promueve a interno)', async () => {
+      userRepository.findById.mockResolvedValue(user);
+      roleRepository.findById.mockResolvedValue({ role_id: 'rs', name: 'SUPERADMIN' });
+      await expect(service.changeRole('u1', 'rs', AUDIT_CTX)).rejects.toMatchObject({ statusCode: 400 });
+      expect(userRepository.update).not.toHaveBeenCalled();
       expect(txn.rollback).toHaveBeenCalled();
     });
 
@@ -575,7 +595,7 @@ describe('PersonService (admin)', () => {
 
     it('lanza 400 si el usuario ya tiene el rol', async () => {
       userRepository.findById.mockResolvedValue(user);
-      roleRepository.findById.mockResolvedValue({ role_id: 'rc1', name: 'cliente' });
+      roleRepository.findById.mockResolvedValue({ role_id: 'rc1', name: 'CLIENTE' });
       await expect(service.changeRole('u1', 'rc1', AUDIT_CTX)).rejects.toThrow(/ya tiene este rol/);
       expect(txn.rollback).toHaveBeenCalled();
     });

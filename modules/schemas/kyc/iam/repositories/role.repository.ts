@@ -24,7 +24,7 @@ class RoleRepository extends BaseRepository<defineRole.Instance> {
    * @param {string[]} names
    * @param {{ exclude?: string[] }} [opts]
    */
-  findByNames(names: string[], { exclude = [] } = {}) {
+  findByNames(names: readonly string[], { exclude = [] }: { exclude?: readonly string[] } = {}) {
     const nameCriteria: WhereOperators<string> = { [Op.in]: names };
     if (exclude.length) {
       nameCriteria[Op.notIn] = exclude;

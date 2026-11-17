@@ -417,7 +417,7 @@ class S3Util {
    *   await S3Util.invalidateCloudFront('/legal/privacy-policy-v1.1.pdf');
    *   await S3Util.invalidateCloudFront(['/legal/*', '/brand/logo.png']);
    */
-  static async invalidateCloudFront(paths: string[]) {
+  static async invalidateCloudFront(paths: string | string[]) {
     try {
       const pathArray = Array.isArray(paths) ? paths : [paths];
       const normalized = pathArray.map(p => (p.startsWith('/') ? p : `/${p}`));

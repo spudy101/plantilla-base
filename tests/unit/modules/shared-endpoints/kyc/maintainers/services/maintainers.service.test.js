@@ -25,6 +25,8 @@ jest.mock('shared/utils/logger.util', () => ({ logAudit: jest.fn() }));
 jest.mock('shared/utils/redis.util', () => ({ get: jest.fn(), set: jest.fn() }));
 
 jest.mock('shared/utils/pagination.util', () => ({
+  stringParam: jest.requireActual('shared/utils/pagination.util').stringParam,
+  booleanParam: jest.requireActual('shared/utils/pagination.util').booleanParam,
   getPaginationParams: jest.fn(),
   buildFilters: jest.fn()
 }));

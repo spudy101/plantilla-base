@@ -11,6 +11,8 @@ jest.mock('modules/schemas/records/audit/repositories/user-change-log.repository
 }));
 
 jest.mock('shared/utils/pagination.util', () => ({
+  stringParam: jest.requireActual('shared/utils/pagination.util').stringParam,
+  booleanParam: jest.requireActual('shared/utils/pagination.util').booleanParam,
   getPaginationParams: jest.fn(),
   buildFilters: jest.fn()
 }));
