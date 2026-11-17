@@ -46,7 +46,7 @@ describe('ResilienceConfig', () => {
   describe('get() — mapeo snake_case → camelCase', () => {
     it('mapea todos los campos cuando la global trae la config completa', async () => {
       mockFindOne.mockResolvedValue({
-        integration_resilience: {
+        integrationResilience: {
           timeout_ms: 12000,
           manual_review_timeout_ms: 4000,
           max_retries: 7,
@@ -68,7 +68,7 @@ describe('ResilienceConfig', () => {
 
     it('rellena con los defaults duros los campos ausentes (config parcial)', async () => {
       mockFindOne.mockResolvedValue({
-        integration_resilience: {
+        integrationResilience: {
           timeout_ms: 8000,
           circuit_breaker: { failure_threshold: 2 }
         }
@@ -87,7 +87,7 @@ describe('ResilienceConfig', () => {
     });
 
     it('usa todos los defaults duros si integration_resilience viene vacío', async () => {
-      mockFindOne.mockResolvedValue({ integration_resilience: {} });
+      mockFindOne.mockResolvedValue({ integrationResilience: {} });
       const cfg = await ResilienceConfig.get();
       expect(cfg.timeoutMs).toBe(30000);
       expect(cfg.circuitBreaker).toEqual({ failureThreshold: 5, recoveryTimeMs: 60000, failuresTtlS: 300 });
@@ -103,7 +103,7 @@ describe('ResilienceConfig', () => {
 
   describe('caché (TTL 60s)', () => {
     it('no vuelve a consultar la BD dentro de la ventana de caché', async () => {
-      mockFindOne.mockResolvedValue({ integration_resilience: { timeout_ms: 1234 } });
+      mockFindOne.mockResolvedValue({ integrationResilience: { timeout_ms: 1234 } });
 
       const a = await ResilienceConfig.get();
       const b = await ResilienceConfig.get();
@@ -114,7 +114,7 @@ describe('ResilienceConfig', () => {
     });
 
     it('_resetCache fuerza una nueva lectura', async () => {
-      mockFindOne.mockResolvedValue({ integration_resilience: { timeout_ms: 1 } });
+      mockFindOne.mockResolvedValue({ integrationResilience: { timeout_ms: 1 } });
       await ResilienceConfig.get();
       ResilienceConfig._resetCache();
       await ResilienceConfig.get();
@@ -147,7 +147,7 @@ describe('ResilienceConfig', () => {
       try {
         // t=0: primera lectura buena → cachea timeout 4321.
         nowSpy.mockReturnValue(0);
-        mockFindOne.mockResolvedValueOnce({ integration_resilience: { timeout_ms: 4321 } });
+        mockFindOne.mockResolvedValueOnce({ integrationResilience: { timeout_ms: 4321 } });
         const first = await ResilienceConfig.get();
         expect(first.timeoutMs).toBe(4321);
 

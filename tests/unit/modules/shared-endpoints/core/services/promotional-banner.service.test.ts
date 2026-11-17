@@ -36,7 +36,7 @@ describe('PromotionalBannerPublicService', () => {
         { id: 2, title: 'B', is_active: false },
         { id: 3, title: 'C' } // sin flag => se considera activo
       ];
-      systemGlobalConfigRepository.findActive.mockResolvedValue({ promotional_banners: banners });
+      systemGlobalConfigRepository.findActive.mockResolvedValue({ promotionalBanners: banners });
       const dto = { banners: [{ id: 1 }, { id: 3 }] };
       PublicPromotionalBannerListDTO.mockReturnValue(dto);
 
@@ -71,7 +71,7 @@ describe('PromotionalBannerPublicService', () => {
 
   describe('getActiveBanners — cache hit', () => {
     it('la segunda llamada usa la caché y NO vuelve a pegarle a BD', async () => {
-      systemGlobalConfigRepository.findActive.mockResolvedValue({ promotional_banners: [] });
+      systemGlobalConfigRepository.findActive.mockResolvedValue({ promotionalBanners: [] });
       const dto = { banners: [] };
       PublicPromotionalBannerListDTO.mockReturnValue(dto);
 

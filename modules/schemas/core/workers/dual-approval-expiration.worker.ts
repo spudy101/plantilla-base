@@ -33,7 +33,7 @@ class DualApprovalExpirationWorker {
     for (const request of expired) {
       try {
         // Solo si sigue pendiente: si alguien la resolvió entre la consulta y acá, no se pisa
-        const marked = await approvalRequestRepository.markExpired(request.approval_request_id, now);
+        const marked = await approvalRequestRepository.markExpired(request.approvalRequestId, now);
         if (!marked) {
           continue;
         }
@@ -42,14 +42,14 @@ class DualApprovalExpirationWorker {
           'DUAL_APPROVAL_EXPIRED',
           'system',
           {
-            approvalRequestId: request.approval_request_id,
-            operationKey: request.operation_key,
-            entityType: request.entity_type,
-            entityId: request.entity_id,
-            expiresAt: request.expires_at
+            approvalRequestId: request.approvalRequestId,
+            operationKey: request.operationKey,
+            entityType: request.entityType,
+            entityId: request.entityId,
+            expiresAt: request.expiresAt
           },
           {
-            entityId: request.approval_request_id,
+            entityId: request.approvalRequestId,
             entityType: 'ApprovalRequest',
             entityTable: 'approval_requests'
           }
@@ -58,7 +58,7 @@ class DualApprovalExpirationWorker {
         count++;
       } catch (error) {
         logger.error('Error al expirar solicitud de doble aprobación', {
-          approvalRequestId: request.approval_request_id,
+          approvalRequestId: request.approvalRequestId,
           error: errorMessage(error)
         });
       }

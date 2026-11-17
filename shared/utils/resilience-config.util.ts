@@ -58,7 +58,7 @@ async function _load(): Promise<ResilienceConfig> {
   const systemGlobalConfigRepository = interopDefault(require('../../modules/schemas/core/repositories/system-global-config.repository') as typeof import('../../modules/schemas/core/repositories/system-global-config.repository'));
   const config = await systemGlobalConfigRepository.findActiveResilience();
   // integration_resilience es JSONB (unknown en el modelo): lo escribe el admin validado por su DTO
-  const r = (config?.integration_resilience ?? {}) as StoredResilience;
+  const r = (config?.integrationResilience ?? {}) as StoredResilience;
   const cb = r.circuit_breaker ?? {};
   const st = r.screening_throttle ?? {};
   return {

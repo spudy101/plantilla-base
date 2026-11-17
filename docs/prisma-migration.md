@@ -5,7 +5,7 @@
 > al final de cada fase la app arranca y los tests pasan. Durante la migración **Prisma y Sequelize
 > conviven contra la misma base**: cada repositorio cambia de ORM sin que los services se enteren.
 >
-> Estado: **fases 0 a 4 completas; fase 5 en curso** (grupos 1 a 3 de 6) en la rama `feat/prisma`; ver [Cómo funciona hoy](#cómo-funciona-hoy).
+> Estado: **fases 0 a 4 completas; fase 5 en curso** (grupos 1 a 4 de 6) en la rama `feat/prisma`; ver [Cómo funciona hoy](#cómo-funciona-hoy).
 
 ## Punto de partida (medido)
 
@@ -118,7 +118,7 @@ filas de Prisma (camelCase) y de Sequelize (snake_case) a la vez.
 | 1. Catálogos | gender, country, department, city, phone-prefix, document-type, avatar-theme, avatar | ✅ |
 | 2. Legal | consent-type, privacy-policy, privacy-policy-admin, user-consent | ✅ |
 | 3. Notificaciones | notification-category, notification-type, notification, global-notification, global-notification-read, user-notification-preference, user-push-token, verification-code, sms-delivery-attempt, email-bounce-suppression | ✅ |
-| 4. Integraciones y config | system-global-config, integration-api-log, provider-fallback-event, approval-request | ⏳ |
+| 4. Integraciones y config | system-global-config, integration-api-log, provider-fallback-event, approval-request | ✅ |
 | 5. Auditoría | audit-log, audit-alert, user-change-log, user-login-attempt | ⏳ |
 | 6. Núcleo de identidad | user, person, person-contact, person-location, person-reference, role, role-permission-override, user-session, auth-trusted-device, biometric, reset-credentials (al migrar: devolver los consentimientos y la preferencia de notificación del registro a la transacción del alta, ver grupos 2 y 3) | ⏳ |
 
@@ -134,6 +134,26 @@ Receta por repositorio:
 4. Tests: los fixtures de los mocks a camelCase. Un test que pasa igual con el fixture viejo prueba algo
    equivocado: agregar el caso positivo (ver `profile.helper.test.ts`).
 5. Verificar contra la base de desarrollo los listados y búsquedas del grupo (totales iguales a Sequelize).
+
+#### Hallazgos del grupo 4
+
+- **Errores de restricción de Prisma salían como 500**: el middleware de errores solo traducía los de
+  Sequelize. Ahora `P2002` (UNIQUE) → 409 con la etiqueta del campo, `P2003` (FK) → 400 y `P2025` → 404,
+  igual que antes. Afectaba también a los grupos 1–3 (p. ej. dos altas simultáneas del mismo código).
+  `integrations-config.test.ts` lo prueba con la UNIQUE parcial de solicitudes pendientes.
+- **Doble aprobación**: `requester` y `secondApprover` se incluyen en la misma consulta (en Sequelize,
+  incluir `User` dos veces con su persona daba SQL inválido y se resolvían aparte). Sin transacciones
+  compartidas con otros grupos: el flujo no usa unidad de trabajo.
+- **Bitácora de integraciones**: el schema no declara relación con `users`/`user_sessions` (columnas de
+  trazabilidad sin FK), así que usuario y sesión se adjuntan con una consulta por tabla. Las estadísticas
+  pasan a `groupBy`. Un producto o resultado fuera del enum devuelve vacío sin consultar (Postgres
+  rechazaría el valor).
+- **Configuración global**: `configVersion` se incrementa en la base (antes `actual + 1`: dos ediciones
+  simultáneas quedaban con la misma versión). Los JSON (`integration_resilience`,
+  `promotional_banners`) siguen en snake_case: son datos guardados, no columnas.
+- `thresholdConfigKey` de la doble aprobación acepta el nombre de la columna o del campo.
+- Verificado contra la base de desarrollo: configuración activa (incluidos los JSON), totales y
+  estadísticas de la bitácora, solicitudes y fallbacks iguales a Sequelize.
 
 #### Hallazgos del grupo 3
 

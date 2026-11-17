@@ -8,15 +8,16 @@ interface StoredResilience {
   circuit_breaker?: { failure_threshold?: number; recovery_time_ms?: number; failures_ttl_s?: number };
 }
 
+/** Fila de Prisma (fase 5, grupo 4). El contenido de integrationResilience sigue en snake_case. */
 interface SystemGlobalConfigRow {
-  config_id: string;
-  config_version: number | string;
+  configId: string;
+  configVersion: number | string;
   currency: string;
-  audit_retention_hot_years: number;
-  audit_retention_cold_years: number;
-  audit_hot_purge_enabled?: boolean | null;
-  /** JSONB: el modelo lo tipa unknown; la forma la describe StoredResilience */
-  integration_resilience?: unknown;
+  auditRetentionHotYears: number;
+  auditRetentionColdYears: number;
+  auditHotPurgeEnabled?: boolean | null;
+  /** JSONB: la forma la describe StoredResilience */
+  integrationResilience?: unknown;
 }
 
 function _buildIntegrationResilience(raw: unknown) {
@@ -43,13 +44,13 @@ class SystemGlobalConfigComponent {
       return null;
     }
     return {
-      configId: record.config_id,
-      configVersion: record.config_version,
+      configId: record.configId,
+      configVersion: record.configVersion,
       currency: record.currency,
-      auditRetentionHotYears: record.audit_retention_hot_years,
-      auditRetentionColdYears: record.audit_retention_cold_years,
-      auditHotPurgeEnabled: record.audit_hot_purge_enabled ?? false,
-      integrationResilience: _buildIntegrationResilience(record.integration_resilience)
+      auditRetentionHotYears: record.auditRetentionHotYears,
+      auditRetentionColdYears: record.auditRetentionColdYears,
+      auditHotPurgeEnabled: record.auditHotPurgeEnabled ?? false,
+      integrationResilience: _buildIntegrationResilience(record.integrationResilience)
     };
   }
 }
