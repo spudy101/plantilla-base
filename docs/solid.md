@@ -192,7 +192,7 @@ Si necesitas otra semántica, usa otro nombre en vez de redefinir el método del
 Todos los services de clase reciben sus dependencias volátiles (repositorios, otros services,
 storage, transacciones) por constructor, con la implementación real como default:
 
-```js
+```ts
 class PersonReferenceService {
   constructor(deps = {}) {
     this.personReferenceRepository = deps.personReferenceRepository ?? personReferenceRepository;
@@ -204,14 +204,14 @@ class PersonReferenceService {
   }
 }
 
-module.exports = new PersonReferenceService();                    // instancia por defecto (controllers)
-module.exports.PersonReferenceService = PersonReferenceService;   // clase (tests, composición)
+export default Object.assign(new PersonReferenceService(), { PersonReferenceService }); // instancia (controllers) + clase (tests, composición)
 ```
 
 Eso permite testear **sin `jest.mock`**:
 
-```js
-const { PersonReferenceService } = require('.../person-reference.service');
+```ts
+import personReferenceServiceModule from '.../person-reference.service';
+const { PersonReferenceService } = personReferenceServiceModule;
 const service = new PersonReferenceService({ personReferenceRepository: { findAllByPersonId: jest.fn() } });
 ```
 
@@ -318,7 +318,7 @@ Con lo anterior, pasar a hexagonal es sobre todo **mover y renombrar**:
 | Contrato implícito del repositorio (`findByNames`, `findActive`) | `domain/ports/*.ts` (interfaces) |
 | Repositorios Sequelize | `infrastructure/adapters/sequelize/` |
 | `UnitOfWork` | Puerto `UnitOfWork` + adaptador Sequelize (ya está separado) |
-| `module.exports = new X()` con defaults | *Composition root* que arma todo en un solo lugar |
+| `export default Object.assign(new X(), { X })` con defaults | *Composition root* que arma todo en un solo lugar |
 
 Lo que faltaría: definir los puertos de forma explícita (en TypeScript serían `interface`) y
 crear el composition root. Los `include` ya viven en los repositorios.

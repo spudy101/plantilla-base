@@ -28,8 +28,8 @@ el mismo namespace, así que un `$ref` resuelve entre módulos).
 - Errores (objetos para spread): `BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`, `Conflict`,
   `ValidationError` (422), `RateLimitExceeded` (429), `InternalServerError` (500), `ServiceUnavailable` (503).
 
-```js
-const commonResponses = require('../../../responses/common.responses');
+```ts
+import commonResponses from '../../../responses/common.responses';
 responses: {
   200: commonResponses.ok({ $ref: '#/components/schemas/MiRecurso' }, 'Obtenido exitosamente'),
   ...commonResponses.Unauthorized,
@@ -40,8 +40,8 @@ responses: {
 
 ## Anatomía de un `*.paths.ts`
 
-```js
-const commonResponses = require('../../../responses/common.responses');
+```ts
+import commonResponses from '../../../responses/common.responses';
 const adminSecurity = [{ bearerAuth: [], idTokenAuth: [] }]; // security schemes definidos en el ensamblador
 
 const schemas = {
@@ -78,14 +78,14 @@ const paths = {
   }
 };
 
-module.exports = { schemas, paths };
+export default { schemas, paths };
 ```
 
 ## Registrar un módulo nuevo en el ensamblador
 
 En `config/swagger.admin.ts` (o `.client.js`):
 
-1. `const miRecursoPaths = require('./swagger/modules/admin/{dominio}/mi-recurso.paths');`
+1. `import miRecursoPaths from './swagger/modules/admin/{dominio}/mi-recurso.paths';`
 2. Agregar `...miRecursoPaths.paths` al objeto `allPaths`.
 3. Agregar `...miRecursoPaths.schemas` al objeto `allModuleSchemas`.
 

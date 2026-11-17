@@ -23,7 +23,7 @@ puertos distintos: los tres usan la misma variable `PORT` y **solo corre uno a l
 | Solo admin  | `npm run dev:admin`      | `npm run start:admin`  |
 | Solo client | `npm run dev:client`     | `npm run start:client` |
 
-`dev:*` recarga al guardar (nodemon ejecuta las fuentes .ts/.js con `tsx`); `start:*` corre `node` sobre
+`dev:*` recarga al guardar (nodemon ejecuta las fuentes .ts con `tsx`); `start:*` corre `node` sobre
 `dist/`, así que antes hay que compilar con `npm run build` (despliegue).
 
 ## Variables de entorno

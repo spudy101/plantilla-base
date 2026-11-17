@@ -28,9 +28,10 @@ shared/dtos/
 **Capa 2 — DTOs de módulo (`modules/{servidor}/{dominio}/dtos/`)**: importan y **delegan** en los
 componentes shared. No repiten mapeo.
 
-```js
+```ts
 // ✅ delega
-const { ConsentTypeComponent } = require('../../../../shared/dtos/audit/components-audit.dto');
+import componentsAuditDtoModule from '../../../../shared/dtos/audit/components-audit.dto';
+const { ConsentTypeComponent } = componentsAuditDtoModule;
 const ConsentTypeListDTO = record => ConsentTypeComponent.buildList(record);
 
 // ❌ mapeo duplicado
@@ -58,9 +59,11 @@ class XyzComponent {
 
 ## DTO de lista paginada (patrón)
 
-```js
-const { MetadataDTO } = require('../../../../shared/dtos/kyc/components-catalog.dto');
-const { MyResourceComponent } = require('../../../../shared/dtos/{dominio}/components-myresource.dto');
+```ts
+import componentsCatalogDtoModule from '../../../../shared/dtos/kyc/components-catalog.dto';
+const { MetadataDTO } = componentsCatalogDtoModule;
+import componentsMyresourceDtoModule from '../../../../shared/dtos/{dominio}/components-myresource.dto';
+const { MyResourceComponent } = componentsMyresourceDtoModule;
 
 function MyListResponseDTO(rows, metadata) {
   return {
