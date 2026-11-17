@@ -1,17 +1,33 @@
-// modules/schemas/kyc/src/repositories/avatar.repository.ts
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../../shared/models';
-const { Avatar } = modelsModule;
-import type defineAvatar from '../models/avatar.model';
+// modules/schemas/kyc/maintainers/repositories/avatar.repository.ts
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import { Prisma } from '../../../../../shared/database/generated/prisma/client';
+import type { Avatar } from '../../../../../shared/database/generated/prisma/client';
 
-class AvatarRepository extends BaseRepository<defineAvatar.Instance> {
-  constructor() {
-    super(Avatar, {
-      searchFields: ['name'],
-      filterIdField: 'avatar_theme_id',
-      filterIdKey: 'themeId',
-      defaultInclude: [{ association: 'theme', attributes: ['avatar_theme_id', 'name'] }]
-    });
+const LIST = {
+  sortable: Object.values(Prisma.AvatarScalarFieldEnum),
+  searchFields: ['name'],
+  filterId: { key: 'themeId', field: 'avatarThemeId' }
+};
+// Mismo include por defecto que en Sequelize: el tema (id, nombre)
+const WITH_THEME = { theme: { select: { avatarThemeId: true, name: true } } } satisfies Prisma.AvatarInclude;
+
+class AvatarRepository extends PrismaRepository {
+  async findById(avatarId: string): Promise<Avatar | null> {
+    return (await this.db()).avatar.findUnique({ where: { avatarId } });
+  }
+
+  async findAllPaginated(
+    filters: PrismaRepository.Filters = {},
+    pagination: PrismaRepository.PaginationParams = {},
+    searchTerm: string | null = null
+  ) {
+    const { where, page } = this.listQuery(filters, pagination, searchTerm, LIST);
+    const db = await this.db();
+    const [rows, count] = await Promise.all([
+      db.avatar.findMany({ where: where as Prisma.AvatarWhereInput, include: WITH_THEME, ...page }),
+      db.avatar.count({ where: where as Prisma.AvatarWhereInput })
+    ]);
+    return { rows, count };
   }
 }
 

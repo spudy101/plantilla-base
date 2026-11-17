@@ -267,7 +267,7 @@ describe('AdminUserService', () => {
 
     beforeEach(() => {
       roleRepository.findByName.mockResolvedValue({ role_id: 'role-auditor', name: 'auditor' });
-      documentTypeRepository.findByCode.mockResolvedValue({ document_type_id: 'dt-system' });
+      documentTypeRepository.findByCode.mockResolvedValue({ documentTypeId: 'dt-system' });
       InternalUserHelper.createInternalUser.mockResolvedValue({ user: { user_id: 'u-new' } });
       userRepository.findByUserId.mockResolvedValue(makeUser({ user_id: 'u-new' }));
     });

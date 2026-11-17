@@ -1,35 +1,40 @@
-// modules/schemas/kyc/repositories/document-type.repository.ts
+// modules/schemas/kyc/maintainers/repositories/document-type.repository.ts
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import { Prisma } from '../../../../../shared/database/generated/prisma/client';
+import type { DocumentType } from '../../../../../shared/database/generated/prisma/client';
 
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../../shared/models';
-const { DocumentType } = modelsModule;
-import type defineDocumentType from '../models/document-type.model';
+const LIST = { sortable: Object.values(Prisma.DocumentTypeScalarFieldEnum), searchFields: ['name', 'code'] };
 
-class DocumentTypeRepository extends BaseRepository<defineDocumentType.Instance> {
-  constructor() {
-    super(DocumentType, {
-      searchFields: ['name', 'code']
-    });
+class DocumentTypeRepository extends PrismaRepository {
+  async findById(documentTypeId: string): Promise<DocumentType | null> {
+    return (await this.db()).documentType.findUnique({ where: { documentTypeId } });
   }
 
   /**
-   * Busca un tipo de documento por su sigla (code)
+   * Busca un tipo de documento activo por su sigla (code)
    * @param {string} code - Ej: 'CC', 'CE', 'TI'
-   * @returns {Promise<DocumentType|null>}
    */
-  findByCode(code: string) {
-    return DocumentType.findOne({ where: { code, is_active: true } });
+  async findByCode(code: string): Promise<DocumentType | null> {
+    return (await this.db()).documentType.findFirst({ where: { code, isActive: true } });
   }
 
-  /**
-   * Lista solo los tipos visibles al cliente (para el selector del formulario)
-   * @returns {Promise<DocumentType[]>}
-   */
-  findAllVisibleToClient() {
-    return DocumentType.findAll({
-      where: { is_visible_to_client: true, is_active: true },
-      order: [['name', 'ASC']]
-    });
+  /** Lista solo los tipos visibles al cliente (para el selector del formulario). */
+  async findAllVisibleToClient(): Promise<DocumentType[]> {
+    return (await this.db()).documentType.findMany({ where: { isVisibleToClient: true, isActive: true }, orderBy: { name: 'asc' } });
+  }
+
+  async findAllPaginated(
+    filters: PrismaRepository.Filters = {},
+    pagination: PrismaRepository.PaginationParams = {},
+    searchTerm: string | null = null
+  ): Promise<PrismaRepository.Page<DocumentType>> {
+    const { where, page } = this.listQuery(filters, pagination, searchTerm, LIST);
+    const db = await this.db();
+    const [rows, count] = await Promise.all([
+      db.documentType.findMany({ where: where as Prisma.DocumentTypeWhereInput, ...page }),
+      db.documentType.count({ where: where as Prisma.DocumentTypeWhereInput })
+    ]);
+    return { rows, count };
   }
 }
 

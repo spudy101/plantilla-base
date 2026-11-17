@@ -135,7 +135,7 @@ describe('MaintainersService', () => {
 
   describe('listDocumentTypes', () => {
     it('usa findAllVisibleToClient (sin paginación) y arma metadata a partir del total', async () => {
-      const items = [{ document_type_id: 1 }, { document_type_id: 2 }];
+      const items = [{ documentTypeId: 'dt-1' }, { documentTypeId: 'dt-2' }];
       documentTypeRepository.findAllVisibleToClient.mockResolvedValue(items);
 
       const result = await service.listDocumentTypes({}, 'user-9');

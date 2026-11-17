@@ -63,6 +63,28 @@ abstract class PrismaRepository {
     }
     return { OR: fields.map(f => ({ [f]: { contains: searchTerm, mode: 'insensitive' as const } })) };
   }
+
+  /**
+   * `where` + paginación de un listado de catálogo, con el contrato de ReadRepository#findAllPaginated:
+   * `filters.isActive` → isActive; `filterId` mapea un filtro de la query (p. ej. `countryId`) a su
+   * campo; `searchTerm` busca sin mayúsculas en `searchFields`. El `where` sale sin tipo de modelo: el
+   * repositorio lo castea a su `Prisma.XWhereInput` (los nombres vienen de su propia config).
+   */
+  protected listQuery(
+    filters: PrismaRepository.Filters,
+    pagination: PrismaRepository.PaginationParams,
+    searchTerm: string | null,
+    config: PrismaRepository.ListConfig
+  ) {
+    const where: Record<string, unknown> = {
+      ...(filters.isActive !== undefined ? { isActive: filters.isActive } : {}),
+      ...this.searchWhere(searchTerm, config.searchFields ?? [])
+    };
+    if (config.filterId && filters[config.filterId.key]) {
+      where[config.filterId.field] = filters[config.filterId.key];
+    }
+    return { where, page: this.paginationArgs(config.sortable, pagination) };
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -76,6 +98,18 @@ namespace PrismaRepository {
     order?: 'ASC' | 'DESC' | string;
   }
   export type Filters = { isActive?: boolean } & Record<string, unknown>;
+  export interface ListConfig {
+    /** Campos por los que se puede ordenar (Object.values(Prisma.XScalarFieldEnum)). */
+    sortable: readonly string[];
+    searchFields?: readonly string[];
+    /** Filtro por id padre: `filters[key]` → `where[field]` (ej. countryId → countryId). */
+    filterId?: { key: string; field: string };
+  }
+  /** Resultado de un listado paginado (mismo que ReadRepository#findAllPaginated). */
+  export interface Page<Row> {
+    rows: Row[];
+    count: number;
+  }
 }
 
 export default PrismaRepository;

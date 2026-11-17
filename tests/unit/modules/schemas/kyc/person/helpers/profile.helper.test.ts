@@ -69,13 +69,24 @@ describe('ProfileHelper', () => {
   describe('updateLocation', () => {
     it('valida la jerarquía antes de tocar la BD: ciudad de otro departamento → 400 sin upsert', async () => {
       const { helper, deps } = makeHelper();
-      deps.departmentRepository.findById.mockResolvedValue({ department_id: 'd-1' });
-      deps.cityRepository.findById.mockResolvedValue({ city_id: 'c-1', department_id: 'd-2' });
+      deps.departmentRepository.findById.mockResolvedValue({ departmentId: 'd-1' });
+      deps.cityRepository.findById.mockResolvedValue({ cityId: 'c-1', departmentId: 'd-2' });
 
       await expect(helper.updateLocation('p-1', fixture({ departmentId: 'd-1', cityId: 'c-1' }), fixture(TX))).rejects.toMatchObject({
         statusCode: 400
       });
       expect(deps.personLocationRepository.upsertByPersonId).not.toHaveBeenCalled();
+    });
+
+    it('ciudad del mismo departamento → pasa la validación y hace el upsert', async () => {
+      const { helper, deps } = makeHelper();
+      deps.departmentRepository.findById.mockResolvedValue({ departmentId: 'd-1' });
+      deps.cityRepository.findById.mockResolvedValue({ cityId: 'c-1', departmentId: 'd-1' });
+      deps.personLocationRepository.upsertByPersonId.mockResolvedValue({});
+
+      await helper.updateLocation('p-1', fixture({ departmentId: 'd-1', cityId: 'c-1' }), fixture(TX)).catch(() => undefined);
+
+      expect(deps.personLocationRepository.upsertByPersonId).toHaveBeenCalled();
     });
   });
 

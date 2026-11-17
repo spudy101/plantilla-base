@@ -1,17 +1,33 @@
-// modules/schemas/kyc/src/repositories/department.repository.ts
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../../shared/models';
-const { Department } = modelsModule;
-import type defineDepartment from '../models/department.model';
+// modules/schemas/kyc/maintainers/repositories/department.repository.ts
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import { Prisma } from '../../../../../shared/database/generated/prisma/client';
+import type { Department } from '../../../../../shared/database/generated/prisma/client';
 
-class DepartmentRepository extends BaseRepository<defineDepartment.Instance> {
-  constructor() {
-    super(Department, {
-      searchFields: ['name'],
-      filterIdField: 'country_id',
-      filterIdKey: 'countryId',
-      defaultInclude: [{ association: 'country', attributes: ['country_id', 'name', 'code'] }]
-    });
+const LIST = {
+  sortable: Object.values(Prisma.DepartmentScalarFieldEnum),
+  searchFields: ['name'],
+  filterId: { key: 'countryId', field: 'countryId' }
+};
+// Mismo include por defecto que en Sequelize: el país (id, nombre, código)
+const WITH_COUNTRY = { country: { select: { countryId: true, name: true, code: true } } } satisfies Prisma.DepartmentInclude;
+
+class DepartmentRepository extends PrismaRepository {
+  async findById(departmentId: string): Promise<Department | null> {
+    return (await this.db()).department.findUnique({ where: { departmentId } });
+  }
+
+  async findAllPaginated(
+    filters: PrismaRepository.Filters = {},
+    pagination: PrismaRepository.PaginationParams = {},
+    searchTerm: string | null = null
+  ) {
+    const { where, page } = this.listQuery(filters, pagination, searchTerm, LIST);
+    const db = await this.db();
+    const [rows, count] = await Promise.all([
+      db.department.findMany({ where: where as Prisma.DepartmentWhereInput, include: WITH_COUNTRY, ...page }),
+      db.department.count({ where: where as Prisma.DepartmentWhereInput })
+    ]);
+    return { rows, count };
   }
 }
 

@@ -75,7 +75,7 @@ class InternalUserProfileService {
       lastName: data.lastName,
       secondLastName: data.secondLastName,
       nationalId: data.nationalId,
-      documentTypeId: systemDocumentType.document_type_id,
+      documentTypeId: systemDocumentType.documentTypeId,
       role
     });
 

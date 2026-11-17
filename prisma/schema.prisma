@@ -213,7 +213,7 @@ model Country {
   departments     Department[]
   personLocations PersonLocation[]
   persons         Person[]
-  phonePrefixs    PhonePrefix[]
+  phonePrefixes   PhonePrefix[]
 
   @@index([code], map: "countries_code")
   @@index([isActive], map: "countries_is_active")
