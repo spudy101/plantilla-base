@@ -23,7 +23,7 @@ jest.mock('shared/models', () => ({
 // --- Repositorios ---
 jest.mock('modules/schemas/kyc/iam/repositories/user.repository', () => ({
   findByUserId: jest.fn(),
-  findById: jest.fn(),
+  findAdminTarget: jest.fn(),
   findAllPaginated: jest.fn(),
   createWithPassword: jest.fn(),
   setActiveStatus: jest.fn(),
@@ -70,7 +70,7 @@ jest.mock('shared/utils/pagination.util', () => ({
   getPaginationParams: jest.fn(() => ({ page: 1, limit: 10, sortBy: 'created_at', order: 'DESC' }))
 }));
 jest.mock('shared/utils/request-context.util', () => ({
-  originFromContext: jest.fn(() => ({ origin_session_id: 'sess-1' }))
+  originFromContext: jest.fn(() => ({ originSessionId: 'sess-1' }))
 }));
 
 jest.mock('shared/utils/logger.util', () => ({
@@ -110,16 +110,16 @@ jest.mock('shared/dtos/kyc/components-catalog.dto', () => ({
   MetadataDTO: { build: jest.fn(meta => ({ metadata: true, ...meta })) }
 }));
 jest.mock('modules/admin/kyc/person/dtos/admin-person.dto', () => ({
-  UserDTO: jest.fn(u => ({ dto: 'UserDTO', id: u.user_id })),
-  UserListItemDTO: jest.fn(u => ({ dto: 'UserListItemDTO', id: u.user_id })),
-  CreateUserDTO: jest.fn((u, pwd) => ({ dto: 'CreateUserDTO', id: u.user_id, pwd })),
-  ResetPasswordDTO: jest.fn(u => ({ dto: 'ResetPasswordDTO', id: u.user_id })),
+  UserDTO: jest.fn(u => ({ dto: 'UserDTO', id: u.userId })),
+  UserListItemDTO: jest.fn(u => ({ dto: 'UserListItemDTO', id: u.userId })),
+  CreateUserDTO: jest.fn((u, pwd) => ({ dto: 'CreateUserDTO', id: u.userId, pwd })),
+  ResetPasswordDTO: jest.fn(u => ({ dto: 'ResetPasswordDTO', id: u.userId })),
   ChangeEmailDTO: jest.fn((u, oldE, newE) => ({ dto: 'ChangeEmailDTO', oldE, newE })),
   ChangeNationalIdDTO: jest.fn((u, oldN, newN) => ({ dto: 'ChangeNationalIdDTO', oldN, newN })),
   ToggleUserStatusDTO: jest.fn((u, action) => ({ dto: 'ToggleUserStatusDTO', action })),
-  DisableMFADTO: jest.fn(u => ({ dto: 'DisableMFADTO', id: u.user_id })),
+  DisableMFADTO: jest.fn(u => ({ dto: 'DisableMFADTO', id: u.userId })),
   ChangeRoleDTO: jest.fn((u, oldR, newR) => ({ dto: 'ChangeRoleDTO', oldR: oldR.name, newR: newR.name })),
-  RoleOptionDTO: jest.fn(r => ({ dto: 'RoleOptionDTO', id: r.role_id }))
+  RoleOptionDTO: jest.fn(r => ({ dto: 'RoleOptionDTO', id: r.roleId }))
 }));
 
 import { managedTransaction } from 'tests/helpers/transaction';
@@ -171,7 +171,7 @@ describe('PersonService (admin)', () => {
     txn = makeTransaction();
     sequelize.transaction.mockImplementation(managedTransaction(txn));
     // roles cliente por defecto para _clientRoleIds
-    roleRepository.findByNames.mockResolvedValue([{ role_id: 'rc1' }, { role_id: 'rc2' }]);
+    roleRepository.findByNames.mockResolvedValue([{ roleId: 'rc1' }, { roleId: 'rc2' }]);
   });
 
   // ============================================================
@@ -180,7 +180,7 @@ describe('PersonService (admin)', () => {
 
   describe('list', () => {
     it('lista clientes con filtros por defecto (roles cliente) y audita', async () => {
-      userRepository.findAllPaginated.mockResolvedValue({ rows: [{ user_id: 'u1' }, { user_id: 'u2' }], count: 2 });
+      userRepository.findAllPaginated.mockResolvedValue({ rows: [{ userId: 'u1' }, { userId: 'u2' }], count: 2 });
 
       const result = await service.list({}, AUDIT_CTX.adminUserId);
 
@@ -228,7 +228,7 @@ describe('PersonService (admin)', () => {
 
   describe('listDeleted', () => {
     it('lista solo cuentas eliminadas (onlyDeleted) y audita', async () => {
-      userRepository.findAllPaginated.mockResolvedValue({ rows: [{ user_id: 'ud1' }], count: 1 });
+      userRepository.findAllPaginated.mockResolvedValue({ rows: [{ userId: 'ud1' }], count: 1 });
 
       const result = await service.listDeleted({}, 'admin-1');
 
@@ -244,7 +244,7 @@ describe('PersonService (admin)', () => {
 
   describe('listRoleOptions', () => {
     it('devuelve solo los roles cliente y audita', async () => {
-      roleRepository.findByNames.mockResolvedValue([{ role_id: 'rc1' }, { role_id: 'rc2' }]);
+      roleRepository.findByNames.mockResolvedValue([{ roleId: 'rc1' }, { roleId: 'rc2' }]);
 
       const result = await service.listRoleOptions('admin-1');
 
@@ -256,7 +256,7 @@ describe('PersonService (admin)', () => {
 
   describe('getById', () => {
     it('devuelve el usuario y audita PERSON_VIEWED', async () => {
-      userRepository.findByUserId.mockResolvedValue({ user_id: 'u1' });
+      userRepository.findByUserId.mockResolvedValue({ userId: 'u1' });
 
       const result = await service.getById('u1', 'admin-1');
 
@@ -284,26 +284,24 @@ describe('PersonService (admin)', () => {
     };
 
     beforeEach(() => {
-      roleRepository.findByName.mockResolvedValue({ role_id: 'rc1', name: 'cliente' });
-      personRepository.create.mockResolvedValue({ person_id: 'p1' });
+      roleRepository.findByName.mockResolvedValue({ roleId: 'rc1', name: 'cliente' });
+      personRepository.create.mockResolvedValue({ personId: 'p1' });
       personContactRepository.create.mockResolvedValue({});
-      userRepository.createWithPassword.mockResolvedValue({ user_id: 'u1' });
-      userRepository.findByUserId.mockResolvedValue({ user_id: 'u1' });
+      userRepository.createWithPassword.mockResolvedValue({ userId: 'u1' });
+      userRepository.findByUserId.mockResolvedValue({ userId: 'u1' });
     });
 
     it('crea persona/contacto/usuario, commitea, audita y notifica en background', async () => {
       const result = await service.create(userData, AUDIT_CTX);
 
-      expect(KycSharedUtil.validateNationalIdByRole).toHaveBeenCalledWith('11111111-1', { role_id: 'rc1', name: 'cliente' });
+      expect(KycSharedUtil.validateNationalIdByRole).toHaveBeenCalledWith('11111111-1', { roleId: 'rc1', name: 'cliente' });
       expect(ProfileHelper.validateNationalIdUnique).toHaveBeenCalledWith('11111111-1');
       expect(ProfileHelper.validateEmailUnique).toHaveBeenCalledWith('juan@test.com');
       expect(personRepository.create).toHaveBeenCalledWith(
-        expect.objectContaining({ first_name: 'Juan', national_id: '11111111-1', origin_session_id: 'sess-1' }),
-        { transaction: txn }
+        expect.objectContaining({ firstName: 'Juan', nationalId: '11111111-1' })
       );
       expect(userRepository.createWithPassword).toHaveBeenCalledWith(
-        expect.objectContaining({ auth_username: 'user_uuid-fixed', person_id: 'p1', role_id: 'rc1', password: 'TempPass123!' }),
-        { transaction: txn }
+        expect.objectContaining({ authUsername: 'user_uuid-fixed', personId: 'p1', roleId: 'rc1', password: 'TempPass123!' })
       );
       expect(txn.commit).toHaveBeenCalled();
       expect(logAudit).toHaveBeenCalledWith(
@@ -341,21 +339,20 @@ describe('PersonService (admin)', () => {
 
   describe('activate / deactivate', () => {
     const baseUser = {
-      user_id: 'u1',
-      is_active: false,
-      deleted_at: null,
-      person: { first_name: 'Juan', contact: { email: 'juan@test.com' } }
+      userId: 'u1',
+      isActive: false,
+      deletedAt: null,
+      person: { firstName: 'Juan', contact: { email: 'juan@test.com' } }
     };
 
     it('activa una cuenta inactiva: cambia estado, registra cambio, commitea y audita', async () => {
-      userRepository.findById.mockResolvedValue({ ...baseUser, is_active: false });
+      userRepository.findAdminTarget.mockResolvedValue({ ...baseUser, isActive: false });
 
       const result = await service.activate('u1', AUDIT_CTX);
 
-      expect(userRepository.setActiveStatus).toHaveBeenCalledWith('u1', true, { transaction: txn });
+      expect(userRepository.setActiveStatus).toHaveBeenCalledWith('u1', true);
       expect(KycSharedUtil.logChange).toHaveBeenCalledWith(
-        expect.objectContaining({ changeType: 'account_status', previousValue: 'inactive', newValue: 'active' }),
-        { transaction: txn }
+        expect.objectContaining({ changeType: 'account_status', previousValue: 'inactive', newValue: 'active' })
       );
       expect(txn.commit).toHaveBeenCalled();
       expect(logAudit).toHaveBeenCalledWith('PERSON_ACTIVATED', AUDIT_CTX.adminUserId, expect.any(Object), expect.any(Object));
@@ -366,29 +363,29 @@ describe('PersonService (admin)', () => {
     });
 
     it('desactiva una cuenta activa y audita PERSON_DEACTIVATED', async () => {
-      userRepository.findById.mockResolvedValue({ ...baseUser, is_active: true });
+      userRepository.findAdminTarget.mockResolvedValue({ ...baseUser, isActive: true });
 
       const result = await service.deactivate('u1', AUDIT_CTX);
 
-      expect(userRepository.setActiveStatus).toHaveBeenCalledWith('u1', false, { transaction: txn });
+      expect(userRepository.setActiveStatus).toHaveBeenCalledWith('u1', false);
       expect(logAudit).toHaveBeenCalledWith('PERSON_DEACTIVATED', AUDIT_CTX.adminUserId, expect.any(Object), expect.any(Object));
       expect(result).toEqual({ dto: 'ToggleUserStatusDTO', action: 'deactivate' });
     });
 
     it('lanza 404 y rollback si el usuario no existe', async () => {
-      userRepository.findById.mockResolvedValue(null);
+      userRepository.findAdminTarget.mockResolvedValue(null);
       await expect(service.activate('u1', AUDIT_CTX)).rejects.toThrow('Usuario no encontrado');
       expect(txn.rollback).toHaveBeenCalled();
     });
 
     it('lanza 409 si la cuenta está eliminada', async () => {
-      userRepository.findById.mockResolvedValue({ ...baseUser, deleted_at: new Date() });
+      userRepository.findAdminTarget.mockResolvedValue({ ...baseUser, deletedAt: new Date() });
       await expect(service.activate('u1', AUDIT_CTX)).rejects.toThrow(/eliminada/);
       expect(txn.rollback).toHaveBeenCalled();
     });
 
     it('lanza 400 si ya está en el estado solicitado', async () => {
-      userRepository.findById.mockResolvedValue({ ...baseUser, is_active: true });
+      userRepository.findAdminTarget.mockResolvedValue({ ...baseUser, isActive: true });
       await expect(service.activate('u1', AUDIT_CTX)).rejects.toThrow(/ya está activo/);
       expect(txn.rollback).toHaveBeenCalled();
     });
@@ -399,15 +396,15 @@ describe('PersonService (admin)', () => {
   // ============================================================
 
   describe('resetPassword', () => {
-    const user = { user_id: 'u1', deleted_at: null, person: { first_name: 'Juan', contact: { email: 'juan@test.com' } } };
+    const user = { userId: 'u1', deletedAt: null, person: { firstName: 'Juan', contact: { email: 'juan@test.com' } } };
 
     it('resetea la contraseña, registra cambio, commitea y audita', async () => {
-      userRepository.findById.mockResolvedValue(user);
+      userRepository.findAdminTarget.mockResolvedValue(user);
 
       const result = await service.resetPassword('u1', AUDIT_CTX);
 
-      expect(userRepository.updatePassword).toHaveBeenCalledWith('u1', 'TempPass123!', { transaction: txn });
-      expect(KycSharedUtil.logChange).toHaveBeenCalledWith(expect.objectContaining({ changeType: 'password' }), { transaction: txn });
+      expect(userRepository.updatePassword).toHaveBeenCalledWith('u1', 'TempPass123!');
+      expect(KycSharedUtil.logChange).toHaveBeenCalledWith(expect.objectContaining({ changeType: 'password' }));
       expect(logAudit).toHaveBeenCalledWith('PERSON_PASSWORD_RESET', AUDIT_CTX.adminUserId, {}, expect.any(Object));
       expect(result).toEqual({ dto: 'ResetPasswordDTO', id: 'u1' });
 
@@ -416,7 +413,7 @@ describe('PersonService (admin)', () => {
     });
 
     it('lanza 404 y rollback si el usuario no existe', async () => {
-      userRepository.findById.mockResolvedValue(null);
+      userRepository.findAdminTarget.mockResolvedValue(null);
       await expect(service.resetPassword('u1', AUDIT_CTX)).rejects.toThrow('Usuario no encontrado');
       expect(txn.rollback).toHaveBeenCalled();
     });
@@ -428,19 +425,19 @@ describe('PersonService (admin)', () => {
 
   describe('changeEmail', () => {
     const user = {
-      user_id: 'u1',
-      deleted_at: null,
-      person: { person_id: 'p1', first_name: 'Juan', contact: { person_contact_id: 'pc1', email: 'old@test.com' } }
+      userId: 'u1',
+      deletedAt: null,
+      person: { personId: 'p1', firstName: 'Juan', contact: { personContactId: 'pc1', email: 'old@test.com' } }
     };
 
     it('cambia el email vía ProfileHelper, commitea, audita y notifica', async () => {
-      userRepository.findById.mockResolvedValue(user);
+      userRepository.findAdminTarget.mockResolvedValue(user);
       ProfileHelper.updateEmailLogic.mockResolvedValue({ oldEmail: 'old@test.com', newEmail: 'new@test.com' });
 
       const result = await service.changeEmail('u1', 'new@test.com', AUDIT_CTX);
 
       expect(ProfileHelper.updateEmailLogic).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: 'u1', personId: 'p1', newEmail: 'new@test.com', skipVerificationCheck: true, transaction: txn })
+        expect.objectContaining({ userId: 'u1', personId: 'p1', newEmail: 'new@test.com', skipVerificationCheck: true })
       );
       expect(txn.commit).toHaveBeenCalled();
       expect(logAudit).toHaveBeenCalledWith(
@@ -457,7 +454,7 @@ describe('PersonService (admin)', () => {
     });
 
     it('lanza 404 y rollback si el usuario no existe', async () => {
-      userRepository.findById.mockResolvedValue(null);
+      userRepository.findAdminTarget.mockResolvedValue(null);
       await expect(service.changeEmail('u1', 'new@test.com', AUDIT_CTX)).rejects.toThrow('Usuario no encontrado');
       expect(txn.rollback).toHaveBeenCalled();
     });
@@ -469,14 +466,14 @@ describe('PersonService (admin)', () => {
 
   describe('changeNationalId', () => {
     const user = {
-      user_id: 'u1',
-      deleted_at: null,
-      person: { person_id: 'p1', national_id: 'old', first_name: 'Juan', contact: { email: 'juan@test.com' } },
-      role: { role_id: 'rc1', name: 'cliente' }
+      userId: 'u1',
+      deletedAt: null,
+      person: { personId: 'p1', nationalId: 'old', firstName: 'Juan', contact: { email: 'juan@test.com' } },
+      role: { roleId: 'rc1', name: 'cliente' }
     };
 
     it('cambia el national id, audita PERSON_NATIONAL_ID_CHANGED y notifica', async () => {
-      userRepository.findById.mockResolvedValue(user);
+      userRepository.findAdminTarget.mockResolvedValue(user);
       ProfileHelper.updateNationalIdLogic.mockResolvedValue({ oldNationalId: 'old', newNationalId: 'new', unchanged: false });
 
       const result = await service.changeNationalId('u1', 'new', AUDIT_CTX);
@@ -495,7 +492,7 @@ describe('PersonService (admin)', () => {
     });
 
     it('es idempotente si no hubo cambio: commitea pero no audita ni notifica', async () => {
-      userRepository.findById.mockResolvedValue(user);
+      userRepository.findAdminTarget.mockResolvedValue(user);
       ProfileHelper.updateNationalIdLogic.mockResolvedValue({ oldNationalId: 'same', newNationalId: 'same', unchanged: true });
 
       const result = await service.changeNationalId('u1', 'same', AUDIT_CTX);
@@ -515,22 +512,28 @@ describe('PersonService (admin)', () => {
 
   describe('disableMFA', () => {
     const base = {
-      user_id: 'u1',
-      deleted_at: null,
-      person: { first_name: 'Juan', contact: { email: 'juan@test.com' } }
+      userId: 'u1',
+      deletedAt: null,
+      person: { firstName: 'Juan', contact: { email: 'juan@test.com' } }
     };
 
     it('deshabilita TOTP y SMS, limpia secreto, audita y notifica', async () => {
-      userRepository.findById.mockResolvedValue({ ...base, totp_enabled: true, sms_mfa_enabled: true, preferred_mfa_method: 'totp' });
+      userRepository.findAdminTarget.mockResolvedValue({
+        ...base,
+        totpEnabled: true,
+        smsMfaEnabled: true,
+        preferredMfaMethod: 'totp'
+      });
 
       const result = await service.disableMFA('u1', AUDIT_CTX);
 
-      expect(userRepository.update).toHaveBeenCalledWith(
-        'u1',
-        { preferred_mfa_method: 'none', totp_enabled: false, totp_secret: null, sms_mfa_enabled: false },
-        { transaction: txn }
-      );
-      expect(KycSharedUtil.logChange).toHaveBeenCalledWith(expect.objectContaining({ changeType: 'mfa_status' }), { transaction: txn });
+      expect(userRepository.update).toHaveBeenCalledWith('u1', {
+        preferredMfaMethod: 'none',
+        totpEnabled: false,
+        totpSecret: null,
+        smsMfaEnabled: false
+      });
+      expect(KycSharedUtil.logChange).toHaveBeenCalledWith(expect.objectContaining({ changeType: 'mfa_status' }));
       expect(logAudit).toHaveBeenCalledWith('PERSON_MFA_DISABLED', AUDIT_CTX.adminUserId, expect.any(Object), expect.any(Object));
       expect(result).toEqual({ dto: 'DisableMFADTO', id: 'u1' });
 
@@ -539,7 +542,7 @@ describe('PersonService (admin)', () => {
     });
 
     it('lanza 400 si el usuario no tiene MFA habilitado', async () => {
-      userRepository.findById.mockResolvedValue({ ...base, totp_enabled: false, sms_mfa_enabled: false });
+      userRepository.findAdminTarget.mockResolvedValue({ ...base, totpEnabled: false, smsMfaEnabled: false });
       await expect(service.disableMFA('u1', AUDIT_CTX)).rejects.toThrow(/no tiene MFA habilitado/);
       expect(txn.rollback).toHaveBeenCalled();
     });
@@ -551,20 +554,20 @@ describe('PersonService (admin)', () => {
 
   describe('changeRole', () => {
     const user = {
-      user_id: 'u1',
-      role_id: 'rc1',
-      deleted_at: null,
-      person: { first_name: 'Juan', contact: { email: 'juan@test.com' } },
-      role: { role_id: 'rc1', name: 'CLIENTE', description: 'Cliente base' }
+      userId: 'u1',
+      roleId: 'rc1',
+      deletedAt: null,
+      person: { firstName: 'Juan', contact: { email: 'juan@test.com' } },
+      role: { roleId: 'rc1', name: 'CLIENTE', description: 'Cliente base' }
     };
 
     it('cambia el rol, registra cambio, commitea, audita y notifica', async () => {
-      userRepository.findById.mockResolvedValue(user);
-      roleRepository.findById.mockResolvedValue({ role_id: 'rc2', name: 'CLIENTE_VERIFICADO', description: 'Verificado' });
+      userRepository.findAdminTarget.mockResolvedValue(user);
+      roleRepository.findById.mockResolvedValue({ roleId: 'rc2', name: 'CLIENTE_VERIFICADO', description: 'Verificado' });
 
       const result = await service.changeRole('u1', 'rc2', AUDIT_CTX);
 
-      expect(userRepository.update).toHaveBeenCalledWith('u1', { role_id: 'rc2' }, { transaction: txn });
+      expect(userRepository.update).toHaveBeenCalledWith('u1', { roleId: 'rc2' });
       expect(logAudit).toHaveBeenCalledWith(
         'PERSON_ROLE_CHANGED',
         AUDIT_CTX.adminUserId,
@@ -580,30 +583,30 @@ describe('PersonService (admin)', () => {
     // Regresión (fase 4 TS): antes comparaba contra 'admin' en minúsculas (nunca coincidía) y este
     // endpoint podía cambiar el rol de un ADMIN o promover un cliente a interno.
     it('lanza 403 si la cuenta no es de cliente (p. ej. ADMIN)', async () => {
-      userRepository.findById.mockResolvedValue({ ...user, role: { role_id: 'ra', name: 'ADMIN' } });
+      userRepository.findAdminTarget.mockResolvedValue({ ...user, role: { roleId: 'ra', name: 'ADMIN' } });
       await expect(service.changeRole('u1', 'rc2', AUDIT_CTX)).rejects.toMatchObject({ statusCode: 403 });
       expect(userRepository.update).not.toHaveBeenCalled();
       expect(txn.rollback).toHaveBeenCalled();
     });
 
     it('lanza 400 si el rol destino no es de cliente (no promueve a interno)', async () => {
-      userRepository.findById.mockResolvedValue(user);
-      roleRepository.findById.mockResolvedValue({ role_id: 'rs', name: 'SUPERADMIN' });
+      userRepository.findAdminTarget.mockResolvedValue(user);
+      roleRepository.findById.mockResolvedValue({ roleId: 'rs', name: 'SUPERADMIN' });
       await expect(service.changeRole('u1', 'rs', AUDIT_CTX)).rejects.toMatchObject({ statusCode: 400 });
       expect(userRepository.update).not.toHaveBeenCalled();
       expect(txn.rollback).toHaveBeenCalled();
     });
 
     it('lanza 404 si el rol destino no existe', async () => {
-      userRepository.findById.mockResolvedValue(user);
+      userRepository.findAdminTarget.mockResolvedValue(user);
       roleRepository.findById.mockResolvedValue(null);
       await expect(service.changeRole('u1', 'rZ', AUDIT_CTX)).rejects.toThrow('Rol no encontrado');
       expect(txn.rollback).toHaveBeenCalled();
     });
 
     it('lanza 400 si el usuario ya tiene el rol', async () => {
-      userRepository.findById.mockResolvedValue(user);
-      roleRepository.findById.mockResolvedValue({ role_id: 'rc1', name: 'CLIENTE' });
+      userRepository.findAdminTarget.mockResolvedValue(user);
+      roleRepository.findById.mockResolvedValue({ roleId: 'rc1', name: 'CLIENTE' });
       await expect(service.changeRole('u1', 'rc1', AUDIT_CTX)).rejects.toThrow(/ya tiene este rol/);
       expect(txn.rollback).toHaveBeenCalled();
     });
@@ -615,8 +618,8 @@ describe('PersonService (admin)', () => {
 
   describe('deleteAccount', () => {
     beforeEach(() => {
-      userRepository.findByUserId.mockResolvedValue({ password_hash: 'hash' });
-      userRepository.findById.mockResolvedValue({ user_id: 'u1', deleted_at: null, person: { person_id: 'p1' } });
+      userRepository.findByUserId.mockResolvedValue({ passwordHash: 'hash' });
+      userRepository.findAdminTarget.mockResolvedValue({ userId: 'u1', deletedAt: null, person: { personId: 'p1' } });
     });
 
     it('devuelve pending cuando la doble aprobación queda pendiente (no ejecuta la eliminación)', async () => {
@@ -649,26 +652,31 @@ describe('PersonService (admin)', () => {
     });
 
     it('lanza 404 si la cuenta objetivo no existe', async () => {
-      userRepository.findById.mockResolvedValue(null);
+      userRepository.findAdminTarget.mockResolvedValue(null);
       await expect(service.deleteAccount('u1', 'pwd', AUDIT_CTX)).rejects.toThrow('Usuario no encontrado');
     });
   });
 
   describe('executeDeleteAccount', () => {
     const user = {
-      user_id: 'u1',
+      userId: 'u1',
       username: 'user_x',
-      person: { person_id: 'p1', national_id: 'nid', first_name: 'Juan', contact: { person_contact_id: 'pc1', email: 'juan@test.com' } }
+      person: {
+        personId: 'p1',
+        nationalId: 'nid',
+        firstName: 'Juan',
+        contact: { personContactId: 'pc1', email: 'juan@test.com' }
+      }
     };
 
     it('ofusca la cuenta vía ProfileHelper, commitea, audita y notifica cuando hay email', async () => {
-      userRepository.findById.mockResolvedValue(user);
+      userRepository.findAdminTarget.mockResolvedValue(user);
       ProfileHelper.deleteAccountLogic.mockResolvedValue({ deletedEmail: 'juan@test.com', firstName: 'Juan' });
 
       const result = await service.executeDeleteAccount('u1', AUDIT_CTX);
 
       expect(ProfileHelper.deleteAccountLogic).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: 'u1', personId: 'p1', email: 'juan@test.com', changedByRole: 'admin', transaction: txn })
+        expect.objectContaining({ userId: 'u1', personId: 'p1', email: 'juan@test.com', changedByRole: 'admin' })
       );
       expect(txn.commit).toHaveBeenCalled();
       expect(logAudit).toHaveBeenCalledWith('PERSON_ACCOUNT_DELETED', AUDIT_CTX.adminUserId, {}, expect.any(Object));
@@ -679,7 +687,7 @@ describe('PersonService (admin)', () => {
     });
 
     it('hace rollback si falla la ofuscación', async () => {
-      userRepository.findById.mockResolvedValue(user);
+      userRepository.findAdminTarget.mockResolvedValue(user);
       ProfileHelper.deleteAccountLogic.mockRejectedValue(new Error('boom'));
 
       await expect(service.executeDeleteAccount('u1', AUDIT_CTX)).rejects.toThrow('boom');

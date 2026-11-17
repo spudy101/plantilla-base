@@ -1,7 +1,6 @@
 // modules/schemas/kyc/person/helpers/profile.types.ts
 //
 // Entradas de ProfileHelper (las usan también los services de perfil y admin). Solo tipos.
-import type { Transaction } from 'sequelize';
 
 export type PhoneType = 'primary' | 'secondary';
 
@@ -19,7 +18,6 @@ export interface ChangeActor {
   changedByRole: 'admin' | 'user' | 'system';
   changeReason?: string | null;
   auditContext: AuditInfo;
-  transaction?: Transaction;
 }
 
 export interface LocationInput {
@@ -51,7 +49,6 @@ export interface UpdatePhoneParams extends Partial<Pick<ChangeActor, 'userId' | 
   phonePrefixId: string;
   phoneType: PhoneType;
   auditContext?: AuditInfo;
-  transaction?: Transaction;
 }
 
 export interface UpdatePasswordParams extends ChangeActor {

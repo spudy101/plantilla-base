@@ -1,5 +1,5 @@
-import type defineUser from '../../../../schemas/kyc/iam/models/user.model';
-import type definePerson from '../../../../schemas/kyc/person/models/person.model';
+import type { User } from '../../../../../shared/database/generated/prisma/client';
+import type { UserProfileRow } from '../../../../schemas/kyc/iam/repositories/user.repository';
 import adminUserDtoModule from '../../iam/dtos/admin-user.dto';
 const { RoleOptionDTO } = adminUserDtoModule;
 // modules/admin/kyc/dtos/admin-person.dto.ts
@@ -21,53 +21,9 @@ const { RoleComponent } = componentsCatalogDtoModule;
  * ============================================================
  * PERSON DTOs — ADMIN
  * ============================================================
- * Usa _normalizePersonAliases() para adaptar los aliases snake_case
- * del modelo al contrato camelCase que esperan los componentes KYC.
- *
- * CAMPOS ENCRIPTADOS / HASHEADOS (modelos actualizados):
- *   Person        → national_id (AES-256-GCM), national_id_hash (HMAC-SHA256)
- *   PersonContact → email, phone_primary, phone_secondary (AES-256-GCM)
- *                   + email_hash, phone_primary_hash, phone_secondary_hash
- *
- * El afterFind del modelo ya descifra automáticamente antes de llegar al DTO.
- * Los campos _hash NUNCA se exponen al cliente — se usan solo para búsquedas WHERE.
- *
- * NUNCA hacer spread/assign sobre una instancia Sequelize.
+ * Filas de Prisma (camelCase). La PII (national_id, email, teléfonos) llega descifrada por la extensión
+ * de Prisma; los *_hash NUNCA se exponen: solo sirven para filtrar.
  */
-
-// ============================================================
-// HELPER INTERNO
-// ============================================================
-
-function _normalizePersonAliases(person: definePerson.Instance | null | undefined) {
-  if (!person) {
-    return null;
-  }
-
-  return {
-    // Campos escalares del modelo Person
-    person_id: person.person_id,
-    first_name: person.first_name,
-    last_name: person.last_name,
-    middle_name: person.middle_name ?? null,
-    second_last_name: person.second_last_name ?? null,
-    // national_id ya viene descifrado por el afterFind del modelo Person
-    national_id: person.national_id ?? null,
-    birth_date: person.birth_date ?? null,
-    gender_id: person.gender_id ?? null,
-    country_id: person.country_id ?? null,
-    createdAt: person.createdAt,
-    updatedAt: person.updatedAt,
-
-    // Asociaciones directas (alias exactos del modelo)
-    gender: person.gender ?? null,
-    contact: person.contact ?? null,
-    location: person.location ?? null,
-
-    // person.country (as:'country') → nationality (alias esperado por PersonComponent)
-    nationality: person.country ?? null
-  };
-}
 
 // ============================================================
 // DETALLE COMPLETO (admin getById)
@@ -79,7 +35,7 @@ interface UserDetail {
   person?: ReturnType<typeof _buildPersonResult>;
 }
 
-function UserDTO(user: defineUser.Instance): UserDetail {
+function UserDTO(user: UserProfileRow): UserDetail {
   const result: UserDetail = { user: null };
 
   result.user = UserComponent.build(user, {
@@ -87,15 +43,14 @@ function UserDTO(user: defineUser.Instance): UserDetail {
     includeAvatar: true
   });
 
-  const person = _normalizePersonAliases(user.person);
-  if (person) {
-    result.person = _buildPersonResult(person);
+  if (user.person) {
+    result.person = _buildPersonResult(user.person);
   }
 
   return result;
 }
 
-function _buildPersonResult(person: NonNullable<ReturnType<typeof _normalizePersonAliases>>) {
+function _buildPersonResult(person: UserProfileRow['person']) {
   const built = PersonComponent.build(person, {
     includeGender: true,
     includeNationality: true
@@ -123,7 +78,7 @@ function _buildPersonResult(person: NonNullable<ReturnType<typeof _normalizePers
 // LISTADO (simplificado)
 // ============================================================
 
-function UserListItemDTO(user: defineUser.Instance) {
+function UserListItemDTO(user: UserProfileRow) {
   const result: {
     userId: string;
     username: string;
@@ -138,28 +93,28 @@ function UserListItemDTO(user: defineUser.Instance) {
     emailVerified?: boolean;
     role?: ReturnType<typeof RoleComponent.build>;
   } = {
-    userId: user.user_id,
+    userId: user.userId,
     username: user.username,
-    isActive: user.is_active,
-    deletedAt: user.deleted_at ?? null,
-    totpEnabled: user.totp_enabled,
-    smsMfaEnabled: user.sms_mfa_enabled ?? false,
-    preferredMfaMethod: user.preferred_mfa_method ?? 'none',
+    isActive: user.isActive,
+    deletedAt: user.deletedAt ?? null,
+    totpEnabled: user.totpEnabled,
+    smsMfaEnabled: user.smsMfaEnabled ?? false,
+    preferredMfaMethod: user.preferredMfaMethod ?? 'none',
     createdAt: user.createdAt
   };
 
   if (user.person) {
-    const nationalId = safeDecrypt(user.person.national_id) ?? null;
+    const nationalId = safeDecrypt(user.person.nationalId) ?? null;
     result.person = {
-      firstName: user.person.first_name,
-      lastName: user.person.last_name,
+      firstName: user.person.firstName,
+      lastName: user.person.lastName,
       nationalId: MaskingUtil.maskDocumentId(nationalId)
     };
 
     if (user.person.contact) {
       const email = safeDecrypt(user.person.contact.email) ?? null;
       result.email = MaskingUtil.maskEmail(email);
-      result.emailVerified = !!user.person.contact.email_verified_at;
+      result.emailVerified = !!user.person.contact.emailVerifiedAt;
     }
   }
 
@@ -174,7 +129,7 @@ function UserListItemDTO(user: defineUser.Instance) {
 // DTOs DE ACCIÓN
 // ============================================================
 
-function CreateUserDTO(user: defineUser.Instance, temporaryPassword: string) {
+function CreateUserDTO(user: UserProfileRow, temporaryPassword: string) {
   return {
     user: UserDTO(user),
     temporaryPassword
@@ -183,17 +138,19 @@ function CreateUserDTO(user: defineUser.Instance, temporaryPassword: string) {
 
 // [RF-USR-01] | CA-06 | Los DTOs de acción confirman lo que el admin acaba de ejecutar; el dato va
 // enmascarado igual que en el resto de las vistas (el admin ya conoce el valor: lo acaba de escribir).
-function ResetPasswordDTO(user: defineUser.Instance) {
+function ResetPasswordDTO(
+  user: Pick<User, 'userId' | 'username'> & { person?: { contact?: { email?: string | null } | null } | null }
+) {
   return {
-    userId: user.user_id,
+    userId: user.userId,
     username: user.username,
     email: MaskingUtil.maskEmail(safeDecrypt(user.person?.contact?.email)) || null
   };
 }
 
-function ChangeEmailDTO(user: Pick<defineUser.Instance, 'user_id' | 'username'>, oldEmail: string | null | undefined, newEmail: string) {
+function ChangeEmailDTO(user: Pick<User, 'userId' | 'username'>, oldEmail: string | null | undefined, newEmail: string) {
   return {
-    userId: user.user_id,
+    userId: user.userId,
     username: user.username,
     oldEmail: MaskingUtil.maskEmail(oldEmail) || null,
     newEmail: MaskingUtil.maskEmail(newEmail) || null,
@@ -201,41 +158,41 @@ function ChangeEmailDTO(user: Pick<defineUser.Instance, 'user_id' | 'username'>,
   };
 }
 
-function ChangeNationalIdDTO(user: Pick<defineUser.Instance, 'user_id' | 'username'>, oldNationalId: string | null, newNationalId: string) {
+function ChangeNationalIdDTO(user: Pick<User, 'userId' | 'username'>, oldNationalId: string | null, newNationalId: string) {
   return {
-    userId: user.user_id,
+    userId: user.userId,
     username: user.username,
     oldNationalId: MaskingUtil.maskDocumentId(oldNationalId) || null,
     newNationalId: MaskingUtil.maskDocumentId(newNationalId) || null
   };
 }
 
-function ToggleUserStatusDTO(user: Pick<defineUser.Instance, 'user_id' | 'username' | 'is_active'>, action: string) {
+function ToggleUserStatusDTO(user: Pick<User, 'userId' | 'username' | 'isActive'>, action: string) {
   return {
-    userId: user.user_id,
+    userId: user.userId,
     username: user.username,
-    isActive: user.is_active,
+    isActive: user.isActive,
     action
   };
 }
 
-function DisableMFADTO(user: Pick<defineUser.Instance, 'user_id' | 'username' | 'totp_enabled' | 'sms_mfa_enabled' | 'preferred_mfa_method'>) {
+function DisableMFADTO(user: Pick<User, 'userId' | 'username' | 'totpEnabled' | 'smsMfaEnabled' | 'preferredMfaMethod'>) {
   return {
-    userId: user.user_id,
+    userId: user.userId,
     username: user.username,
-    totpEnabled: user.totp_enabled,
-    smsMfaEnabled: user.sms_mfa_enabled ?? false,
-    preferredMfaMethod: user.preferred_mfa_method ?? 'none'
+    totpEnabled: user.totpEnabled,
+    smsMfaEnabled: user.smsMfaEnabled ?? false,
+    preferredMfaMethod: user.preferredMfaMethod ?? 'none'
   };
 }
 
 function ChangeRoleDTO(
-  user: Pick<defineUser.Instance, 'user_id' | 'username'>,
+  user: Pick<User, 'userId' | 'username'>,
   oldRole: Parameters<typeof RoleComponent.build>[0],
   newRole: Parameters<typeof RoleComponent.build>[0]
 ) {
   return {
-    userId: user.user_id,
+    userId: user.userId,
     username: user.username,
     oldRole: RoleComponent.build(oldRole),
     newRole: RoleComponent.build(newRole)

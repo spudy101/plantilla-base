@@ -63,7 +63,7 @@ const ENTITY_REGISTRY: Record<string, RegistryEntry<unknown> | undefined> = {
   }),
   user_trusted_devices: _entry({
     repository: trustedDeviceRepo,
-    pk: 'user_trusted_device_id',
+    pk: 'userTrustedDeviceId',
     entityType: 'UserTrustedDevice',
     dto: r => TrustedDeviceComponent.build(r)
   })
@@ -96,7 +96,7 @@ class AdminSessionTraceService {
     const { rows, count } = await this.userSessionRepository.findPaginatedWithDeviceAndUser(where, pagination);
 
     // Conteo de acciones por sesión, solo para las sesiones de esta página (un query agrupado).
-    const sessionIds = rows.map(s => s.user_session_id);
+    const sessionIds = rows.map(s => s.userSessionId);
     const counts = await this.auditLogRepository.countBySessionIds(sessionIds);
     const countMap = new Map(counts.map(row => [row.sessionId, row.count]));
 
@@ -159,7 +159,7 @@ class AdminSessionTraceService {
   // referenciadas por el timeline. Un findAll por tabla involucrada; ids derivados de audit_logs
   // (nunca de input del usuario). ?entityTable= acota a una sola tabla (caso "expandir una fila").
   async getSessionEntities(sessionId: string, query: Record<string, unknown>, adminUserId: string) {
-    const exists = await this.userSessionRepository.findById(sessionId, { attributes: ['user_session_id'] });
+    const exists = await this.userSessionRepository.findById(sessionId);
     if (!exists) {
       throw AppError.notFound('Sesión no encontrada');
     }

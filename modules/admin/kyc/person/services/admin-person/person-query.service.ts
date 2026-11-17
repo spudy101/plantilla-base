@@ -107,7 +107,7 @@ class PersonQueryService {
   /** @private — IDs de los roles de cliente (CLIENTE, CLIENTE_VERIFICADO) */
   async _clientRoleIds() {
     const roles = await this.roleRepository.findByNames(CLIENT_ROLE_NAMES);
-    return roles.map(r => r.role_id);
+    return roles.map(r => r.roleId);
   }
 
   /**

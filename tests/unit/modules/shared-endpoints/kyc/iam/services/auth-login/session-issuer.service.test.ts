@@ -11,7 +11,7 @@ import SessionIssuerService from 'modules/shared-endpoints/kyc/iam/services/auth
 import loggerUtilModule from 'shared/utils/logger.util';
 const { logger } = mocked(loggerUtilModule);
 
-const USER = { user_id: 'u-1' };
+const USER = { userId: 'u-1' };
 
 const makeIssuer = ({ jtiSaved = true } = {}) => {
   const deps = {
@@ -40,12 +40,12 @@ describe('SessionIssuerService', () => {
     expect(deps.refreshTokenStore.save).toHaveBeenCalledWith(jti, 'u-1');
     expect(deps.userSessionRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        user_session_id: sessionId,
-        user_id: 'u-1',
-        device_id: 'd-1',
+        userSessionId: sessionId,
+        userId: 'u-1',
+        deviceId: 'd-1',
         jti,
-        ip_address: '1.2.3.4',
-        user_agent: 'jest'
+        ipAddress: '1.2.3.4',
+        userAgent: 'jest'
       })
     );
   });
@@ -56,7 +56,7 @@ describe('SessionIssuerService', () => {
     await issuer.issue(fixture(USER), { source: 'registro' });
 
     expect(deps.userSessionRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ device_id: null, ip_address: null, user_agent: null })
+      expect.objectContaining({ deviceId: null, ipAddress: null, userAgent: null })
     );
   });
 

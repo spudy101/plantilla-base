@@ -273,14 +273,7 @@ class NotificationSendingService {
       if (typeof metadata.email === 'string' && metadata.email) {
         email = metadata.email;
       } else {
-        const user = await this.userRepo.findById(userId, {
-          include: [
-            {
-              association: 'person',
-              include: [{ association: 'contact' }]
-            }
-          ]
-        });
+        const user = await this.userRepo.findByUserId(userId, 'minimal');
 
         if (!user?.person?.contact?.email) {
           logger.warn('Usuario sin email', { userId });
@@ -290,9 +283,8 @@ class NotificationSendingService {
         email = user.person.contact.email;
       }
 
-      // El email puede llegar cifrado (formato GCM ivHex:authTagHex:cipherHex) tanto desde
-      // metadata (construido antes de descifrar) como desde un include anidado donde el hook
-      // afterFind de PersonContact no se ejecuta. Descifrar en ambos casos antes de enviar.
+      // El de metadata puede llegar cifrado (formato GCM ivHex:authTagHex:cipherHex) si se armó antes
+      // de descifrar; el del contacto ya llega en claro (piiExtension). safeDecrypt deja intacto el claro.
       email = EncryptionUtil.safeDecrypt(email);
 
       await this.emailService.enviarNotificacion(email, notificationType, metadata, notificationId);
@@ -313,7 +305,7 @@ class NotificationSendingService {
 
   /**
    * Envía SMS individual con manejo de errores. El teléfono sale de metadata.phone o del contacto
-   * del usuario (person.contact.phone_primary + su prefijo de país), se descifra y se normaliza a E.164.
+   * del usuario (person.contact.phonePrimary + su prefijo de país), se descifra y se normaliza a E.164.
    * @param {string} userId
    * @param {string} body            - Texto base del SMS (se recorta a 160 caracteres)
    * @param {Object} metadata
@@ -328,20 +320,17 @@ class NotificationSendingService {
         phoneNumber = metadata.phone;
         prefixId = typeof metadata.phonePrefixId === 'string' && metadata.phonePrefixId ? metadata.phonePrefixId : null;
       } else {
-        const user = await this.userRepo.findById(userId, {
-          include: [{ association: 'person', include: [{ association: 'contact' }] }]
-        });
+        const user = await this.userRepo.findByUserId(userId, 'minimal');
         const contact = user?.person?.contact;
 
-        if (!contact?.phone_primary) {
+        if (!contact?.phonePrimary) {
           logger.warn('Usuario sin teléfono', { userId });
           return;
         }
 
-        // El teléfono puede llegar cifrado (formato GCM) cuando el hook afterFind no corre en el
-        // include anidado. safeDecrypt es idempotente si ya viene en claro.
-        phoneNumber = EncryptionUtil.safeDecrypt(contact.phone_primary);
-        prefixId = contact.phone_primary_prefix_id || null;
+        // Ya llega descifrado (piiExtension); safeDecrypt es idempotente si viene en claro.
+        phoneNumber = EncryptionUtil.safeDecrypt(contact.phonePrimary);
+        prefixId = contact.phonePrimaryPrefixId || null;
       }
 
       const e164 = await this.smsService.resolveE164(phoneNumber, prefixId);

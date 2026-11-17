@@ -1,5 +1,5 @@
-import type defineUser from '../../../../../schemas/kyc/iam/models/user.model';
-import type defineUserTrustedDevice from '../../../../../schemas/kyc/iam/models/user-trusted-device.model';
+import type { UserWith } from '../../../../../schemas/kyc/iam/repositories/user.repository';
+import type { UserTrustedDevice } from '../../../../../../shared/database/generated/prisma/client';
 // modules/shared-endpoints/kyc/iam/services/auth-login/login-device.service.ts
 //
 // Resolución del dispositivo durante el login: primer dispositivo, dispositivo
@@ -41,7 +41,7 @@ class LoginDeviceService {
   // [RF-AUTH-03] | CA-03 | Detecta si el dispositivo es nuevo por fingerprint hash.
   // Dispositivo conocido desde IP/ubicación distinta no genera alerta (decisión técnica:
   // evitar ruido por VPNs y roaming)
-  async handleTrustedDevice(user: defineUser.Instance, auditContext: RequestAuditContext) {
+  async handleTrustedDevice(user: UserWith<'login'>, auditContext: RequestAuditContext) {
     const { ip = null, userAgent = null, fingerprintHash } = auditContext;
     // audit.middleware siempre la calcula; sin ella la consulta fallaba con WHERE undefined
     if (!fingerprintHash) {
@@ -49,14 +49,14 @@ class LoginDeviceService {
     }
 
     // ── ¿El dispositivo ya existe? ───────────────────────────
-    const existing = await this.trustedDeviceRepository.findByFingerprint(user.user_id, fingerprintHash);
+    const existing = await this.trustedDeviceRepository.findByFingerprint(user.userId, fingerprintHash);
     if (existing) {
-      return this._handleExistingDevice(user.user_id, fingerprintHash, existing);
+      return this._handleExistingDevice(user.userId, fingerprintHash, existing);
     }
 
     // ── Dispositivo nuevo ────────────────────────────────────
     const enriched = DeviceFingerprintUtil.enrichDevice(userAgent, ip);
-    const trustedCount = await this.trustedDeviceRepository.countTrusted(user.user_id);
+    const trustedCount = await this.trustedDeviceRepository.countTrusted(user.userId);
     const isFirstDevice = trustedCount === 0;
 
     if (isFirstDevice) {
@@ -67,7 +67,7 @@ class LoginDeviceService {
   }
 
   /** @private */
-  async _handleExistingDevice(userId: string, fingerprintHash: string, existing: defineUserTrustedDevice.Instance) {
+  async _handleExistingDevice(userId: string, fingerprintHash: string, existing: UserTrustedDevice) {
     if (existing.status === 'blocked') {
       // Evento forense de seguridad (Opción A): política de dispositivo bloqueado.
       // Se mantiene pese al log genérico del middleware al propagar el throw.
@@ -76,9 +76,9 @@ class LoginDeviceService {
         userId,
         {},
         {
-          entityId: existing.user_trusted_device_id,
+          entityId: existing.userTrustedDeviceId,
           entityType: 'UserTrustedDevice',
-          entityTable: 'user_trusted_devices',
+          entityTable: 'userTrustedDevices',
           outcome: 'failure'
         }
       );
@@ -89,84 +89,94 @@ class LoginDeviceService {
     await this.trustedDeviceRepository.updateLastSeen(userId, fingerprintHash);
     return {
       requiresApproval: false,
-      deviceId: existing.user_trusted_device_id,
-      deviceHmacSecret: existing.hmac_secret
+      deviceId: existing.userTrustedDeviceId,
+      deviceHmacSecret: existing.hmacSecret
     };
   }
 
   /** @private */
   // [RF-AUTH-03] | CA-03 | Primer dispositivo del usuario → trusted automático,
   // sin notificación (es el dispositivo de registro inicial)
-  async _registerFirstDevice(user: defineUser.Instance, fingerprintHash: string, ip: string | null, enriched: ReturnType<typeof DeviceFingerprintUtil.enrichDevice>) {
+  async _registerFirstDevice(
+    user: UserWith<'login'>,
+    fingerprintHash: string,
+    ip: string | null,
+    enriched: ReturnType<typeof DeviceFingerprintUtil.enrichDevice>
+  ) {
     const { browser, os, deviceType, city, country, countryCode, deviceName } = enriched;
 
     const device = await this.trustedDeviceRepository.create({
-      user_id: user.user_id,
-      fingerprint_hash: fingerprintHash,
-      device_name: deviceName,
+      userId: user.userId,
+      fingerprintHash: fingerprintHash,
+      deviceName: deviceName,
       status: 'trusted',
-      ip_address: ip,
+      ipAddress: ip,
       browser,
       os,
-      device_type: deviceType,
+      deviceType: deviceType,
       city,
       country,
-      country_code: countryCode,
-      trusted_at: new Date(),
-      last_seen_at: new Date()
+      countryCode: countryCode,
+      trustedAt: new Date(),
+      lastSeenAt: new Date()
     });
 
     logAudit(
       'TRUSTED_DEVICE_ADDED_FIRST',
-      user.user_id,
+      user.userId,
       { deviceName },
-      { entityId: user.user_id, entityType: 'User', entityTable: 'users' }
+      { entityId: user.userId, entityType: 'User', entityTable: 'users' }
     );
 
     return {
       requiresApproval: false,
-      deviceId: device.user_trusted_device_id,
-      deviceHmacSecret: device.hmac_secret
+      deviceId: device.userTrustedDeviceId,
+      deviceHmacSecret: device.hmacSecret
     };
   }
 
   /** @private */
   // [RF-AUTH-03] | CA-03 | Segundo dispositivo en adelante → status pending +
   // dispara NUEVO_DISPOSITIVO_DETECTADO (fire-and-forget)
-  async _registerPendingDevice(user: defineUser.Instance, fingerprintHash: string, ip: string | null, enriched: ReturnType<typeof DeviceFingerprintUtil.enrichDevice>) {
+  async _registerPendingDevice(
+    user: UserWith<'login'>,
+    fingerprintHash: string,
+    ip: string | null,
+    enriched: ReturnType<typeof DeviceFingerprintUtil.enrichDevice>
+  ) {
     const { browser, os, deviceType, city, country, countryCode, deviceName } = enriched;
 
     const device = await this.trustedDeviceRepository.create({
-      user_id: user.user_id,
-      fingerprint_hash: fingerprintHash,
-      device_name: deviceName,
+      userId: user.userId,
+      fingerprintHash: fingerprintHash,
+      deviceName: deviceName,
       status: 'pending',
-      ip_address: ip,
+      ipAddress: ip,
       browser,
       os,
-      device_type: deviceType,
+      deviceType: deviceType,
       city,
       country,
-      country_code: countryCode,
-      last_seen_at: new Date()
+      countryCode: countryCode,
+      lastSeenAt: new Date()
     });
 
     logAudit(
       'TRUSTED_DEVICE_PENDING',
-      user.user_id,
+      user.userId,
       {
         deviceName
       },
-      { entityId: device.user_trusted_device_id, entityType: 'UserTrustedDevice', entityTable: 'user_trusted_devices' }
+      { entityId: device.userTrustedDeviceId, entityType: 'UserTrustedDevice', entityTable: 'user_trusted_devices' }
     );
 
     // Notificación informativa (fire-and-forget — no bloquea el flujo)
-    const firstName = user.person?.first_name || 'Usuario';
+    const firstName = user.person?.firstName || 'Usuario';
     const email = user.person?.contact?.email;
 
     this.NotificationUtil.crearNotificacion({
       tipoNotificacion: 'NUEVO_DISPOSITIVO_DETECTADO',
-      userId: user.user_id,
+      userId: user.userId,
       relatedEntity: null,
       metadata: {
         nombre: firstName,
@@ -184,8 +194,8 @@ class LoginDeviceService {
 
     return {
       requiresApproval: false,
-      deviceId: device.user_trusted_device_id,
-      deviceHmacSecret: device.hmac_secret
+      deviceId: device.userTrustedDeviceId,
+      deviceHmacSecret: device.hmacSecret
     };
   }
 }

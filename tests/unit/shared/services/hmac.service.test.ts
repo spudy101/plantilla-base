@@ -18,7 +18,7 @@ jest.mock('shared/utils/logger.util', () => ({
 
 // El service hace lazy require del repo de dispositivos de confianza; lo mockeamos por su ruta.
 jest.mock('modules/schemas/kyc/iam/repositories/auth-trusted-device.repository', () => ({
-  findOne: jest.fn()
+  findAnyByFingerprint: jest.fn()
 }));
 
 import { mocked, fixture } from 'tests/helpers/mock';
@@ -49,14 +49,14 @@ function buildSignedReq({ method = 'POST', path = '/api/v1/tx', timestamp = Date
 describe('HmacService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    trustedDeviceRepo.findOne.mockResolvedValue({ hmac_secret: DEVICE_SECRET });
+    trustedDeviceRepo.findAnyByFingerprint.mockResolvedValue({ hmacSecret: DEVICE_SECRET });
   });
 
   describe('verifyRequestSignature — camino feliz', () => {
     it('acepta una firma válida dentro de la ventana de tiempo', async () => {
       const req = buildSignedReq();
       await expect(HmacService.verifyRequestSignature(fixture(req))).resolves.toBeUndefined();
-      expect(trustedDeviceRepo.findOne).toHaveBeenCalledWith({ fingerprint_hash: FINGERPRINT });
+      expect(trustedDeviceRepo.findAnyByFingerprint).toHaveBeenCalledWith(FINGERPRINT);
     });
   });
 
@@ -92,18 +92,18 @@ describe('HmacService', () => {
       const req = buildSignedReq({ timestamp: Date.now() - 60_000 });
       await expect(HmacService.verifyRequestSignature(fixture(req))).rejects.toMatchObject({ statusCode: 401 });
       // No llega a consultar el dispositivo: se corta en la validación de tiempo.
-      expect(trustedDeviceRepo.findOne).not.toHaveBeenCalled();
+      expect(trustedDeviceRepo.findAnyByFingerprint).not.toHaveBeenCalled();
     });
   });
 
   describe('verifyRequestSignature — dispositivo', () => {
     it('rechaza si el dispositivo no existe', async () => {
-      trustedDeviceRepo.findOne.mockResolvedValue(null);
+      trustedDeviceRepo.findAnyByFingerprint.mockResolvedValue(null);
       await expect(HmacService.verifyRequestSignature(fixture(buildSignedReq()))).rejects.toMatchObject({ statusCode: 401 });
     });
 
-    it('rechaza si el dispositivo no tiene hmac_secret', async () => {
-      trustedDeviceRepo.findOne.mockResolvedValue({ hmac_secret: null });
+    it('rechaza si el dispositivo no tiene hmacSecret', async () => {
+      trustedDeviceRepo.findAnyByFingerprint.mockResolvedValue({ hmacSecret: null });
       await expect(HmacService.verifyRequestSignature(fixture(buildSignedReq()))).rejects.toMatchObject({ statusCode: 401 });
     });
   });

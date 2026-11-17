@@ -12,13 +12,13 @@ export type Maybe<T> = T | null | undefined;
 
 /** Nombre de la persona asociada a un usuario. */
 export interface PersonNameRow {
-  first_name?: Maybe<string>;
-  last_name?: Maybe<string>;
+  firstName?: Maybe<string>;
+  lastName?: Maybe<string>;
 }
 
 /** Referencia a un usuario (para "quién hizo qué" en auditoría, aprobaciones, etc.). */
 export interface UserRefRow {
-  user_id: string;
+  userId: string;
   username?: Maybe<string>;
   person?: Maybe<PersonNameRow>;
 }

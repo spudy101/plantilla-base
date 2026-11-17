@@ -1,4 +1,4 @@
-import type defineUser from '../../../../../schemas/kyc/iam/models/user.model';
+import type { UserWith } from '../../../../../schemas/kyc/iam/repositories/user.repository';
 // modules/shared-endpoints/kyc/iam/services/auth-login/session-issuer.service.ts
 //
 // Emisión de una sesión autenticada: par de tokens RS256 propios + JTI en Redis + fila en
@@ -35,7 +35,7 @@ class SessionIssuerService {
    * @returns {Promise<{ sessionId: string, tokens: { accessToken, refreshToken, expiresIn } }>}
    */
   async issue(
-    user: defineUser.Instance,
+    user: UserWith<'login'>,
     {
       deviceId = null,
       ip = null,
@@ -43,7 +43,7 @@ class SessionIssuerService {
       source
     }: { deviceId?: string | null; ip?: string | null; userAgent?: string | null; source: string }
   ) {
-    const userId = user.user_id;
+    const { userId } = user;
     const sessionId = crypto.randomUUID();
     const jti = crypto.randomUUID();
     const accessToken = await this.jwt.generateAccessToken(user, sessionId);
@@ -58,14 +58,14 @@ class SessionIssuerService {
     // [RF-AUTH-02] | CA-04 | Sesión activa con IP, user-agent, started_at y last_access_at (fire-and-forget)
     this.userSessionRepository
       .create({
-        user_session_id: sessionId,
-        user_id: userId,
-        device_id: deviceId || null,
+        userSessionId: sessionId,
+        userId,
+        deviceId: deviceId || null,
         jti,
-        ip_address: ip || null,
-        user_agent: userAgent || null,
-        started_at: new Date(),
-        last_access_at: new Date()
+        ipAddress: ip || null,
+        userAgent: userAgent || null,
+        startedAt: new Date(),
+        lastAccessAt: new Date()
       })
       .catch(err => logger.warn(`Error creando registro de sesión en BD (${source})`, { error: err.message, userId }));
 

@@ -53,12 +53,12 @@ describe('UserActivityService', () => {
         count: 1
       });
       userChangeLogRepository.findExternalChangesByUserId.mockResolvedValue({
-        rows: [{ log_id: 'c1', origin_session_id: 'sess2', created_at: new Date('2026-01-03') }],
+        rows: [{ logId: 'c1', originSessionId: 'sess2', createdAt: new Date('2026-01-03') }],
         count: 1
       });
       userSessionRepository.findByIdsWithDeviceForUser.mockResolvedValue([
-        { user_session_id: 'sess1', device: { user_trusted_device_id: 'd1', device_name: 'iPhone' } },
-        { user_session_id: 'sess2', device: null }
+        { userSessionId: 'sess1', device: { userTrustedDeviceId: 'd1', deviceName: 'iPhone' } },
+        { userSessionId: 'sess2', device: null }
       ]);
 
       // UserActivityListResponseDTO está mockeado: el resultado tiene la forma del mock
@@ -99,7 +99,7 @@ describe('UserActivityService', () => {
         count: 1
       });
       userChangeLogRepository.findExternalChangesByUserId.mockResolvedValue({
-        rows: [{ log_id: 'c1', origin_session_id: null, created_at: new Date('2026-01-01') }],
+        rows: [{ logId: 'c1', originSessionId: null, createdAt: new Date('2026-01-01') }],
         count: 1
       });
 

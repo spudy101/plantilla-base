@@ -73,7 +73,7 @@ describe('AdminAuthSessionService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     userSessionRepository.buildWhere.mockReturnValue({});
-    userSessionRepository.findPaginatedWithDeviceAndUser.mockResolvedValue({ rows: [{ user_session_id: 's1' }], count: 1 });
+    userSessionRepository.findPaginatedWithDeviceAndUser.mockResolvedValue({ rows: [{ userSessionId: 's1' }], count: 1 });
     auditLogRepository.findAuthAttemptsPaginated.mockResolvedValue({ rows: [{ audit_log_id: 'a1' }], count: 1 });
   });
 
@@ -89,7 +89,7 @@ describe('AdminAuthSessionService', () => {
         expect.objectContaining({ entityType: 'AuthSession' })
       );
       expect(SessionListDTO).toHaveBeenCalledWith(
-        [{ user_session_id: 's1' }],
+        [{ userSessionId: 's1' }],
         expect.objectContaining({ totalItems: 1, page: 2, limit: 5, filters: {} })
       );
       expect(result).toEqual({ dto: 'sessions' });
@@ -121,7 +121,7 @@ describe('AdminAuthSessionService', () => {
   });
 
   describe('revokeSession', () => {
-    const activeSession = { status: 'active', jti: 'jti-1', user_id: 'user-9' };
+    const activeSession = { status: 'active', jti: 'jti-1', userId: 'user-9' };
 
     it('cierra la sesión, revoca en Redis, audita y notifica (admin + cliente)', async () => {
       userSessionRepository.findById.mockResolvedValue(activeSession);
@@ -153,7 +153,7 @@ describe('AdminAuthSessionService', () => {
     });
 
     it('lanza 400 cuando la sesión ya está cerrada', async () => {
-      userSessionRepository.findById.mockResolvedValue({ status: 'closed', jti: 'j', user_id: 'u' });
+      userSessionRepository.findById.mockResolvedValue({ status: 'closed', jti: 'j', userId: 'u' });
 
       await expect(service.revokeSession('sess-1', ADMIN_ID)).rejects.toThrow('La sesión ya está cerrada');
       expect(userSessionRepository.closeSession).not.toHaveBeenCalled();

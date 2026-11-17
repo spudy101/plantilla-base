@@ -1,83 +1,38 @@
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../../shared/models';
-const { PersonLocation } = modelsModule;
-import requestContext from '../../../../../shared/utils/request-context.util';
-import type { CreateOptions } from 'sequelize';
-import type definePersonLocation from '../models/person-location.model';
+// modules/schemas/kyc/person/repositories/person-location.repository.ts
+//
+// Ubicación de la persona (una por persona). origin_session_id lo completa la extensión de Prisma al
+// crear; una actualización no lo pisa.
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import type { PersonLocation, Prisma } from '../../../../../shared/database/generated/prisma/client';
 
-class PersonLocationRepository extends BaseRepository<definePersonLocation.Instance> {
-  constructor() {
-    super(PersonLocation);
+const WITH_PLACES = { country: true, city: true, department: true } satisfies Prisma.PersonLocationInclude;
+
+export type PersonLocationWithPlaces = Prisma.PersonLocationGetPayload<{ include: typeof WITH_PLACES }>;
+export type PersonLocationInput = Omit<Prisma.PersonLocationUncheckedCreateInput, 'personLocationId' | 'personId'>;
+
+class PersonLocationRepository extends PrismaRepository {
+  /** Ubicación de la persona con país, departamento y ciudad. */
+  async findByPersonId(personId: string): Promise<PersonLocationWithPlaces | null> {
+    return (await this.db()).personLocation.findUnique({ where: { personId }, include: WITH_PLACES });
   }
 
-  /**
-   * Busca ubicación por person_id con todas las relaciones
-   */
-  findByPersonId(personId: string) {
-    return this.findOne(
-      {
-        person_id: personId
-      },
-      {
-        include: [{ association: 'country' }, { association: 'city' }, { association: 'department' }]
-      }
-    );
-  }
-
-  /**
-   * Busca ubicación por person_id sin relaciones (para operaciones que no las necesitan)
-   */
-  findByPersonIdMinimal(personId: string) {
-    return this.findOne({ person_id: personId });
-  }
-
-  /**
-   * Crea o actualiza ubicación de persona
-   */
-  async upsertByPersonId(
-    personId: string,
-    locationData: Omit<definePersonLocation.CreationAttributes, 'person_location_id' | 'person_id'>,
-    options: CreateOptions<definePersonLocation.Attributes> = {}
-  ) {
-    const existing = await this.findByPersonIdMinimal(personId);
-
-    if (existing) {
-      return existing.update(locationData, options);
-    }
-
-    // Solo en la rama de creación: una actualización posterior de la ubicación no debe pisar
-    // el origen de la captura original.
-    return this.create(
-      {
-        person_id: personId,
-        ...locationData,
-        ...requestContext.originFromContext()
-      },
-      options
-    );
+  /** Crea o actualiza la ubicación de la persona (person_id es UNIQUE). */
+  async upsertByPersonId(personId: string, locationData: PersonLocationInput): Promise<PersonLocation> {
+    return (await this.db()).personLocation.upsert({
+      where: { personId },
+      create: { personId, ...locationData },
+      update: locationData
+    });
   }
 
   /**
    * Anonimiza la dirección física de una persona (Ley 1581/2012 — eliminación de cuenta).
-   * Conserva departamento/ciudad para estadística agregada.
+   * Conserva departamento/ciudad para estadística agregada. Devuelve cuántas filas tocó.
    */
-  anonymizeAddressByPersonId(personId: string, options = {}) {
-    return this.bulkUpdate({ address: 'ELIMINADO', postal_code: null }, { person_id: personId }, options);
-  }
-
-  // Override para usar person_location_id con relaciones
-  override findById(personLocationId: string, options = {}) {
-    const defaultOptions = {
-      include: [{ association: 'country' }, { association: 'city' }, { association: 'department' }]
-    };
-
-    return this.model.findByPk(personLocationId, { ...defaultOptions, ...options });
-  }
-
-  // Override delete para usar person_location_id
-  // Misma firma que BaseRepository.delete(id, options) — SOLID: L (no se pierde la transacción)
-  override delete(personLocationId: string, options = {}) {
-    return this.model.destroy({ where: { person_location_id: personLocationId }, ...options });
+  async anonymizeAddressByPersonId(personId: string): Promise<number> {
+    return (
+      await (await this.db()).personLocation.updateMany({ where: { personId }, data: { address: 'ELIMINADO', postalCode: null } })
+    ).count;
   }
 }
 

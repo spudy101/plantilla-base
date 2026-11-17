@@ -1,34 +1,43 @@
-// modules/schemas/kyc/src/repositories/role.repository.ts
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../../shared/models';
-const { Role } = modelsModule;
-import { Op } from 'sequelize';
-import type { FindOptions, WhereOperators } from 'sequelize';
-import type defineRole from '../models/role.model';
+// modules/schemas/kyc/iam/repositories/role.repository.ts
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import { Prisma } from '../../../../../shared/database/generated/prisma/client';
+import type { Role } from '../../../../../shared/database/generated/prisma/client';
 
-class RoleRepository extends BaseRepository<defineRole.Instance> {
-  constructor() {
-    super(Role, { searchFields: ['name', 'description'] });
+const SORTABLE = Object.values(Prisma.RoleScalarFieldEnum);
+const SEARCH_FIELDS = ['name', 'description'];
+
+class RoleRepository extends PrismaRepository {
+  /** Listado paginado del catálogo (mismo contrato que ReadRepository#findAllPaginated). */
+  async findAllPaginated(
+    filters: PrismaRepository.Filters = {},
+    pagination: PrismaRepository.PaginationParams = {},
+    searchTerm: string | null = null
+  ): Promise<PrismaRepository.Page<Role>> {
+    const where: Prisma.RoleWhereInput = {
+      ...(filters.isActive !== undefined ? { isActive: filters.isActive } : {}),
+      ...this.searchWhere(searchTerm, SEARCH_FIELDS)
+    };
+    const db = await this.db();
+    const [rows, count] = await Promise.all([
+      db.role.findMany({ where, ...this.paginationArgs(SORTABLE, pagination) }),
+      db.role.count({ where })
+    ]);
+    return { rows, count };
   }
 
-  /** @param {string} name */
-  // options: { transaction } (antes no se aceptaba y la lectura corría fuera de la transacción del llamador)
-  findByName(name: string, options: FindOptions<defineRole.Attributes> = {}) {
-    return this.findOne({ name }, options);
+  async findById(roleId: string): Promise<Role | null> {
+    return (await this.db()).role.findUnique({ where: { roleId } });
   }
 
-  /**
-   * Roles cuyo nombre está en `names`, opcionalmente excluyendo `exclude`.
-   * Encapsula los operadores de Sequelize para que los services no importen `Op`.
-   * @param {string[]} names
-   * @param {{ exclude?: string[] }} [opts]
-   */
-  findByNames(names: readonly string[], { exclude = [] }: { exclude?: readonly string[] } = {}) {
-    const nameCriteria: WhereOperators<string> = { [Op.in]: names };
-    if (exclude.length) {
-      nameCriteria[Op.notIn] = exclude;
-    }
-    return this.findAll({ name: nameCriteria });
+  async findByName(name: string): Promise<Role | null> {
+    return (await this.db()).role.findUnique({ where: { name } });
+  }
+
+  /** Roles cuyo nombre está en `names`, opcionalmente excluyendo `exclude`. */
+  async findByNames(names: readonly string[], { exclude = [] }: { exclude?: readonly string[] } = {}): Promise<Role[]> {
+    return (await this.db()).role.findMany({
+      where: { name: { in: [...names], ...(exclude.length ? { notIn: [...exclude] } : {}) } }
+    });
   }
 }
 

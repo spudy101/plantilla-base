@@ -9,8 +9,8 @@
 // Lazy require: el repositorio vive en modules/ (evita ciclos de carga al arrancar). SOLID: D.
 import { interopDefault } from './interop.util';
 interface MfaFlags {
-  totp_enabled?: boolean | null;
-  sms_mfa_enabled?: boolean | null;
+  totpEnabled?: boolean | null;
+  smsMfaEnabled?: boolean | null;
 }
 const userRepository = (): { findMfaFlags(userId: string): Promise<MfaFlags | null> } =>
   interopDefault(require('../../modules/schemas/kyc/iam/repositories/user.repository') as typeof import('../../modules/schemas/kyc/iam/repositories/user.repository'));
@@ -27,7 +27,7 @@ async function isMfaActive(userId: string | null | undefined): Promise<boolean> 
   if (!user) {
     return false;
   }
-  return user.totp_enabled === true || user.sms_mfa_enabled === true;
+  return user.totpEnabled === true || user.smsMfaEnabled === true;
 }
 
 export default { isMfaActive };

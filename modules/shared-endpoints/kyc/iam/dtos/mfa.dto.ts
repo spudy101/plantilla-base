@@ -6,8 +6,6 @@
  * no mapean directamente a entidades de BD.
  */
 
-import type defineUser from '../../../../schemas/kyc/iam/models/user.model';
-
 /** Campos que exponen las respuestas de MFA. */
 interface MfaFields {
   userId: string;
@@ -17,7 +15,7 @@ interface MfaFields {
   valid: boolean;
   totpEnabled: boolean;
   smsMfaEnabled: boolean;
-  preferredMfaMethod: defineUser.Attributes['preferred_mfa_method'];
+  preferredMfaMethod: string;
   verificationCodeId: string;
   expiresAt: Date;
   truncatedCode: string | null;

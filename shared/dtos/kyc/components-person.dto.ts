@@ -5,93 +5,96 @@ import type { DbDate, Maybe } from '../../types/db-rows';
 /** Objeto de salida con campos opcionales que se agregan según las opciones de build. */
 type Dto = Record<string, unknown>;
 
+// Filas de Prisma (camelCase). La PII llega descifrada (piiExtension); safeDecrypt queda como red: deja
+// intacto un valor que no está cifrado.
 interface PersonContactRow {
-  person_contact_id: string;
-  person_id: string;
+  personContactId: string;
+  personId: string;
   email?: Maybe<string>;
-  email_verified_at?: Maybe<DbDate>;
-  phone_primary?: Maybe<string>;
-  phone_primary_prefix_id?: Maybe<string>;
-  phone_primary_verified_at?: Maybe<DbDate>;
-  phone_secondary?: Maybe<string>;
-  phone_secondary_prefix_id?: Maybe<string>;
-  phone_secondary_verified_at?: Maybe<DbDate>;
-  primaryPrefix?: Maybe<{ prefix?: Maybe<string> }>;
-  secondaryPrefix?: Maybe<{ prefix?: Maybe<string> }>;
+  emailVerifiedAt?: Maybe<DbDate>;
+  phonePrimary?: Maybe<string>;
+  phonePrimaryPrefixId?: Maybe<string>;
+  phonePrimaryVerifiedAt?: Maybe<DbDate>;
+  phoneSecondary?: Maybe<string>;
+  phoneSecondaryPrefixId?: Maybe<string>;
+  phoneSecondaryVerifiedAt?: Maybe<DbDate>;
+  phonePrimaryPrefix?: Maybe<{ prefix?: Maybe<string> }>;
+  phoneSecondaryPrefix?: Maybe<{ prefix?: Maybe<string> }>;
 }
 
 interface NamedRow {
   name?: Maybe<string>;
   code?: Maybe<string>;
-  icon_url?: Maybe<string>;
-  dane_code?: Maybe<string>;
+  iconUrl?: Maybe<string>;
+  daneCode?: Maybe<string>;
 }
 
 interface PersonLocationRow {
-  person_location_id: string;
-  person_id: string;
+  personLocationId: string;
+  personId: string;
   address?: Maybe<string>;
-  postal_code?: Maybe<string>;
+  postalCode?: Maybe<string>;
   type?: Maybe<string>;
-  country_id?: Maybe<string>;
-  department_id?: Maybe<string>;
-  city_id?: Maybe<string>;
-  country?: Maybe<NamedRow & { country_id: string }>;
-  department?: Maybe<NamedRow & { department_id: string }>;
-  city?: Maybe<NamedRow & { city_id: string }>;
+  countryId?: Maybe<string>;
+  departmentId?: Maybe<string>;
+  cityId?: Maybe<string>;
+  country?: Maybe<NamedRow & { countryId: string }>;
+  department?: Maybe<NamedRow & { departmentId: string }>;
+  city?: Maybe<NamedRow & { cityId: string }>;
 }
 
 interface UserRow {
-  user_id: string;
+  userId: string;
   username?: Maybe<string>;
-  person_id?: Maybe<string>;
-  role_id?: Maybe<string>;
-  avatar_id?: Maybe<string>;
-  is_active?: Maybe<boolean>;
-  deleted_at?: Maybe<DbDate>;
-  totp_enabled?: Maybe<boolean>;
-  sms_mfa_enabled?: Maybe<boolean>;
-  preferred_mfa_method?: Maybe<string>;
-  privacy_policy_version?: Maybe<string>;
-  privacy_policy_accepted_at?: Maybe<DbDate>;
-  privacy_policy_accepted_ip?: Maybe<string>;
+  personId?: Maybe<string>;
+  roleId?: Maybe<string>;
+  avatarId?: Maybe<string>;
+  isActive?: Maybe<boolean>;
+  deletedAt?: Maybe<DbDate>;
+  totpEnabled?: Maybe<boolean>;
+  smsMfaEnabled?: Maybe<boolean>;
+  preferredMfaMethod?: Maybe<string>;
+  privacyPolicyVersion?: Maybe<string>;
+  privacyPolicyAcceptedAt?: Maybe<DbDate>;
+  privacyPolicyAcceptedIp?: Maybe<string>;
   createdAt?: Maybe<DbDate>;
   updatedAt?: Maybe<DbDate>;
-  role?: Maybe<{ role_id: string; name?: Maybe<string>; description?: Maybe<string> }>;
+  role?: Maybe<{ roleId: string; name?: Maybe<string>; description?: Maybe<string> }>;
   avatar?: Maybe<{
-    avatar_id: string;
+    avatarId: string;
     name?: Maybe<string>;
-    image_url?: Maybe<string>;
-    theme?: Maybe<{ avatar_theme_id: string; name?: Maybe<string> }>;
+    imageUrl?: Maybe<string>;
+    theme?: Maybe<{ avatarThemeId: string; name?: Maybe<string> }>;
   }>;
 }
 
 interface PersonRow {
-  person_id: string;
-  first_name?: Maybe<string>;
-  last_name?: Maybe<string>;
-  middle_name?: Maybe<string>;
-  second_last_name?: Maybe<string>;
-  national_id?: Maybe<string>;
-  birth_date?: Maybe<DbDate>;
-  gender_id?: Maybe<string>;
-  country_id?: Maybe<string>;
-  document_type_id?: Maybe<string>;
+  personId: string;
+  firstName?: Maybe<string>;
+  lastName?: Maybe<string>;
+  middleName?: Maybe<string>;
+  secondLastName?: Maybe<string>;
+  nationalId?: Maybe<string>;
+  birthDate?: Maybe<DbDate>;
+  genderId?: Maybe<string>;
+  countryId?: Maybe<string>;
+  documentTypeId?: Maybe<string>;
   createdAt?: Maybe<DbDate>;
   updatedAt?: Maybe<DbDate>;
-  gender?: Maybe<{ gender_id: string; name?: Maybe<string> }>;
-  document_type?: Maybe<{ document_type_id: string; code?: Maybe<string>; name?: Maybe<string> }>;
-  nationality?: Maybe<NamedRow & { country_id: string }>;
+  gender?: Maybe<{ genderId: string; name?: Maybe<string> }>;
+  documentType?: Maybe<{ documentTypeId: string; code?: Maybe<string>; name?: Maybe<string> }>;
+  /** País de la persona (relación `country`); sale como `nationality`. */
+  country?: Maybe<NamedRow & { countryId: string }>;
   contact?: Maybe<PersonContactRow>;
   location?: Maybe<PersonLocationRow>;
   user?: Maybe<UserRow>;
 }
 
 interface PersonReferenceRow {
-  person_reference_id: string;
-  reference_name?: Maybe<string>;
-  reference_phone?: Maybe<string>;
-  reference_type?: Maybe<string>;
+  personReferenceId: string;
+  referenceName?: Maybe<string>;
+  referencePhone?: Maybe<string>;
+  referenceType?: Maybe<string>;
   createdAt?: Maybe<DbDate>;
 }
 
@@ -117,7 +120,6 @@ interface PersonBuildOptions {
 // ============================================================
 
 class PersonContactComponent {
-  // El afterFind NO corre en includes anidados → la PII llega cifrada: desciframos SIEMPRE con safeDecrypt.
   // Seguro por defecto: se ENMASCARA (email/phone) salvo que el caller pida el dato completo con { unmask: true }
   // (self-view del cliente sobre su propia data).
   static build(contact: Maybe<PersonContactRow>, options: { unmask?: boolean } = {}) {
@@ -126,12 +128,14 @@ class PersonContactComponent {
     }
 
     const { unmask = false } = options;
-    const primaryPrefix = contact.primaryPrefix?.prefix || null;
-    const secondaryPrefix = contact.secondaryPrefix?.prefix || null;
+    // Antes se leían los alias primaryPrefix/secondaryPrefix, que ninguna consulta traía: el prefijo
+    // salía siempre null. La relación es phonePrimaryPrefix/phoneSecondaryPrefix.
+    const primaryPrefix = contact.phonePrimaryPrefix?.prefix || null;
+    const secondaryPrefix = contact.phoneSecondaryPrefix?.prefix || null;
 
     const email = EncryptionUtil.safeDecrypt(contact.email) || null;
-    const phonePrimary = EncryptionUtil.safeDecrypt(contact.phone_primary) || null;
-    const phoneSecondary = EncryptionUtil.safeDecrypt(contact.phone_secondary) || null;
+    const phonePrimary = EncryptionUtil.safeDecrypt(contact.phonePrimary) || null;
+    const phoneSecondary = EncryptionUtil.safeDecrypt(contact.phoneSecondary) || null;
     const phonePrimaryFull = phonePrimary ? `${primaryPrefix || ''}${phonePrimary}` : null;
     const phoneSecondaryFull = phoneSecondary ? `${secondaryPrefix || ''}${phoneSecondary}` : null;
 
@@ -139,26 +143,26 @@ class PersonContactComponent {
     const maskPhone = (value: unknown) => (value ? (unmask ? value : MaskingUtil.maskPhone(value)) : null);
 
     return {
-      personContactId: contact.person_contact_id,
-      personId: contact.person_id,
+      personContactId: contact.personContactId,
+      personId: contact.personId,
 
       email: maskEmail(email),
-      emailVerifiedAt: contact.email_verified_at || null,
-      isEmailVerified: !!contact.email_verified_at,
+      emailVerifiedAt: contact.emailVerifiedAt || null,
+      isEmailVerified: !!contact.emailVerifiedAt,
 
       phonePrimary: maskPhone(phonePrimary),
-      phonePrimaryPrefixId: contact.phone_primary_prefix_id || null,
+      phonePrimaryPrefixId: contact.phonePrimaryPrefixId || null,
       phonePrimaryPrefix: primaryPrefix,
       phonePrimaryFull: maskPhone(phonePrimaryFull),
-      phonePrimaryVerifiedAt: contact.phone_primary_verified_at || null,
-      isPhonePrimaryVerified: !!contact.phone_primary_verified_at,
+      phonePrimaryVerifiedAt: contact.phonePrimaryVerifiedAt || null,
+      isPhonePrimaryVerified: !!contact.phonePrimaryVerifiedAt,
 
       phoneSecondary: maskPhone(phoneSecondary),
-      phoneSecondaryPrefixId: contact.phone_secondary_prefix_id || null,
+      phoneSecondaryPrefixId: contact.phoneSecondaryPrefixId || null,
       phoneSecondaryPrefix: secondaryPrefix,
       phoneSecondaryFull: maskPhone(phoneSecondaryFull),
-      phoneSecondaryVerifiedAt: contact.phone_secondary_verified_at || null,
-      isPhoneSecondaryVerified: !!contact.phone_secondary_verified_at
+      phoneSecondaryVerifiedAt: contact.phoneSecondaryVerifiedAt || null,
+      isPhoneSecondaryVerified: !!contact.phoneSecondaryVerifiedAt
     };
   }
 }
@@ -174,38 +178,38 @@ class PersonLocationComponent {
     }
 
     const dto: Dto = {
-      personLocationId: location.person_location_id,
-      personId: location.person_id,
+      personLocationId: location.personLocationId,
+      personId: location.personId,
       address: location.address,
-      postalCode: location.postal_code || null,
+      postalCode: location.postalCode || null,
       type: location.type || null,
-      countryId: location.country_id || null,
-      departmentId: location.department_id,
-      cityId: location.city_id
+      countryId: location.countryId || null,
+      departmentId: location.departmentId,
+      cityId: location.cityId
     };
 
     if (location.country) {
       dto.country = {
-        countryId: location.country.country_id,
+        countryId: location.country.countryId,
         name: location.country.name,
         code: location.country.code,
-        iconUrl: location.country.icon_url || null
+        iconUrl: location.country.iconUrl || null
       };
     }
 
     if (location.department) {
       dto.department = {
-        departmentId: location.department.department_id,
+        departmentId: location.department.departmentId,
         name: location.department.name,
-        daneCode: location.department.dane_code || null
+        daneCode: location.department.daneCode || null
       };
     }
 
     if (location.city) {
       dto.city = {
-        cityId: location.city.city_id,
+        cityId: location.city.cityId,
         name: location.city.name,
-        daneCode: location.city.dane_code || null
+        daneCode: location.city.daneCode || null
       };
     }
 
@@ -226,26 +230,26 @@ class UserComponent {
     const { includeRole = false, includeAvatar = false } = options;
 
     const dto: Dto = {
-      userId: user.user_id,
+      userId: user.userId,
       username: user.username,
-      personId: user.person_id,
-      roleId: user.role_id,
-      avatarId: user.avatar_id || null,
-      isActive: user.is_active,
-      deletedAt: user.deleted_at ?? null,
-      totpEnabled: user.totp_enabled,
-      smsMfaEnabled: user.sms_mfa_enabled ?? false,
-      preferredMfaMethod: user.preferred_mfa_method ?? 'none',
-      privacyPolicyVersion: user.privacy_policy_version || null,
-      privacyPolicyAcceptedAt: user.privacy_policy_accepted_at || null,
-      privacyPolicyAcceptedIp: user.privacy_policy_accepted_ip || null,
+      personId: user.personId,
+      roleId: user.roleId,
+      avatarId: user.avatarId || null,
+      isActive: user.isActive,
+      deletedAt: user.deletedAt ?? null,
+      totpEnabled: user.totpEnabled,
+      smsMfaEnabled: user.smsMfaEnabled ?? false,
+      preferredMfaMethod: user.preferredMfaMethod ?? 'none',
+      privacyPolicyVersion: user.privacyPolicyVersion || null,
+      privacyPolicyAcceptedAt: user.privacyPolicyAcceptedAt || null,
+      privacyPolicyAcceptedIp: user.privacyPolicyAcceptedIp || null,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
     };
 
     if (includeRole && user.role) {
       dto.role = {
-        roleId: user.role.role_id,
+        roleId: user.role.roleId,
         name: user.role.name,
         description: user.role.description || null
       };
@@ -253,10 +257,10 @@ class UserComponent {
 
     if (includeAvatar && user.avatar) {
       dto.avatar = {
-        avatarId: user.avatar.avatar_id,
+        avatarId: user.avatar.avatarId,
         name: user.avatar.name,
-        imageUrl: user.avatar.image_url || null,
-        theme: user.avatar.theme ? { avatarThemeId: user.avatar.theme.avatar_theme_id, name: user.avatar.theme.name } : null
+        imageUrl: user.avatar.imageUrl || null,
+        theme: user.avatar.theme ? { avatarThemeId: user.avatar.theme.avatarThemeId, name: user.avatar.theme.name } : null
       };
     }
 
@@ -285,46 +289,46 @@ class PersonComponent {
       unmask = false
     } = options;
 
-    // national_id llega cifrado (afterFind no corre) → safeDecrypt SIEMPRE; enmascarado salvo unmask (self-view).
-    const nationalIdPlain = EncryptionUtil.safeDecrypt(person.national_id) || null;
+    // Enmascarado salvo unmask (self-view).
+    const nationalIdPlain = EncryptionUtil.safeDecrypt(person.nationalId) || null;
 
     const dto: Dto = {
-      personId: person.person_id,
-      firstName: person.first_name,
-      lastName: person.last_name,
-      middleName: person.middle_name || null,
-      secondLastName: person.second_last_name || null,
-      fullName: [person.first_name, person.middle_name, person.last_name, person.second_last_name].filter(Boolean).join(' '),
+      personId: person.personId,
+      firstName: person.firstName,
+      lastName: person.lastName,
+      middleName: person.middleName || null,
+      secondLastName: person.secondLastName || null,
+      fullName: [person.firstName, person.middleName, person.lastName, person.secondLastName].filter(Boolean).join(' '),
       nationalId: nationalIdPlain ? (unmask ? nationalIdPlain : MaskingUtil.maskDocumentId(nationalIdPlain)) : null,
-      birthDate: person.birth_date || null,
-      genderId: person.gender_id || null,
-      countryId: person.country_id || null,
-      documentTypeId: person.document_type_id || null,
+      birthDate: person.birthDate || null,
+      genderId: person.genderId || null,
+      countryId: person.countryId || null,
+      documentTypeId: person.documentTypeId || null,
       createdAt: person.createdAt,
       updatedAt: person.updatedAt
     };
 
     if (includeGender && person.gender) {
       dto.gender = {
-        genderId: person.gender.gender_id,
+        genderId: person.gender.genderId,
         name: person.gender.name
       };
     }
 
-    if (includeDocumentType && person.document_type) {
+    if (includeDocumentType && person.documentType) {
       dto.documentType = {
-        documentTypeId: person.document_type.document_type_id,
-        code: person.document_type.code,
-        name: person.document_type.name
+        documentTypeId: person.documentType.documentTypeId,
+        code: person.documentType.code,
+        name: person.documentType.name
       };
     }
 
-    if (includeNationality && person.nationality) {
+    if (includeNationality && person.country) {
       dto.nationality = {
-        countryId: person.nationality.country_id,
-        name: person.nationality.name,
-        code: person.nationality.code,
-        iconUrl: person.nationality.icon_url || null
+        countryId: person.country.countryId,
+        name: person.country.name,
+        code: person.country.code,
+        iconUrl: person.country.iconUrl || null
       };
     }
 
@@ -354,11 +358,11 @@ class PersonReferenceComponent {
       return null;
     }
     return {
-      personReferenceId: reference.person_reference_id,
-      referenceName: reference.reference_name,
+      personReferenceId: reference.personReferenceId,
+      referenceName: reference.referenceName,
       // [RF-USR-01] | CA-06 | Celular de un TERCERO (la referencia personal) → siempre enmascarado.
-      referencePhone: MaskingUtil.maskPhone(reference.reference_phone) || null,
-      referenceType: reference.reference_type,
+      referencePhone: MaskingUtil.maskPhone(reference.referencePhone) || null,
+      referenceType: reference.referenceType,
       createdAt: reference.createdAt
     };
   }

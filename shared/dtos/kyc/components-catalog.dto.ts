@@ -56,12 +56,11 @@ interface GenderRow extends CatalogRow {
   genderId: string;
 }
 
-/** Todavía de Sequelize (snake_case): role migra con el núcleo de usuarios. */
 interface RoleRow {
-  role_id: string;
+  roleId: string;
   name?: Maybe<string>;
   description?: Maybe<string>;
-  is_active?: Maybe<boolean>;
+  isActive?: Maybe<boolean>;
   createdAt?: Maybe<DbDate>;
   updatedAt?: Maybe<DbDate>;
 }
@@ -245,10 +244,10 @@ class RoleComponent {
       return null;
     }
     return {
-      roleId: role.role_id,
+      roleId: role.roleId,
       name: role.name,
       description: role.description || null,
-      isActive: role.is_active,
+      isActive: role.isActive,
       createdAt: role.createdAt,
       updatedAt: role.updatedAt
     };

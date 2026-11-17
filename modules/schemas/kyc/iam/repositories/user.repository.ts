@@ -1,400 +1,293 @@
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../../shared/models';
-const { User } = modelsModule;
+// modules/schemas/kyc/iam/repositories/user.repository.ts
+//
+// Usuarios. Las lecturas con perfil usan los niveles de UserRepository.INCLUDES (mismas relaciones que
+// con Sequelize). La PII de persona y contacto llega descifrada (piiExtension); se filtra por su hash.
 import bcrypt from 'bcryptjs';
-import HashUtil from '../../../../../shared/utils/hash.util';
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import { Prisma } from '../../../../../shared/database/generated/prisma/client';
+import type { User } from '../../../../../shared/database/generated/prisma/client';
+import { hashValue } from '../../../../../shared/database/pii-fields';
 import AppError from '../../../../../shared/utils/app-error.util';
-import { Op } from 'sequelize';
-import type { CreateOptions, DestroyOptions, FindOptions, IncludeOptions, InstanceUpdateOptions } from 'sequelize';
-import type defineUser from '../models/user.model';
-import ReadRepository from '../../../../../shared/repositories/read.repository';
-import type { WhereClause } from '../../../../../shared/repositories/query';
 
-class UserRepository extends BaseRepository<defineUser.Instance> {
-  constructor() {
-    super(User);
+const PROFILE = {
+  person: {
+    include: {
+      contact: { include: { phonePrimaryPrefix: true, phoneSecondaryPrefix: true } },
+      gender: true,
+      country: true,
+      documentType: true,
+      location: { include: { country: true, city: true, department: true } }
+    }
+  },
+  role: true,
+  avatar: true
+} satisfies Prisma.UserInclude;
+
+const WITH_CONTACT = { person: { include: { contact: true } } } satisfies Prisma.UserInclude;
+
+const INCLUDES = {
+  /** Perfil completo. */
+  full: PROFILE,
+  /** Perfil básico (hoy, las mismas relaciones que full). */
+  basic: PROFILE,
+  /** Autenticación. */
+  auth: { ...WITH_CONTACT, role: true },
+  /** Login (person y role son obligatorias en el schema: el INNER JOIN de antes no cambia nada). */
+  login: { ...WITH_CONTACT, role: true },
+  /** Mínimo indispensable. */
+  minimal: WITH_CONTACT
+} as const satisfies Record<string, Prisma.UserInclude>;
+
+/** Lo que necesitan las acciones de admin sobre una cuenta: nombre, documento, email y rol. */
+const ADMIN_TARGET = {
+  person: {
+    select: {
+      personId: true,
+      firstName: true,
+      nationalId: true,
+      contact: { select: { personContactId: true, email: true } }
+    }
+  },
+  role: { select: { roleId: true, name: true, description: true } }
+} satisfies Prisma.UserInclude;
+
+const SORTABLE = Object.values(Prisma.UserScalarFieldEnum);
+
+export type UserIncludeLevel = keyof typeof INCLUDES;
+export type UserWith<L extends UserIncludeLevel> = Prisma.UserGetPayload<{ include: (typeof INCLUDES)[L] }>;
+/** Usuario con su perfil (niveles full/basic). */
+export type UserProfileRow = UserWith<'basic'>;
+export type UserAdminTargetRow = Prisma.UserGetPayload<{ include: typeof ADMIN_TARGET }>;
+
+class UserRepository extends PrismaRepository {
+  static readonly INCLUDES = INCLUDES;
+
+  async findById(userId: string): Promise<User | null> {
+    return (await this.db()).user.findUnique({ where: { userId } });
   }
 
-  /**
-   * Lo mínimo para ofuscar una cuenta al eliminarla: username + persona (documento, nombre)
-   * + contacto (email). Acepta { transaction }.
-   */
-  findForAccountDeletion(userId: string, options: FindOptions<defineUser.Attributes> = {}) {
-    return this.findById(userId, {
-      include: [
-        {
-          association: 'person',
-          attributes: ['person_id', 'national_id', 'first_name'],
-          include: [{ association: 'contact', attributes: ['person_contact_id', 'email'] }]
+  async findByIdWithRole(userId: string) {
+    return (await this.db()).user.findUnique({ where: { userId }, include: { role: true } });
+  }
+
+  /** Cuenta con nombre, documento, email y rol (acciones de admin sobre un usuario). */
+  async findAdminTarget(userId: string): Promise<UserAdminTargetRow | null> {
+    return (await this.db()).user.findUnique({ where: { userId }, include: ADMIN_TARGET });
+  }
+
+  /** Lo mínimo para ofuscar una cuenta al eliminarla: username + persona (documento, nombre) + email. */
+  async findForAccountDeletion(userId: string) {
+    return (await this.db()).user.findUnique({
+      where: { userId },
+      select: {
+        userId: true,
+        username: true,
+        person: {
+          select: {
+            personId: true,
+            nationalId: true,
+            firstName: true,
+            contact: { select: { personContactId: true, email: true } }
+          }
         }
-      ],
-      attributes: ['user_id', 'username'],
-      ...options
+      }
     });
   }
 
-  /** Usuario con el teléfono principal de su contacto (activación de SMS MFA). */
-  findWithPrimaryPhone(userId: string) {
-    return this.findById(userId, {
-      include: [
-        {
-          association: 'person',
-          attributes: ['person_id'],
-          include: [{ association: 'contact', attributes: ['phone_primary', 'phone_primary_prefix_id'] }]
-        }
-      ]
+  /** Usuario con el teléfono principal de su contacto (SMS MFA). */
+  async findWithPrimaryPhone(userId: string) {
+    return (await this.db()).user.findUnique({
+      where: { userId },
+      include: { person: { select: { personId: true, contact: { select: { phonePrimary: true, phonePrimaryPrefixId: true } } } } }
     });
   }
 
   /** Solo los flags de MFA (lectura ligera para el gate de 2FA en cada request). */
-  findMfaFlags(userId: string) {
-    return this.model.findOne({ where: { user_id: userId }, attributes: ['totp_enabled', 'sms_mfa_enabled'] });
+  async findMfaFlags(userId: string) {
+    return (await this.db()).user.findUnique({ where: { userId }, select: { totpEnabled: true, smsMfaEnabled: true } });
+  }
+
+  async findByUsername<L extends UserIncludeLevel = 'login'>(
+    username: string,
+    includeLevel: L = 'login' as L
+  ): Promise<UserWith<L> | null> {
+    return (await this.db()).user.findUnique({
+      where: { username },
+      include: INCLUDES[includeLevel]
+    }) as Promise<UserWith<L> | null>;
+  }
+
+  async findByUserId<L extends UserIncludeLevel = 'basic'>(
+    userId: string,
+    includeLevel: L = 'basic' as L
+  ): Promise<UserWith<L> | null> {
+    return (await this.db()).user.findUnique({
+      where: { userId },
+      include: INCLUDES[includeLevel]
+    }) as Promise<UserWith<L> | null>;
+  }
+
+  /** Usuario por documento (national_id va cifrado: se busca por su hash). */
+  async findByUsernameAndNationalId<L extends UserIncludeLevel = 'login'>(
+    nationalId: string,
+    includeLevel: L = 'login' as L
+  ): Promise<UserWith<L> | null> {
+    return (await this.db()).user.findFirst({
+      where: { person: { nationalIdHash: hashValue(nationalId) } },
+      include: INCLUDES[includeLevel]
+    }) as Promise<UserWith<L> | null>;
   }
 
   /**
-   * ============================================================
-   * USER MODEL - INCLUDES CENTRALIZADOS
-   * ============================================================
+   * Usuarios activos cuyo rol está en roleNames. Fuente única para notificar a colectivos por rol
+   * (superadmins, Oficial de Cumplimiento…). `includePerson` agrega nombre y email.
    */
-
-  static INCLUDES: Record<UserRepository.IncludeLevel, IncludeOptions[]> = {
-    // ============================================================
-    // FULL - Perfil completo con todos los detalles
-    // ============================================================
-    full: [
-      {
-        association: 'person',
-        include: [
-          {
-            association: 'contact',
-            include: [{ association: 'phone_primary_prefix' }, { association: 'phone_secondary_prefix' }]
-          },
-          { association: 'gender' },
-          { association: 'country' },
-          { association: 'document_type' },
-          {
-            association: 'location',
-            include: [{ association: 'country' }, { association: 'city' }, { association: 'department' }]
-          }
-        ]
-      },
-      { association: 'role' },
-      { association: 'avatar' }
-    ],
-
-    // ============================================================
-    // BASIC - Perfil básico + registros activos clave
-    // ============================================================
-    basic: [
-      {
-        association: 'person',
-        include: [
-          {
-            association: 'contact',
-            include: [{ association: 'phone_primary_prefix' }, { association: 'phone_secondary_prefix' }]
-          },
-          { association: 'gender' },
-          { association: 'country' },
-          { association: 'document_type' },
-          {
-            association: 'location',
-            include: [{ association: 'country' }, { association: 'department' }, { association: 'city' }]
-          }
-        ]
-      },
-      { association: 'role' },
-      { association: 'avatar' }
-    ],
-
-    // ============================================================
-    // AUTH - Solo lo necesario para autenticación
-    // ============================================================
-    auth: [
-      {
-        association: 'person',
-        include: [{ association: 'contact' }]
-      },
-      { association: 'role' }
-    ],
-
-    // ============================================================
-    // LOGIN - Específico para proceso de login
-    // ============================================================
-    login: [
-      {
-        association: 'person',
-        required: true,
-        include: [
-          {
-            association: 'contact',
-            required: false
-          }
-        ]
-      },
-      {
-        association: 'role',
-        required: true
+  async findActiveUsersByRoleNames(roleNames: readonly string[], { includePerson = false }: { includePerson?: boolean } = {}) {
+    return (await this.db()).user.findMany({
+      where: { isActive: true, role: { name: { in: [...roleNames] } } },
+      select: {
+        userId: true,
+        person: includePerson
+          ? { select: { personId: true, firstName: true, lastName: true, contact: { select: { email: true } } } }
+          : false
       }
-    ],
-
-    // ============================================================
-    // MINIMAL - Mínimo indispensable
-    // ============================================================
-    minimal: [
-      {
-        association: 'person',
-        include: [
-          {
-            association: 'contact',
-            required: false
-          }
-        ]
-      }
-    ]
-  };
-
-  findByUsername(username: string, includeLevel: UserRepository.IncludeLevel = 'login') {
-    return this.findOne({ username }, { include: UserRepository.INCLUDES[includeLevel] });
-  }
-
-  findByUserId(userId: string, includeLevel: UserRepository.IncludeLevel = 'basic') {
-    return this.findOne({ user_id: userId }, { include: UserRepository.INCLUDES[includeLevel] });
-  }
-
-  findByUsernameAndNationalId(nationalId: string, includeLevel: UserRepository.IncludeLevel = 'login') {
-    // Buscar por hash — national_id está cifrado con IV aleatorio, no se puede buscar directamente
-    const nationalIdHash = HashUtil.hashForSearch(nationalId);
-    return this.findOne(
-      {
-        '$person.national_id_hash$': nationalIdHash
-      },
-      { include: UserRepository.INCLUDES[includeLevel] }
-    );
-  }
-
-  /**
-   * Usuarios activos cuyo rol está dentro de roleNames (filtra por NOMBRE de rol).
-   * Fuente única para notificar a colectivos por rol — reemplaza las copias de
-   * `User.findAll({ include: role where name in [...] })` dispersas en workers,
-   * services y helpers (superadmins de expiración, Oficial de Cumplimiento, etc.).
-   *
-   * @param {string[]} roleNames        - Nombres de rol a incluir (ej: SUPERADMIN_ROLE_NAMES)
-   * @param {Object}   [opts]
-   * @param {string[]} [opts.attributes] - Columnas de User a traer (default solo user_id)
-   * @param {boolean}  [opts.includePerson] - true → incluye person (first/last name) + contact (email)
-   * @returns {Promise<User[]>}
-   */
-  findActiveUsersByRoleNames(
-    roleNames: string[],
-    { attributes = ['user_id'], includePerson = false }: { attributes?: string[]; includePerson?: boolean } = {}
-  ) {
-    const include: IncludeOptions[] = [
-      {
-        association: 'role',
-        where: { name: { [Op.in]: roleNames } },
-        attributes: []
-      }
-    ];
-
-    if (includePerson) {
-      include.push({
-        association: 'person',
-        attributes: ['person_id', 'first_name', 'last_name'],
-        include: [{ association: 'contact', attributes: ['email'] }]
-      });
-    }
-
-    return this.model.findAll({
-      where: { is_active: true },
-      include,
-      attributes
     });
   }
 
-  /**
-   * Usuarios activos cuyo rol está en roleNames, con los includes 'basic'
-   * (person, contact, document_type, etc.). A diferencia de findActiveUsersByRoleNames
-   * —que trae datos mínimos para listas de correos— este trae el perfil completo que
-   * el broadcast de notificaciones globales necesita para push/email.
-   *
-   * @param {string[]} roleNames        - Nombres de rol a incluir (ej: CLIENT_ROLE_NAMES)
-   * @param {Object}   [opts]
-   * @param {string[]} [opts.attributes] - Columnas de User a traer (default solo user_id)
-   * @returns {Promise<User[]>}
-   */
-  findActiveUsersByRoleNamesDetailed(roleNames: string[], { attributes = ['user_id'] }: { attributes?: string[] } = {}) {
-    // Reusa los includes 'basic' pero fuerza el join por nombre de rol (INNER) para
-    // restringir la audiencia. El resto de asociaciones queda intacto.
-    const include = UserRepository.INCLUDES.basic.map(inc =>
-      inc.association === 'role' ? { ...inc, where: { name: { [Op.in]: roleNames } }, required: true } : inc
-    );
-
-    return this.model.findAll({ where: { is_active: true }, include, attributes });
+  /** Usuarios activos cuyo rol está en roleNames, con el perfil básico (broadcast de notificaciones). */
+  async findActiveUsersByRoleNamesDetailed(roleNames: readonly string[]): Promise<UserProfileRow[]> {
+    return (await this.db()).user.findMany({
+      where: { isActive: true, role: { name: { in: [...roleNames] } } },
+      include: INCLUDES.basic
+    });
   }
 
-  findByPersonId(personId: string, includeLevel: UserRepository.IncludeLevel = 'minimal') {
-    return this.findOne(
-      {
-        '$person.person_id$': personId
-      },
-      { include: UserRepository.INCLUDES[includeLevel] }
-    );
-  }
-
-  /**
-   * Busca usuarios con paginación, filtros y búsqueda
-   */
-  override findAllPaginated(
+  /** Listado paginado con el perfil básico, filtros y búsqueda por username / nombre. */
+  async findAllPaginated(
     filters: UserRepository.Filters = {},
-    paginationParams: ReadRepository.PaginationParams = {},
+    pagination: PrismaRepository.PaginationParams = {},
     searchTerm: string | null = null
-  ) {
-    // Construimos los filtros que van directo al WHERE como _extraFilters,
-    // porque el base solo maneja isActive de forma nativa — todo lo demás
-    // debe ir por esta vía para no perderse.
-    const extraFilters: WhereClause = {};
-
-    // role_id: uno solo o varios con Op.in
+  ): Promise<PrismaRepository.Page<UserProfileRow>> {
+    const and: Prisma.UserWhereInput[] = [];
+    if (filters.isActive !== undefined) {
+      and.push({ isActive: filters.isActive });
+    }
     if (filters.roleIds?.length) {
-      extraFilters.role_id = filters.roleIds.length === 1 ? filters.roleIds[0] : { [Op.in]: filters.roleIds };
+      and.push({ roleId: { in: filters.roleIds } });
     }
-
-    // national_id está cifrado con IV aleatorio — se busca por HMAC-SHA256
     if (filters.nationalId) {
-      extraFilters['$person.national_id_hash$'] = HashUtil.hashForSearch(filters.nationalId);
+      and.push({ person: { nationalIdHash: hashValue(filters.nationalId) } });
     }
-
-    // user_id: filtro exacto por PK del usuario
-    if (filters.userId) {
-      extraFilters.user_id = filters.userId;
-    }
-
-    // excludeUserId: excluye un usuario del listado (ej: el propio solicitante)
+    // excludeUserId pisa a userId (mismo criterio que antes)
     if (filters.excludeUserId) {
-      extraFilters.user_id = { [Op.ne]: filters.excludeUserId };
+      and.push({ userId: { not: filters.excludeUserId } });
+    } else if (filters.userId) {
+      and.push({ userId: filters.userId });
     }
-
-    // Usuarios eliminados (deleted_at != null): por defecto se EXCLUYEN del listado normal.
-    //   filters.onlyDeleted   → solo eliminados (listado histórico de cuentas eliminadas).
-    //   filters.includeDeleted → sin filtro (incluye activos y eliminados).
+    // Eliminados (deleted_at): excluidos por defecto; onlyDeleted → solo ellos; includeDeleted → todos
     if (filters.onlyDeleted) {
-      extraFilters.deleted_at = { [Op.not]: null };
+      and.push({ deletedAt: { not: null } });
     } else if (!filters.includeDeleted) {
-      extraFilters.deleted_at = { [Op.is]: null };
+      and.push({ deletedAt: null });
     }
+    // username, first_name y last_name no van cifrados; national_id y email sí (no se buscan por texto)
+    if (searchTerm) {
+      const contains = { contains: searchTerm, mode: 'insensitive' as const };
+      and.push({ OR: [{ username: contains }, { person: { firstName: contains } }, { person: { lastName: contains } }] });
+    }
+    const where: Prisma.UserWhereInput = { AND: and };
+    const db = await this.db();
+    const [rows, count] = await Promise.all([
+      db.user.findMany({ where, include: INCLUDES.basic, ...this.paginationArgs(SORTABLE, pagination) }),
+      db.user.count({ where })
+    ]);
+    return { rows, count };
+  }
 
-    return super.findAllPaginated(
-      filters, // el base lee filters.isActive nativamente
-      paginationParams,
-      searchTerm,
-      {
-        include: UserRepository.INCLUDES.basic,
-        _extraFilters: extraFilters,
-        // username no está cifrado; first_name y last_name tampoco.
-        // national_id y email SÍ están cifrados, no son buscables con iLike.
-        _searchFields: ['username', '$person.first_name$', '$person.last_name$']
-      }
-    );
+  async create(data: Prisma.UserUncheckedCreateInput): Promise<User> {
+    return (await this.db()).user.create({ data });
   }
 
   /**
-   * Alta con contraseña en claro: la hashea y crea el usuario. Método propio (no un override de
-   * create): recibe password en vez de password_hash, así que no es sustituible por el create base
-   * (SOLID: L).
+   * Alta con contraseña en claro: la hashea y crea el usuario. Método propio (no un override de create):
+   * recibe password en vez de passwordHash.
    */
-  async createWithPassword(userData: UserRepository.CreateInput, options: CreateOptions<defineUser.Attributes> = {}) {
-    const passwordHash = await this._hashPassword(userData.password);
-
-    return this.create(
-      {
-        username: userData.username,
-        password_hash: passwordHash,
-        person_id: userData.person_id,
-        role_id: userData.role_id,
-        avatar_id: userData.avatar_id || null,
-        auth_username: userData.auth_username || null,
-        is_active: true,
-        totp_enabled: false,
-        privacy_policy_version: userData.privacy_policy_version || null,
-        privacy_policy_accepted_at: userData.privacy_policy_accepted_at || null,
-        privacy_policy_accepted_ip: userData.privacy_policy_accepted_ip || null
-      },
-      options
-    );
+  async createWithPassword({ password, ...userData }: UserRepository.CreateInput): Promise<User> {
+    const passwordHash = await this._hashPassword(password);
+    return this.create({
+      username: userData.username,
+      passwordHash,
+      personId: userData.personId,
+      roleId: userData.roleId,
+      avatarId: userData.avatarId || null,
+      authUsername: userData.authUsername || null,
+      isActive: true,
+      totpEnabled: false,
+      privacyPolicyVersion: userData.privacyPolicyVersion || null,
+      privacyPolicyAcceptedAt: userData.privacyPolicyAcceptedAt || null,
+      privacyPolicyAcceptedIp: userData.privacyPolicyAcceptedIp || null
+    });
   }
 
-  async updatePassword(userId: string, newPassword: string, options: InstanceUpdateOptions<defineUser.Attributes> = {}) {
-    const passwordHash = await this._hashPassword(newPassword);
-    return this.update(userId, { password_hash: passwordHash }, options);
+  /** Actualiza por id; null si la fila no existe. */
+  async update(userId: string, data: Prisma.UserUncheckedUpdateManyInput): Promise<User | null> {
+    const [row] = await (await this.db()).user.updateManyAndReturn({ where: { userId }, data });
+    return row ?? null;
   }
 
-  verifyPassword(plainPassword: string, hashedPassword: string) {
-    return bcrypt.compare(plainPassword, hashedPassword);
+  async updatePassword(userId: string, newPassword: string): Promise<User | null> {
+    return this.update(userId, { passwordHash: await this._hashPassword(newPassword) });
   }
 
-  setActiveStatus(userId: string, isActive: boolean, options: InstanceUpdateOptions<defineUser.Attributes> = {}) {
-    return this.update(userId, { is_active: isActive }, options);
+  /** Compara con el hash guardado; sin hash (cuenta sin contraseña local) nunca coincide. */
+  verifyPassword(plainPassword: string, hashedPassword: string | null): Promise<boolean> {
+    return hashedPassword ? bcrypt.compare(plainPassword, hashedPassword) : Promise.resolve(false);
   }
 
-  setTOTPStatus(userId: string, enabled: boolean, totpSecret: string | null = null, options: InstanceUpdateOptions<defineUser.Attributes> = {}) {
-    return this.update(userId, { totp_enabled: enabled, totp_secret: totpSecret }, options);
+  setActiveStatus(userId: string, isActive: boolean): Promise<User | null> {
+    return this.update(userId, { isActive });
   }
 
-  // Misma firma que BaseRepository.delete(id, options) — SOLID: L (no se pierde la transacción)
-  override delete(userId: string, options: Omit<DestroyOptions<defineUser.Attributes>, 'where'> = {}) {
-    return this.model.destroy({ where: { user_id: userId }, ...options });
+  setTOTPStatus(userId: string, enabled: boolean, totpSecret: string | null = null): Promise<User | null> {
+    return this.update(userId, { totpEnabled: enabled, totpSecret });
   }
 
-  override findById(userId: string, options: FindOptions<defineUser.Attributes> = {}) {
-    return this.model.findByPk(userId, options);
-  }
-
-  // [RF-AUTH-01] | CA-05 | bcrypt con rounds=10,
-  // salt único generado automáticamente por bcrypt.
-  // (verifyPassword() usa bcrypt.compare timing-safe.)
-  // TODO [RF-AUTH-01][CA-05]: considerar mover
-  // BCRYPT_ROUNDS a variable de entorno para
-  // ajuste sin redeploy.
-  _hashPassword(password: string) {
-    return bcrypt.hash(password, 10);
-  }
-
-  async updateTOTPStatus(userId: string, enabled: boolean, options: InstanceUpdateOptions<defineUser.Attributes> = {}) {
-    const updated = await this.update(userId, { totp_enabled: enabled }, options);
+  async updateTOTPStatus(userId: string, enabled: boolean): Promise<User> {
+    const updated = await this.update(userId, { totpEnabled: enabled });
     if (!updated) {
       throw AppError.notFound('Usuario no encontrado');
     }
     return updated;
   }
 
-  /**
-   * Registra la aceptación de una nueva versión de política de privacidad.
-   */
+  /** Registra la aceptación de una nueva versión de política de privacidad. */
   async updatePrivacyPolicy(
     userId: string,
-    { version, acceptedAt, acceptedIp }: { version: string; acceptedAt: Date; acceptedIp: string | null },
-    options: InstanceUpdateOptions<defineUser.Attributes> = {}
-  ) {
-    const updated = await this.update(
-      userId,
-      {
-        privacy_policy_version: version,
-        privacy_policy_accepted_at: acceptedAt,
-        privacy_policy_accepted_ip: acceptedIp
-      },
-      options
-    );
+    { version, acceptedAt, acceptedIp }: { version: string; acceptedAt: Date; acceptedIp: string | null }
+  ): Promise<User> {
+    const updated = await this.update(userId, {
+      privacyPolicyVersion: version,
+      privacyPolicyAcceptedAt: acceptedAt,
+      privacyPolicyAcceptedIp: acceptedIp
+    });
     if (!updated) {
       throw AppError.notFound('Usuario no encontrado');
     }
     return updated;
+  }
+
+  // [RF-AUTH-01] | CA-05 | bcrypt con rounds=10, salt único generado por bcrypt
+  // (verifyPassword() usa bcrypt.compare timing-safe).
+  // TODO [RF-AUTH-01][CA-05]: considerar mover BCRYPT_ROUNDS a variable de entorno.
+  _hashPassword(password: string): Promise<string> {
+    return bcrypt.hash(password, 10);
   }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 namespace UserRepository {
   /** Nivel de includes de UserRepository.INCLUDES. */
-  export type IncludeLevel = 'full' | 'basic' | 'auth' | 'login' | 'minimal';
+  export type IncludeLevel = UserIncludeLevel;
 
   export type Filters = {
     isActive?: boolean;
@@ -408,15 +301,15 @@ namespace UserRepository {
 
   /** Alta de usuario: la contraseña llega en claro y el repositorio la hashea. */
   export type CreateInput = Pick<
-    defineUser.CreationAttributes,
+    Prisma.UserUncheckedCreateInput,
     | 'username'
-    | 'person_id'
-    | 'role_id'
-    | 'avatar_id'
-    | 'auth_username'
-    | 'privacy_policy_version'
-    | 'privacy_policy_accepted_at'
-    | 'privacy_policy_accepted_ip'
+    | 'personId'
+    | 'roleId'
+    | 'avatarId'
+    | 'authUsername'
+    | 'privacyPolicyVersion'
+    | 'privacyPolicyAcceptedAt'
+    | 'privacyPolicyAcceptedIp'
   > & { password: string };
 }
 

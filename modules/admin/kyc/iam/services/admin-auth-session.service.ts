@@ -137,7 +137,7 @@ class AdminAuthSessionService {
       logger.warn('Error invalidando la sesión en Redis al revocar por admin', {
         error: err.message,
         sessionId,
-        userId: session.user_id
+        userId: session.userId
       })
     );
 
@@ -145,7 +145,7 @@ class AdminAuthSessionService {
       'AUTH_SESSION_REVOKED',
       adminUserId,
       {
-        targetUserId: session.user_id,
+        targetUserId: session.userId,
         jti: session.jti,
         before: { status: 'active' },
         after: { status: 'revoked_by_admin' }
@@ -158,14 +158,14 @@ class AdminAuthSessionService {
         tipoNotificacion: 'AUTH_SESSION_REVOKED_INTERNAL',
         userId: adminUserId,
         relatedEntity: { type: 'UserSession', id: sessionId },
-        metadata: { sessionId, targetUserId: session.user_id, logoUrl: notifications.ses.logoUrl }
+        metadata: { sessionId, targetUserId: session.userId, logoUrl: notifications.ses.logoUrl }
       }).catch(err => logger.warn('Error enviando AUTH_SESSION_REVOKED_INTERNAL', { error: err.message }));
     });
 
     setImmediate(() => {
       this.NotificationCreationService.crearNotificacion({
         tipoNotificacion: 'AUTH_SESSION_REVOKED_CLIENT',
-        userId: session.user_id,
+        userId: session.userId,
         relatedEntity: { type: 'UserSession', id: sessionId },
         metadata: { logoUrl: notifications.ses.logoUrl }
       }).catch(err => logger.warn('Error enviando AUTH_SESSION_REVOKED_CLIENT', { error: err.message }));

@@ -1,5 +1,5 @@
-import type defineUser from '../../../../schemas/kyc/iam/models/user.model';
-import type defineUserTrustedDevice from '../../../../schemas/kyc/iam/models/user-trusted-device.model';
+import type { UserTrustedDevice } from '../../../../../shared/database/generated/prisma/client';
+import type { UserProfileRow, UserWith } from '../../../../schemas/kyc/iam/repositories/user.repository';
 import kycModule from '../../../../../shared/dtos/kyc';
 const {
   UserComponent,
@@ -44,7 +44,8 @@ function LoginResponseDTO({
   includeTokens = true,
   deviceHmacSecret = null
 }: {
-  user: defineUser.Instance;
+  /** Usuario de login (persona + contacto + rol) o con el perfil completo (también trae la ubicación). */
+  user: UserWith<'login'> | UserProfileRow;
   tokens?: IssuedTokens | null;
   deviceId?: string | null;
   includeTokens?: boolean;
@@ -69,7 +70,7 @@ function LoginResponseDTO({
       dto.contact = PersonContactComponent.build(user.person.contact);
     }
 
-    if (user.person.location) {
+    if ('location' in user.person && user.person.location) {
       dto.location = PersonLocationComponent.build(user.person.location);
     }
   }
@@ -151,7 +152,7 @@ function MFARequiredResponseDTO({
   username: string | null;
   session: string;
   challengeType: string;
-  preferredMfaMethod: defineUser.Attributes['preferred_mfa_method'];
+  preferredMfaMethod: string;
 }) {
   return {
     requiresMFA: true,
@@ -188,10 +189,10 @@ function TrustedDeviceListDTO(
   };
 }
 
-function TrustedDeviceUpdateDTO(device: Pick<defineUserTrustedDevice.Instance, 'user_trusted_device_id' | 'device_name' | 'status' | 'updatedAt'>) {
+function TrustedDeviceUpdateDTO(device: Pick<UserTrustedDevice, 'userTrustedDeviceId' | 'deviceName' | 'status' | 'updatedAt'>) {
   return {
-    userTrustedDeviceId: device.user_trusted_device_id,
-    deviceName: device.device_name,
+    userTrustedDeviceId: device.userTrustedDeviceId,
+    deviceName: device.deviceName,
     status: device.status,
     updatedAt: device.updatedAt
   };

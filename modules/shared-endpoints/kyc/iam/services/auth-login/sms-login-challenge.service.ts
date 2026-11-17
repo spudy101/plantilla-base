@@ -1,4 +1,4 @@
-import type defineUser from '../../../../../schemas/kyc/iam/models/user.model';
+import type { User } from '../../../../../../shared/database/generated/prisma/client';
 import type { RequestAuditContext } from '../../../../../../shared/types/audit-context';
 // modules/shared-endpoints/kyc/iam/services/auth-login/sms-login-challenge.service.ts
 //
@@ -53,22 +53,14 @@ class SmsLoginChallengeService {
   // ============================================================
 
   /** @private */
-  async issue(user: Pick<defineUser.Instance, 'user_id' | 'preferred_mfa_method' | 'auth_username'>, nationalId: string) {
-    const userWithPhone = await this.userRepository.findById(user.user_id, {
-      include: [
-        {
-          association: 'person',
-          attributes: ['person_id'],
-          include: [{ association: 'contact', attributes: ['phone_primary', 'phone_primary_prefix_id'] }]
-        }
-      ]
-    });
+  async issue(user: Pick<User, 'userId' | 'preferredMfaMethod' | 'authUsername'>, nationalId: string) {
+    const userWithPhone = await this.userRepository.findWithPrimaryPhone(user.userId);
 
-    const phone = userWithPhone?.person?.contact?.phone_primary;
+    const phone = userWithPhone?.person?.contact?.phonePrimary;
     if (!phone) {
       throw AppError.badRequest('No tienes número de teléfono registrado para SMS MFA');
     }
-    const phonePrefixId = userWithPhone?.person?.contact?.phone_primary_prefix_id ?? null;
+    const phonePrefixId = userWithPhone?.person?.contact?.phonePrimaryPrefixId ?? null;
 
     const canRequest = await this.verificationCodeRepository.canRequestNewCode('phone', phone);
     if (!canRequest) {
@@ -92,26 +84,26 @@ class SmsLoginChallengeService {
         const result = await this.SmsService.enviarSmsOtp({
           phoneNumber,
           message: `Tu código de verificación es ${code}. Vence en ${SMS_CHALLENGE_EXPIRY_MINUTES} minutos.`,
-          userId: user.user_id,
+          userId: user.userId,
           purpose: 'mfa_login'
         });
         if (!result.success) {
-          logger.warn('SMS login challenge no enviado', { userId: user.user_id, error: result.error });
+          logger.warn('SMS login challenge no enviado', { userId: user.userId, error: result.error });
         }
       } catch (err) {
-        logger.warn('Error enviando SMS login challenge', { userId: user.user_id, error: errorMessage(err) });
+        logger.warn('Error enviando SMS login challenge', { userId: user.userId, error: errorMessage(err) });
       }
     });
 
     logAudit(
       'MFA_REQUIRED',
-      user.user_id,
+      user.userId,
       { nationalId, challengeType: 'SMS_OTP' },
-      { entityId: user.user_id, entityType: 'User', entityTable: 'users' }
+      { entityId: user.userId, entityType: 'User', entityTable: 'users' }
     );
 
     return MFARequiredResponseDTO({
-      username: user.auth_username,
+      username: user.authUsername,
       session: verificationCode.verificationCodeId,
       challengeType: 'SMS_OTP',
       preferredMfaMethod: 'sms'
@@ -120,22 +112,14 @@ class SmsLoginChallengeService {
 
   /** @private */
   async verify(
-    user: Pick<defineUser.Instance, 'user_id' | 'auth_username' | 'username'>,
+    user: Pick<User, 'userId' | 'authUsername' | 'username'>,
     nationalId: string,
     code: string,
     { ip, userAgent, fingerprintHash }: Pick<RequestAuditContext, 'ip' | 'userAgent' | 'fingerprintHash'>
   ) {
-    const userWithPhone = await this.userRepository.findById(user.user_id, {
-      include: [
-        {
-          association: 'person',
-          attributes: ['person_id'],
-          include: [{ association: 'contact', attributes: ['phone_primary'] }]
-        }
-      ]
-    });
+    const userWithPhone = await this.userRepository.findWithPrimaryPhone(user.userId);
 
-    const phone = userWithPhone?.person?.contact?.phone_primary;
+    const phone = userWithPhone?.person?.contact?.phonePrimary;
     if (!phone) {
       throw AppError.badRequest('No tienes número de teléfono registrado para SMS MFA');
     }
@@ -154,8 +138,8 @@ class SmsLoginChallengeService {
       await this.verificationCodeRepository.incrementAttempts(verificationCode.verificationCodeId);
 
       await this.userLoginAttemptRepository.recordAttempt({
-        userId: user.user_id,
-        usernameAttempt: user.auth_username ?? user.username, // columna NOT NULL; auth_username es nullable
+        userId: user.userId,
+        usernameAttempt: user.authUsername ?? user.username, // columna NOT NULL; auth_username es nullable
         nationalId: nationalId,
         ipAddress: ip,
         userAgent: userAgent,
@@ -169,9 +153,9 @@ class SmsLoginChallengeService {
       // middleware al propagar el throw. El intento queda en user_login_attempts.
       logAudit(
         'MFA_FAILED',
-        user.user_id,
+        user.userId,
         { nationalId, reason: 'Codigo SMS incorrecto' },
-        { entityId: user.user_id, entityType: 'User', entityTable: 'users', outcome: 'failure' }
+        { entityId: user.userId, entityType: 'User', entityTable: 'users', outcome: 'failure' }
       );
 
       const remaining = SMS_MAX_ATTEMPTS - (attempts + 1);

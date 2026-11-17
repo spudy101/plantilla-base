@@ -10,8 +10,8 @@ import AppError from '../../../../../../shared/utils/app-error.util';
  * Las cuentas eliminadas son intocables: no se reactivan, no cambian de rol, no se editan, etc.
  * @param {object|null} user
  */
-function assertNotDeleted(user: { deleted_at?: Date | null } | null | undefined) {
-  if (user?.deleted_at) {
+function assertNotDeleted(user: { deletedAt?: Date | null } | null | undefined) {
+  if (user?.deletedAt) {
     throw AppError.conflict('La cuenta está eliminada y no admite modificaciones', { code: 'USER_DELETED' });
   }
 }

@@ -15,7 +15,6 @@ import personContactRepository from '../../person/repositories/person-contact.re
 import AppError from '../../../../../shared/utils/app-error.util';
 import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger } = loggerUtilModule;
-import requestContext from '../../../../../shared/utils/request-context.util';
 import unitOfWork from '../../../../../shared/database/unit-of-work';
 import errorMessageModule from '../../../../../shared/utils/error-message.util';
 
@@ -61,45 +60,34 @@ class InternalUserHelper {
 
   /** @private */
   static async _createInDB(data: InternalUserHelper.CreateInput & { authUsername: string }) {
-    const { person, user } = await unitOfWork.run(async transaction => {
-      const person = await personRepository.create(
-        {
-          first_name: data.firstName,
-          middle_name: data.middleName || null,
-          last_name: data.lastName,
-          second_last_name: data.secondLastName || null,
-          national_id: data.nationalId,
-          document_type_id: data.documentTypeId || null,
-          ...requestContext.originFromContext()
-        },
-        { transaction }
-      );
+    const { person, user } = await unitOfWork.run(async () => {
+      const person = await personRepository.create({
+        firstName: data.firstName,
+        middleName: data.middleName || null,
+        lastName: data.lastName,
+        secondLastName: data.secondLastName || null,
+        nationalId: data.nationalId,
+        documentTypeId: data.documentTypeId || null
+      });
 
-      await personContactRepository.create(
-        {
-          person_id: person.person_id,
-          email: data.email,
-          email_verified_at: new Date(),
-          ...requestContext.originFromContext()
-        },
-        { transaction }
-      );
+      await personContactRepository.create({
+        personId: person.personId,
+        email: data.email,
+        emailVerifiedAt: new Date()
+      });
 
-      const user = await userRepository.createWithPassword(
-        {
-          username: data.authUsername,
-          auth_username: data.authUsername,
-          password: data.password,
-          person_id: person.person_id,
-          role_id: data.role.role_id
-        },
-        { transaction }
-      );
+      const user = await userRepository.createWithPassword({
+        username: data.authUsername,
+        authUsername: data.authUsername,
+        password: data.password,
+        personId: person.personId,
+        roleId: data.role.roleId
+      });
       return { person, user };
     });
     logger.info('Usuario interno creado en BD', {
-      userId: user.user_id,
-      roleId: data.role.role_id
+      userId: user.userId,
+      roleId: data.role.roleId
     });
     return { user, person };
   }
@@ -117,7 +105,7 @@ namespace InternalUserHelper {
     secondLastName?: string | null;
     nationalId: string;
     documentTypeId?: string | null;
-    role: { role_id: string; name: string };
+    role: { roleId: string; name: string };
   }
 }
 

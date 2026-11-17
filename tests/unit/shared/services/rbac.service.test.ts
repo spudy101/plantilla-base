@@ -62,20 +62,20 @@ describe('RbacService', () => {
   describe('can — overrides en BD', () => {
     it('un override concede un permiso que la base no da', async () => {
       overrideRepository.findLookupByRole.mockResolvedValue([
-        { module_name: RBAC_MODULES.CLIENTS_LIST, action: RBAC_ACTIONS.CREATE }
+        { moduleName: RBAC_MODULES.CLIENTS_LIST, action: RBAC_ACTIONS.CREATE }
       ]);
       await expect(rbacService.can(RBAC_ROLES.AUDITOR, RBAC_MODULES.CLIENTS_LIST, RBAC_ACTIONS.CREATE)).resolves.toBe(true);
     });
 
     it('usa la caché de Redis cuando hay hit y no toca BD', async () => {
-      redisClient.get.mockResolvedValue([{ module_name: RBAC_MODULES.CLIENTS_LIST, action: RBAC_ACTIONS.CREATE }]);
+      redisClient.get.mockResolvedValue([{ moduleName: RBAC_MODULES.CLIENTS_LIST, action: RBAC_ACTIONS.CREATE }]);
       await expect(rbacService.can(RBAC_ROLES.AUDITOR, RBAC_MODULES.CLIENTS_LIST, RBAC_ACTIONS.CREATE)).resolves.toBe(true);
       expect(overrideRepository.findLookupByRole).not.toHaveBeenCalled();
     });
 
     it('cachea en Redis el resultado leído de BD', async () => {
       await rbacService.can(RBAC_ROLES.AUDITOR, RBAC_MODULES.CLIENTS_LIST, RBAC_ACTIONS.CREATE);
-      expect(redisClient.set).toHaveBeenCalledWith('rbac:overrides:AUDITOR', [], 60);
+      expect(redisClient.set).toHaveBeenCalledWith('rbac:overrides:v2:AUDITOR', [], 60);
     });
   });
 
@@ -107,7 +107,7 @@ describe('RbacService', () => {
   describe('getRoleMatrix', () => {
     it('separa permisos base de los agregados por override', async () => {
       overrideRepository.findLookupByRole.mockResolvedValue([
-        { module_name: RBAC_MODULES.CLIENTS_LIST, action: RBAC_ACTIONS.CREATE }
+        { moduleName: RBAC_MODULES.CLIENTS_LIST, action: RBAC_ACTIONS.CREATE }
       ]);
       const [entry] = await rbacService.getRoleMatrix([RBAC_ROLES.AUDITOR]);
       if (!entry) {throw new Error('getRoleMatrix no devolvió el rol pedido');}
@@ -131,7 +131,7 @@ describe('RbacService', () => {
   describe('invalidateCache', () => {
     it('borra la key de overrides del rol en Redis', async () => {
       await rbacService.invalidateCache(RBAC_ROLES.ADMIN);
-      expect(redisClient.del).toHaveBeenCalledWith('rbac:overrides:ADMIN');
+      expect(redisClient.del).toHaveBeenCalledWith('rbac:overrides:v2:ADMIN');
     });
   });
 });

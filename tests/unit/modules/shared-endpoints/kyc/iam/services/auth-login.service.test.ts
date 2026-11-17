@@ -19,7 +19,8 @@
 jest.mock('modules/schemas/kyc/iam/repositories/user.repository', () => ({
   verifyPassword: jest.fn(),
   findByUsernameAndNationalId: jest.fn(),
-  findById: jest.fn(),
+  findWithPrimaryPhone: jest.fn(),
+  findByIdWithRole: jest.fn(),
   updatePrivacyPolicy: jest.fn().mockResolvedValue(undefined)
 }));
 
@@ -184,8 +185,8 @@ jest.mock('modules/shared-endpoints/kyc/iam/dtos/auth-login.dto', () => ({
   MFARequiredResponseDTO: (arg: Loose) => ({ __dto: 'mfa', ...arg }),
   TrustedDeviceListDTO: (devices: Loose, fh: Loose, sid: Loose) => ({ devices, total: devices.length, fh, sid }),
   TrustedDeviceUpdateDTO: (device: Loose) => ({
-    userTrustedDeviceId: device.user_trusted_device_id,
-    deviceName: device.device_name,
+    userTrustedDeviceId: device.userTrustedDeviceId,
+    deviceName: device.deviceName,
     status: device.status,
     updatedAt: device.updatedAt
   })
@@ -235,26 +236,26 @@ const AUDIT = { ip: '1.2.3.4', userAgent: 'jest', fingerprintHash: 'fp-1' };
 
 function makeUser(overrides = {}) {
   return {
-    user_id: 'u-1',
-    auth_username: 'juan',
-    is_active: true,
-    password_hash: 'hash',
-    preferred_mfa_method: 'none',
-    privacy_policy_version: null,
-    totp_secret: 'enc-secret',
+    userId: 'u-1',
+    authUsername: 'juan',
+    isActive: true,
+    passwordHash: 'hash',
+    preferredMfaMethod: 'none',
+    privacyPolicyVersion: null,
+    totpSecret: 'enc-secret',
     role: { name: 'CLIENTE' },
-    person: { first_name: 'Juan', contact: { email: 'j@x.cl' } },
+    person: { firstName: 'Juan', contact: { email: 'j@x.cl' } },
     ...overrides
   };
 }
 
 function trustedDevice(overrides = {}) {
   return {
-    user_trusted_device_id: 'dev-1',
+    userTrustedDeviceId: 'dev-1',
     status: 'trusted',
-    hmac_secret: 'hmac-1',
-    fingerprint_hash: 'fp-1',
-    device_name: 'Chrome',
+    hmacSecret: 'hmac-1',
+    fingerprintHash: 'fp-1',
+    deviceName: 'Chrome',
     ...overrides
   };
 }
@@ -270,7 +271,8 @@ describe('AuthLoginService', () => {
     userLoginAttemptRepository.checkIfBlocked.mockResolvedValue(null);
     userLoginAttemptRepository.recordAttempt.mockResolvedValue(undefined);
     userRepository.findByUsernameAndNationalId.mockResolvedValue(makeUser());
-    userRepository.findById.mockResolvedValue(makeUser());
+    userRepository.findWithPrimaryPhone.mockResolvedValue(makeUser());
+    userRepository.findByIdWithRole.mockResolvedValue(makeUser());
     userRepository.verifyPassword.mockResolvedValue(true);
     privacyPolicyRepository.findActive.mockResolvedValue(null);
     trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice());
@@ -301,7 +303,7 @@ describe('AuthLoginService', () => {
     });
 
     it('lanza 403 si la cuenta está inactiva', async () => {
-      userRepository.findByUsernameAndNationalId.mockResolvedValue(makeUser({ is_active: false }));
+      userRepository.findByUsernameAndNationalId.mockResolvedValue(makeUser({ isActive: false }));
       await expect(service.login({ nationalId: '111', password: 'pw' }, AUDIT)).rejects.toMatchObject({
         statusCode: 403
       });
@@ -347,9 +349,7 @@ describe('AuthLoginService', () => {
         summary: 's',
         effective_date: '2026-01-01'
       });
-      userRepository.findByUsernameAndNationalId.mockResolvedValue(
-        makeUser({ privacy_policy_version: 'v1' })
-      );
+      userRepository.findByUsernameAndNationalId.mockResolvedValue(makeUser({ privacyPolicyVersion: 'v1' }));
 
       const result = await service.login({ nationalId: '111', password: 'pw' }, AUDIT);
       expect(result).toMatchObject({ __dto: 'policy', newVersion: 'v2' });
@@ -358,9 +358,7 @@ describe('AuthLoginService', () => {
     });
 
     it('emite reto TOTP (MFARequiredResponseDTO) si el usuario prefiere totp', async () => {
-      userRepository.findByUsernameAndNationalId.mockResolvedValue(
-        makeUser({ preferred_mfa_method: 'totp' })
-      );
+      userRepository.findByUsernameAndNationalId.mockResolvedValue(makeUser({ preferredMfaMethod: 'totp' }));
 
       const result = await service.login({ nationalId: '111', password: 'pw' }, AUDIT);
       expect(result).toMatchObject({
@@ -373,11 +371,9 @@ describe('AuthLoginService', () => {
     });
 
     it('emite reto SMS y agenda el envío por SNS si el usuario prefiere sms', async () => {
-      userRepository.findByUsernameAndNationalId.mockResolvedValue(
-        makeUser({ preferred_mfa_method: 'sms' })
-      );
-      userRepository.findById.mockResolvedValue({
-        person: { contact: { phone_primary: '911112222', phone_primary_prefix_id: 'pref-1' } }
+      userRepository.findByUsernameAndNationalId.mockResolvedValue(makeUser({ preferredMfaMethod: 'sms' }));
+      userRepository.findWithPrimaryPhone.mockResolvedValue({
+        person: { contact: { phonePrimary: '911112222', phonePrimaryPrefixId: 'pref-1' } }
       });
       verificationCodeRepository.canRequestNewCode.mockResolvedValue(true);
       verificationCodeRepository.create.mockResolvedValue({ verificationCodeId: 'vc-1' });
@@ -393,11 +389,9 @@ describe('AuthLoginService', () => {
     });
 
     it('lanza 429 en el reto SMS si aún no puede pedir un nuevo código', async () => {
-      userRepository.findByUsernameAndNationalId.mockResolvedValue(
-        makeUser({ preferred_mfa_method: 'sms' })
-      );
-      userRepository.findById.mockResolvedValue({
-        person: { contact: { phone_primary: '911112222', phone_primary_prefix_id: 'pref-1' } }
+      userRepository.findByUsernameAndNationalId.mockResolvedValue(makeUser({ preferredMfaMethod: 'sms' }));
+      userRepository.findWithPrimaryPhone.mockResolvedValue({
+        person: { contact: { phonePrimary: '911112222', phonePrimaryPrefixId: 'pref-1' } }
       });
       verificationCodeRepository.canRequestNewCode.mockResolvedValue(false);
 
@@ -432,9 +426,7 @@ describe('AuthLoginService', () => {
   // ============================================================
   describe('verifyMFA', () => {
     it('con TOTP válido completa el login', async () => {
-      userRepository.findByUsernameAndNationalId.mockResolvedValue(
-        makeUser({ preferred_mfa_method: 'totp' })
-      );
+      userRepository.findByUsernameAndNationalId.mockResolvedValue(makeUser({ preferredMfaMethod: 'totp' }));
       JwtUtil.verifyMfaChallengeToken.mockResolvedValue({ userId: 'u-1' });
       TotpUtil.verify.mockReturnValue(true);
 
@@ -447,9 +439,7 @@ describe('AuthLoginService', () => {
     });
 
     it('con TOTP inválido registra el intento y lanza 400', async () => {
-      userRepository.findByUsernameAndNationalId.mockResolvedValue(
-        makeUser({ preferred_mfa_method: 'totp' })
-      );
+      userRepository.findByUsernameAndNationalId.mockResolvedValue(makeUser({ preferredMfaMethod: 'totp' }));
       JwtUtil.verifyMfaChallengeToken.mockResolvedValue({ userId: 'u-1' });
       TotpUtil.verify.mockReturnValue(false);
 
@@ -463,20 +453,16 @@ describe('AuthLoginService', () => {
     });
 
     it('lanza 401 si falta el token de reto MFA (session)', async () => {
-      userRepository.findByUsernameAndNationalId.mockResolvedValue(
-        makeUser({ preferred_mfa_method: 'totp' })
-      );
-      await expect(
-        service.verifyMFA({ nationalId: '111', totpCode: '123456' }, AUDIT)
-      ).rejects.toMatchObject({ statusCode: 401 });
+      userRepository.findByUsernameAndNationalId.mockResolvedValue(makeUser({ preferredMfaMethod: 'totp' }));
+      await expect(service.verifyMFA({ nationalId: '111', totpCode: '123456' }, AUDIT)).rejects.toMatchObject({
+        statusCode: 401
+      });
     });
 
     it('con SMS correcto marca verificado y completa el login', async () => {
-      userRepository.findByUsernameAndNationalId.mockResolvedValue(
-        makeUser({ preferred_mfa_method: 'sms' })
-      );
-      userRepository.findById.mockResolvedValue({
-        person: { contact: { phone_primary: '911112222' } }
+      userRepository.findByUsernameAndNationalId.mockResolvedValue(makeUser({ preferredMfaMethod: 'sms' }));
+      userRepository.findWithPrimaryPhone.mockResolvedValue({
+        person: { contact: { phonePrimary: '911112222' } }
       });
       verificationCodeRepository.findActiveByContact.mockResolvedValue({
         verificationCodeId: 'vc-1',
@@ -494,11 +480,9 @@ describe('AuthLoginService', () => {
     });
 
     it('con SMS incorrecto incrementa intentos y lanza 400', async () => {
-      userRepository.findByUsernameAndNationalId.mockResolvedValue(
-        makeUser({ preferred_mfa_method: 'sms' })
-      );
-      userRepository.findById.mockResolvedValue({
-        person: { contact: { phone_primary: '911112222' } }
+      userRepository.findByUsernameAndNationalId.mockResolvedValue(makeUser({ preferredMfaMethod: 'sms' }));
+      userRepository.findWithPrimaryPhone.mockResolvedValue({
+        person: { contact: { phonePrimary: '911112222' } }
       });
       verificationCodeRepository.findActiveByContact.mockResolvedValue({
         verificationCodeId: 'vc-1',
@@ -575,11 +559,11 @@ describe('AuthLoginService', () => {
       TokenBlacklistUtil.isRefreshTokenBlacklisted.mockResolvedValue(false);
       TokenBlacklistUtil.isUserSessionsInvalidated.mockResolvedValue(false);
       RefreshTokenStore.exists.mockResolvedValue('u-1');
-      userRepository.findById.mockResolvedValue(makeUser());
+      userRepository.findByIdWithRole.mockResolvedValue(makeUser());
       // Sesión activa dentro del tope absoluto.
       userSessionRepository.findById.mockResolvedValue({
         status: 'active',
-        started_at: new Date().toISOString()
+        startedAt: new Date().toISOString()
       });
       RefreshTokenStore.save.mockResolvedValue(true);
 
@@ -600,7 +584,7 @@ describe('AuthLoginService', () => {
       TokenBlacklistUtil.isRefreshTokenBlacklisted.mockResolvedValue(false);
       TokenBlacklistUtil.isUserSessionsInvalidated.mockResolvedValue(false);
       RefreshTokenStore.exists.mockResolvedValue('u-1');
-      userRepository.findById.mockResolvedValue(null);
+      userRepository.findByIdWithRole.mockResolvedValue(null);
 
       await expect(service.refreshToken('tok')).rejects.toMatchObject({ statusCode: 401 });
     });
@@ -670,7 +654,7 @@ describe('AuthLoginService', () => {
 
     it('renombra y audita', async () => {
       trustedDeviceRepository.findByIdAndUser.mockResolvedValue(trustedDevice());
-      trustedDeviceRepository.rename.mockResolvedValue(trustedDevice({ device_name: 'Nuevo' }));
+      trustedDeviceRepository.rename.mockResolvedValue(trustedDevice({ deviceName: 'Nuevo' }));
       const result = await service.renameDevice('u-1', 'dev-1', 'Nuevo');
       expect(result).toMatchObject({ deviceName: 'Nuevo' });
       expect(logAudit).toHaveBeenCalledWith('TRUSTED_DEVICE_RENAMED', 'u-1', expect.any(Object), expect.any(Object));
@@ -684,23 +668,25 @@ describe('AuthLoginService', () => {
     });
 
     it('lanza 400 si intentas bloquear tu propio dispositivo', async () => {
-      trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice({ user_trusted_device_id: 'dev-1' }));
+      trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice({ userTrustedDeviceId: 'dev-1' }));
       await expect(service.blockDevice('u-1', 'dev-1', 'fp-1')).rejects.toMatchObject({ statusCode: 400 });
     });
 
     it('lanza 400 si es el único dispositivo de confianza', async () => {
-      trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice({ user_trusted_device_id: 'dev-1' }));
-      trustedDeviceRepository.findByIdAndUser.mockResolvedValue(trustedDevice({ user_trusted_device_id: 'dev-2', status: 'trusted' }));
+      trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice({ userTrustedDeviceId: 'dev-1' }));
+      trustedDeviceRepository.findByIdAndUser.mockResolvedValue(
+        trustedDevice({ userTrustedDeviceId: 'dev-2', status: 'trusted' })
+      );
       trustedDeviceRepository.countTrusted.mockResolvedValue(1);
       await expect(service.blockDevice('u-1', 'dev-2', 'fp-1')).rejects.toMatchObject({ statusCode: 400 });
     });
 
     it('bloquea, escribe la blocklist en Redis y audita', async () => {
-      trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice({ user_trusted_device_id: 'dev-1' }));
+      trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice({ userTrustedDeviceId: 'dev-1' }));
       trustedDeviceRepository.findByIdAndUser.mockResolvedValue(
-        trustedDevice({ user_trusted_device_id: 'dev-2', status: 'pending', fingerprint_hash: 'fp-2' })
+        trustedDevice({ userTrustedDeviceId: 'dev-2', status: 'pending', fingerprintHash: 'fp-2' })
       );
-      trustedDeviceRepository.block.mockResolvedValue(trustedDevice({ user_trusted_device_id: 'dev-2', status: 'blocked' }));
+      trustedDeviceRepository.block.mockResolvedValue(trustedDevice({ userTrustedDeviceId: 'dev-2', status: 'blocked' }));
 
       const result = await service.blockDevice('u-1', 'dev-2', 'fp-1');
       expect(DeviceBlocklistUtil.block).toHaveBeenCalledWith('u-1', 'fp-2');
@@ -711,17 +697,19 @@ describe('AuthLoginService', () => {
 
   describe('unblockDevice', () => {
     it('lanza 400 si el dispositivo no está bloqueado', async () => {
-      trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice({ user_trusted_device_id: 'dev-1' }));
-      trustedDeviceRepository.findByIdAndUser.mockResolvedValue(trustedDevice({ user_trusted_device_id: 'dev-2', status: 'pending' }));
+      trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice({ userTrustedDeviceId: 'dev-1' }));
+      trustedDeviceRepository.findByIdAndUser.mockResolvedValue(
+        trustedDevice({ userTrustedDeviceId: 'dev-2', status: 'pending' })
+      );
       await expect(service.unblockDevice('u-1', 'dev-2', 'fp-1')).rejects.toMatchObject({ statusCode: 400 });
     });
 
     it('desbloquea (→ pending), limpia Redis y audita', async () => {
-      trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice({ user_trusted_device_id: 'dev-1' }));
+      trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice({ userTrustedDeviceId: 'dev-1' }));
       trustedDeviceRepository.findByIdAndUser.mockResolvedValue(
-        trustedDevice({ user_trusted_device_id: 'dev-2', status: 'blocked', fingerprint_hash: 'fp-2' })
+        trustedDevice({ userTrustedDeviceId: 'dev-2', status: 'blocked', fingerprintHash: 'fp-2' })
       );
-      trustedDeviceRepository.unblock.mockResolvedValue(trustedDevice({ user_trusted_device_id: 'dev-2', status: 'pending' }));
+      trustedDeviceRepository.unblock.mockResolvedValue(trustedDevice({ userTrustedDeviceId: 'dev-2', status: 'pending' }));
 
       const result = await service.unblockDevice('u-1', 'dev-2', 'fp-1');
       expect(DeviceBlocklistUtil.unblock).toHaveBeenCalledWith('u-1', 'fp-2');
@@ -732,15 +720,19 @@ describe('AuthLoginService', () => {
 
   describe('approveDevice', () => {
     it('lanza 400 si el dispositivo no está pendiente', async () => {
-      trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice({ user_trusted_device_id: 'dev-1' }));
-      trustedDeviceRepository.findByIdAndUser.mockResolvedValue(trustedDevice({ user_trusted_device_id: 'dev-2', status: 'trusted' }));
+      trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice({ userTrustedDeviceId: 'dev-1' }));
+      trustedDeviceRepository.findByIdAndUser.mockResolvedValue(
+        trustedDevice({ userTrustedDeviceId: 'dev-2', status: 'trusted' })
+      );
       await expect(service.approveDevice('u-1', 'dev-2', 'fp-1')).rejects.toMatchObject({ statusCode: 400 });
     });
 
     it('aprueba (→ trusted) y audita', async () => {
-      trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice({ user_trusted_device_id: 'dev-1' }));
-      trustedDeviceRepository.findByIdAndUser.mockResolvedValue(trustedDevice({ user_trusted_device_id: 'dev-2', status: 'pending' }));
-      trustedDeviceRepository.approve.mockResolvedValue(trustedDevice({ user_trusted_device_id: 'dev-2', status: 'trusted' }));
+      trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice({ userTrustedDeviceId: 'dev-1' }));
+      trustedDeviceRepository.findByIdAndUser.mockResolvedValue(
+        trustedDevice({ userTrustedDeviceId: 'dev-2', status: 'pending' })
+      );
+      trustedDeviceRepository.approve.mockResolvedValue(trustedDevice({ userTrustedDeviceId: 'dev-2', status: 'trusted' }));
 
       const result = await service.approveDevice('u-1', 'dev-2', 'fp-1');
       expect(result).toMatchObject({ status: 'trusted' });
@@ -762,12 +754,12 @@ describe('AuthLoginService', () => {
     });
 
     it('lanza 400 si la sesión ya está cerrada', async () => {
-      userSessionRepository.findById.mockResolvedValue({ user_id: 'u-1', status: 'closed', jti: 'j' });
+      userSessionRepository.findById.mockResolvedValue({ userId: 'u-1', status: 'closed', jti: 'j' });
       await expect(service.closeSessionById('u-1', 'sess-2', 'sess-1')).rejects.toMatchObject({ statusCode: 400 });
     });
 
     it('cierra la sesión, revoca el JTI y blacklistea', async () => {
-      userSessionRepository.findById.mockResolvedValue({ user_id: 'u-1', status: 'active', jti: 'j-2' });
+      userSessionRepository.findById.mockResolvedValue({ userId: 'u-1', status: 'active', jti: 'j-2' });
       const result = await service.closeSessionById('u-1', 'sess-2', 'sess-1');
 
       expect(userSessionRepository.closeSession).toHaveBeenCalledWith('sess-2', 'closed_by_user');
@@ -787,8 +779,8 @@ describe('AuthLoginService', () => {
 
     it('cierra las demás sesiones, revoca cada JTI y devuelve el conteo', async () => {
       userSessionRepository.findActiveByUserExcept.mockResolvedValue([
-        { user_session_id: 's-2', jti: 'j-2' },
-        { user_session_id: 's-3', jti: 'j-3' }
+        { userSessionId: 's-2', jti: 'j-2' },
+        { userSessionId: 's-3', jti: 'j-3' }
       ]);
       const result = await service.closeOtherSessions('u-1', 'sess-1');
 

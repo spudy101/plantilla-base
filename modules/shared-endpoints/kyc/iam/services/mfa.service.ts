@@ -1,4 +1,4 @@
-import type defineUser from '../../../../schemas/kyc/iam/models/user.model';
+import type { User } from '../../../../../shared/database/generated/prisma/client';
 // modules/shared-endpoints/kyc/iam/services/mfa.service.ts
 //
 // ============================================================
@@ -101,7 +101,7 @@ class MFAService {
 
   async validatePassword(password: string, userId: string, username: string | null) {
     const user = await this.account.getUserSecure(userId);
-    const isValid = await this.userRepository.verifyPassword(password, user.password_hash);
+    const isValid = await this.userRepository.verifyPassword(password, user.passwordHash);
 
     logAudit(
       'MFA_PASSWORD_VALIDATED',
@@ -117,40 +117,42 @@ class MFAService {
     const user = await this.account.getUserSecure(userId);
     logAudit('MFA_STATUS_VIEWED', userId, { username }, { entityId: userId, ...ENTITY });
     return MFAStatusResponseDTO({
-      userId: user.user_id,
+      userId: user.userId,
       username,
-      totpEnabled: user.totp_enabled ?? false,
-      smsMfaEnabled: user.sms_mfa_enabled ?? false,
-      preferredMfaMethod: user.preferred_mfa_method ?? 'none'
+      totpEnabled: user.totpEnabled ?? false,
+      smsMfaEnabled: user.smsMfaEnabled ?? false,
+      preferredMfaMethod: user.preferredMfaMethod ?? 'none'
     });
   }
 
-  async updatePreferredMethod(preferredMethod: defineUser.Attributes['preferred_mfa_method'], userId: string, username: string | null, auditContext: RequestAuditContext) {
+  async updatePreferredMethod(
+    preferredMethod: User['preferredMfaMethod'],
+    userId: string,
+    username: string | null,
+    auditContext: RequestAuditContext
+  ) {
     const user = await this.account.getUserSecure(userId);
 
-    if (preferredMethod === 'totp' && !user.totp_enabled) {
+    if (preferredMethod === 'totp' && !user.totpEnabled) {
       throw AppError.badRequest('Debes activar TOTP antes de seleccionarlo como método preferido');
     }
-    if (preferredMethod === 'sms' && !user.sms_mfa_enabled) {
+    if (preferredMethod === 'sms' && !user.smsMfaEnabled) {
       throw AppError.badRequest('Debes activar SMS MFA antes de seleccionarlo como método preferido');
     }
 
-    await this.unitOfWork.run(async transaction => {
+    await this.unitOfWork.run(async () => {
       // La preferencia de MFA vive solo en nuestra BD; el login la lee para decidir
       // qué segundo factor exigir.
-      await this.userRepository.update(userId, { preferred_mfa_method: preferredMethod }, { transaction });
+      await this.userRepository.update(userId, { preferredMfaMethod: preferredMethod });
 
-      await this.account.recordChange(
-        {
-          userId,
-          changeType: 'preferred_mfa_method',
-          previousValue: user.preferred_mfa_method,
-          newValue: preferredMethod,
-          changeReason: 'Método MFA preferido actualizado por cliente',
-          auditContext
-        },
-        transaction
-      );
+      await this.account.recordChange({
+        userId,
+        changeType: 'preferred_mfa_method',
+        previousValue: user.preferredMfaMethod,
+        newValue: preferredMethod,
+        changeReason: 'Método MFA preferido actualizado por cliente',
+        auditContext
+      });
     });
 
     logAudit('MFA_PREFERRED_METHOD_UPDATED', userId, { username, preferredMethod }, { entityId: userId, ...ENTITY });

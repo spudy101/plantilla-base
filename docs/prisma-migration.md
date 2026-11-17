@@ -5,7 +5,7 @@
 > al final de cada fase la app arranca y los tests pasan. Durante la migración **Prisma y Sequelize
 > conviven contra la misma base**: cada repositorio cambia de ORM sin que los services se enteren.
 >
-> Estado: **fases 0 a 4 completas; fase 5 en curso** (grupos 1 a 5 de 6) en la rama `feat/prisma`; ver [Cómo funciona hoy](#cómo-funciona-hoy).
+> Estado: **fases 0 a 5 completas** (todos los repositorios sobre Prisma) en la rama `feat/prisma`; sigue la fase 6. Ver [Cómo funciona hoy](#cómo-funciona-hoy).
 
 ## Punto de partida (medido)
 
@@ -83,7 +83,7 @@ datos ni bloquea por mucho tiempo.
 | **2. Unit of Work** | `run()` coordina una transacción de cada ORM (la de Prisma, perezosa) con el contexto en `AsyncLocalStorage`; `PrismaRepository#db()` toma la transacción activa; los 35 `begin()` → `run()` (32 con el codemod `scripts/prisma-migration/begin-to-run.js`, 3 a mano); test de integración contra Postgres (commit y rollback juntos, aislamiento). | ✅ |
 | **3. Instancias vivas** | 10 llamadas a instancias (`update`/`reload` en 5 services de admin, doble aprobación y su worker) → `repository.update(id, …)` o métodos de negocio (`approvalRequestRepository.resolve` / `markExpired`). 4 archivos que usaban modelos directo → repositorios: `audit-archive.worker` (`countCreatedUpTo`/`countCreatedBefore`/`purgeCreatedBefore`), `circuit-breaker.bootstrap` (`countFailedBetween`), `logger.util` e `integration-api-logger.util` (la allowlist de la guarda queda vacía). Guardas: solo repositorios, modelos y `shared/database` importan `shared/models`; `npm run check:orm` (type checker, en CI) rechaza llamadas a instancias fuera de los repositorios. | ✅ |
 | **4. PII** | `shared/database/pii-fields.ts` (qué se cifra, una sola declaración, con las mismas `EncryptionUtil`/`HashUtil` de los hooks) y `piiExtension` (`shared/database/prisma-extensions.ts`) en el cliente único: cifra + hash al escribir (también anidado), descifra al leer (también en `include`), rechaza `where` sobre campos cifrados y estampa `originSessionId`. Metadatos de relaciones generados del schema (`scripts/gen-prisma-metadata.ts`). Compatibilidad verificada contra Postgres en los dos sentidos (Sequelize ↔ Prisma, hashes iguales, también dentro del Unit of Work) y, solo lectura, sobre los datos reales del esquema de desarrollo. | ✅ |
-| **5. Repositorios** (por grupo, un commit cada uno; ver [Fase 5](#fase-5-repositorios)) | Los 44 repositorios a `PrismaRepository` con su contrato actual; `Op.*` → filtros de Prisma, `include` por nombre de relación; services y DTOs que los consumen, a camelCase en el mismo commit. | 🔄 1/6 |
+| **5. Repositorios** (por grupo, un commit cada uno; ver [Fase 5](#fase-5-repositorios)) | Los 44 repositorios a `PrismaRepository` con su contrato actual; `Op.*` → filtros de Prisma, `include` por nombre de relación; services y DTOs que los consumen, a camelCase en el mismo commit. | ✅ |
 | **6. Migraciones y seeders** | Prisma Migrate con una migración base (`0_init`, marcada como aplicada en las bases existentes con `prisma migrate resolve --applied`); triggers como SQL crudo dentro de la migración; seeders → `prisma db seed` (TS). Se van `sequelize-cli`, `.sequelizerc`, `db:tracking` y `migrations/` de Sequelize. | ⏳ |
 | **6b. API en camelCase** | Las 88 claves snake_case de los 8 DTOs que quedan → camelCase, con su Swagger y tests. | ⏳ |
 | **6c. Nombres en la base** | Primera migración de Prisma después de la base: quitar las columnas `deletedAt` residuales (users, persons, reset_credentials), `DEFAULT now()` en `created_at`, `ON DELETE RESTRICT` en las FK NOT NULL de `person_locations`, índices → `idx_…`, constraints → `pk_`/`uq_`/`fk_`/`ck_`. Schema con los `map:` explícitos y `prisma migrate diff` en cero contra la base. Enums del dominio como `enum` de Prisma; `auditActions/` → `audit-actions/`. | ⏳ |
@@ -120,7 +120,7 @@ filas de Prisma (camelCase) y de Sequelize (snake_case) a la vez.
 | 3. Notificaciones | notification-category, notification-type, notification, global-notification, global-notification-read, user-notification-preference, user-push-token, verification-code, sms-delivery-attempt, email-bounce-suppression | ✅ |
 | 4. Integraciones y config | system-global-config, integration-api-log, provider-fallback-event, approval-request | ✅ |
 | 5. Auditoría | audit-log, audit-alert, user-login-attempt (user-change-log pasa al grupo 6) | ✅ |
-| 6. Núcleo de identidad | user, person, person-contact, person-location, person-reference, role, role-permission-override, user-session, auth-trusted-device, biometric, reset-credentials, user-change-log (al migrar: devolver los consentimientos y la preferencia de notificación del registro a la transacción del alta, ver grupos 2 y 3) | ⏳ |
+| 6. Núcleo de identidad | user, person, person-contact, person-location, person-reference, role, role-permission-override, user-session, auth-trusted-device, biometric, reset-credentials, user-change-log | ✅ |
 
 Receta por repositorio:
 
@@ -134,6 +134,43 @@ Receta por repositorio:
 4. Tests: los fixtures de los mocks a camelCase. Un test que pasa igual con el fixture viejo prueba algo
    equivocado: agregar el caso positivo (ver `profile.helper.test.ts`).
 5. Verificar contra la base de desarrollo los listados y búsquedas del grupo (totales iguales a Sequelize).
+
+#### Hallazgos del grupo 6
+
+- **Fin de la convivencia en los flujos**: ningún service escribe ya con Sequelize. Los consentimientos y la
+  preferencia de notificación del registro vuelven a la transacción del alta, y sin best-effort (dentro de
+  una transacción no puede haberlo: un INSERT fallido la aborta, ver grupo 2): la cuenta se crea con su
+  constancia de consentimiento o no se crea. `user-change-log` se escribe en la misma unidad que el cambio
+  del usuario (`cross-orm-locks.test.ts` ahora prueba que confirma y revierte junto, sin esperar locks).
+  `unitOfWork.run()` todavía abre la transacción de Sequelize, que nadie usa: se va en la fase 7.
+- **Lecturas silenciosas por tipos laxos**: helpers tipados con objetos de campos opcionales
+  (`assertNotDeleted({ deleted_at? })`, `displayName`, `buildAuditDiff` con nombres de columna) compilaban
+  con las filas camelCase y leían `undefined` (`assertNotDeleted` dejaba pasar cuentas eliminadas). `tsc`
+  no los marca: se buscaron con un barrido de accesos snake_case a las columnas del grupo.
+- **`...requestContext.originFromContext()` dentro de un `create` de Prisma**: claves snake_case en un spread
+  (tsc no aplica excess property checks) → Prisma lo rechaza en runtime. Se quitaron: la extensión estampa el
+  origen.
+- **Consumos de un solo uso atómicos**: el token de reset y el challenge biométrico se marcaban con un
+  UPDATE sin condición después de leerlos; dos requests simultáneos los usaban los dos. `markAsUsed` solo
+  marca si sigue sin usar y devuelve si lo hizo; el reset de credenciales lo consume antes de aplicar el
+  cambio y revierte si otro request ganó.
+- **Prefijo telefónico del contacto**: `PersonContactComponent` leía alias (`primaryPrefix`) que ninguna
+  consulta traía; `phonePrimaryPrefix`/`phonePrimaryFull` salían sin prefijo. Ahora lee la relación.
+- `user_sessions` no declara relación con `users`: el usuario de las vistas admin (`sessionUser`) se adjunta
+  por lote con `loadUserRefs` (el de auditoría). Un `status` fuera del enum en el listado devuelve vacío.
+- `findById(id, { include })` de Sequelize en los services → métodos con nombre (`findAdminTarget`,
+  `findWithPrimaryPhone`, `findByIdWithRole`, `findForAccountDeletion`). `UserRepository.INCLUDES` conserva
+  los niveles (`full`/`basic`/`auth`/`login`/`minimal`) y `UserWith<'nivel'>` tipa cada uno.
+- `user_change_logs` es append-only también para el borrado en cascada: las filas de los tests de
+  integración quedan en el esquema `test` (lo reconstruye `db:test:prepare`).
+- Caché de overrides RBAC: la entrada pasó a camelCase (`moduleName`); la clave cambió a
+  `rbac:overrides:v2:` para no leer entradas viejas durante el TTL.
+- `verifyPassword` acepta `passwordHash` nulo (la columna lo es) y devuelve `false`.
+- `HmacService` sigue buscando el dispositivo solo por fingerprint, de cualquier usuario
+  (`findAnyByFingerprint`), como antes: el request firmado no trae el usuario.
+- Verificado contra la base de desarrollo (chica: 3 usuarios, sin change-logs ni overrides): totales y
+  búsquedas de usuarios, perfil completo con PII descifrada, login por documento, contacto por email,
+  sesiones con usuario, última sesión por dispositivo, `hmac_secret`, roles y change-log iguales a Sequelize.
 
 #### Hallazgos del grupo 5
 

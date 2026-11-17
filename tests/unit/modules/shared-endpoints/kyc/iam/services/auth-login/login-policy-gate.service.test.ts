@@ -25,7 +25,7 @@ const makeGate = ({ activePolicy = ACTIVE_POLICY } = {}) => {
   return { gate: new LoginPolicyGateService(fixture(deps)), deps };
 };
 
-const client = (over = {}) => ({ user_id: 'u-1', role: { name: 'cliente' }, privacy_policy_version: '1.0', ...over });
+const client = (over = {}) => ({ userId: 'u-1', role: { name: 'cliente' }, privacyPolicyVersion: '1.0', ...over });
 
 describe('LoginPolicyGateService', () => {
   beforeEach(() => jest.clearAllMocks());
@@ -36,8 +36,12 @@ describe('LoginPolicyGateService', () => {
   });
 
   it('deja pasar si no hay política activa o si el usuario ya está en la versión activa', async () => {
-    await expect(makeGate(fixture({ activePolicy: null })).gate.check(fixture(client()), false, null, CONTEXT)).resolves.toBeNull();
-    await expect(makeGate().gate.check(fixture(client({ privacy_policy_version: '2.0' })), false, null, CONTEXT)).resolves.toBeNull();
+    await expect(
+      makeGate(fixture({ activePolicy: null })).gate.check(fixture(client()), false, null, CONTEXT)
+    ).resolves.toBeNull();
+    await expect(
+      makeGate().gate.check(fixture(client({ privacyPolicyVersion: '2.0' })), false, null, CONTEXT)
+    ).resolves.toBeNull();
   });
 
   it('con acceptPolicy=true registra la versión, el consentimiento y la auditoría, y deja pasar', async () => {

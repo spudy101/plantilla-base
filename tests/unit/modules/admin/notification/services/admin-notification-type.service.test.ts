@@ -165,13 +165,13 @@ describe('NotificationTypeService', () => {
     });
 
     it('lanza badRequest si el usuario está inactivo', async () => {
-      userRepo.findByUserId.mockResolvedValue({ user_id: 'u-1', is_active: false });
+      userRepo.findByUserId.mockResolvedValue({ userId: 'u-1', isActive: false });
 
       await expect(service.createDirectNotification(fixture({ userId: 'u-1', titulo: 'T' }), ADMIN)).rejects.toMatchObject({ statusCode: 400 });
     });
 
     it('crea la notificación directa, audita y responde vía DTO', async () => {
-      userRepo.findByUserId.mockResolvedValue({ user_id: 'u-1', is_active: true });
+      userRepo.findByUserId.mockResolvedValue({ userId: 'u-1', isActive: true });
       notificationCreation.crearNotificacion.mockResolvedValue({ notification_id: 'n-1' });
 
       const result = await service.createDirectNotification({ userId: 'u-1', titulo: 'T', contenido: 'C', asunto: 'A' }, ADMIN);

@@ -15,7 +15,6 @@ import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
 import requestContext from '../../../../../shared/utils/request-context.util';
 import userSessionRepository from '../repositories/user-session.repository';
-import type defineUserSession from '../models/user-session.model';
 import RefreshTokenStore from '../../../../../shared/utils/refresh-token-store.util';
 import TokenBlacklistUtil from '../../../../../shared/utils/token-blacklist.util';
 import constantsModule from '../../../../../shared/constants';
@@ -62,7 +61,7 @@ class SessionExpirationWorker {
         }
       } catch (error) {
         logger.error('Error al cerrar sesión en worker de expiración', {
-          sessionId: session.user_session_id,
+          sessionId: session.userSessionId,
           error: errorMessage(error)
         });
       }
@@ -72,19 +71,19 @@ class SessionExpirationWorker {
   }
 
   static async _closeSession(
-    session: Pick<defineUserSession.Instance, 'user_session_id' | 'user_id' | 'jti' | 'last_access_at' | 'started_at'>,
+    session: { userSessionId: string; userId: string; jti: string; lastAccessAt: Date; startedAt: Date },
     absoluteCutoff: Date
   ) {
-    const sessionId = session.user_session_id;
+    const sessionId = session.userSessionId;
 
     // Causa: si superó el tope absoluto de 8h, prevalece esa razón; si no, es inactividad.
-    const exceededAbsolute = new Date(session.started_at) < absoluteCutoff;
+    const exceededAbsolute = new Date(session.startedAt) < absoluteCutoff;
     const reason = exceededAbsolute ? REASON_ABSOLUTE : REASON_INACTIVITY;
     const auditAction = exceededAbsolute ? 'SESSION_ABSOLUTE_EXPIRED' : 'SESSION_EXPIRED_BY_WORKER';
 
     // closeSession solo afecta filas status='active': si el middleware ya la cerró
     // entre el find y el update, affected=0 y evitamos blacklist/auditoría duplicadas.
-    const [affected] = await userSessionRepository.closeSession(sessionId, reason);
+    const affected = await userSessionRepository.closeSession(sessionId, reason);
     if (!affected) {
       return false;
     }
@@ -108,10 +107,10 @@ class SessionExpirationWorker {
       auditAction,
       'system',
       {
-        targetUserId: session.user_id,
+        targetUserId: session.userId,
         jti: session.jti,
-        lastAccessAt: session.last_access_at,
-        startedAt: session.started_at,
+        lastAccessAt: session.lastAccessAt,
+        startedAt: session.startedAt,
         before: { status: 'active' },
         after: { status: 'closed', closeReason: reason }
       },
