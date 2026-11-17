@@ -451,13 +451,13 @@ module.exports = {
   // ===========================================================================
   overrides: [
     // -------------------------------------------------------------------------
-    // Archivos de TEST (*.test.js y tests/**)
+    // Archivos de TEST (*.test.ts y tests/**)
     // En tests los valores concretos son intencionales (fixtures, assertions),
     // las funciones pueden ser largas (setup + AAA) y console.log es útil
     // para depurar tests en local.
     // -------------------------------------------------------------------------
     {
-      files: ['**/*.test.js', '**/tests/**/*.js'],
+      files: ['**/*.test.{js,ts}', '**/tests/**/*.{js,ts}'],
       rules: {
         'max-lines-per-function': 'off', // Un describe con muchos it puede ser largo
         'max-len': 'off',
@@ -477,7 +477,7 @@ module.exports = {
     // valores por defecto numéricos que son semánticamente claros en contexto.
     // -------------------------------------------------------------------------
     {
-      files: ['**/shared/constants/**/*.{js,ts}', '**/shared/constants.js', '**/tests/**/*.js', '**/shared/utils/hash.util.{js,ts}'],
+      files: ['**/shared/constants/**/*.{js,ts}', '**/shared/constants.js', '**/tests/**/*.{js,ts}', '**/shared/utils/hash.util.{js,ts}'],
       rules: {
         'no-process-env': 'off',
         'no-magic-numbers': 'off'

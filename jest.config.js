@@ -3,7 +3,7 @@
 const sharedConfig = {
   testEnvironment: 'node',
   workerIdleMemoryLimit: '512MB',
-  setupFiles: ['<rootDir>/tests/jest.setup.env.js'],
+  setupFiles: ['<rootDir>/tests/jest.setup.env.ts'],
   testPathIgnorePatterns: ['/node_modules/'],
   // `jose` (usado por jwt.util) se publica como ESM puro; Node lo carga con
   // require(ESM), pero el loader de Jest no. Lo transpilamos vía babel-jest
@@ -23,7 +23,7 @@ const sharedConfig = {
     '^shared/(.*)$': '<rootDir>/shared/$1',
     '^modules/(.*)$': '<rootDir>/modules/$1',
     '^config/(.*)$': '<rootDir>/config/$1',
-    '^tests/helpers$': '<rootDir>/tests/helpers/index.js',
+    '^tests/helpers$': '<rootDir>/tests/helpers/index.ts',
     '^tests/helpers/(.*)$': '<rootDir>/tests/helpers/$1'
   }
 };

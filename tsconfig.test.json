@@ -7,7 +7,8 @@
     "paths": {
       "shared/*": ["shared/*"],
       "modules/*": ["modules/*"],
-      "config/*": ["config/*"]
+      "config/*": ["config/*"],
+      "tests/*": ["tests/*"]
     }
   },
   "include": ["servers/**/*", "modules/**/*", "shared/**/*", "config/**/*", "tests/**/*"],
