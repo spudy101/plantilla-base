@@ -1,6 +1,6 @@
 import type defineUserSession from '../../../../schemas/kyc/iam/models/user-session.model';
 import type defineUserTrustedDevice from '../../../../schemas/kyc/iam/models/user-trusted-device.model';
-import type defineAuditLog from '../../../../schemas/records/audit/models/audit-log.model';
+import type { AuditLogWithExecutor } from '../../../../schemas/records/audit/repositories/audit-log.repository';
 // Fase 5 — API admin de sesiones (traza forense). DTOs de salida.
 // El timeline sale de audit_logs (fuente única); la hidratación reusa DTOs admin ya existentes.
 // Mapeo campo a campo; nunca spread sobre instancias Sequelize.
@@ -49,7 +49,7 @@ function SessionTraceListDTO(rows: defineUserSession.Instance[], countMap: Map<s
 
 // Evento del timeline: el log plano + un flag hasDetail que indica si su fila de dominio es hidratable
 // (tabla registrada en el registry y entity_id presente). El front pide el detalle solo al expandir.
-function TimelineEventDTO(log: defineAuditLog.Instance, hasDetail: boolean) {
+function TimelineEventDTO(log: AuditLogWithExecutor, hasDetail: boolean) {
   return {
     ...AuditLogComponent.buildList(log),
     hasDetail: Boolean(hasDetail)
@@ -60,9 +60,9 @@ function TimelineEventDTO(log: defineAuditLog.Instance, hasDetail: boolean) {
 function SessionTimelineDTO(
   session: defineUserSession.Instance,
   actionCount: number,
-  timelineRows: defineAuditLog.Instance[],
+  timelineRows: AuditLogWithExecutor[],
   metadata: Parameters<typeof MetadataDTO.build>[0],
-  hasDetailFn: (log: defineAuditLog.Instance) => boolean
+  hasDetailFn: (log: AuditLogWithExecutor) => boolean
 ) {
   const rows = Array.isArray(timelineRows) ? timelineRows : [];
   return {

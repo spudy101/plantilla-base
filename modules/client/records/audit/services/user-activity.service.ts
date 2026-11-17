@@ -116,7 +116,7 @@ class UserActivityService {
     const sessionIds = [
       ...new Set(
         pageItems
-          .map(item => (item.__source === 'audit' ? item.row.session_id : item.row.origin_session_id))
+          .map(item => (item.__source === 'audit' ? item.row.sessionId : item.row.origin_session_id))
           .filter((id): id is string => Boolean(id))
       )
     ];

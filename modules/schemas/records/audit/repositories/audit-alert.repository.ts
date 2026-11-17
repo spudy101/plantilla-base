@@ -1,87 +1,70 @@
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../../shared/models';
-const { AuditAlert } = modelsModule;
-import { Op } from 'sequelize';
-import type defineAuditAlert from '../models/audit-alert.model';
-import * as queryModule from '../../../../../shared/repositories/query';
-const { range, toWhere } = queryModule;
-import type { WhereClause } from '../../../../../shared/repositories/query';
+// modules/schemas/records/audit/repositories/audit-alert.repository.ts
+//
+// Alertas de auditoría para el superadmin. Se crean desde logAudit con el cliente por defecto (fuera de la
+// transacción del flujo, como la auditoría misma).
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import type { AuditAlert, Prisma } from '../../../../../shared/database/generated/prisma/client';
+import { loadUserRefs } from './user-ref';
+import type { UserRef } from './user-ref';
 
-class AuditAlertRepository extends BaseRepository<defineAuditAlert.Instance> {
-  constructor() {
-    super(AuditAlert);
+/** Alerta con quién la originó (actor) y quién la reconoció. */
+export type AuditAlertWithUsers = AuditAlert & { actor: UserRef | null; acknowledgedByUser: UserRef | null };
+
+class AuditAlertRepository extends PrismaRepository {
+  create(data: Prisma.AuditAlertUncheckedCreateInput): Promise<AuditAlert> {
+    return this.independentDb().auditAlert.create({ data });
   }
 
-  // (Se eliminó el override de `create`: el try/catch no capturaba rechazos async y además
-  // perdía `options`. Se usa BaseRepository.create(data, options); el llamador ya maneja errores.)
+  async findById(alertId: string): Promise<AuditAlertWithUsers | null> {
+    const row = await (await this.db()).auditAlert.findUnique({ where: { alertId } });
+    return row ? (await this.attachUsers([row]))[0]! : null;
+  }
 
-  findAllFiltered(
+  async findAllFiltered(
     { acknowledged, dateFrom, dateTo, action, category }: AuditAlertRepository.Filters = {},
     { limit = 20, offset = 0 }: { limit?: number; offset?: number } = {}
-  ) {
-    const where: WhereClause = {};
+  ): Promise<PrismaRepository.Page<AuditAlertWithUsers>> {
+    const where: Prisma.AuditAlertWhereInput = {
+      ...(typeof acknowledged === 'boolean' ? { acknowledged } : {}),
+      ...(action ? { action } : {}),
+      ...(category ? { category } : {}),
+      ...(dateFrom != null || dateTo != null
+        ? { createdAt: { ...(dateFrom != null ? { gte: dateFrom } : {}), ...(dateTo != null ? { lte: dateTo } : {}) } }
+        : {})
+    };
+    const db = await this.db();
+    const [rows, count] = await Promise.all([
+      db.auditAlert.findMany({ where, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
+      db.auditAlert.count({ where })
+    ]);
+    return { rows: await this.attachUsers(rows), count };
+  }
 
-    if (typeof acknowledged === 'boolean') {
-      where.acknowledged = acknowledged;
-    }
-    if (action) {
-      where.action = action;
-    }
-    if (category) {
-      where.category = category;
-    }
-    const createdAtRange = range(dateFrom, dateTo);
-    if (createdAtRange) {
-      where.created_at = createdAtRange;
-    }
+  /** Reconoce una alerta pendiente; devuelve cuántas filas cambió (0 si no existía o ya estaba reconocida). */
+  acknowledge(alertId: string, acknowledgedBy: string): Promise<number> {
+    return this.acknowledgeBulk([alertId], acknowledgedBy);
+  }
 
-    return this.model.findAndCountAll({
-      where: toWhere(where),
-      include: [
-        {
-          association: 'actor',
-          required: false,
-          attributes: ['user_id', 'username'],
-          include: [{ association: 'person', attributes: ['first_name', 'last_name'] }]
-        },
-        {
-          association: 'acknowledgedByUser',
-          required: false,
-          attributes: ['user_id', 'username'],
-          include: [{ association: 'person', attributes: ['first_name', 'last_name'] }]
-        }
-      ],
-      order: [['created_at', 'DESC']],
-      limit,
-      offset,
-      distinct: true
+  /** Reconoce las alertas pendientes indicadas; devuelve cuántas cambió. */
+  async acknowledgeBulk(alertIds: string[], acknowledgedBy: string): Promise<number> {
+    const { count } = await (await this.db()).auditAlert.updateMany({
+      where: { alertId: { in: alertIds }, acknowledged: false },
+      data: { acknowledged: true, acknowledgedBy, acknowledgedAt: new Date() }
     });
+    return count;
   }
 
-  acknowledge(alertId: string, acknowledgedBy: string) {
-    return this.model.update(
-      {
-        acknowledged: true,
-        acknowledged_by: acknowledgedBy,
-        acknowledged_at: new Date()
-      },
-      { where: { alert_id: alertId, acknowledged: false } }
-    );
+  async countPending(): Promise<number> {
+    return (await this.db()).auditAlert.count({ where: { acknowledged: false } });
   }
 
-  acknowledgeBulk(alertIds: string[], acknowledgedBy: string) {
-    return this.model.update(
-      {
-        acknowledged: true,
-        acknowledged_by: acknowledgedBy,
-        acknowledged_at: new Date()
-      },
-      { where: { alert_id: { [Op.in]: alertIds }, acknowledged: false } }
-    );
-  }
-
-  countPending() {
-    return this.model.count({ where: { acknowledged: false } });
+  private async attachUsers(rows: AuditAlert[]): Promise<AuditAlertWithUsers[]> {
+    const users = await loadUserRefs(await this.db(), rows.flatMap(r => [r.userId, r.acknowledgedBy]));
+    return rows.map(r => ({
+      ...r,
+      actor: (r.userId && users.get(r.userId)) || null,
+      acknowledgedByUser: (r.acknowledgedBy && users.get(r.acknowledgedBy)) || null
+    }));
   }
 }
 

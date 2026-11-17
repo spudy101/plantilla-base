@@ -457,7 +457,7 @@ describe('AuthLoginService', () => {
         service.verifyMFA({ nationalId: '111', totpCode: '000000', session: 'challenge-token' }, AUDIT)
       ).rejects.toMatchObject({ statusCode: 400 });
       expect(userLoginAttemptRepository.recordAttempt).toHaveBeenCalledWith(
-        expect.objectContaining({ failure_reason: 'Codigo TOTP incorrecto' })
+        expect.objectContaining({ failureReason: 'Codigo TOTP incorrecto' })
       );
       expect(logAudit).toHaveBeenCalledWith('MFA_FAILED', 'u-1', expect.any(Object), expect.any(Object));
     });

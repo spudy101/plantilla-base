@@ -90,7 +90,7 @@ describe('AdminAuditAlertService', () => {
 
   describe('acknowledge', () => {
     it('lanza 404 si no marcó ninguna alerta', async () => {
-      auditAlertRepo.acknowledge.mockResolvedValue([0]);
+      auditAlertRepo.acknowledge.mockResolvedValue(0);
 
       await expect(service.acknowledge('a-1', ADMIN)).rejects.toMatchObject({ statusCode: 404 });
       expect(auditAlertRepo.findById).not.toHaveBeenCalled();
@@ -98,7 +98,7 @@ describe('AdminAuditAlertService', () => {
     });
 
     it('marca, audita, notifica (setImmediate) y devuelve el registro DTO', async () => {
-      auditAlertRepo.acknowledge.mockResolvedValue([1]);
+      auditAlertRepo.acknowledge.mockResolvedValue(1);
       auditAlertRepo.findById.mockResolvedValue({ audit_alert_id: 'a-1', acknowledged: true });
 
       const result = await service.acknowledge('a-1', ADMIN);
@@ -120,7 +120,7 @@ describe('AdminAuditAlertService', () => {
 
   describe('acknowledgeBulk', () => {
     it('reporta {acknowledged, requested} y audita el bulk', async () => {
-      auditAlertRepo.acknowledgeBulk.mockResolvedValue([2]);
+      auditAlertRepo.acknowledgeBulk.mockResolvedValue(2);
 
       const result = await service.acknowledgeBulk(['a-1', 'a-2', 'a-3'], ADMIN);
 

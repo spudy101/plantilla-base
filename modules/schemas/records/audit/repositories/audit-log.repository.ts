@@ -1,445 +1,163 @@
-import { interopDefault } from '../../../../../shared/utils/interop.util';
-import AppendOnlyRepository from '../../../../../shared/repositories/append-only.repository';
-import modelsModule from '../../../../../shared/models';
-const { AuditLog } = modelsModule;
-import { Op, fn, col } from 'sequelize';
-import type { Includeable } from 'sequelize';
-import type defineAuditLog from '../models/audit-log.model';
-import errorMessageModule from '../../../../../shared/utils/error-message.util';
+// modules/schemas/records/audit/repositories/audit-log.repository.ts
+//
+// `audit_logs` es append-only: la garantía dura es el trigger de BD (BEFORE UPDATE OR DELETE); este
+// repositorio no expone update ni delete. Las escrituras van con el cliente por defecto aunque haya una
+// unidad de trabajo activa: la auditoría queda aunque el flujo que la disparó se revierta.
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import { Prisma } from '../../../../../shared/database/generated/prisma/client';
+import type { AuditLog, AuditLogOutcome } from '../../../../../shared/database/generated/prisma/client';
+import { loadUserRefs } from './user-ref';
+import type { UserRef } from './user-ref';
 
-const { errorMessage } = errorMessageModule;
-import * as queryModule from '../../../../../shared/repositories/query';
-const { range, toWhere } = queryModule;
-import type { WhereClause } from '../../../../../shared/repositories/query';
+/** Log con quién ejecutó la acción (usuario + nombre). */
+export type AuditLogWithExecutor = AuditLog & { executor: UserRef | null };
 
-// Quién ejecutó la acción (usuario + nombre). Inclusión por defecto de los listados/detalle admin,
-// declarada por nombre de asociación para que los services no importen modelos (SOLID: D).
-const EXECUTOR_INCLUDE: Includeable[] = [
-  {
-    association: 'executor',
-    required: false,
-    attributes: ['user_id', 'username'],
-    include: [{ association: 'person', attributes: ['first_name', 'last_name'] }]
-  }
-];
+const SORTABLE = Object.values(Prisma.AuditLogScalarFieldEnum);
 
-class AuditLogRepository extends AppendOnlyRepository<defineAuditLog.Instance> {
-  constructor() {
-    super(AuditLog);
-  }
-
-  // `audit_logs` es append-only. La garantía dura es el trigger de BD (BEFORE UPDATE OR DELETE).
-  // Antes este repo heredaba de BaseRepository y sobrescribía `update`/`delete` para lanzar error
-  // (violación de Liskov). Ahora hereda de AppendOnlyRepository: esos métodos simplemente no existen.
-
-  /**
-   * Registra una entrada de auditoría.
-   * Nunca lanza error — falla silenciosamente para no interrumpir el flujo principal.
-   * @param {Object} entry
-   * @returns {Promise<AuditLog|null>}
-   */
-  async register(entry: defineAuditLog.CreationAttributes) {
-    try {
-      // await: sin él, el catch no veía el rechazo de la Promise y el error escapaba al llamador
-      return await this.model.create(entry);
-    } catch (err) {
-      // Importar logger aquí para evitar dependencia circular
-      const { logger } = interopDefault(require('../../../../../shared/utils/logger.util') as typeof import('../../../../../shared/utils/logger.util'));
-      logger.error('AuditLogRepository.register — error guardando en BD', {
-        error: errorMessage(err),
-        action: entry.action,
-        userId: entry.user_id
-      });
-      return null;
-    }
-  }
-
-  // ============================================================
-  // CONSULTAS PARA PANEL / REPORTES SFC
-  // ============================================================
-
-  /**
-   * Busca todos los logs de un usuario en un rango de fechas.
-   * Consulta principal que pide la SFC: "todo lo que hizo el usuario X".
-   * @param {string} userId
-   * @param {Date} from
-   * @param {Date} to
-   * @param {Object} pagination
-   * @returns {Promise<{rows: AuditLog[], count: number}>}
-   */
-  findByUser(userId: string, from: Date, to: Date, { limit = 50, offset = 0 }: AuditLogRepository.Page = {}) {
-    return this.model.findAndCountAll({
-      where: {
-        user_id: userId,
-        createdAt: { [Op.between]: [from, to] }
-      },
-      order: [['created_at', 'DESC']],
-      limit,
-      offset,
-      distinct: true
-    });
+class AuditLogRepository extends PrismaRepository {
+  /** Registra una entrada (lo usa logAudit; fuera de la transacción del flujo). */
+  create(data: Prisma.AuditLogUncheckedCreateInput): Promise<AuditLog> {
+    return this.independentDb().auditLog.create({ data });
   }
 
   /**
-   * Feed de actividad del PROPIO usuario (endpoint client): solo acciones de una whitelist
-   * client-safe. El DTO nunca expone `details` (claves before/after) ni campos técnicos.
-   * @param {string} userId
-   * @param {string[]} actions - whitelist de acciones permitidas en el feed
-   * @param {Object} pagination
+   * Feed de actividad del PROPIO usuario (endpoint client): solo acciones de una whitelist client-safe.
+   * El DTO nunca expone `details` (claves before/after) ni campos técnicos.
    */
-  findClientSafeByUser(userId: string, actions: string[], { limit = 50, offset = 0 }: AuditLogRepository.Page = {}) {
-    return this.model.findAndCountAll({
-      where: { user_id: userId, action: { [Op.in]: actions } },
-      order: [['created_at', 'DESC']],
-      limit,
-      offset,
-      attributes: ['audit_log_id', 'action', 'description', 'category', 'outcome', 'ip', 'session_id', 'createdAt']
-    });
+  async findClientSafeByUser(userId: string, actions: string[], { limit = 50, offset = 0 }: AuditLogRepository.Page = {}) {
+    const where = { userId, action: { in: actions } } satisfies Prisma.AuditLogWhereInput;
+    const db = await this.db();
+    const [rows, count] = await Promise.all([
+      db.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+        select: { auditLogId: true, action: true, description: true, category: true, outcome: true, ip: true, sessionId: true, createdAt: true }
+      }),
+      db.auditLog.count({ where })
+    ]);
+    return { rows, count };
   }
 
-  /**
-   * Busca logs por acción específica en un rango de fechas.
-   * Útil para: "todos los LOGIN_FAILED del último mes".
-   * @param {string} action
-   * @param {Date} from
-   * @param {Date} to
-   * @param {Object} pagination
-   */
-  findByAction(action: string, from: Date, to: Date, { limit = 50, offset = 0 }: AuditLogRepository.Page = {}) {
-    return this.model.findAndCountAll({
-      where: {
-        action,
-        createdAt: { [Op.between]: [from, to] }
-      },
-      order: [['created_at', 'DESC']],
-      limit: limit,
-      offset: offset,
-      distinct: true
-    });
+  /** Paginación con el executor adjunto. `sortBy` acepta columna (created_at) o campo. */
+  async findPaginatedWithExecutor(
+    where: Prisma.AuditLogWhereInput,
+    { limit, offset, sortBy = 'createdAt', order = 'DESC' }: AuditLogRepository.Pagination
+  ): Promise<PrismaRepository.Page<AuditLogWithExecutor>> {
+    const db = await this.db();
+    const [rows, count] = await Promise.all([
+      db.auditLog.findMany({ where, ...this.paginationArgs(SORTABLE, { limit, offset, sortBy, order }) }),
+      db.auditLog.count({ where })
+    ]);
+    return { rows: await this.attachExecutor(rows), count };
   }
 
-  /**
-   * Busca logs por categoría y nivel de riesgo.
-   * Útil para reportes por módulo: "todos los eventos críticos de KYC".
-   * @param {string} category
-   * @param {string[]} riskLevels — ej: ['high', 'critical']
-   * @param {Date} from
-   * @param {Date} to
-   * @param {Object} pagination
-   */
-  findByCategoryAndRisk(
-    category: string,
-    riskLevels: Array<defineAuditLog.Attributes['risk']>,
-    from: Date, to: Date,
-    { limit = 50, offset = 0 }: AuditLogRepository.Page = {}
-  ) {
-    return this.model.findAndCountAll({
-      where: {
-        category,
-        risk: { [Op.in]: riskLevels },
-        createdAt: { [Op.between]: [from, to] }
-      },
-      order: [['created_at', 'DESC']],
-      limit: limit,
-      offset: offset,
-      distinct: true
-    });
+  /** Detalle de un log, con el executor. */
+  async findByIdFull(auditLogId: string): Promise<AuditLogWithExecutor | null> {
+    const row = await (await this.db()).auditLog.findUnique({ where: { auditLogId } });
+    return row ? (await this.attachExecutor([row]))[0]! : null;
   }
 
-  /**
-   * Busca logs por IP — útil para detectar accesos sospechosos.
-   * @param {string} ip
-   * @param {Date} from
-   * @param {Date} to
-   */
-  findByIp(ip: string, from: Date, to: Date, { limit = 50, offset = 0 }: AuditLogRepository.Page = {}) {
-    return this.model.findAndCountAll({
-      where: {
-        ip,
-        createdAt: { [Op.between]: [from, to] }
-      },
-      order: [['created_at', 'DESC']],
-      limit: limit,
-      offset: offset,
-      distinct: true
-    });
-  }
-
-  /**
-   * Busca logs por correlationId — reconstruye el flujo completo de una request.
-   * @param {string} correlationId
-   */
-  findByCorrelationId(correlationId: string) {
-    return this.model.findAll({
-      where: { correlation_id: correlationId },
-      order: [['created_at', 'ASC']]
-    });
-  }
-
-  /**
-   * Busca logs por resultado (outcome) en un rango de fechas.
-   * Consulta clave para la SFC: "todos los errores/fallas del último mes".
-   * @param {string} outcome — 'success' | 'failure' | 'warning' | 'attempt'
-   * @param {Date} from
-   * @param {Date} to
-   * @param {Object} pagination
-   */
-  findByOutcome(outcome: defineAuditLog.Attributes['outcome'], from: Date, to: Date, { limit = 50, offset = 0 }: AuditLogRepository.Page = {}) {
-    return this.model.findAndCountAll({
-      where: {
-        outcome,
-        createdAt: { [Op.between]: [from, to] }
-      },
-      order: [['created_at', 'DESC']],
-      limit: limit,
-      offset: offset,
-      distinct: true
-    });
-  }
-
-  /**
-   * Busca fallas de un usuario específico en un rango de fechas.
-   * Útil para detectar patrones de error por usuario.
-   * @param {string} userId
-   * @param {Date} from
-   * @param {Date} to
-   * @param {Object} pagination
-   */
-  findFailuresByUser(userId: string, from: Date, to: Date, { limit = 50, offset = 0 }: AuditLogRepository.Page = {}) {
-    return this.model.findAndCountAll({
-      where: {
-        user_id: userId,
-        outcome: { [Op.in]: ['failure'] },
-        createdAt: { [Op.between]: [from, to] }
-      },
-      order: [['created_at', 'DESC']],
-      limit: limit,
-      offset: offset,
-      distinct: true
-    });
-  }
-
-  /**
-   * Paginación genérica; por defecto incluye al executor (User + Person).
-   * @param {object} where
-   * @param {{limit: number, offset: number}} pagination
-   * @param {object[]} include
-   */
-  findPaginatedWithExecutor(
-    where: WhereClause,
-    { limit, offset, sortBy = 'created_at', order = 'DESC' }: AuditLogRepository.Pagination,
-    include: Includeable[] = EXECUTOR_INCLUDE
-  ) {
-    return this.model.findAndCountAll({
-      where: toWhere(where),
-      include,
-      order: [[sortBy, order]],
-      limit,
-      offset,
-      distinct: true
-    });
-  }
-
-  /**
-   * Detalle de un log; por defecto incluye al executor.
-   * @param {string} auditLogId
-   * @param {object[]} include
-   */
-  findByIdFull(auditLogId: string, include: Includeable[] = EXECUTOR_INCLUDE) {
-    return this.model.findOne({
-      where: { [this.model.primaryKeyAttribute]: auditLogId },
-      include
-    });
-  }
-
-  /**
-   * Búsqueda plana sin include para exportación CSV/XLSX.
-   * @param {object} where
-   * @param {number} limit
-   */
-  findAllForExport(where: WhereClause, limit: number) {
-    return this.model.findAll({
-      where: toWhere(where),
-      order: [['created_at', 'DESC']],
-      limit
-    });
-  }
-
-  // ============================================================
-  // BÚSQUEDAS CON FILTROS DE NEGOCIO (SOLID: D / I)
-  // ============================================================
-  // Los services pasan filtros planos (dateFrom, action, userId…) y el repositorio
-  // los traduce a un WHERE de Sequelize. Así ningún service importa `Op`.
-
-  /**
-   * Traduce los filtros del listado/exportación de auditoría a un WHERE.
-   * @param {object} filters - { dateFrom, dateTo, action, userId, sessionId, category, module,
-   *                             outcome, risk, ip, correlationId, entityId, entityType, source }
-   * @returns {object} where de Sequelize
-   */
-  buildSearchWhere(filters: AuditLogRepository.SearchFilters = {}) {
-    const where: WhereClause = {};
-    const { dateFrom, dateTo } = filters;
-    const createdAtRange = range(dateFrom, dateTo);
-    if (createdAtRange) {
-      where.created_at = createdAtRange;
-    }
-    const columns: Record<Exclude<keyof AuditLogRepository.SearchFilters, 'dateFrom' | 'dateTo'>, string> = {
-      action: 'action',
-      userId: 'user_id',
-      sessionId: 'session_id',
-      category: 'category',
-      module: 'module',
-      outcome: 'outcome',
-      risk: 'risk',
-      ip: 'ip',
-      correlationId: 'correlation_id',
-      entityId: 'entity_id',
-      entityType: 'entity_type',
-      source: 'source'
-    };
-    for (const [key, column] of Object.entries(columns) as Array<[keyof typeof columns, string]>) {
-      if (filters[key]) {
-        where[column] = filters[key];
+  /** Traduce los filtros del listado/exportación de auditoría a un WHERE. */
+  buildSearchWhere(filters: AuditLogRepository.SearchFilters = {}): Prisma.AuditLogWhereInput {
+    const where: Record<string, unknown> = { ...createdAtRange(filters.dateFrom, filters.dateTo) };
+    const fields = ['action', 'userId', 'sessionId', 'category', 'module', 'outcome', 'risk', 'ip', 'correlationId', 'entityId', 'entityType', 'source'] as const;
+    for (const field of fields) {
+      if (filters[field]) {
+        where[field] = filters[field];
       }
     }
-    return where;
+    return where as Prisma.AuditLogWhereInput;
   }
 
   /** Listado paginado de auditoría a partir de filtros de negocio. */
-  searchPaginated(
-    filters: AuditLogRepository.SearchFilters,
-    pagination: AuditLogRepository.Pagination,
-    include: Includeable[] = EXECUTOR_INCLUDE
-  ) {
-    return this.findPaginatedWithExecutor(this.buildSearchWhere(filters), pagination, include);
+  searchPaginated(filters: AuditLogRepository.SearchFilters, pagination: AuditLogRepository.Pagination) {
+    return this.findPaginatedWithExecutor(this.buildSearchWhere(filters), pagination);
   }
 
-  /** Exportación (sin include) a partir de filtros de negocio. */
-  searchForExport(filters: AuditLogRepository.SearchFilters, limit: number) {
-    return this.findAllForExport(this.buildSearchWhere(filters), limit);
+  /** Exportación (sin executor) a partir de filtros de negocio. */
+  async searchForExport(filters: AuditLogRepository.SearchFilters, limit: number): Promise<AuditLog[]> {
+    return (await this.db()).auditLog.findMany({ where: this.buildSearchWhere(filters), orderBy: { createdAt: 'desc' }, take: limit });
   }
 
-  /**
-   * WHERE de intentos de autenticación.
-   * @param {object} criteria
-   * @param {Date} criteria.from
-   * @param {Date} criteria.to
-   * @param {string[]} [criteria.actions] - si viene, filtra por esas acciones
-   * @param {string} [criteria.category]  - si no hay actions, filtra por categoría
-   * @param {string} [criteria.userId]
-   * @param {string} [criteria.outcome]
-   */
-  buildAuthAttemptsWhere({ from, to, actions, category, userId, outcome }: AuditLogRepository.AuthAttemptsCriteria) {
-    const where: WhereClause = { created_at: { [Op.between]: [from, to] } };
-    if (actions && actions.length) {
-      where.action = { [Op.in]: actions };
-    } else if (category) {
-      where.category = category;
-    }
-    if (userId) {
-      where.user_id = userId;
-    }
-    if (outcome) {
-      where.outcome = outcome;
-    }
-    return where;
+  /** WHERE de intentos de autenticación: por acciones (o, sin ellas, por categoría), usuario y resultado. */
+  buildAuthAttemptsWhere({ from, to, actions, category, userId, outcome }: AuditLogRepository.AuthAttemptsCriteria): Prisma.AuditLogWhereInput {
+    return {
+      createdAt: { gte: from, lte: to },
+      ...(actions && actions.length ? { action: { in: actions } } : category ? { category } : {}),
+      ...(userId ? { userId } : {}),
+      ...(outcome ? { outcome: outcome as AuditLogOutcome } : {})
+    };
   }
 
   /** Intentos de autenticación paginados. */
-  findAuthAttemptsPaginated(
-    criteria: AuditLogRepository.AuthAttemptsCriteria,
-    pagination: AuditLogRepository.Pagination,
-    include: Includeable[] = EXECUTOR_INCLUDE
-  ) {
-    return this.findPaginatedWithExecutor(this.buildAuthAttemptsWhere(criteria), pagination, include);
+  findAuthAttemptsPaginated(criteria: AuditLogRepository.AuthAttemptsCriteria, pagination: AuditLogRepository.Pagination) {
+    return this.findPaginatedWithExecutor(this.buildAuthAttemptsWhere(criteria), pagination);
   }
 
-  // ============================================================
-  // TRAZA POR SESIÓN (Fase 5 — API admin de sesiones)
-  // ============================================================
+  // ── Traza por sesión ──────────────────────────────────────────────────────────
 
-  /**
-   * Conteo de eventos de auditoría agrupado por sesión, para un conjunto de sesiones.
-   * Usado por el listado de sesiones para mostrar el "conteo de acciones" sin un query por fila.
-   * @param {string[]} sessionIds
-   * @returns {Promise<Array<{session_id: string, count: string}>>}
-   */
-  countBySessionIds(sessionIds: string[]) {
+  /** Conteo de eventos por sesión, para un conjunto de sesiones (un solo query agrupado). */
+  async countBySessionIds(sessionIds: string[]): Promise<Array<{ sessionId: string; count: number }>> {
     if (!sessionIds || sessionIds.length === 0) {
-      return Promise.resolve([]);
+      return [];
     }
-    return this.aggregate<{ session_id: string; count: string }>({
-      attributes: ['session_id', [fn('COUNT', col('audit_log_id')), 'count']],
-      where: { session_id: { [Op.in]: sessionIds } },
-      group: ['session_id']
+    const groups = await (await this.db()).auditLog.groupBy({
+      by: ['sessionId'],
+      where: { sessionId: { in: sessionIds } },
+      _count: { _all: true }
     });
+    return groups.map(g => ({ sessionId: g.sessionId as string, count: g._count._all }));
   }
 
   /**
-   * Referencias de dominio (entity_table + entity_id) tocadas dentro de una sesión.
-   * Fuente de la hidratación por lote: el timeline sale de audit_logs y cada evento ya trae la
-   * llave de la fila de dominio a la que apunta. Se descartan los eventos sin entidad puntual.
-   * @param {string} sessionId
-   * @returns {Promise<Array<{entity_table: string, entity_id: string, entity_type: string}>>}
+   * Referencias de dominio (tabla + id) tocadas en una sesión: fuente de la hidratación por lote. Se
+   * descartan los eventos sin entidad puntual.
    */
-  findEntityRefsBySession(sessionId: string) {
-    return this.aggregate<{ entity_table: string; entity_id: string; entity_type: string | null }>({
-      where: {
-        session_id: sessionId,
-        entity_table: { [Op.ne]: null },
-        entity_id: { [Op.ne]: null }
-      },
-      attributes: ['entity_table', 'entity_id', 'entity_type']
+  async findEntityRefsBySession(sessionId: string): Promise<Array<{ entityTable: string; entityId: string; entityType: string | null }>> {
+    const rows = await (await this.db()).auditLog.findMany({
+      where: { sessionId, entityTable: { not: null }, entityId: { not: null } },
+      select: { entityTable: true, entityId: true, entityType: true }
     });
+    return rows as Array<{ entityTable: string; entityId: string; entityType: string | null }>;
   }
 
-  /**
-   * Resumen de eventos críticos por día — para dashboard de cumplimiento.
-   * @param {Date} from
-   * @param {Date} to
-   */
-  countCriticalByDay(from: Date, to: Date) {
-    return this.aggregate<{ date: string; count: string; category: string | null }>({
-      attributes: [
-        [fn('DATE', col('created_at')), 'date'],
-        [fn('COUNT', col('audit_log_id')), 'count'],
-        'category'
-      ],
-      where: {
-        risk: { [Op.in]: ['high', 'critical'] },
-        createdAt: { [Op.between]: [from, to] }
-      },
-      group: [fn('DATE', col('created_at')), 'category'],
-      order: [[fn('DATE', col('created_at')), 'ASC']]
-    });
-  }
-
-  // ============================================================
-  // RETENCIÓN (worker de archivado, RF-ADM-03)
-  // ============================================================
+  // ── Retención (worker de archivado, RF-ADM-03) ──────────────────────────────
 
   /** Cuántos registros se crearon hasta `cutoff` inclusive (aviso de próximos a vencer). */
-  countCreatedUpTo(cutoff: Date): Promise<number> {
-    return this.model.count({ where: { createdAt: { [Op.lte]: cutoff } } });
+  async countCreatedUpTo(cutoff: Date): Promise<number> {
+    return (await this.db()).auditLog.count({ where: { createdAt: { lte: cutoff } } });
   }
 
   /** Cuántos registros se crearon antes de `cutoff` (candidatos a purga). */
-  countCreatedBefore(cutoff: Date): Promise<number> {
-    return this.model.count({ where: { createdAt: { [Op.lt]: cutoff } } });
+  async countCreatedBefore(cutoff: Date): Promise<number> {
+    return (await this.db()).auditLog.count({ where: { createdAt: { lt: cutoff } } });
   }
 
   /**
-   * Purga de retención: borra de la BD los registros creados antes de `cutoff` (la copia vive en S3).
-   * Es la ÚNICA baja permitida en esta tabla append-only: el trigger de inmutabilidad la autoriza solo
-   * con `app.allow_audit_purge` puesto en la misma transacción (SET LOCAL).
+   * Purga de retención: borra los registros creados antes de `cutoff` (la copia vive en S3). Es la ÚNICA
+   * baja permitida en esta tabla append-only: el trigger la autoriza solo con `app.allow_audit_purge`
+   * puesto en la misma transacción (SET LOCAL).
    */
   purgeCreatedBefore(cutoff: Date): Promise<number> {
-    return this.sequelize.transaction(async transaction => {
-      await this.sequelize.query("SET LOCAL app.allow_audit_purge = 'true'", { transaction });
-      return this.model.destroy({ where: { createdAt: { [Op.lt]: cutoff } }, force: true, transaction });
+    return this.ownTransaction(async db => {
+      await db.$executeRaw`SET LOCAL app.allow_audit_purge = 'true'`;
+      return (await db.auditLog.deleteMany({ where: { createdAt: { lt: cutoff } } })).count;
     });
   }
+
+  private async attachExecutor(rows: AuditLog[]): Promise<AuditLogWithExecutor[]> {
+    const users = await loadUserRefs(await this.db(), rows.map(r => r.userId));
+    return rows.map(r => ({ ...r, executor: (r.userId && users.get(r.userId)) || null }));
+  }
+}
+
+function createdAtRange(from?: string | Date, to?: string | Date): Prisma.AuditLogWhereInput {
+  if (from == null && to == null) {
+    return {};
+  }
+  return { createdAt: { ...(from != null ? { gte: from } : {}), ...(to != null ? { lte: to } : {}) } };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-namespace

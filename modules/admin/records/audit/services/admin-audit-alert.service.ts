@@ -68,7 +68,7 @@ class AdminAuditAlertService {
   }
 
   async acknowledge(alertId: string, adminUserId: string) {
-    const [updated] = await this.auditAlertRepository.acknowledge(alertId, adminUserId);
+    const updated = await this.auditAlertRepository.acknowledge(alertId, adminUserId);
     if (!updated) {
       throw AppError.notFound('Alerta no encontrada o ya estaba reconocida');
     }
@@ -95,7 +95,7 @@ class AdminAuditAlertService {
   }
 
   async acknowledgeBulk(alertIds: string[], adminUserId: string) {
-    const [count] = await this.auditAlertRepository.acknowledgeBulk(alertIds, adminUserId);
+    const count = await this.auditAlertRepository.acknowledgeBulk(alertIds, adminUserId);
 
     logAudit(
       'AUDIT_ALERTS_BULK_ACKNOWLEDGED',

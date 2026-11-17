@@ -20,13 +20,20 @@ export interface ActiveUnit {
   sequelize: Transaction;
   /** Cliente de la transacción interactiva de Prisma; la abre la primera llamada. */
   prisma(): Promise<Prisma.TransactionClient>;
+  /**
+   * true cuando el trabajo de la unidad ya terminó (antes del commit/rollback). El AsyncLocalStorage
+   * sigue visible para lo que se programó adentro (setImmediate, promesas sueltas): eso no debe usar
+   * una transacción que ya se cerró —o abrir una que nadie confirmaría—, así que deja de ser activa.
+   */
+  closed?: boolean;
 }
 
 const storage = new AsyncLocalStorage<ActiveUnit>();
 
 /** La unidad de trabajo en curso, o null fuera de `unitOfWork.run()`. */
 export function activeUnit(): ActiveUnit | null {
-  return storage.getStore() ?? null;
+  const unit = storage.getStore();
+  return unit && !unit.closed ? unit : null;
 }
 
 /** Ejecuta `fn` con `unit` como unidad activa (solo lo usa el Unit of Work). */

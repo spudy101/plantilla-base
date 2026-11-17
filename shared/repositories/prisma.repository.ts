@@ -38,6 +38,19 @@ abstract class PrismaRepository {
   }
 
   /**
+   * Cliente por defecto, aunque haya una unidad de trabajo activa. Para escrituras que deben quedar aunque
+   * el flujo que las disparó se revierta (bitácoras de auditoría: con Sequelize se escribían sin transacción).
+   */
+  protected independentDb(): PrismaDb {
+    return this._client;
+  }
+
+  /** `$transaction` propia, fuera de cualquier unidad de trabajo (p. ej. un SET LOCAL + borrado). */
+  protected ownTransaction<T>(fn: (db: PrismaDb) => Promise<T>): Promise<T> {
+    return (this._client as unknown as PrismaClientInstance).$transaction(tx => fn(tx as PrismaDb));
+  }
+
+  /**
    * Ejecuta `fn` de forma atómica: dentro de `unitOfWork.run()` se une a su transacción; fuera, abre
    * una propia (`$transaction`). Para escrituras de varios pasos que no deben quedar a medias aunque
    * el llamador no haya pedido una unidad de trabajo (p. ej. "desactivar la anterior + crear").

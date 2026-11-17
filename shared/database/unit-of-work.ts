@@ -32,6 +32,7 @@ import { interopDefault } from '../utils/interop.util';
 import type { Sequelize, Transaction, TransactionOptions } from 'sequelize';
 import type { Prisma } from './generated/prisma/client';
 import txContext from './transaction-context';
+import type { ActiveUnit } from './transaction-context';
 
 /** Lo que el Unit of Work necesita del cliente de Prisma (inyectable en tests). */
 interface PrismaTransactional {
@@ -112,13 +113,17 @@ class SequelizeUnitOfWork implements SequelizeUnitOfWork.Port {
     }
     return this._db().transaction(options, async sequelizeTx => {
       const prismaTx = deferredPrismaTransaction(() => this._prismaClient());
+      const unit: ActiveUnit = { sequelize: sequelizeTx, prisma: () => prismaTx.get() };
       let result: T;
       try {
-        result = await txContext.runInUnit({ sequelize: sequelizeTx, prisma: () => prismaTx.get() }, () => work(sequelizeTx));
+        result = await txContext.runInUnit(unit, () => work(sequelizeTx));
       } catch (error) {
+        unit.closed = true;
         await prismaTx.rollback(error);
         throw error; // Sequelize revierte la suya al ver el rechazo
       }
+      // Lo que `work` dejó programado en segundo plano ya no se une a esta unidad
+      unit.closed = true;
       await prismaTx.commit();
       return result;
     });
