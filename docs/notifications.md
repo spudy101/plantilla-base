@@ -274,16 +274,16 @@ Sólo las notificaciones **por canal externo** (email/push) pueden fallar: el ca
 
 ## Seeder de tipos
 
-Un seeder por módulo (`seeders/<ts>-notification-types-{modulo}.js`). Los seeders quedan **registrados en la
-tabla `SequelizeData`** (`seederStorage: 'sequelize'` en `config/database.js`): `db:seed:all` ejecuta cada
+Un seeder por módulo (`seeders/<ts>-notification-types-{modulo}.ts`). Los seeders quedan **registrados en la
+tabla `SequelizeData`** (`seederStorage: 'sequelize'` en `config/database.ts`): `db:seed:all` ejecuta cada
 seeder **una sola vez** y **no lo relanza** una vez registrado.
 
 **Para agregar o modificar un tipo se edita el seeder ORIGINAL del módulo** (y el esquema, la migración
 original) y el dev corre `db:reset` — es la convención vigente del repo. El `DELETE por code` + `bulkInsert`
 dentro del `up` de cada seeder es la salvaguarda de idempotencia que lo hace seguro.
 
-Las **categorías** se siembran en `seeders/<ts>-notification-categories.js` (incluye el `email_layout_template`
-por categoría) y la asignación tipo→categoría en `seeders/<ts>-assign-notification-types-to-categories.js`
+Las **categorías** se siembran en `seeders/<ts>-notification-categories.ts` (incluye el `email_layout_template`
+por categoría) y la asignación tipo→categoría en `seeders/<ts>-assign-notification-types-to-categories.ts`
 (mapeo por `code`, editable después desde el admin con `PATCH /notification-types/:id { notificationCategoryId }`).
 
 ```js

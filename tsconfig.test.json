@@ -1,5 +1,6 @@
 {
-  // Typecheck de los tests .ts (Jest los transpila con Babel sin revisar tipos).
+  // Typecheck de todo lo que no entra al build: tests (Jest solo transpila), migraciones, seeders y
+  // scripts (corren con tsx desde las fuentes).
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": true,
@@ -11,6 +12,6 @@
       "tests/*": ["tests/*"]
     }
   },
-  "include": ["servers/**/*", "modules/**/*", "shared/**/*", "config/**/*", "tests/**/*"],
-  "exclude": ["node_modules", "dist", "coverage", "migrations", "seeders", "scripts"]
+  "include": ["servers/**/*", "modules/**/*", "shared/**/*", "config/**/*", "tests/**/*", "migrations/**/*", "seeders/**/*", "scripts/*.ts"],
+  "exclude": ["node_modules", "dist", "coverage", "scripts/ts-migration"]
 }

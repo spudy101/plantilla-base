@@ -27,7 +27,7 @@ npm install
 cp .env.example .env
 
 # 3. Generar las llaves de cifrado y JWT (rellena AES_KEY, AES_IV, HASH_PEPPER, JWT_*)
-node scripts/generate-keys.util.js
+npm run keys:generate
 
 # 4. Completar en .env las variables REQUERIDAS: DB_*, AWS_*, FRONTEND_RESET_URL
 #    (la app valida la config al arrancar y aborta si falta algo obligatorio)
