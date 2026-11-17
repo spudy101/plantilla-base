@@ -13,76 +13,76 @@
 | **I** — Interface Segregation | No depender de métodos que no usas | Repos con métodos de negocio; jerarquía de repos |
 | **D** — Dependency Inversion | Depender de abstracciones inyectadas | `constructor(deps = {})`, `UnitOfWork`, cero `Op`/modelos/`include` en la capa de aplicación |
 
-Las reglas se **verifican automáticamente** en `tests/unit/guards/solid-architecture.test.js`
+Las reglas se **verifican automáticamente** en `tests/unit/guards/solid-architecture.test.ts`
 (ver [§ Cómo se verifica](#cómo-se-verifica)).
 
 ---
 
 ## S — Single Responsibility
 
-**Antes:** `auth-login.service.js` tenía ~1600 líneas (login, MFA, refresh, logout, dispositivos,
-sesiones) y `admin-person.service.js` ~1000. Cualquier cambio en sesiones obligaba a tocar el archivo del login.
+**Antes:** `auth-login.service.ts` tenía ~1600 líneas (login, MFA, refresh, logout, dispositivos,
+sesiones) y `admin-person.service.ts` ~1000. Cualquier cambio en sesiones obligaba a tocar el archivo del login.
 
 **Ahora:** cada responsabilidad vive en su propio service y el original queda como **fachada**:
 
 ```
 modules/shared-endpoints/kyc/iam/services/
-├── auth-login.service.js                 ← fachada: flujo de login + delegación
+├── auth-login.service.ts                 ← fachada: flujo de login + delegación
 └── auth-login/
-    ├── token-refresh.service.js          ← rotación de refresh / reuse attack
-    ├── auth-logout.service.js            ← logout / logoutAll
-    ├── trusted-device-management.service.js
-    ├── session-control.service.js        ← cierre selectivo y límite de sesiones
-    ├── login-device.service.js           ← dispositivo durante el login
-    ├── sms-login-challenge.service.js    ← MFA por SMS en el login
-    ├── login-policy-gate.service.js      ← política de privacidad al iniciar sesión (también biométrico)
-    └── session-issuer.service.js         ← tokens + JTI + user_session (también biométrico y registro)
+    ├── token-refresh.service.ts          ← rotación de refresh / reuse attack
+    ├── auth-logout.service.ts            ← logout / logoutAll
+    ├── trusted-device-management.service.ts
+    ├── session-control.service.ts        ← cierre selectivo y límite de sesiones
+    ├── login-device.service.ts           ← dispositivo durante el login
+    ├── sms-login-challenge.service.ts    ← MFA por SMS en el login
+    ├── login-policy-gate.service.ts      ← política de privacidad al iniciar sesión (también biométrico)
+    └── session-issuer.service.ts         ← tokens + JTI + user_session (también biométrico y registro)
 
 modules/shared-endpoints/kyc/iam/services/
-├── mfa.service.js                        ← fachada: estado, método preferido, validar contraseña
+├── mfa.service.ts                        ← fachada: estado, método preferido, validar contraseña
 └── mfa/
-    ├── totp-mfa.service.js               ← setup / activación / verificación / baja TOTP
-    ├── sms-mfa.service.js                ← código de activación / confirmación / baja SMS
-    └── mfa-account.js                    ← lecturas del usuario + bitácora de cambios de MFA
+    ├── totp-mfa.service.ts               ← setup / activación / verificación / baja TOTP
+    ├── sms-mfa.service.ts                ← código de activación / confirmación / baja SMS
+    └── mfa-account.ts                    ← lecturas del usuario + bitácora de cambios de MFA
 
 modules/client/kyc/iam/services/
-├── auth-register.service.js              ← registro (crea persona/contacto/usuario/consentimientos)
+├── auth-register.service.ts              ← registro (crea persona/contacto/usuario/consentimientos)
 ├── auth-register/
-│   └── credential-reset.service.js       ← reset de contraseña / MFA por enlace de un solo uso
-└── auth-biometric.service.js             ← enrolamiento + login biométrico (delegando sesión,
+│   └── credential-reset.service.ts       ← reset de contraseña / MFA por enlace de un solo uso
+└── auth-biometric.service.ts             ← enrolamiento + login biométrico (delegando sesión,
                                             política y criptografía en servicios compartidos)
 
 modules/admin/kyc/person/services/
-├── admin-person.service.js               ← fachada: eliminación de cuenta + delegación
+├── admin-person.service.ts               ← fachada: eliminación de cuenta + delegación
 └── admin-person/
-    ├── person-query.service.js
-    ├── person-creation.service.js
-    ├── person-access.service.js          ← activar/desactivar, rol
-    ├── person-credentials.service.js     ← contraseña, email, documento, MFA
-    └── person-guards.js                  ← regla "cuenta eliminada es intocable"
+    ├── person-query.service.ts
+    ├── person-creation.service.ts
+    ├── person-access.service.ts          ← activar/desactivar, rol
+    ├── person-credentials.service.ts     ← contraseña, email, documento, MFA
+    └── person-guards.ts                  ← regla "cuenta eliminada es intocable"
 
 modules/admin/kyc/iam/services/
-├── admin-user.service.js                 ← fachada (usuarios internos)
+├── admin-user.service.ts                 ← fachada (usuarios internos)
 └── admin-user/
-    ├── internal-user-query.service.js    ← listados, detalle, roles, sesiones, bitácora
-    ├── internal-user-profile.service.js  ← alta y edición
-    ├── internal-user-access.service.js   ← rol (doble aprobación), estado, cierre de sesiones
-    ├── internal-user-deletion.service.js ← eliminación (re-auth + doble aprobación + ofuscación)
-    └── internal-user-guards.js           ← interno / superadmin / eliminado / invalidar sesiones
+    ├── internal-user-query.service.ts    ← listados, detalle, roles, sesiones, bitácora
+    ├── internal-user-profile.service.ts  ← alta y edición
+    ├── internal-user-access.service.ts   ← rol (doble aprobación), estado, cierre de sesiones
+    ├── internal-user-deletion.service.ts ← eliminación (re-auth + doble aprobación + ofuscación)
+    └── internal-user-guards.ts           ← interno / superadmin / eliminado / invalidar sesiones
 
 modules/schemas/core/services/
-├── dual-approval.service.js              ← motor: register / gate / resolve
+├── dual-approval.service.ts              ← motor: register / gate / resolve
 └── dual-approval/
-    └── dual-approval-notifier.service.js ← avisos a aprobadores y al solicitante
+    └── dual-approval-notifier.service.ts ← avisos a aprobadores y al solicitante
 
-shared/utils/es256-signature.util.js      ← verificación ES256 (pura), extraída de auth-biometric
-modules/schemas/kyc/person/helpers/profile.helper.js ← clase ProfileHelper con constructor(deps)
+shared/utils/es256-signature.util.ts      ← verificación ES256 (pura), extraída de auth-biometric
+modules/schemas/kyc/person/helpers/profile.helper.ts ← clase ProfileHelper con constructor(deps)
 ```
 
 La fachada mantiene **la misma API pública**, así controllers y tests no cambian:
 
 ```js
-// auth-login.service.js
+// auth-login.service.ts
 refreshToken(refreshTokenStr) {
   return this.tokenRefresh.refreshToken(refreshTokenStr);
 }
@@ -93,10 +93,10 @@ También se eliminó lógica **duplicada** entre los tres flujos de autenticaci�
 
 | Lógica | Estaba copiada en | Ahora vive en |
 |---|---|---|
-| Registro de consentimientos | `auth-login`, `auth-register`, `auth-biometric` | `schemas/records/legal/services/consent-recorder.service.js` |
-| Una sesión por dispositivo + límite de sesiones | `auth-login`, `auth-biometric` | `auth-login/session-control.service.js` |
-| Emisión de tokens + sesión | `auth-login`, `auth-biometric`, `auth-register` | `auth-login/session-issuer.service.js` |
-| Compuerta de política de privacidad | `auth-login`, `auth-biometric` | `auth-login/login-policy-gate.service.js` |
+| Registro de consentimientos | `auth-login`, `auth-register`, `auth-biometric` | `schemas/records/legal/services/consent-recorder.service.ts` |
+| Una sesión por dispositivo + límite de sesiones | `auth-login`, `auth-biometric` | `auth-login/session-control.service.ts` |
+| Emisión de tokens + sesión | `auth-login`, `auth-biometric`, `auth-register` | `auth-login/session-issuer.service.ts` |
+| Compuerta de política de privacidad | `auth-login`, `auth-biometric` | `auth-login/login-policy-gate.service.ts` |
 
 **Regla práctica:** si un service supera ~400 líneas o su nombre necesita un "y" para describirlo
 ("login **y** sesiones **y** dispositivos"), se divide.
@@ -105,7 +105,7 @@ También se eliminó lógica **duplicada** entre los tres flujos de autenticaci�
 
 ## O — Open/Closed
 
-**Antes:** `notification-sending.service.js` repetía en tres lugares:
+**Antes:** `notification-sending.service.ts` repetía en tres lugares:
 
 ```js
 if (category?.supports_push ?? true) { ... }
@@ -130,7 +130,7 @@ Agregar un canal = sumar un descriptor en `_defaultChannels()` (o inyectarlo con
 El envío inicial, el reenvío programado y el cálculo de estado (`completed` / `partial_failure` /
 `failed`) no se tocan. Hay un test con un canal WhatsApp de ejemplo.
 
-Otro ejemplo que ya existía: el `ENTITY_REGISTRY` de `admin-session-trace.service.js`.
+Otro ejemplo que ya existía: el `ENTITY_REGISTRY` de `admin-session-trace.service.ts`.
 
 ---
 
@@ -215,15 +215,15 @@ const { PersonReferenceService } = require('.../person-reference.service');
 const service = new PersonReferenceService({ personReferenceRepository: { findAllByPersonId: jest.fn() } });
 ```
 
-Ejemplos reales: `consent-recorder.service.test.js`, `unit-of-work.test.js` y el bloque
-"canales extensibles" de `notification-sending.service.test.js`.
+Ejemplos reales: `consent-recorder.service.test.ts`, `unit-of-work.test.ts` y el bloque
+"canales extensibles" de `notification-sending.service.test.ts`.
 
 > Nota: los utils puros o transversales (`AppError`, `logger`, `PaginationHelper`, DTOs) se siguen
 > importando directo. DIP apunta a las dependencias que **cambian o tocan infraestructura**.
 
 ### 2. Unit of Work
 
-Los services ya no llaman `sequelize.transaction()`. Usan el puerto `shared/database/unit-of-work.js`:
+Los services ya no llaman `sequelize.transaction()`. Usan el puerto `shared/database/unit-of-work.ts`:
 
 ```js
 const transaction = await this.unitOfWork.begin();
@@ -245,7 +245,7 @@ Services, helpers, validators, controllers, middlewares y utils **no** importan 
 ni modelos:
 
 - **Consultas e `include`** → métodos con nombre de negocio en el repositorio (tabla de § I).
-- **Enums de dominio** → `shared/constants/domain-enums.js` (`NOTIFICATION_PROCESSING_STATUS`,
+- **Enums de dominio** → `shared/constants/domain-enums.ts` (`NOTIFICATION_PROCESSING_STATUS`,
   `APPROVAL_REQUEST_STATUS`, `USER_SESSION_STATUS`, `INTEGRATION_PRODUCTS`, `INTEGRATION_RESULTS`).
   El modelo los usa para su `ENUM`, así que hay una sola fuente de verdad.
 - **Código de `shared/`** que consultaba modelos (`auth.middleware`, `rbac.service`,
@@ -258,9 +258,9 @@ ni modelos:
 
 | Dónde | Por qué |
 |---|---|
-| `shared/utils/logger.util.js`, `integration-api-logger.util.js` | Escriben los logs; todo el sistema depende del logger, así que no pueden depender de repositorios. |
-| `audit-archive.worker.js` | Mueve lotes de `audit_logs` a la tabla de archivo con SQL y una transacción propios (operación de mantenimiento, no lógica de negocio). |
-| `shared/base/*`, `servers/*`, `*.bootstrap.js` | Arranque y composición. |
+| `shared/utils/logger.util.ts`, `integration-api-logger.util.ts` | Escriben los logs; todo el sistema depende del logger, así que no pueden depender de repositorios. |
+| `audit-archive.worker.ts` | Mueve lotes de `audit_logs` a la tabla de archivo con SQL y una transacción propios (operación de mantenimiento, no lógica de negocio). |
+| `shared/base/*`, `servers/*`, `*.bootstrap.ts` | Arranque y composición. |
 
 ---
 
@@ -270,7 +270,7 @@ ni modelos:
 - [ ] Exporta la instancia **y** la clase.
 - [ ] No importa `sequelize`, `Op` ni modelos: si necesitas un filtro o un `include`, agrega un
       método con nombre de negocio al repositorio.
-- [ ] Enums (estados, catálogos) desde `shared/constants/domain-enums.js`, no desde el modelo.
+- [ ] Enums (estados, catálogos) desde `shared/constants/domain-enums.ts`, no desde el modelo.
 - [ ] Nada de `instance.update(...)` sobre lo que devolvió un repositorio: `repo.update(id, data, { transaction })`.
 - [ ] Transacciones con `this.unitOfWork`.
 - [ ] El repositorio hereda de `BaseRepository`, o de `AppendOnlyRepository` / `ReadRepository` si
@@ -279,7 +279,7 @@ ni modelos:
 - [ ] Antes de copiar lógica de otro flujo, revisa si ya hay un servicio compartido
       (`session-issuer`, `session-control`, `login-policy-gate`, `consent-recorder`).
 - [ ] Variantes que van a crecer (canales, proveedores, tipos) → registro/estrategia, no `if` encadenados.
-- [ ] `npm test` en verde, incluida la guarda `tests/unit/guards/solid-architecture.test.js`.
+- [ ] `npm test` en verde, incluida la guarda `tests/unit/guards/solid-architecture.test.ts`.
 
 Las plantillas de código actualizadas están en [`implementation-patterns.md`](implementation-patterns.md).
 
@@ -287,7 +287,7 @@ Las plantillas de código actualizadas están en [`implementation-patterns.md`](
 
 ## Cómo se verifica
 
-`tests/unit/guards/solid-architecture.test.js` analiza el código fuente (sin cargarlo) y falla si:
+`tests/unit/guards/solid-architecture.test.ts` analiza el código fuente (sin cargarlo) y falla si:
 
 | Regla | Principio |
 |---|---|
@@ -314,8 +314,8 @@ Con lo anterior, pasar a hexagonal es sobre todo **mover y renombrar**:
 
 | Hoy (capas + SOLID) | Hexagonal |
 |---|---|
-| Sub-services de una fachada (`token-refresh.service.js`) | `application/use-cases/` |
-| Contrato implícito del repositorio (`findByNames`, `findActive`) | `domain/ports/*.js` (interfaces) |
+| Sub-services de una fachada (`token-refresh.service.ts`) | `application/use-cases/` |
+| Contrato implícito del repositorio (`findByNames`, `findActive`) | `domain/ports/*.ts` (interfaces) |
 | Repositorios Sequelize | `infrastructure/adapters/sequelize/` |
 | `UnitOfWork` | Puerto `UnitOfWork` + adaptador Sequelize (ya está separado) |
 | `module.exports = new X()` con defaults | *Composition root* que arma todo en un solo lugar |

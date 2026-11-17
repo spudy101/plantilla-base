@@ -166,9 +166,9 @@ DTOs: [`docs/dtos.md`](docs/dtos.md).
 ```
 .
 ├── servers/                    # Entrypoints
-│   ├── monolith.js            # admin + client en un proceso (default)
-│   ├── admin.js               # solo admin
-│   └── client.js              # solo client
+│   ├── monolith.ts            # admin + client en un proceso (default)
+│   ├── admin.ts               # solo admin
+│   └── client.ts              # solo client
 │
 ├── modules/
 │   ├── schemas/                # Capa de datos compartida (models / repositories / workers)
@@ -180,7 +180,7 @@ DTOs: [`docs/dtos.md`](docs/dtos.md).
 │   ├── admin/                  # Endpoints del panel admin (por dominio)
 │   ├── client/                 # Endpoints de la app cliente
 │   ├── shared-endpoints/       # Endpoints comunes (login, MFA, perfil, campana)
-│   └── {admin,client}/app.js   # ensamblan sus routers bajo /api/v1/{dominio}
+│   └── {admin,client}/app.ts   # ensamblan sus routers bajo /api/v1/{dominio}
 │
 ├── shared/
 │   ├── base/                   # BaseServer, BaseApp, BaseRepository, BaseValidator
@@ -193,8 +193,8 @@ DTOs: [`docs/dtos.md`](docs/dtos.md).
 │   ├── repositories/ · validators/
 │
 ├── config/
-│   ├── config.js · database.js # Sequelize (aislamiento por esquema)
-│   ├── swagger.admin.js · swagger.client.js
+│   ├── config.ts · database.ts # Sequelize (aislamiento por esquema)
+│   ├── swagger.admin.ts · swagger.client.ts
 │   └── swagger/                # paths + schemas por módulo
 │
 ├── migrations/                 # 45 migraciones (esquema completo)
@@ -234,7 +234,7 @@ Prefijos de ruta reales (bajo cada app): `/api/v1/auth`, `/api/v1/kyc`, `/api/v1
 
 ## 📦 Requisitos previos
 
-- **Node.js** v18+
+- **Node.ts** v18+
 - **PostgreSQL** v14+
 - **Redis** v7+ — _opcional_ (sin él, cache/rate-limit/locks caen a memoria/BD)
 - Credenciales **AWS** (SES/SNS/S3) — opcionales en desarrollo (ver `MOCK_EXTERNAL_PROVIDERS`)
@@ -325,7 +325,7 @@ npm run format      # prettier --write .
 
 ## 🔀 Flujo de un request
 
-Middlewares globales (orden crítico, en `shared/base/base.app.js`): `correlationId` → `helmet` → `cors` →
+Middlewares globales (orden crítico, en `shared/base/base.app.ts`): `correlationId` → `helmet` → `cors` →
 headers de seguridad → `express.json` (10 MB) → captura de JSON inválido → `auditContext`
 (+ `AsyncLocalStorage`) → `compression` → `httpLogger`.
 

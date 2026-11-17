@@ -7,21 +7,21 @@
 
 ```
 config/
-  swagger.admin.js     ← ensambla el spec del servidor ADMIN (requiere + spread de paths/schemas)
-  swagger.client.js    ← idem para CLIENT
+  swagger.admin.ts     ← ensambla el spec del servidor ADMIN (requiere + spread de paths/schemas)
+  swagger.client.ts    ← idem para CLIENT
   swagger/
-    schemas/           ← schemas globales compartidos (index.js los re-exporta). Ej: core.schema.js
-    responses/common.responses.js  ← helpers de respuestas estándar (ok, paginated, created, accepted, errores)
+    schemas/           ← schemas globales compartidos (index.ts los re-exporta). Ej: core.schema.ts
+    responses/common.responses.ts  ← helpers de respuestas estándar (ok, paginated, created, accepted, errores)
     modules/{admin|client|shared-endpoints}/{dominio}/{subdominio}/{recurso}.paths.js
                        ← paths + schemas por módulo (93 archivos; `core` y `notification` van sin subdominio)
 ```
 
-Cada `*.paths.js` exporta `{ paths, schemas, tags? }`. `swagger.admin.js`/`swagger.client.js` hacen
+Cada `*.paths.ts` exporta `{ paths, schemas, tags? }`. `swagger.admin.ts`/`swagger.client.ts` hacen
 `require(...)` y spread: `allPaths = { ...modPaths.paths }`, `allModuleSchemas = { ...modPaths.schemas }`,
 y `components.schemas = { ...getAllSchemas, ...allModuleSchemas }` (los globales + los de módulo conviven en
 el mismo namespace, así que un `$ref` resuelve entre módulos).
 
-## `common.responses.js` (helpers)
+## `common.responses.ts` (helpers)
 
 - Éxitos (funciones): `ok(dataSchema, desc)` (200), `paginated(itemSchema, desc)` (200 con `Metadata`),
   `created(dataSchema, desc)` (201), `accepted(dataSchema, desc)` (202) y `noContent` (objeto para spread, 204).
@@ -38,7 +38,7 @@ responses: {
 }
 ```
 
-## Anatomía de un `*.paths.js`
+## Anatomía de un `*.paths.ts`
 
 ```js
 const commonResponses = require('../../../responses/common.responses');
@@ -83,15 +83,15 @@ module.exports = { schemas, paths };
 
 ## Registrar un módulo nuevo en el ensamblador
 
-En `config/swagger.admin.js` (o `.client.js`):
+En `config/swagger.admin.ts` (o `.client.js`):
 
 1. `const miRecursoPaths = require('./swagger/modules/admin/{dominio}/mi-recurso.paths');`
 2. Agregar `...miRecursoPaths.paths` al objeto `allPaths`.
 3. Agregar `...miRecursoPaths.schemas` al objeto `allModuleSchemas`.
 
 - Los `tags` se agrupan solos en Swagger UI por el `tags: [...]` de cada operación (no hay merge global de tags).
-- Si un schema debe estar disponible en admin **y** client, definirlo en `swagger/schemas/core.schema.js`
-  (lo carga `getAllSchemas`, presente en ambos specs). Definirlo solo en un `*.paths.js` admin y referenciarlo
+- Si un schema debe estar disponible en admin **y** client, definirlo en `swagger/schemas/core.schema.ts`
+  (lo carga `getAllSchemas`, presente en ambos specs). Definirlo solo en un `*.paths.ts` admin y referenciarlo
   desde un path client deja el `$ref` colgando.
 
 ## Convención de rutas
@@ -113,7 +113,7 @@ Al agregar uno nuevo, seguir el patrón del módulo hermano más cercano.
 6. **Enums del modelo**: reflejar todos los valores de `Model.STATUS` en el `enum: [...]`.
 7. **AppError / ApiResponse**: mensajes de error y estructura de respuesta fieles a lo real (usar `common.responses`).
 8. **PII enmascarada**: en los campos de **respuesta** con documento, correo, teléfono, TIN o cuenta, poner la
-   `description` de `config/swagger/schemas/pii-masking.doc.js` y un `example` enmascarado (`******4050`,
+   `description` de `config/swagger/schemas/pii-masking.doc.ts` y un `example` enmascarado (`******4050`,
    `****n@example.com`, `****7890`). ⚠️ **Los `requestBody` y `parameters` NUNCA**: la entrada va completa. Si
    un mismo `const` sirve a request y response, pártelo en dos. Ver `docs/pii-masking.md`.
 

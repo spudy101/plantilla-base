@@ -19,16 +19,16 @@ propios** (`JwtUtil`) + estado en Redis (`TokenBlacklistUtil`, `RefreshTokenStor
 
 | Pieza                                                             | Archivo                                                                  |
 | ----------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Emisión/verificación JWT RS256 (access + refresh)                 | `shared/utils/jwt.util.js`                                               |
-| Store de JTIs de refresh en Redis (rotación + reuse)              | `shared/utils/refresh-token-store.util.js`                               |
-| Blacklist de tokens / umbrales de invalidación                    | `shared/utils/token-blacklist.util.js`                                   |
-| Validación por request (firma + blacklist + inactividad 15 min)   | `shared/middlewares/auth.middleware.js`                                  |
-| Login / refresh / logout / logout-all / sesiones                  | `modules/shared-endpoints/kyc/iam/services/auth-login.service.js`        |
-| Login biométrico                                                  | `modules/client/kyc/iam/services/auth-biometric.service.js`              |
-| Recuperación de credenciales (reset)                              | `modules/client/kyc/iam/services/auth-register.service.js`               |
-| Revocación de sesión por admin                                    | `modules/admin/kyc/iam/services/admin-auth-session.service.js`           |
-| Worker de expiración (inactividad + tope absoluto)                | `modules/schemas/kyc/iam/workers/session-expiration.worker.js`           |
-| Modelo de sesión                                                  | `modules/schemas/kyc/iam/models/user-session.model.js` (`user_sessions`) |
+| Emisión/verificación JWT RS256 (access + refresh)                 | `shared/utils/jwt.util.ts`                                               |
+| Store de JTIs de refresh en Redis (rotación + reuse)              | `shared/utils/refresh-token-store.util.ts`                               |
+| Blacklist de tokens / umbrales de invalidación                    | `shared/utils/token-blacklist.util.ts`                                   |
+| Validación por request (firma + blacklist + inactividad 15 min)   | `shared/middlewares/auth.middleware.ts`                                  |
+| Login / refresh / logout / logout-all / sesiones                  | `modules/shared-endpoints/kyc/iam/services/auth-login.service.ts`        |
+| Login biométrico                                                  | `modules/client/kyc/iam/services/auth-biometric.service.ts`              |
+| Recuperación de credenciales (reset)                              | `modules/client/kyc/iam/services/auth-register.service.ts`               |
+| Revocación de sesión por admin                                    | `modules/admin/kyc/iam/services/admin-auth-session.service.ts`           |
+| Worker de expiración (inactividad + tope absoluto)                | `modules/schemas/kyc/iam/workers/session-expiration.worker.ts`           |
+| Modelo de sesión                                                  | `modules/schemas/kyc/iam/models/user-session.model.ts` (`user_sessions`) |
 
 ---
 
@@ -40,7 +40,7 @@ propios** (`JwtUtil`) + estado en Redis (`TokenBlacklistUtil`, `RefreshTokenStor
 | **Refresh** | **24h tope absoluto**                             | JWT RS256 `type:'refresh'` + JTI en Redis (`refresh:jti:{jti}`, TTL 86400) | `exp` y TTL Redis alineados en 86400. Rotativo.                                          |
 
 El `maxAge` de las cookies sigue la vida **real** de cada token: `access_token` 15 min,
-`refresh_token` 24h (`auth-login.controller.js`, `auth-register.controller.js`). Una cookie que vive
+`refresh_token` 24h (`auth-login.controller.ts`, `auth-register.controller.ts`). Una cookie que vive
 más que su token deja al navegador mandando credenciales muertas y al front creyendo que hay sesión.
 `clearCookie` repite los mismos atributos (`sameSite`/`secure`/`path`) — sin eso varios navegadores
 no borran nada.
@@ -127,7 +127,7 @@ está disponible, valida `user_sessions.status` (`_assertSessionActiveDbFallback
 
 ---
 
-## Rotación de refresh + detección de reuse (`auth-login.service.js#refreshToken`)
+## Rotación de refresh + detección de reuse (`auth-login.service.ts#refreshToken`)
 
 El refresh es **rotativo**. En cada uso:
 
@@ -193,7 +193,7 @@ Dos causas de cierre, cada una con dos mecanismos (reactivo en middleware + proa
   middleware lo actualiza en **cada request autenticado** (con throttle de 60s, `SESSION_ACCESS_THROTTLE_SECONDS`).
   - **Middleware (reactivo):** `_enforceInactivity` cierra la sesión si `last_access_at + 15 min < now` en su
     **siguiente request** (internos re-loguean con 2FA).
-  - **Worker (proactivo):** `session-expiration.worker.js` (`*/5 * * * *`, cada 5 min) barre las sesiones huérfanas del
+  - **Worker (proactivo):** `session-expiration.worker.ts` (`*/5 * * * *`, cada 5 min) barre las sesiones huérfanas del
     usuario que "cerró la pestaña/app y no volvió" — sin él la fila quedaría `active` para siempre.
 - **Tope absoluto — 8h desde `started_at`** (`SECURITY.ABSOLUTE_SESSION_LIFETIME_HOURS`, Circular 052/2007 SFC).
   La rotación del refresh **no** resetea la vida de la sesión.
@@ -215,9 +215,9 @@ las 8h, o `inactivity_timeout`/`SESSION_EXPIRED_BY_WORKER` si fue inactividad.
 
 | Lugar                                                            | Cuándo                                   |
 | ---------------------------------------------------------------- | ---------------------------------------- |
-| `auth-login.service.js` / `auth-biometric.service.js` (`create`) | al crear la sesión (login)                      |
-| `user-session.repository.js#updateJtiAndLastAccess`              | en cada **refresh** (todos los usuarios)        |
-| `auth.middleware.js` (`_enforceInactivity`, ventana deslizante)  | en cada **request autenticado** (cliente + interno), con throttle de 60s |
+| `auth-login.service.ts` / `auth-biometric.service.ts` (`create`) | al crear la sesión (login)                      |
+| `user-session.repository.ts#updateJtiAndLastAccess`              | en cada **refresh** (todos los usuarios)        |
+| `auth.middleware.ts` (`_enforceInactivity`, ventana deslizante)  | en cada **request autenticado** (cliente + interno), con throttle de 60s |
 
 Es la señal única de inactividad para el worker y para "Mis dispositivos" (RF-AUTH-03), fiel al último uso real
 de cualquier API.
@@ -229,11 +229,11 @@ de cualquier API.
 Todos los 401 salían con `code: 'UNAUTHORIZED'` y solo se distinguían por el texto del mensaje, así
 que el front no podía separar "el access venció, renová y reintentá" de "la sesión murió, andá a
 login" — y ante la duda deslogueaba. Ahora cada 401 lleva su código en **`details.code`** (mismo
-patrón que `MFA_REQUIRED`), catalogado en `shared/constants/index.js#AUTH_ERROR_CODES`.
+patrón que `MFA_REQUIRED`), catalogado en `shared/constants/index.ts#AUTH_ERROR_CODES`.
 
 | `details.code`              | Origen                                                        | Qué debe hacer el front     |
 | --------------------------- | ------------------------------------------------------------- | --------------------------- |
-| `TOKEN_EXPIRED`             | `jwt.util.js#verifyAccessToken` — access vencido               | **Refrescar y reintentar**  |
+| `TOKEN_EXPIRED`             | `jwt.util.ts#verifyAccessToken` — access vencido               | **Refrescar y reintentar**  |
 | `TOKEN_INVALID`             | firma inválida / malformado                                    | Desloguear                  |
 | `SESSION_CLOSED`            | logout, logout-all, revocación admin, sesión cerrada en BD     | Desloguear                  |
 | `SESSION_INACTIVITY`        | 15 min sin pegarle a ninguna API                               | Desloguear (interno: + 2FA) |
@@ -263,7 +263,7 @@ refresh (`refreshLimiter`) tampoco es un deslogueo: se reintenta con backoff.
 
 ---
 
-## Login biométrico (`auth-biometric.service.js#loginFinish`)
+## Login biométrico (`auth-biometric.service.ts#loginFinish`)
 
 Es un esquema **challenge-response ES256 propio** (no WebAuthn/FIDO2 — sin librería, sin attestation,
 sin binding de origin; `signCount` lo envía el cliente). Tras verificar la firma ES256 contra la

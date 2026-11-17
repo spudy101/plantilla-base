@@ -17,7 +17,7 @@ worker), todos los `logAudit` y `logger.*` llevan el mismo ID, así que no se pa
 
 ## `logAudit(action, userId, details = {}, opts = {})`
 
-`shared/utils/logger.util.js`.
+`shared/utils/logger.util.ts`.
 
 - **`action`** (req): clave de `AUDIT_ACTIONS` (ej. `'PRODUCT_DEACTIVATED'`).
 - **`userId`** (req): UUID del actor; `null` en rutas públicas; `'system'` en workers/motor.
@@ -52,11 +52,11 @@ logAudit(
 
 ## Contexto y correlation ID (AsyncLocalStorage)
 
-`shared/utils/request-context.util.js` mantiene un `AsyncLocalStorage` singleton. API:
+`shared/utils/request-context.util.ts` mantiene un `AsyncLocalStorage` singleton. API:
 
 | Método                   | Quién lo usa                                | Qué hace                                                                                           |
 | ------------------------ | ------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `run(ctx, fn)`           | `audit.middleware.js` (routes)              | abre el contexto de una request HTTP y lo propaga a toda la cadena async                           |
+| `run(ctx, fn)`           | `audit.middleware.ts` (routes)              | abre el contexto de una request HTTP y lo propaga a toda la cadena async                           |
 | `get()`                  | `logger` (correlationFormat)                | devuelve el contexto actual o `undefined` (NO crea fallback)                                       |
 | `runAsWorker(label, fn)` | cada cron/worker                            | abre el contexto de **un ciclo** de worker; envuelve `fn` en try/catch (ver `WORKER_CYCLE_FAILED`) |
 | `runAsSystem(label, fn)` | callbacks de circuit breaker, eventos Redis | abre el contexto de un **evento de sistema/infra**                                                 |
@@ -79,8 +79,8 @@ logAudit(
 ### logger: correlationId SOLO dentro de un flujo activo
 
 `correlationFormat` usa **`get()`** (no `getSafe()`): si hay contexto activo estampa el correlationId; si NO,
-no lo estampa. Por eso los **loggers huérfanos** (arranque del servidor en `base.server.js`, eventos de
-conexión de Redis en `redis.util.js`, bootstrap de handlers) **no llevan correlationId** — correcto, no
+no lo estampa. Por eso los **loggers huérfanos** (arranque del servidor en `base.server.ts`, eventos de
+conexión de Redis en `redis.util.ts`, bootstrap de handlers) **no llevan correlationId** — correcto, no
 pertenecen a ningún flujo. Sus mensajes y niveles NO se tocan, solo no se les inyecta correlationId.
 
 > **Gotcha:** NO se pasan ip/userAgent/correlationId a `logAudit` ni a `logger.*` — viajan solos por el contexto.
@@ -116,18 +116,18 @@ Retorna de inmediato; un fallo de persistencia se loguea pero no afecta la respu
 
 ## Estructura de una audit action
 
-Cada acción declarada en `shared/constants/auditActions/*.js`:
+Cada acción declarada en `shared/constants/auditActions/*.ts`:
 
 ```js
 INTERNAL_USER_DEACTIVATED: {
   description: 'Usuario interno desactivado por administrador',
-  category: AUDIT_CATEGORIES.INTERNAL_USERS, // valores en audit-catalog.js
+  category: AUDIT_CATEGORIES.INTERNAL_USERS, // valores en audit-catalog.ts
   risk: AUDIT_RISKS.HIGH,                     // low | medium | high | critical
   module: AUDIT_MODULES.ADMIN                 // admin | client | system (opcional)
 }
 ```
 
-- **`audit-catalog.js` es la fuente de verdad** de las dimensiones. Exporta `AUDIT_CATEGORIES`, `AUDIT_RISKS`,
+- **`audit-catalog.ts` es la fuente de verdad** de las dimensiones. Exporta `AUDIT_CATEGORIES`, `AUDIT_RISKS`,
   `AUDIT_MODULES`, y además `AUDIT_OUTCOMES` (`success|failure|warning|attempt`) y `AUDIT_SOURCES`
   (`http|worker|system|unknown`). Nunca escribir un literal suelto: usar las constantes.
 - `risk` solo determina si la acción puede generar **alerta** (vía el set de triggers), NO si se loguea.
@@ -140,10 +140,10 @@ INTERNAL_USER_DEACTIVATED: {
 ### Organización de archivos (`shared/constants/auditActions/`)
 
 ```
-index.js                       ← registro central (spread de TODOS los archivos) — SIEMPRE agregar el nuevo aquí
-audit-catalog.js               ← fuente de verdad: CATEGORIES/RISKS/MODULES/OUTCOMES/SOURCES
-audit-alert-triggers.js        ← Set de actions que generan alerta en panel Superadmin
-audit-actions.system.js        ← genéricas de infra (auth/validación/500, WORKER_CYCLE_FAILED, Redis) — outcome='failure'
+index.ts                       ← registro central (spread de TODOS los archivos) — SIEMPRE agregar el nuevo aquí
+audit-catalog.ts               ← fuente de verdad: CATEGORIES/RISKS/MODULES/OUTCOMES/SOURCES
+audit-alert-triggers.ts        ← Set de actions que generan alerta en panel Superadmin
+audit-actions.system.ts        ← genéricas de infra (auth/validación/500, WORKER_CYCLE_FAILED, Redis) — outcome='failure'
 audit-actions.{dominio}-admin.js   ← acciones de humanos (admin/usuario/analista)
 audit-actions.{dominio}-client.js  ← acciones de cliente
 audit-actions.{dominio}-shared.js  ← acciones compartidas admin+client (ej. maintainers, PQRS pública)
@@ -154,7 +154,7 @@ Reglas:
 
 - ❌ Nunca mezclar acciones `system` dentro de un archivo `-admin`.
 - ✅ Si el dominio tiene workers, crear su archivo `-system`.
-- ❌ Nunca olvidar registrar el archivo nuevo en `index.js` (si no, `logAudit` no encuentra la definición y
+- ❌ Nunca olvidar registrar el archivo nuevo en `index.ts` (si no, `logAudit` no encuentra la definición y
   cae al fallback `'Sin categoría'`/`'unknown'`).
 
 ## Dónde va el `logAudit`: éxito en el service, fallo en el middleware
@@ -164,10 +164,10 @@ El patrón es **un logAudit por punto de entrada, con el resultado**, repartido 
 - **Éxito → en el service**, al FINAL del flujo (cuando ya se conoce el resultado). El método público que
   el controller llama es el "punto de entrada".
 - **Fallo → automático en el error middleware**, NO en el service. Cada route declara su acción de dominio
-  con `AuditAction.declare(...)` y, si el handler explota, `error.middleware.js` emite el logAudit con
+  con `AuditAction.declare(...)` y, si el handler explota, `error.middleware.ts` emite el logAudit con
   `outcome:'failure'` y la acción declarada. **El service NO lleva try/catch + logAudit para el error.**
 
-### `AuditAction.declare` (`shared/middlewares/audit-action.middleware.js`)
+### `AuditAction.declare` (`shared/middlewares/audit-action.middleware.ts`)
 
 ```js
 router.post('/x',
@@ -185,9 +185,9 @@ router.post('/x',
 - Va **después de Auth/RBAC/Validator y justo antes del controller**: así los fallos pre-handler
   (401/403 auth/rbac, 429 rate-limit, 422 validación) conservan su acción **genérica** del mapeo de error,
   y solo los fallos del handler heredan la acción de dominio.
-- En `error.middleware.js`: `const action = res.locals?.auditAction?.action ?? _resolveAuditAction(err)`.
+- En `error.middleware.ts`: `const action = res.locals?.auditAction?.action ?? _resolveAuditAction(err)`.
   Sin declaración → cae al mapeo genérico por status (`AUTH_FAILURE`, `ACCESS_DENIED`, `VALIDATION_FAILURE`,
-  `RESOURCE_NOT_FOUND`, `BUSINESS_RULE_VIOLATION`, `SYSTEM_ERROR` — definidas en `audit-actions.system.js`).
+  `RESOURCE_NOT_FOUND`, `BUSINESS_RULE_VIOLATION`, `SYSTEM_ERROR` — definidas en `audit-actions.system.ts`).
 
 ### Granularidad por tipo de punto de entrada
 
@@ -202,10 +202,10 @@ router.post('/x',
     aplica a **services expuestos por endpoint**, no a workers de puro side-effect de notificación.
 - **Evento de sistema (`runAsSystem`):** el logAudit vive en el callback/util que ES el punto de entrada del
   evento. Los callbacks de fallback del circuit breaker (`onOpen`/`onClose` → `PROVIDER_FALLBACK_ACTIVATED`/
-  `PROVIDER_FALLBACK_RESOLVED`) viven en `shared/base/circuit-breaker.bootstrap.js` (registro neutral que cubre
+  `PROVIDER_FALLBACK_RESOLVED`) viven en `shared/base/circuit-breaker.bootstrap.ts` (registro neutral que cubre
   las integraciones del template —AWS: SES, SNS, S3—; se registra una vez por servidor desde `BaseServer`). Un
   proyecto derivado con integraciones de negocio propias las suma al mismo registro. Los eventos de conexión de
-  Redis se auditan en `redis.util.js`.
+  Redis se auditan en `redis.util.ts`.
 - **Efectos colaterales válidos (no son duplicación):** un audit de fire-and-forget fallido en un `.catch()` o
   un warning de rama son **eventos distintos** del audit principal del flujo.
 - **Fallo de integración auditado como evento de dominio (NO es la Regla 2):** cuando la caída de un proveedor
@@ -227,7 +227,7 @@ Cada cron envuelve su ciclo en `requestContext.runAsWorker('<dominio>.<tarea>', 
 - Por eso **los callbacks de cron ya NO llevan try/catch propio**. Los try/catch internos por-ítem (para que
   un ítem fallido no aborte el lote) y los `finally` de locks SÍ se conservan.
 
-## Alert triggers (`audit-alert-triggers.js`)
+## Alert triggers (`audit-alert-triggers.ts`)
 
 `Set` de action codes que, además de loguearse, **crean una alerta** en `audit_alerts` para el Superadmin.
 `logAudit` consulta `AUDIT_ALERT_TRIGGER_ACTIONS.has(action)` y, si está, llama `_createAlert(entry)`
@@ -238,7 +238,7 @@ Cada cron envuelve su ciclo en `requestContext.runAsWorker('<dominio>.<tarea>', 
 
 ## API de consulta — `/api/v1/records/audit/audit-logs` (homologada)
 
-El validator `admin-audit-log.validator.js` filtra **solo contra el catálogo** (no strings libres):
+El validator `admin-audit-log.validator.ts` filtra **solo contra el catálogo** (no strings libres):
 `action` ∈ `Object.keys(AUDIT_ACTIONS)`; `category` ∈ `AUDIT_CATEGORIES`; `risk` ∈ `AUDIT_RISKS` **+ `'unknown'`**
 (valor de fallback que la tabla puede contener); `module` ∈ `AUDIT_MODULES`; `outcome` ∈ `AUDIT_OUTCOMES`;
 `source` ∈ `AUDIT_SOURCES` (incluye `'unknown'`). El endpoint de catálogo `/api/v1/records/audit/audit-action-catalog/*`
@@ -253,8 +253,8 @@ reclamación ("yo no firmé/autoricé eso").
 **Columna `origin_session_id` (+ `origin_correlation_id`)** — se **sella al CREAR** la fila, no al actualizarla, en
 las tablas de acción probatoria del usuario (consentimientos, cambios de usuario, intentos de login, overrides de
 permisos, preferencias/dispositivos, solicitudes de doble aprobación, etc.). El relleno es **automático** vía el
-hook central `stampOriginSession` (`shared/models/mixins/origin-session.mixin.js`, registrado en
-`shared/models/index.js`): toda tabla que declare la columna la rellena sola desde el AsyncLocalStorage, **ambos
+hook central `stampOriginSession` (`shared/models/mixins/origin-session.mixin.ts`, registrado en
+`shared/models/index.ts`): toda tabla que declare la columna la rellena sola desde el AsyncLocalStorage, **ambos
 null en workers/sistema** (nunca `NOT NULL`, o rompería la creación sistémica). Se agrega **en la migración
 original** de cada tabla + índice `idx_<tabla>_origin_session_id`. El DTO expone `originSessionId` **solo donde el
 admin lo necesita ver** (approval, consentimientos, change-logs). Detalle: `docs/origin-session-tracking.md`.
@@ -270,13 +270,13 @@ masking de PII (no es self-view). Código: `modules/admin/records/audit/*session
 
 ## Modelos
 
-- `audit-log.model.js` → tabla `audit_logs`. **Sin FK real a users** (`constraints: false`) para que el log
+- `audit-log.model.ts` → tabla `audit_logs`. **Sin FK real a users** (`constraints: false`) para que el log
   sobreviva al borrado del usuario (requisito SFC). Append-only (solo `create`; nunca `update`). `source` es
   `STRING(50)` (acepta `unknown`); `risk` ENUM incluye `unknown`; `session_id` se persiste (null en worker/sistema).
-- `audit-alert.model.js` → tabla `audit_alerts`. `acknowledged` / `acknowledged_by` / `acknowledged_at`;
+- `audit-alert.model.ts` → tabla `audit_alerts`. `acknowledged` / `acknowledged_by` / `acknowledged_at`;
   `updatedAt: false` (no se actualizan, solo se crean y reconocen).
 
-## Retención y archivado (`modules/schemas/records/audit/workers/audit-archive.worker.js`)
+## Retención y archivado (`modules/schemas/records/audit/workers/audit-archive.worker.ts`)
 
 - Cron mensual (día 1, 07:00). Lee `SystemGlobalConfig.audit_retention_hot_years` (default 5) y loguea
   cuántos registros están por vencer la ventana caliente.

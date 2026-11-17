@@ -11,9 +11,9 @@ puertos distintos: los tres usan la misma variable `PORT` y **solo corre uno a l
 
 | Modo               | Entrypoint            | Qué expone                                                                                             |
 | ------------------ | --------------------- | ------------------------------------------------------------------------------------------------------ |
-| Monolito (default) | `servers/monolith.js` | admin **y** client en un solo proceso: `app.use('/admin', adminApp)` + `app.use('/client', clientApp)` |
-| Solo admin         | `servers/admin.js`    | únicamente `adminApp`                                                                                  |
-| Solo client        | `servers/client.js`   | únicamente `clientApp`                                                                                 |
+| Monolito (default) | `servers/monolith.ts` | admin **y** client en un solo proceso: `app.use('/admin', adminApp)` + `app.use('/client', clientApp)` |
+| Solo admin         | `servers/admin.ts`    | únicamente `adminApp`                                                                                  |
+| Solo client        | `servers/client.ts`   | únicamente `clientApp`                                                                                 |
 
 ## Comandos
 
@@ -35,18 +35,18 @@ puertos distintos: los tres usan la misma variable `PORT` y **solo corre uno a l
 
 > No existen `PORT_ADMIN`/`PORT_CLIENT`: se decidió no levantar tres puertos simultáneos. Si en el
 > futuro se quisieran admin y client a la vez en el mismo host, habría que reintroducir puertos
-> separados (vars dedicadas + `server.adminPort`/`server.clientPort` en `shared/constants/config.js`).
+> separados (vars dedicadas + `server.adminPort`/`server.clientPort` en `shared/constants/config.ts`).
 
 ## Rutas según el modo
 
-El path declarado en cada `*.routes.js` es el subpath del recurso (ej. `/person`), y cada app lo monta bajo
+El path declarado en cada `*.routes.ts` es el subpath del recurso (ej. `/person`), y cada app lo monta bajo
 `/api/v1/{dominio}` (ej. `/api/v1/kyc`). La diferencia entre modos está en el prefijo:
 
-- **Standalone** (admin.js / client.js): `GET /api/v1/kyc/person`
+- **Standalone** (admin.ts / client.ts): `GET /api/v1/kyc/person`
 - **Monolito**: se antepone `/admin` o `/client` en el mount → `GET /admin/api/v1/kyc/person`
 
 Ese prefijo `/admin`·`/client` vive solo en el mount del monolito; nunca se hardcodea en los
-`*.routes.js`.
+`*.routes.ts`.
 
 ## Health & docs
 

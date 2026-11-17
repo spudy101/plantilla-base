@@ -67,7 +67,7 @@
 | **3. Modelos + repositorios** | Los 41 modelos tipados **desde su definición real** (`gen-model-types.js`: `Attributes`, `CreationAttributes`, `Instance` con asociaciones, `Static`) y registro tipado `shared/models/registry.ts`; los 41 repositorios en TS con `extends BaseRepository<defineX.Instance>`; contratos `XRepositoryPort` en `modules/schemas/repository-ports.ts` de los que cada service deriva su puerto con `Pick<…>` | ✅ |
 | **4. Dominios** (uno por commit) | `modules/schemas`, `modules/shared-endpoints`, `modules/client`, `modules/admin` (services, controllers, routes, dtos, validators): **`modules/` ya no tiene `.js`** | ✅ |
 | **5. Arranque y config** | `servers/` (monolith/client/admin), `config/` (Sequelize, perfiles de BD, Swagger). `npm run dev*` arranca los `.ts`; `.sequelizerc` apunta a `config/database.ts` (sequelize-cli corre vía `tsx`). **Toda la app es TypeScript** | ✅ |
-| **6. Cierre** | Tests a `.ts`, `allowJs: false`, pasar de `export =` a `import`/`export` nativos (ya sin consumidores JS), quitar `babel-jest`, migraciones/seeders a `.ts` | ⏳ |
+| **6. Cierre** | Tests a `.ts` (`tests/helpers/mock.ts`), migraciones/seeders/scripts a `.ts` (+ `db:tracking` para SequelizeMeta/SequelizeData), `export default` / `import` nativos (`interopDefault` para los require diferidos; excepción: `config/database.ts`), `allowJs: false`, sin Babel | ✅ |
 
 Orden pensado de abajo hacia arriba: cada fase solo depende de capas ya tipadas, así los tipos
 "suben" sin `any` intermedios.

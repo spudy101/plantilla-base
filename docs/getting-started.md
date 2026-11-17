@@ -10,7 +10,7 @@ modos de ejecución, ver [`run-modes.md`](./run-modes.md).
 
 ## 1. Requisitos
 
-- **Node.js 24** LTS (la imagen de producción es `node:24-alpine`; ver `.nvmrc`). El código es
+- **Node.ts 24** LTS (la imagen de producción es `node:24-alpine`; ver `.nvmrc`). El código es
   TypeScript en migración gradual: ver [`typescript-migration.md`](typescript-migration.md).
 - **PostgreSQL** (la app usa un esquema configurable vía `DB_SCHEMA`; por defecto `public`).
 - **Redis** — opcional. Sin él, el cache y el rate-limit degradan a memoria por instancia.
@@ -70,9 +70,9 @@ La base es funcional con nombre neutro. Para adaptarla a tu proyecto, revisa cad
 
 ### Identidad del proyecto
 - [ ] `package.json` → `name` (`base-project`) y `version`.
-- [ ] `shared/constants/index.js` → `SECURITY.TOTP_ISSUER` (`'BaseProject'`): es el emisor que
+- [ ] `shared/constants/index.ts` → `SECURITY.TOTP_ISSUER` (`'BaseProject'`): es el emisor que
       aparece en las apps de autenticación (Google Authenticator, etc.).
-- [ ] `config/swagger.admin.js` y `config/swagger.client.js` → `info.title`, `info.description`,
+- [ ] `config/swagger.admin.ts` y `config/swagger.client.ts` → `info.title`, `info.description`,
       `info.contact`, y las URLs de `servers`.
 - [ ] `Dockerfile`, config de CI y SonarQube (si aplican) → nombre de imagen/proyecto.
 

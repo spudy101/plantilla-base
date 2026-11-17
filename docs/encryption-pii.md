@@ -1,7 +1,7 @@
 # Encriptación y PII — guía de onboarding
 
 > Detalle aquí.
-> Utils: `shared/utils/encryption.util.js` (AES-256-GCM) y `shared/utils/hash.util.js` (HMAC para búsqueda).
+> Utils: `shared/utils/encryption.util.ts` (AES-256-GCM) y `shared/utils/hash.util.ts` (HMAC para búsqueda).
 >
 > Este doc cubre cómo se **guarda** la PII. Cómo **sale** por la API (enmascaramiento en respuestas) está en
 > [`pii-masking.md`](./pii-masking.md).
@@ -24,10 +24,10 @@ Los `*_hash` son internos: **nunca** se exponen en DTOs.
 > `UserLoginAttempt.national_id_hash` es un caso de **solo hash**: guarda el HMAC para correlacionar intentos
 > sin persistir nunca el documento.
 >
-> `HashUtil` lee `process.env.HASH_PEPPER` directamente (`shared/utils/hash.util.js`) — única excepción viva a
+> `HashUtil` lee `process.env.HASH_PEPPER` directamente (`shared/utils/hash.util.ts`) — única excepción viva a
 > la regla `no-process-env` fuera de `shared/constants/`.
 
-## `EncryptionUtil` (`shared/utils/encryption.util.js`)
+## `EncryptionUtil` (`shared/utils/encryption.util.ts`)
 
 - `encrypt(data)` → `"${ivHex}:${authTagHex}:${ciphertextHex}"` (IV aleatorio de 12 bytes por operación;
   salida autocontenida). AES-256-GCM (AEAD, integridad verificada).
@@ -36,11 +36,11 @@ Los `*_hash` son internos: **nunca** se exponen en DTOs.
   anidados donde el `afterFind` pudo no dispararse (Sequelize 6 a veces no lo aplica en asociaciones).
 - `generateHmac(data, secret)` → HMAC-SHA256 genérico. **La firma de requests mobile NO usa este**: usa
   `generateRequestHmac(timestamp, method, path, secret)` sobre `${timestamp}:${method}:${path}`, con ventana
-  de 10 s (`shared/services/hmac.service.js`).
+  de 10 s (`shared/services/hmac.service.ts`).
 - Clave AES desde config (env). El `AES_IV` del env es solo compatibilidad legado (CBC); los cifrados
   nuevos usan IV aleatorio embebido.
 
-## `HashUtil` (`shared/utils/hash.util.js`) — búsqueda determinística
+## `HashUtil` (`shared/utils/hash.util.ts`) — búsqueda determinística
 
 - `hashForSearch(value)` → HMAC-SHA256 de `value.trim().toLowerCase()` con `HASH_PEPPER` (secreto en env /
   Secrets Manager, mín. 32 chars). Determinístico → sirve para cláusulas `WHERE *_hash = ...`. Devuelve
@@ -67,11 +67,11 @@ hooks: {
 ## Búsqueda por hash (repositorios)
 
 ```js
-// person.repository.js
+// person.repository.ts
 findByNationalId(nationalId) {
   return this.findOne({ national_id_hash: HashUtil.hashForSearch(nationalId) });
 }
-// person-contact.repository.js
+// person-contact.repository.ts
 findByEmail(email, options = {}) {
   return this.findOne({ email_hash: HashUtil.hashForSearch(email) }, options);
 }
@@ -88,4 +88,4 @@ findByEmail(email, options = {}) {
   (`MaskingUtil.maskDocumentId/maskEmail/maskPhone`). Ver [`pii-masking.md`](./pii-masking.md).
 - ✅ Para nuevos campos PII: columna cifrada + columna `*_hash`, hooks `beforeCreate/beforeUpdate/afterFind`
   (o helper explícito si es JSONB/anidado), método `findByX` en el repo usando `hashForSearch`, y **la key
-  del campo declarada en `shared/constants/pii-fields.js`** para que quede enmascarado en las respuestas.
+  del campo declarada en `shared/constants/pii-fields.ts`** para que quede enmascarado en las respuestas.

@@ -15,14 +15,14 @@
 
 **Capa 1 — Componentes shared (`shared/dtos/{dominio}/`)**: clases con métodos estáticos
 `build()`, `buildList()`, `buildDetail()`, `buildArray()`. Mapean desde Sequelize y son el reflejo de la BD.
-La estructura espeja `modules/schemas/`. Cada dominio tiene un barrel `index.js` que re-exporta todo.
+La estructura espeja `modules/schemas/`. Cada dominio tiene un barrel `index.ts` que re-exporta todo.
 
 ```
 shared/dtos/
-  audit/  core/  kyc/  notification/     (+ index.js por dominio)
-  kyc/components-catalog.dto.js → MetadataDTO, PaginationDTO, SortDTO (paginación)
-  kyc/components-person.dto.js  → PersonComponent, PersonContactComponent, …
-  core/components-approval.dto.js → ApprovalRequestComponent, PendingApprovalComponent
+  audit/  core/  kyc/  notification/     (+ index.ts por dominio)
+  kyc/components-catalog.dto.ts → MetadataDTO, PaginationDTO, SortDTO (paginación)
+  kyc/components-person.dto.ts  → PersonComponent, PersonContactComponent, …
+  core/components-approval.dto.ts → ApprovalRequestComponent, PendingApprovalComponent
 ```
 
 **Capa 2 — DTOs de módulo (`modules/{servidor}/{dominio}/dtos/`)**: importan y **delegan** en los
@@ -98,8 +98,8 @@ function _normalizePersonAliases(person) {
 }
 ```
 
-Existe en `modules/admin/kyc/person/dtos/admin-person.dto.js` y en
-`modules/shared-endpoints/kyc/person/dtos/profile.dto.js`.
+Existe en `modules/admin/kyc/person/dtos/admin-person.dto.ts` y en
+`modules/shared-endpoints/kyc/person/dtos/profile.dto.ts`.
 
 ## Excepción de snake_case: valores de enum
 
@@ -114,10 +114,10 @@ La estructura de `shared/dtos/` espeja `modules/schemas/`. En el template base:
 
 | Dominio (`schemas/`) | Componente shared                                                                       |
 | -------------------- | --------------------------------------------------------------------------------------- |
-| audit                | `shared/dtos/audit/components-audit.dto.js`                                              |
+| audit                | `shared/dtos/audit/components-audit.dto.ts`                                              |
 | core                 | `shared/dtos/core/` (components-approval, components-system-config)                      |
 | kyc                  | `shared/dtos/kyc/` (components-person, components-auth, components-catalog: Metadata/Pagination/Sort) |
-| notification         | `shared/dtos/notification/components-notification.dto.js`                               |
+| notification         | `shared/dtos/notification/components-notification.dto.ts`                               |
 
 > Un JSONB propio (`metadata`, `details`, etc.) que llegue snake_case desde la BD no se asigna crudo al DTO:
 > se pasa por `redactPayload` (enmascara PII) y, si el front espera camelCase, se normaliza campo a campo.

@@ -1,10 +1,8 @@
 {
-  // TypeScript en modo migración gradual: los .ts conviven con los .js existentes.
-  // - Los .ts se escriben en modo estricto completo.
-  // - Los .js se compilan tal cual (allowJs) pero NO se revisan (checkJs: false) hasta migrarlos.
-  // - Salida CommonJS: los .js que aún no se migran siguen haciendo require() de los .ts compilados.
-  //   Por eso los .ts exportan con `export =` (≡ module.exports =) durante la migración.
-  // Ver docs/typescript-migration.md.
+  // Build de producción (tsc → dist/). Todo el proyecto es TypeScript en modo estricto completo, con
+  // imports/exports nativos de ES compilados a CommonJS (esModuleInterop para los paquetes CJS).
+  // Migraciones, seeders, scripts y tests no entran al build (corren con tsx / Jest desde las fuentes):
+  // los revisa tsconfig.test.json (`npm run typecheck`). Ver docs/typescript-migration.md.
   "compilerOptions": {
     "target": "ES2023",
     "lib": ["ES2023"],
@@ -12,8 +10,7 @@
     "moduleResolution": "node10",
     "types": ["node", "jest"],
 
-    "allowJs": true,
-    "checkJs": false,
+    "allowJs": false,
     "resolveJsonModule": true,
     "esModuleInterop": true,
 
