@@ -3,8 +3,6 @@ import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
 import requestContext from '../../../../shared/utils/request-context.util';
 import approvalRequestRepository from '../repositories/approval-request.repository';
-import domainEnumsModule from '../../../../shared/constants/domain-enums';
-const { APPROVAL_REQUEST_STATUS } = domainEnumsModule;
 import errorMessageModule from '../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
@@ -34,7 +32,11 @@ class DualApprovalExpirationWorker {
     let count = 0;
     for (const request of expired) {
       try {
-        await request.update({ status: APPROVAL_REQUEST_STATUS.EXPIRED, resolved_at: now });
+        // Solo si sigue pendiente: si alguien la resolvió entre la consulta y acá, no se pisa
+        const marked = await approvalRequestRepository.markExpired(request.approval_request_id, now);
+        if (!marked) {
+          continue;
+        }
 
         logAudit(
           'DUAL_APPROVAL_EXPIRED',

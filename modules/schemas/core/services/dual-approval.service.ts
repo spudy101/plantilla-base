@@ -294,7 +294,7 @@ class DualApprovalService {
     // solicitud queda pendiente y puede reintentarse sin doble ejecución.
     const result = await entry.onApprove(request.payload, approverCtx);
 
-    await request.update({
+    const resolved = await this._resolve(request.approval_request_id, {
       status: APPROVAL_REQUEST_STATUS.APPROVED,
       second_approver_id: approverCtx.adminUserId,
       resolved_at: new Date(),
@@ -302,7 +302,7 @@ class DualApprovalService {
       result: _sanitizeResult(result)
     });
 
-    this.notifier.notifyMaker(request, op, DECISION.APPROVE);
+    this.notifier.notifyMaker(resolved, op, DECISION.APPROVE);
 
     logAudit(
       'DUAL_APPROVAL_APPROVED',
@@ -316,8 +316,7 @@ class DualApprovalService {
       { entityId: request.approval_request_id, entityType: 'ApprovalRequest', entityTable: 'approval_requests' }
     );
 
-    await request.reload();
-    return ApprovalRequestComponent.build(request);
+    return ApprovalRequestComponent.build(resolved);
   }
 
   async _reject(request: defineApprovalRequest.Instance, op: DualApprovalConstants.Op, body: DualApprovalService.ResolveBody, approverCtx: AdminAuditContext) {
@@ -327,14 +326,14 @@ class DualApprovalService {
       await entry.onReject(request.payload, approverCtx);
     }
 
-    await request.update({
+    const resolved = await this._resolve(request.approval_request_id, {
       status: APPROVAL_REQUEST_STATUS.REJECTED,
       second_approver_id: approverCtx.adminUserId,
       resolved_at: new Date(),
       resolution_notes: body.notes ?? null
     });
 
-    this.notifier.notifyMaker(request, op, DECISION.REJECT);
+    this.notifier.notifyMaker(resolved, op, DECISION.REJECT);
 
     logAudit(
       'DUAL_APPROVAL_REJECTED',
@@ -348,8 +347,16 @@ class DualApprovalService {
       { entityId: request.approval_request_id, entityType: 'ApprovalRequest', entityTable: 'approval_requests' }
     );
 
-    await request.reload();
-    return ApprovalRequestComponent.build(request);
+    return ApprovalRequestComponent.build(resolved);
+  }
+
+  /** Persiste el cierre y devuelve la solicitud recargada (con requester y aprobador). */
+  async _resolve(approvalRequestId: string, changes: Parameters<typeof approvalRequestRepository.resolve>[1]) {
+    const resolved = await this.approvalRequestRepository.resolve(approvalRequestId, changes);
+    if (!resolved) {
+      throw AppError.notFound('Solicitud de aprobación no encontrada');
+    }
+    return resolved;
   }
 
   // ── Annotate de pendientes en listados ────────────────────────────────────────

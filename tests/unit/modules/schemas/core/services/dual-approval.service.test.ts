@@ -9,6 +9,7 @@
 jest.mock('modules/schemas/core/repositories/approval-request.repository', () => ({
   create: jest.fn(),
   findByIdWithUsers: jest.fn(),
+  resolve: jest.fn(),
   findPendingByEntityOperation: jest.fn(),
   findPendingByEntityIds: jest.fn()
 }));
@@ -50,8 +51,6 @@ function pendingRequest(overrides = {}) {
     payload: { roleName: 'ADMIN' },
     requested_by: 'maker-1',
     status: ApprovalRequest.STATUS.PENDING,
-    update: jest.fn().mockResolvedValue(undefined),
-    reload: jest.fn().mockResolvedValue(undefined),
     ...overrides
   };
 }
@@ -146,11 +145,13 @@ describe('DualApprovalService', () => {
 
       const request = pendingRequest();
       approvalRepo.findByIdWithUsers.mockResolvedValue(request);
+      approvalRepo.resolve.mockResolvedValue({ ...request, status: ApprovalRequest.STATUS.APPROVED });
 
       await dualApproval.resolve('req-1', { decision: 'approve', notes: 'ok' }, { adminUserId: 'approver-2', adminRoleName: 'ADMIN' });
 
       expect(onApprove).toHaveBeenCalledWith(request.payload, expect.objectContaining({ adminUserId: 'approver-2' }));
-      expect(request.update).toHaveBeenCalledWith(
+      expect(approvalRepo.resolve).toHaveBeenCalledWith(
+        'req-1',
         expect.objectContaining({
           status: ApprovalRequest.STATUS.APPROVED,
           second_approver_id: 'approver-2'
@@ -173,10 +174,12 @@ describe('DualApprovalService', () => {
     it('marca la solicitud como REJECTED', async () => {
       const request = pendingRequest();
       approvalRepo.findByIdWithUsers.mockResolvedValue(request);
+      approvalRepo.resolve.mockResolvedValue({ ...request, status: ApprovalRequest.STATUS.REJECTED });
 
       await dualApproval.resolve('req-1', { decision: 'reject', notes: 'no' }, { adminUserId: 'approver-2', adminRoleName: 'ADMIN' });
 
-      expect(request.update).toHaveBeenCalledWith(
+      expect(approvalRepo.resolve).toHaveBeenCalledWith(
+        'req-1',
         expect.objectContaining({
           status: ApprovalRequest.STATUS.REJECTED,
           second_approver_id: 'approver-2'

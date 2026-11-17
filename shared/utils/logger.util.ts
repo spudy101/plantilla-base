@@ -249,9 +249,11 @@ const _toDbUserId = (userId: string | null | undefined): string | null =>
 
 const _saveToDatabase = async (entry: AuditEntry): Promise<void> => {
   try {
-    // Importación lazy para evitar dependencia circular con models
-    const { AuditLog } = interopDefault(require('../models') as typeof import('../models'));
-    await AuditLog.create({
+    // Importación lazy: el repositorio (y los modelos) dependen del logger
+    const auditLogRepository = interopDefault(
+      require('../../modules/schemas/records/audit/repositories/audit-log.repository') as typeof import('../../modules/schemas/records/audit/repositories/audit-log.repository')
+    );
+    await auditLogRepository.create({
       action: entry.action,
       description: entry.description,
       category: entry.category,

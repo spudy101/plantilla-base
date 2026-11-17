@@ -101,7 +101,12 @@ class NotificationTypeService {
       return UpdateNotificationTypeResponseDTO(nt);
     }
 
-    const updated = await this.unitOfWork.run(transaction => nt.update(updateData, { transaction }));
+    const updated = await this.unitOfWork.run(transaction =>
+      this.notificationTypeRepository.update(notificationTypeId, updateData, { transaction })
+    );
+    if (!updated) {
+      throw AppError.notFound('Tipo de notificación no encontrado');
+    }
 
     logAudit(
       'NOTIFICATION_TYPE_UPDATED',

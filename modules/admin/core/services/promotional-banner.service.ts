@@ -59,10 +59,13 @@ class PromotionalBannerService {
       sort_order: b.sortOrder ?? index + 1
     }));
 
-    const updated = await config.update({
+    const updated = await this.systemGlobalConfigRepository.update(config.config_id, {
       promotional_banners: normalized,
       config_version: config.config_version + 1
     });
+    if (!updated) {
+      throw AppError.notFound('Configuración global no encontrada');
+    }
 
     // El catálogo ya se persistió: recién ahí borramos de S3 las imágenes que ningún banner
     // referencia más (best-effort — un fallo de S3 no revierte el reemplazo).

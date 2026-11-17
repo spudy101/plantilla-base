@@ -5,7 +5,7 @@
 > al final de cada fase la app arranca y los tests pasan. Durante la migración **Prisma y Sequelize
 > conviven contra la misma base**: cada repositorio cambia de ORM sin que los services se enteren.
 >
-> Estado: **fases 0, 1 y 2 completas** en la rama `feat/prisma`; ver [Cómo funciona hoy](#cómo-funciona-hoy).
+> Estado: **fases 0 a 3 completas** en la rama `feat/prisma`; ver [Cómo funciona hoy](#cómo-funciona-hoy).
 
 ## Punto de partida (medido)
 
@@ -22,7 +22,7 @@ Lo que hay que resolver (de mayor a menor riesgo):
 |---|---|---|---|
 | 1 | **Cifrado de PII en hooks** | `person`, `person-contact`, `user-trusted-device` + hook global de `origin-session` | `beforeCreate`/`beforeUpdate` cifran y hashean, `afterFind` descifra (también dentro de un `include`). En Prisma son *client extensions*. Un error guarda PII en claro o rompe las búsquedas por hash. |
 | 2 | **Transacciones** | 35 archivos | Hoy se pasa `{ transaction }` en las opciones y `unitOfWork.begin()` da commit/rollback manual. Prisma usa `$transaction(async tx => …)` con un cliente `tx` propio. |
-| 3 | **Instancias vivas fuera de repositorios** | ~40 llamadas | Services/workers hacen `record.update()`, `request.reload()`… Prisma devuelve objetos planos: cada uno pasa a ser un método del repositorio. |
+| 3 | **Instancias vivas fuera de repositorios** | 10 llamadas + 4 usos directos de modelos (medido con el type checker; la estimación inicial de ~40 venía de un grep con ruido) | Services/workers hacen `record.update()`, `request.reload()`… Prisma devuelve objetos planos: cada uno pasa a ser un método del repositorio. |
 | 4 | **Consultas** | 96 `Op.*`, 107 `include`, `BaseRepository` genérico | Reescritura a `where`/`include`/`select` de Prisma; paginación, `searchFields` y filtros del `BaseRepository`. |
 | 5 | **Migraciones y seeders** | 45 migraciones (~4400 líneas) + 19 seeders | Triggers de inmutabilidad (auditoría), enums, índices. Pasan a Prisma Migrate con una migración base. |
 | 6 | **Tests de integración** | `app-smoke` + CI | Hoy usan SQLite en memoria; en Prisma el proveedor es fijo en el schema → Postgres real en CI. |
@@ -81,7 +81,7 @@ datos ni bloquea por mucho tiempo.
 | **0. Spike** | Prisma 7 instalado; `prisma db pull` + `scripts/prisma-migration/prisma-names.ts` → `prisma/schema.prisma` (43 modelos, 14 enums) con las convenciones de nombres; cliente CommonJS; `PrismaRepository` (paginación con el mismo contrato que `ReadRepository`); `gender.repository` sobre Prisma y sus 3 consumidores en camelCase. Verificado contra Postgres real, también desde `dist/`. | ✅ |
 | **1. Infraestructura** | Logs de Prisma por el logger de la app (consultas solo con `DB_LOGGING=true`); `shared/database/database-health.ts`: `/health`, el arranque y el shutdown verifican/cierran Sequelize **y** Prisma; `tests/test-env.ts` (entorno de test compartido por Jest y `db:test:prepare`); perfil `test` sobre Postgres; CI con Postgres, typecheck y `db:test:prepare`. | ✅ |
 | **2. Unit of Work** | `run()` coordina una transacción de cada ORM (la de Prisma, perezosa) con el contexto en `AsyncLocalStorage`; `PrismaRepository#db()` toma la transacción activa; los 35 `begin()` → `run()` (32 con el codemod `scripts/prisma-migration/begin-to-run.js`, 3 a mano); test de integración contra Postgres (commit y rollback juntos, aislamiento). | ✅ |
-| **3. Instancias vivas** | Las ~40 llamadas `record.update()`/`reload()` en services y workers → métodos de repositorio. Todavía sobre Sequelize: deja los services listos para objetos planos. | ⏳ |
+| **3. Instancias vivas** | 10 llamadas a instancias (`update`/`reload` en 5 services de admin, doble aprobación y su worker) → `repository.update(id, …)` o métodos de negocio (`approvalRequestRepository.resolve` / `markExpired`). 4 archivos que usaban modelos directo → repositorios: `audit-archive.worker` (`countCreatedUpTo`/`countCreatedBefore`/`purgeCreatedBefore`), `circuit-breaker.bootstrap` (`countFailedBetween`), `logger.util` e `integration-api-logger.util` (la allowlist de la guarda queda vacía). Guardas: solo repositorios, modelos y `shared/database` importan `shared/models`; `npm run check:orm` (type checker, en CI) rechaza llamadas a instancias fuera de los repositorios. | ✅ |
 | **4. PII** | Extensiones de Prisma para cifrado/hash/descifrado (person, person-contact, trusted-device) y `origin-session`. Tests que comparan con lo que escribe hoy Sequelize: **los datos existentes tienen que seguir leyéndose** (mismo formato de `EncryptionUtil`/`HashUtil`). | ⏳ |
 | **5. Repositorios** (por dominio, un commit cada uno) | `BaseRepository` / `ReadRepository` / `AppendOnlyRepository` sobre Prisma (genéricos por modelo), y los 44 repositorios: `Op.*` → filtros Prisma, `include` por nombre de relación. Los tipos de services/DTOs pasan a los de Prisma. | ⏳ |
 | **6. Migraciones y seeders** | Prisma Migrate con una migración base (`0_init`, marcada como aplicada en las bases existentes con `prisma migrate resolve --applied`); triggers como SQL crudo dentro de la migración; seeders → `prisma db seed` (TS). Se van `sequelize-cli`, `.sequelizerc`, `db:tracking` y `migrations/` de Sequelize. | ⏳ |
@@ -113,6 +113,17 @@ y la fase 3 desacopla los services del ORM **antes** del cambio, así la fase 5 
 - **No es atómico si falla el commit de la segunda transacción** (la de Sequelize, después de confirmar la de
   Prisma). Un error de negocio dentro de `work` revierte las dos; solo un fallo del propio COMMIT deja una
   confirmada y la otra no. Desaparece al quitar Sequelize.
+
+### Hallazgos de la fase 3
+
+- **El worker de vencimiento podía pisar una aprobación**: leía las pendientes vencidas y después hacía
+  `request.update({ status: EXPIRED })` sobre la instancia, sin volver a mirar el estado. Si un admin la
+  aprobaba en el medio, quedaba como vencida. `markExpired` solo marca si sigue `pending` y el worker no
+  audita las que no marcó.
+- `dual-approval` recargaba con `request.reload()` una instancia a la que `findByIdWithUsers` le había
+  adjuntado los usuarios a mano; `resolve()` vuelve a leerla con `findByIdWithUsers` (incluye al aprobador).
+- `repository.update()` devuelve `null` si la fila desapareció entre la lectura y la escritura: los
+  services que la usan responden 404 en vez de seguir con `null`.
 
 ### Hallazgos de la fase 2
 

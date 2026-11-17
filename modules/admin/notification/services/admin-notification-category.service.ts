@@ -124,7 +124,12 @@ class NotificationCategoryService {
       return NotificationCategoryAdminDTO(category);
     }
 
-    const updated = await this.unitOfWork.run(transaction => category.update(columns, { transaction }));
+    const updated = await this.unitOfWork.run(transaction =>
+      this.notificationCategoryRepository.update(notificationCategoryId, columns, { transaction })
+    );
+    if (!updated) {
+      throw AppError.notFound('Categoría de notificación no encontrada');
+    }
 
     logAudit('NOTIFICATION_CATEGORY_UPDATED', adminUserId, { code: updated.code, updatedFields: Object.keys(columns) }, {
       ...AUDIT_META,

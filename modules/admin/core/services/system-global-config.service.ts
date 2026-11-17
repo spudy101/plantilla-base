@@ -53,7 +53,10 @@ class SystemGlobalConfigService {
     const updatePayload = _buildUpdatePayload(data, config);
     const previousVersion = config.config_version;
 
-    const updated = await config.update(updatePayload);
+    const updated = await this.systemGlobalConfigRepository.update(config.config_id, updatePayload);
+    if (!updated) {
+      throw AppError.notFound('Configuración global no encontrada');
+    }
 
     logAudit(
       'SYSTEM_GLOBAL_CONFIG_UPDATED',

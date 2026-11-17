@@ -100,11 +100,14 @@ class ConsentTypeService {
       throw AppError.notFound('Tipo de consentimiento no encontrado');
     }
 
-    const updated = await record.update({
+    const updated = await this.consentTypeRepository.update(consentTypeId, {
       name: body.name ?? record.name,
       description: body.description !== undefined ? body.description : record.description,
       is_active: body.isActive !== undefined ? body.isActive : record.is_active
     });
+    if (!updated) {
+      throw AppError.notFound('Tipo de consentimiento no encontrado');
+    }
 
     logAudit(
       'CONSENT_TYPE_UPDATED',

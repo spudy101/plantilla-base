@@ -4,7 +4,7 @@
 // fila activa). Probamos: getConfig (feliz + 404 si no hay config activa); updateConfig con la config
 // existente (arma el payload, incrementa version, audita, notifica) y la rama donde no existe config
 // activa (la crea con defaults). El merge parcial de integration_resilience (camelCase→snake_case,
-// con circuit_breaker anidado) se verifica capturando el payload de config.update. Modelo Sequelize,
+// con circuit_breaker anidado) se verifica capturando el payload de systemGlobalConfigRepository.update. Modelo Sequelize,
 // DTO, request-context, notificaciones y logger se mockean. La notificación sale en setImmediate.
 
 jest.mock('shared/utils/app-error.util', () => ({
@@ -23,7 +23,8 @@ jest.mock('shared/utils/request-context.util', () => ({
 // El service ya no toca el modelo de Sequelize: depende del repositorio (SOLID: D).
 jest.mock('modules/schemas/core/repositories/system-global-config.repository', () => ({
   findActive: jest.fn(),
-  createActive: jest.fn()
+  createActive: jest.fn(),
+  update: jest.fn()
 }));
 
 jest.mock('modules/admin/core/dtos/system-global-config.dto', () => ({
@@ -45,21 +46,22 @@ import service from 'modules/admin/core/services/system-global-config.service';
 
 const flush = () => new Promise(resolve => { setImmediate(resolve); });
 
-// Fábrica de config activa con un método update que devuelve la versión "actualizada".
-const makeConfig = (over = {}) => {
-  const base: Record<string, Loose> = {
-    config_id: 'cfg-1',
-    config_version: 3,
-    integration_resilience: { timeout_ms: 1000, circuit_breaker: { failure_threshold: 5, recovery_time_ms: 30000 } },
-    ...over
-  };
-  base.update = jest.fn(payload => Promise.resolve({ ...base, ...payload }));
-  return base;
-};
+// Fila de config activa (objeto plano: la escritura va por el repositorio, no por la instancia).
+const makeConfig = (over = {}): Record<string, Loose> => ({
+  config_id: 'cfg-1',
+  config_version: 3,
+  integration_resilience: { timeout_ms: 1000, circuit_breaker: { failure_threshold: 5, recovery_time_ms: 30000 } },
+  ...over
+});
+
+/** Payload que el service le pasó a systemGlobalConfigRepository.update(configId, payload). */
+const updatePayload = () => systemGlobalConfigRepository.update.mock.calls[0][1];
 
 describe('SystemGlobalConfigService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // El repositorio devuelve la fila actualizada
+    systemGlobalConfigRepository.update.mockImplementation(async (configId: string, payload: Loose) => ({ ...makeConfig(), config_id: configId, ...payload }));
   });
 
   // ============================================================
@@ -95,7 +97,8 @@ describe('SystemGlobalConfigService', () => {
       const data = { currency: 'USD', auditRetentionHotYears: 2, auditHotPurgeEnabled: true };
       const result = await service.updateConfig(data, 'admin-1', fixture({}));
 
-      const payload = config.update.mock.calls[0][0];
+      expect(systemGlobalConfigRepository.update).toHaveBeenCalledWith('cfg-1', expect.any(Object));
+      const payload = updatePayload();
       expect(payload).toMatchObject({
         config_version: 4,
         currency: 'USD',
@@ -128,7 +131,7 @@ describe('SystemGlobalConfigService', () => {
       };
       await service.updateConfig(data, 'admin-1', fixture({}));
 
-      const resilience = config.update.mock.calls[0][0].integration_resilience;
+      const resilience = updatePayload().integration_resilience;
       // nuevos valores mapeados a snake_case
       expect(resilience.max_retries).toBe(4);
       expect(resilience.circuit_breaker.failure_threshold).toBe(9);
