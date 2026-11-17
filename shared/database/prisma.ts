@@ -7,11 +7,14 @@
 //
 // Solo lo importan los repositorios y shared/database: los services dependen de los repositorios.
 // Crear el cliente no abre conexiones: el pool de pg conecta en la primera consulta.
+// Los avisos y errores de Prisma van al logger de la app; las consultas, solo con DB_LOGGING=true.
 import fs from 'node:fs';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from './generated/prisma/client';
 import constantsModule from '../constants';
 const { database, server } = constantsModule;
+import loggerUtilModule from '../utils/logger.util';
+const { logger } = loggerUtilModule;
 
 function sslConfig() {
   if (server.localhost === 'true') {
@@ -36,7 +39,17 @@ const adapter = new PrismaPg(
 
 const prisma = new PrismaClient({
   adapter,
-  log: database.logging ? ['query', 'warn', 'error'] : ['warn', 'error']
+  log: [
+    { emit: 'event', level: 'query' },
+    { emit: 'event', level: 'warn' },
+    { emit: 'event', level: 'error' }
+  ]
 });
+
+if (database.logging) {
+  prisma.$on('query', e => logger.debug('prisma:query', { query: e.query, params: e.params, durationMs: e.duration }));
+}
+prisma.$on('warn', e => logger.warn('prisma:warn', { message: e.message, target: e.target }));
+prisma.$on('error', e => logger.error('prisma:error', { message: e.message, target: e.target }));
 
 export default prisma;

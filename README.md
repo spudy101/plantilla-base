@@ -106,7 +106,7 @@ Todo lo transversal que un proyecto necesita el día 1, ya construido y probado:
 | **Jobs**        | `node-cron`                                                                       |
 | **Media/otros** | `sharp`, `multer`, `geoip-lite`, `ua-parser-js`                                   |
 | **Logging**     | `winston` + `winston-daily-rotate-file`                                           |
-| **Dev/Test**    | `jest`, `supertest`, `nodemon`, `eslint`, `prettier`, `sequelize-cli`, `sqlite3` |
+| **Dev/Test**    | `jest`, `supertest`, `nodemon`, `eslint`, `prettier`, `sequelize-cli`, `prisma` |
 
 ---
 
@@ -359,6 +359,7 @@ Redis para rate-limit distribuido, backups de PostgreSQL, `ENABLE_WORKERS=true`.
 ## 🧪 Testing
 
 ```bash
+npm run db:test:prepare  # una vez (y al cambiar migraciones): esquema `test` + migraciones
 npm test                 # todos (jest, NODE_ENV=test)
 npm run test:unit        # solo unit
 npm run test:integration # solo integration
@@ -368,6 +369,10 @@ npm run test:watch       # watch
 
 Tests en `tests/unit/**` y `tests/integration/**`. La suite corre con `--passWithNoTests` (la base trae un
 smoke test del catálogo de modelos core; agregá los tuyos por feature).
+
+Los **unitarios** mockean los repositorios y no necesitan base. Los de **integración** usan Postgres real
+(la misma base de `.env`, pero en un esquema aislado: `TEST_DB_SCHEMA`, por defecto `test`, nunca `public`;
+ver `tests/test-env.ts`). En CI corre un service container de Postgres (`.github/workflows/ci.yml`).
 
 ---
 
