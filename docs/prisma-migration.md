@@ -5,7 +5,7 @@
 > al final de cada fase la app arranca y los tests pasan. Durante la migración **Prisma y Sequelize
 > conviven contra la misma base**: cada repositorio cambia de ORM sin que los services se enteren.
 >
-> Estado: **fases 0 a 3 completas** en la rama `feat/prisma`; ver [Cómo funciona hoy](#cómo-funciona-hoy).
+> Estado: **fases 0 a 4 completas** en la rama `feat/prisma`; ver [Cómo funciona hoy](#cómo-funciona-hoy).
 
 ## Punto de partida (medido)
 
@@ -82,7 +82,7 @@ datos ni bloquea por mucho tiempo.
 | **1. Infraestructura** | Logs de Prisma por el logger de la app (consultas solo con `DB_LOGGING=true`); `shared/database/database-health.ts`: `/health`, el arranque y el shutdown verifican/cierran Sequelize **y** Prisma; `tests/test-env.ts` (entorno de test compartido por Jest y `db:test:prepare`); perfil `test` sobre Postgres; CI con Postgres, typecheck y `db:test:prepare`. | ✅ |
 | **2. Unit of Work** | `run()` coordina una transacción de cada ORM (la de Prisma, perezosa) con el contexto en `AsyncLocalStorage`; `PrismaRepository#db()` toma la transacción activa; los 35 `begin()` → `run()` (32 con el codemod `scripts/prisma-migration/begin-to-run.js`, 3 a mano); test de integración contra Postgres (commit y rollback juntos, aislamiento). | ✅ |
 | **3. Instancias vivas** | 10 llamadas a instancias (`update`/`reload` en 5 services de admin, doble aprobación y su worker) → `repository.update(id, …)` o métodos de negocio (`approvalRequestRepository.resolve` / `markExpired`). 4 archivos que usaban modelos directo → repositorios: `audit-archive.worker` (`countCreatedUpTo`/`countCreatedBefore`/`purgeCreatedBefore`), `circuit-breaker.bootstrap` (`countFailedBetween`), `logger.util` e `integration-api-logger.util` (la allowlist de la guarda queda vacía). Guardas: solo repositorios, modelos y `shared/database` importan `shared/models`; `npm run check:orm` (type checker, en CI) rechaza llamadas a instancias fuera de los repositorios. | ✅ |
-| **4. PII** | Extensiones de Prisma para cifrado/hash/descifrado (person, person-contact, trusted-device) y `origin-session`. Tests que comparan con lo que escribe hoy Sequelize: **los datos existentes tienen que seguir leyéndose** (mismo formato de `EncryptionUtil`/`HashUtil`). | ⏳ |
+| **4. PII** | `shared/database/pii-fields.ts` (qué se cifra, una sola declaración, con las mismas `EncryptionUtil`/`HashUtil` de los hooks) y `piiExtension` (`shared/database/prisma-extensions.ts`) en el cliente único: cifra + hash al escribir (también anidado), descifra al leer (también en `include`), rechaza `where` sobre campos cifrados y estampa `originSessionId`. Metadatos de relaciones generados del schema (`scripts/gen-prisma-metadata.ts`). Compatibilidad verificada contra Postgres en los dos sentidos (Sequelize ↔ Prisma, hashes iguales, también dentro del Unit of Work) y, solo lectura, sobre los datos reales del esquema de desarrollo. | ✅ |
 | **5. Repositorios** (por dominio, un commit cada uno) | `BaseRepository` / `ReadRepository` / `AppendOnlyRepository` sobre Prisma (genéricos por modelo), y los 44 repositorios: `Op.*` → filtros Prisma, `include` por nombre de relación. Los tipos de services/DTOs pasan a los de Prisma. | ⏳ |
 | **6. Migraciones y seeders** | Prisma Migrate con una migración base (`0_init`, marcada como aplicada en las bases existentes con `prisma migrate resolve --applied`); triggers como SQL crudo dentro de la migración; seeders → `prisma db seed` (TS). Se van `sequelize-cli`, `.sequelizerc`, `db:tracking` y `migrations/` de Sequelize. | ⏳ |
 | **6b. API en camelCase** | Las 88 claves snake_case de los 8 DTOs que quedan → camelCase, con su Swagger y tests. | ⏳ |
@@ -102,6 +102,8 @@ y la fase 3 desacopla los services del ORM **antes** del cambio, así la fase 5 
 | CLI | `prisma.config.ts`: URL desde `DB_*`; sin `DB_HOST` (CI) no la necesita `generate`. `npm run prisma:pull`, `npm run prisma:studio`. |
 | Repositorios | `shared/repositories/prisma.repository.ts` (`db`, `paginationArgs`, `searchWhere`). `sortBy` acepta el nombre de columna (`created_at`, lo que mandan hoy los clientes) o el campo (`createdAt`); solo campos del modelo. |
 | Guardas | La de arquitectura acepta `extends PrismaRepository`; `generated/` queda fuera de la guarda, de loadability y de ESLint. |
+| PII | `piiExtension` sobre el cliente único (`shared/database/prisma.ts`): los repositorios Prisma leen y escriben PII en claro; en la base va cifrado. Filtrar por un campo cifrado lanza: se filtra por su hash (`hashValue()` de `shared/database/pii-fields`). Campo cifrado nuevo → `ENCRYPTED_FIELDS`. |
+| Metadatos | `npm run prisma:generate` también escribe `shared/database/generated/prisma-metadata.ts` (escalares y relaciones por modelo) para que la extensión recorra anidados. |
 | Salud y cierre | `shared/database/database-health.ts`: `checkDatabase()` (arranque y `/health`: sano solo si responden los dos ORMs) y `closeDatabase()` (graceful shutdown). |
 | Tests | `npm run db:test:prepare` (una vez y al cambiar migraciones) + `npm test`. Entorno en `tests/test-env.ts`: Postgres, esquema `TEST_DB_SCHEMA` (por defecto `test`), sin TLS; `db:reset` se niega a tocar `public`. |
 
@@ -113,6 +115,22 @@ y la fase 3 desacopla los services del ORM **antes** del cambio, así la fase 5 
 - **No es atómico si falla el commit de la segunda transacción** (la de Sequelize, después de confirmar la de
   Prisma). Un error de negocio dentro de `work` revierte las dos; solo un fallo del propio COMMIT deja una
   confirmada y la otra no. Desaparece al quitar Sequelize.
+
+### Hallazgos de la fase 4
+
+- **Hash viejo al vaciar un campo**: el hook de Sequelize solo recalculaba el hash si el valor nuevo era
+  no vacío, así que borrar un teléfono dejaba su hash y la fila seguía apareciendo al buscar por ese
+  número. En Prisma, poner el campo en `null` también pone el hash en `null`.
+- **`where` sobre un campo cifrado nunca coincide** (IV aleatorio) y no daba error: ahora la extensión lo
+  rechaza con un mensaje que dice qué hash usar.
+- **Las consultas de Prisma son perezosas**: corren al hacer `await`, no al llamarlas. Si se devuelve la
+  promesa sin esperarla dentro de `requestContext.run()` (o de un `unitOfWork.run()`), se ejecuta afuera y
+  pierde el contexto (origen de sesión, transacción). Los repositorios son `async` y esperan adentro.
+- **El `schema` de `PrismaPg` no cambia el `search_path`**: las consultas de modelo van calificadas, pero
+  un `$queryRaw` sin esquema apunta al `search_path` por defecto. En SQL crudo, calificar con DB_SCHEMA.
+- Relaciones con nombres heredados en snake_case de los alias de Sequelize (`document_type`,
+  `phone_primary_prefix`, `login_attempts`…) pasan a camelCase en el schema; los repositorios que las
+  incluyan las usan con ese nombre al migrar.
 
 ### Hallazgos de la fase 3
 

@@ -8,9 +8,12 @@
 // Solo lo importan los repositorios y shared/database: los services dependen de los repositorios.
 // Crear el cliente no abre conexiones: el pool de pg conecta en la primera consulta.
 // Los avisos y errores de Prisma van al logger de la app; las consultas, solo con DB_LOGGING=true.
+// Sobre el cliente base se aplica piiExtension (shared/database/prisma-extensions.ts): cifrado de PII
+// y origen de sesión, lo que en Sequelize hacían los hooks de los modelos.
 import fs from 'node:fs';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from './generated/prisma/client';
+import { piiExtension } from './prisma-extensions';
 import constantsModule from '../constants';
 const { database, server } = constantsModule;
 import loggerUtilModule from '../utils/logger.util';
@@ -37,7 +40,7 @@ const adapter = new PrismaPg(
   { schema: database.schema || 'public' }
 );
 
-const prisma = new PrismaClient({
+const baseClient = new PrismaClient({
   adapter,
   log: [
     { emit: 'event', level: 'query' },
@@ -47,9 +50,11 @@ const prisma = new PrismaClient({
 });
 
 if (database.logging) {
-  prisma.$on('query', e => logger.debug('prisma:query', { query: e.query, params: e.params, durationMs: e.duration }));
+  baseClient.$on('query', e => logger.debug('prisma:query', { query: e.query, params: e.params, durationMs: e.duration }));
 }
-prisma.$on('warn', e => logger.warn('prisma:warn', { message: e.message, target: e.target }));
-prisma.$on('error', e => logger.error('prisma:error', { message: e.message, target: e.target }));
+baseClient.$on('warn', e => logger.warn('prisma:warn', { message: e.message, target: e.target }));
+baseClient.$on('error', e => logger.error('prisma:error', { message: e.message, target: e.target }));
+
+const prisma = baseClient.$extends(piiExtension);
 
 export default prisma;

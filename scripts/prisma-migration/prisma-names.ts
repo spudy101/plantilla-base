@@ -105,7 +105,8 @@ for (const [table, block] of models) {
     if (!fields) continue; // lado inverso: más abajo
     const fk = fields[0]!;
     const assoc = (assocsByTable.get(table) ?? []).find(a => a.type === 'BelongsTo' && a.targetTable === f.base && a.foreignKey === fk);
-    let n = assoc?.as ?? camel(fk.replace(/_id$/, ''));
+    // alias de la asociación en camelCase (los de Sequelize a veces son snake_case: document_type)
+    let n = assoc ? camel(assoc.as) : camel(fk.replace(/_id$/, ''));
     if (!assoc) {
       if (block.fields.some(x => camel(x.name) === n)) n = `${n}${modelName.get(f.base)}`; // requested_by → requestedByUser
       notes.push(`${modelName.get(table)}.${n} (sin asociación en Sequelize: nombre derivado de ${fk})`);
@@ -122,7 +123,7 @@ for (const [table, block] of models) {
     const other = models.get(f.base)!.fields.find(x => x.base === table && relationArgs(x.attrs).fields && relationArgs(x.attrs).name === name);
     const fk = other ? relationArgs(other.attrs).fields![0]! : '';
     const assoc = (assocsByTable.get(table) ?? []).find(a => (a.type === 'HasMany' || a.type === 'HasOne') && a.targetTable === f.base && a.foreignKey === fk);
-    let n = assoc?.as;
+    let n = assoc ? camel(assoc.as) : undefined;
     if (!n) {
       const target = modelName.get(f.base)!;
       const single = target.replace(/^[A-Z]/, c => c.toLowerCase());

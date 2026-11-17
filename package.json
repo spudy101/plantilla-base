@@ -42,7 +42,7 @@
     "db:tracking": "tsx scripts/db-tracking-ts.ts",
     "keys:generate": "tsx scripts/generate-keys.util.ts",
     "comment_prisma": "========== PRISMA (migración en curso: docs/prisma-migration.md) ==========",
-    "prisma:generate": "prisma generate",
+    "prisma:generate": "prisma generate && tsx scripts/gen-prisma-metadata.ts",
     "prisma:pull": "prisma db pull",
     "prisma:studio": "prisma studio",
     "check:orm": "node scripts/prisma-migration/find-live-instances.js",
