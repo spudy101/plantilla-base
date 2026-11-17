@@ -434,7 +434,7 @@ class AuditLogRepository extends AppendOnlyRepository<defineAuditLog.Instance> {
    * Es la ÚNICA baja permitida en esta tabla append-only: el trigger de inmutabilidad la autoriza solo
    * con `app.allow_audit_purge` puesto en la misma transacción (SET LOCAL).
    */
-  async purgeCreatedBefore(cutoff: Date): Promise<number> {
+  purgeCreatedBefore(cutoff: Date): Promise<number> {
     return this.sequelize.transaction(async transaction => {
       await this.sequelize.query("SET LOCAL app.allow_audit_purge = 'true'", { transaction });
       return this.model.destroy({ where: { createdAt: { [Op.lt]: cutoff } }, force: true, transaction });

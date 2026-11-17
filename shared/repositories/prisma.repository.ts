@@ -26,13 +26,15 @@ abstract class PrismaRepository {
 
   /** @param client cliente inyectable (tests); por defecto el único de la app. */
   constructor(client: PrismaDb | PrismaClientInstance = prisma) {
-    this._client = client;
+    // El cliente único lleva piiExtension ($extends): una extensión de consulta no cambia los tipos de
+    // los modelos, pero TS no reconoce el cliente extendido como TransactionClient
+    this._client = client as PrismaDb;
   }
 
   /** Cliente de la transacción de la unidad de trabajo en curso, o el cliente por defecto. */
-  protected async db(): Promise<PrismaDb> {
+  protected db(): Promise<PrismaDb> {
     const unit = txContext.activeUnit();
-    return unit ? unit.prisma() : this._client;
+    return unit ? unit.prisma() : Promise.resolve(this._client);
   }
 
   /**
