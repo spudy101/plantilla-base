@@ -218,30 +218,29 @@ class NotificationService {
   }
 
   async _markPageAsRead(userId: string, paginatedMixed: Feed.FeedItem[], readIds: string[]) {
-    const transaction = await this.unitOfWork.begin();
     try {
-      const personalUnread = paginatedMixed.flatMap(item =>
-        item.__type === 'personal' && !item.is_read ? [item.__instance.notification_id] : []
-      );
+  const { personalUnread, globalUnread } = await this.unitOfWork.run(async transaction => {
+        const personalUnread = paginatedMixed.flatMap(item =>
+          item.__type === 'personal' && !item.is_read ? [item.__instance.notification_id] : []
+        );
 
-      const globalUnread = paginatedMixed.flatMap(item =>
-        item.__type === 'global' && !readIds.includes(item.__instance.global_notification_id)
-          ? [item.__instance.global_notification_id]
-          : []
-      );
+        const globalUnread = paginatedMixed.flatMap(item =>
+          item.__type === 'global' && !readIds.includes(item.__instance.global_notification_id)
+            ? [item.__instance.global_notification_id]
+            : []
+        );
 
-      await Promise.all([
-        personalUnread.length > 0 ? this._markPersonalAsRead(personalUnread, { transaction }) : Promise.resolve(),
-        globalUnread.length > 0 ? this.globalNotificationReadRepository.bulkMarkAsRead(globalUnread, userId) : Promise.resolve()
-      ]);
-
-      await transaction.commit();
+        await Promise.all([
+          personalUnread.length > 0 ? this._markPersonalAsRead(personalUnread, { transaction }) : Promise.resolve(),
+          globalUnread.length > 0 ? this.globalNotificationReadRepository.bulkMarkAsRead(globalUnread, userId) : Promise.resolve()
+        ]);
+        return { personalUnread, globalUnread };
+      });
 
       if (personalUnread.length > 0 || globalUnread.length > 0) {
         setImmediate(() => NotificationCountUtil.emitCountUpdate(userId));
       }
     } catch (error) {
-      await transaction.rollback();
       // Fallo de escritura en BD que el sistema no esperaba ni supo completar → error.
       logger.error('Error marcando notificaciones de página como leídas', { error: errorMessage(error), userId });
     }

@@ -97,53 +97,41 @@ class NotificationCategoryService {
       throw AppError.badRequest(`Ya existe una categoría con el código ${code}`);
     }
 
-    const transaction = await this.unitOfWork.begin();
-    try {
+    const category = await this.unitOfWork.run(async transaction => {
       const category = await this.notificationCategoryRepository.create(
         { code, ..._toColumns(data) } as defineNotificationCategory.CreationAttributes,
         { transaction }
       );
-      await transaction.commit();
+      return category;
+    });
 
-      logAudit('NOTIFICATION_CATEGORY_CREATED', adminUserId, { code }, {
-        ...AUDIT_META,
-        entityId: category.notification_category_id
-      });
+    logAudit('NOTIFICATION_CATEGORY_CREATED', adminUserId, { code }, {
+      ...AUDIT_META,
+      entityId: category.notification_category_id
+    });
 
-      return NotificationCategoryAdminDTO(category);
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    return NotificationCategoryAdminDTO(category);
   }
 
   async update(notificationCategoryId: string, data: Record<string, unknown>, adminUserId: string) {
-    const transaction = await this.unitOfWork.begin();
-    try {
-      const category = await this.notificationCategoryRepository.findById(notificationCategoryId);
-      if (!category) {
-        throw AppError.notFound('Categoría de notificación no encontrada');
-      }
-
-      const columns = _toColumns(data);
-      if (Object.keys(columns).length === 0) {
-        await transaction.rollback();
-        return NotificationCategoryAdminDTO(category);
-      }
-
-      const updated = await category.update(columns, { transaction });
-      await transaction.commit();
-
-      logAudit('NOTIFICATION_CATEGORY_UPDATED', adminUserId, { code: updated.code, updatedFields: Object.keys(columns) }, {
-        ...AUDIT_META,
-        entityId: notificationCategoryId
-      });
-
-      return NotificationCategoryAdminDTO(updated);
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
+    const category = await this.notificationCategoryRepository.findById(notificationCategoryId);
+    if (!category) {
+      throw AppError.notFound('Categoría de notificación no encontrada');
     }
+
+    const columns = _toColumns(data);
+    if (Object.keys(columns).length === 0) {
+      return NotificationCategoryAdminDTO(category);
+    }
+
+    const updated = await this.unitOfWork.run(transaction => category.update(columns, { transaction }));
+
+    logAudit('NOTIFICATION_CATEGORY_UPDATED', adminUserId, { code: updated.code, updatedFields: Object.keys(columns) }, {
+      ...AUDIT_META,
+      entityId: notificationCategoryId
+    });
+
+    return NotificationCategoryAdminDTO(updated);
   }
 
   async remove(notificationCategoryId: string, adminUserId: string) {

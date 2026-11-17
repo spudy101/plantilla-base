@@ -122,7 +122,7 @@ namespace MyService {
 export default Object.assign(new MyService(), { MyService });
 ```
 
-> ✅ **SOLID** (ver [`solid.md`](solid.md)): repos vía `this.`, transacciones con `this.unitOfWork.begin()`,
+> ✅ **SOLID** (ver [`solid.md`](solid.md)): repos vía `this.`, transacciones con `this.unitOfWork.run(async transaction => …)`,
 > y **nunca** `import … from 'sequelize'` / `Op` en un service — si necesitas un filtro, crea un método con
 > nombre de negocio en el repositorio (`findByNames`, `findActive`, `searchPaginated`…).
 > ✅ Si el service usa pocos métodos de un repositorio, declara el puerto con `Pick<XRepositoryPort, 'a' | 'b'>`

@@ -97,9 +97,7 @@ class SmsMfaService {
     const phone = this._requirePhone(user);
     const verificationCode = await this._assertValidCode(phone, code);
 
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    await this.unitOfWork.run(async transaction => {
       await this.verificationCodeRepository.markAsVerified(verificationCode.verification_code_id, { transaction });
       // SMS MFA gestionado íntegramente en nuestra BD
       const updates: Partial<defineUser.Attributes> = { sms_mfa_enabled: true };
@@ -120,17 +118,12 @@ class SmsMfaService {
         },
         transaction
       );
+    });
 
-      await transaction.commit();
+    logAudit('MFA_SMS_ACTIVATED', userId, { username }, { entityId: userId, ...ENTITY });
+    this._notify('SMS_MFA_ACTIVADO', userId, firstName);
 
-      logAudit('MFA_SMS_ACTIVATED', userId, { username }, { entityId: userId, ...ENTITY });
-      this._notify('SMS_MFA_ACTIVADO', userId, firstName);
-
-      return SMSMFAActivationResponseDTO({ userId, username, smsMfaEnabled: true });
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    return SMSMFAActivationResponseDTO({ userId, username, smsMfaEnabled: true });
   }
 
   async deactivateSMSMFA(password: string, userId: string, username: string | null, firstName: string | null, auditContext: RequestAuditContext) {
@@ -141,9 +134,7 @@ class SmsMfaService {
 
     await this.account.assertPassword(user, password);
 
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    await this.unitOfWork.run(async transaction => {
       // SMS MFA gestionado íntegramente en nuestra BD
       const updates: Partial<defineUser.Attributes> = { sms_mfa_enabled: false };
       if (user.preferred_mfa_method === 'sms') {
@@ -162,17 +153,12 @@ class SmsMfaService {
         },
         transaction
       );
+    });
 
-      await transaction.commit();
+    logAudit('MFA_SMS_DEACTIVATED', userId, { username }, { entityId: userId, ...ENTITY });
+    this._notify('SMS_MFA_DESACTIVADO', userId, firstName);
 
-      logAudit('MFA_SMS_DEACTIVATED', userId, { username }, { entityId: userId, ...ENTITY });
-      this._notify('SMS_MFA_DESACTIVADO', userId, firstName);
-
-      return SMSMFAActivationResponseDTO({ userId, username, smsMfaEnabled: false });
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    return SMSMFAActivationResponseDTO({ userId, username, smsMfaEnabled: false });
   }
 
   // ============================================================

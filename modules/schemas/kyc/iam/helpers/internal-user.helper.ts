@@ -61,8 +61,7 @@ class InternalUserHelper {
 
   /** @private */
   static async _createInDB(data: InternalUserHelper.CreateInput & { authUsername: string }) {
-    const transaction = await unitOfWork.begin();
-    try {
+    const { person, user } = await unitOfWork.run(async transaction => {
       const person = await personRepository.create(
         {
           first_name: data.firstName,
@@ -96,17 +95,13 @@ class InternalUserHelper {
         },
         { transaction }
       );
-
-      await transaction.commit();
-      logger.info('Usuario interno creado en BD', {
-        userId: user.user_id,
-        roleId: data.role.role_id
-      });
-      return { user, person };
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+      return { person, user };
+    });
+    logger.info('Usuario interno creado en BD', {
+      userId: user.user_id,
+      roleId: data.role.role_id
+    });
+    return { user, person };
   }
 }
 

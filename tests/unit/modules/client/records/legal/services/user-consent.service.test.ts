@@ -31,6 +31,7 @@ jest.mock('shared/utils/logger.util', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
 
+import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked } from 'tests/helpers/mock';
 import consentTypeRepositoryModule from 'modules/schemas/records/legal/repositories/consent-type.repository';
 const consentTypeRepository = mocked(consentTypeRepositoryModule);
@@ -47,7 +48,7 @@ const AUDIT_CTX = { ip: '1.2.3.4', userAgent: 'jest', reason: 'ya no quiero' };
 
 function mockTx() {
   const tx = { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn().mockResolvedValue(undefined) };
-  sequelize.transaction.mockResolvedValue(tx);
+  sequelize.transaction.mockImplementation(managedTransaction(tx));
   return tx;
 }
 

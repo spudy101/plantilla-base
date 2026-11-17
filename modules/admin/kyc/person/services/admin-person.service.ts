@@ -130,9 +130,7 @@ class PersonService {
    * Punto de entrada del handler de doble aprobación y de la ejecución directa.
    */
   async executeDeleteAccount(userId: string, auditContext: AdminAuditContext) {
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    const result = await this.unitOfWork.run(async transaction => {
       const user = await this.userRepository.findById(userId, {
         include: [
           {
@@ -163,56 +161,49 @@ class PersonService {
         auditContext: { ipAddress: auditContext.ipAddress, userAgent: auditContext.userAgent },
         transaction
       });
+      return result;
+    });
 
-      await transaction.commit();
+    logAudit(
+      'PERSON_ACCOUNT_DELETED',
+      auditContext.adminUserId,
+      {},
+      { entityId: userId, entityType: 'User', entityTable: 'users' }
+    );
 
-      logAudit(
-        'PERSON_ACCOUNT_DELETED',
-        auditContext.adminUserId,
-        {},
-        { entityId: userId, entityType: 'User', entityTable: 'users' }
-      );
-
-      const { deletedEmail } = result;
-      if (deletedEmail) {
-        setImmediate(() => {
-          this.NotificationUtil.crearNotificacionDirecta({
-            tipoNotificacion: 'CUENTA_ELIMINADA',
+    const { deletedEmail } = result;
+    if (deletedEmail) {
+      setImmediate(() => {
+        this.NotificationUtil.crearNotificacionDirecta({
+          tipoNotificacion: 'CUENTA_ELIMINADA',
+          email: deletedEmail,
+          metadata: {
+            nombre: result.firstName,
             email: deletedEmail,
-            metadata: {
-              nombre: result.firstName,
-              email: deletedEmail,
-              logoUrl: notifications.ses.logoUrl
-            }
-          }).catch(err =>
-            logger.warn('Error sending account deletion notification', {
-              userId,
-              error: err.message
-            })
-          );
+            logoUrl: notifications.ses.logoUrl
+          }
+        }).catch(err =>
+          logger.warn('Error sending account deletion notification', {
+            userId,
+            error: err.message
+          })
+        );
 
-          this.NotificationUtil.crearNotificacion({
-            tipoNotificacion: 'PERSON_ADMIN_ACTION',
-            userId: auditContext.adminUserId,
-            relatedEntity: null,
-            metadata: {
-              nombre: auditContext.adminFirstName,
-              accion: 'eliminar_cuenta',
-              userId: userId,
-              logoUrl: notifications.ses.logoUrl
-            }
-          }).catch(err => logger.warn('Error sending admin action notification', { error: err.message }));
-        });
-      }
-
-      return null;
-    } catch (error) {
-      if (!transaction.finished) {
-        await transaction.rollback();
-        logger.info('Transaction rolled back', { userId, adminId: auditContext.adminUserId });
-      }
-      throw error;
+        this.NotificationUtil.crearNotificacion({
+          tipoNotificacion: 'PERSON_ADMIN_ACTION',
+          userId: auditContext.adminUserId,
+          relatedEntity: null,
+          metadata: {
+            nombre: auditContext.adminFirstName,
+            accion: 'eliminar_cuenta',
+            userId: userId,
+            logoUrl: notifications.ses.logoUrl
+          }
+        }).catch(err => logger.warn('Error sending admin action notification', { error: err.message }));
+      });
     }
+
+    return null;
   }
 
   // ============================================================

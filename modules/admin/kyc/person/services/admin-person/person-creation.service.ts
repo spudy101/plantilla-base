@@ -53,10 +53,7 @@ class PersonCreationService {
   // ============================================================
 
   async create(userData: PersonCreationService.CreateInput, auditContext: AdminAuditContext) {
-    const transaction = await this.unitOfWork.begin();
-    let transactionFinished = false;
-
-    try {
+    const { role, user, temporaryPassword } = await this.unitOfWork.run(async transaction => {
       const role = await this.roleRepository.findByName(RBAC_ROLES.CLIENTE);
       if (!role) {
         throw AppError.internal(`Rol ${RBAC_ROLES.CLIENTE} no configurado. Ejecuta el seeder RBAC.`);
@@ -70,33 +67,27 @@ class PersonCreationService {
       const authUsername = `user_${uuidv4()}`;
 
       const user = await this._createDbRecords(userData, authUsername, temporaryPassword, role.role_id, transaction);
+      return { role, user, temporaryPassword };
+    });
 
-      await transaction.commit();
-      transactionFinished = true;
+    // Después del commit: un error acá ya no intenta revertir la transacción confirmada
+    logAudit(
+      'PERSON_CREATED',
+      auditContext.adminUserId,
+      {
+        roleId: role.role_id,
+        roleName: role.name
+      },
+      { entityId: user.user_id, entityType: 'User', entityTable: 'users' }
+    );
 
-      logAudit(
-        'PERSON_CREATED',
-        auditContext.adminUserId,
-        {
-          roleId: role.role_id,
-          roleName: role.name
-        },
-        { entityId: user.user_id, entityType: 'User', entityTable: 'users' }
-      );
+    setImmediate(() => this._sendCreateNotifications(userData, user, auditContext, temporaryPassword));
 
-      setImmediate(() => this._sendCreateNotifications(userData, user, auditContext, temporaryPassword));
-
-      const fullUser = await this.userRepository.findByUserId(user.user_id, 'full');
-      if (!fullUser) {
-        throw AppError.internal('Usuario recién creado no encontrado');
-      }
-      return CreateUserDTO(fullUser, temporaryPassword);
-    } catch (error) {
-      if (!transactionFinished) {
-        await transaction.rollback();
-      }
-      throw error;
+    const fullUser = await this.userRepository.findByUserId(user.user_id, 'full');
+    if (!fullUser) {
+      throw AppError.internal('Usuario recién creado no encontrado');
     }
+    return CreateUserDTO(fullUser, temporaryPassword);
   }
 
   /** @private */

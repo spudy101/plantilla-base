@@ -72,6 +72,7 @@ jest.mock('modules/shared-endpoints/kyc/iam/dtos/mfa.dto', () => ({
   PreferredMethodResponseDTO: (x: Loose) => x
 }));
 
+import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked, Loose } from 'tests/helpers/mock';
 import modelsModule from 'shared/models';
 const { sequelize } = mocked(modelsModule);
@@ -122,7 +123,7 @@ describe('MFAService', () => {
     userRepo.findWithPrimaryPhone.mockImplementation((...args) => userRepo.findById(...args));
     constants.MOCKS.EXTERNAL_PROVIDERS = false;
     tx = makeTx();
-    sequelize.transaction.mockResolvedValue(tx);
+    sequelize.transaction.mockImplementation(managedTransaction(tx));
   });
 
   describe('setupTOTP', () => {

@@ -290,19 +290,15 @@ class AuthRegisterService {
 
   /** @private */
   async _createUserInDB(data: AuthRegisterService.NewUserData) {
-    const transaction = await this.unitOfWork.begin();
-    try {
+    const result = await this.unitOfWork.run(async transaction => {
       const result = await this._createAllEntities(data, transaction);
-      await transaction.commit();
-      logger.info('User created in DB', {
-        userId: result.user.user_id,
-        roleId: result.role.role_id
-      });
       return result;
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    });
+    logger.info('User created in DB', {
+      userId: result.user.user_id,
+      roleId: result.role.role_id
+    });
+    return result;
   }
 
   /** @private */

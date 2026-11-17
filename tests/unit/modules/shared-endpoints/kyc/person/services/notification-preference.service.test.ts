@@ -31,6 +31,7 @@ jest.mock('shared/dtos/notification/components-notification.dto', () => ({
   UserNotificationPreferenceComponent: { buildArray: jest.fn() }
 }));
 
+import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
 import modelsModule from 'shared/models';
 const { sequelize } = mocked(modelsModule);
@@ -60,7 +61,7 @@ describe('NotificationPreferenceService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     transaction = makeTransaction();
-    sequelize.transaction.mockResolvedValue(transaction);
+    sequelize.transaction.mockImplementation(managedTransaction(transaction));
   });
 
   describe('updateGlobalPreference', () => {

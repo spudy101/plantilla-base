@@ -43,9 +43,7 @@ class PersonCredentialsService {
   // ============================================================
 
   async resetPassword(userId: string, auditContext: AdminAuditContext) {
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    const { user, temporaryPassword } = await this.unitOfWork.run(async transaction => {
       const user = await this.userRepository.findById(userId, {
         include: [
           {
@@ -80,52 +78,46 @@ class PersonCredentialsService {
         },
         { transaction }
       );
+      return { user, temporaryPassword };
+    });
 
-      await transaction.commit();
+    logAudit(
+      'PERSON_PASSWORD_RESET',
+      auditContext.adminUserId,
+      {},
+      { entityId: userId, entityType: 'User', entityTable: 'users' }
+    );
 
-      logAudit(
-        'PERSON_PASSWORD_RESET',
-        auditContext.adminUserId,
-        {},
-        { entityId: userId, entityType: 'User', entityTable: 'users' }
-      );
+    const affectedNombre = user.person?.first_name || 'Usuario';
+    const affectedEmail = user.person?.contact?.email;
 
-      const affectedNombre = user.person?.first_name || 'Usuario';
-      const affectedEmail = user.person?.contact?.email;
+    setImmediate(() => {
+      this.NotificationUtil.crearNotificacion({
+        tipoNotificacion: 'PASSWORD_RESET_ADMIN',
+        userId: user.user_id,
+        relatedEntity: null,
+        metadata: {
+          nombre: affectedNombre,
+          email: affectedEmail,
+          passwordTemporal: temporaryPassword,
+          logoUrl: notifications.ses.logoUrl
+        }
+      }).catch(err => logger.warn('Error sending password reset notification', { error: err.message }));
 
-      setImmediate(() => {
-        this.NotificationUtil.crearNotificacion({
-          tipoNotificacion: 'PASSWORD_RESET_ADMIN',
-          userId: user.user_id,
-          relatedEntity: null,
-          metadata: {
-            nombre: affectedNombre,
-            email: affectedEmail,
-            passwordTemporal: temporaryPassword,
-            logoUrl: notifications.ses.logoUrl
-          }
-        }).catch(err => logger.warn('Error sending password reset notification', { error: err.message }));
+      this.NotificationUtil.crearNotificacion({
+        tipoNotificacion: 'PERSON_ADMIN_ACTION',
+        userId: auditContext.adminUserId,
+        relatedEntity: null,
+        metadata: {
+          nombre: auditContext.adminFirstName,
+          accion: 'reset_password',
+          userId: userId,
+          logoUrl: notifications.ses.logoUrl
+        }
+      }).catch(err => logger.warn('Error sending admin action notification', { error: err.message }));
+    });
 
-        this.NotificationUtil.crearNotificacion({
-          tipoNotificacion: 'PERSON_ADMIN_ACTION',
-          userId: auditContext.adminUserId,
-          relatedEntity: null,
-          metadata: {
-            nombre: auditContext.adminFirstName,
-            accion: 'reset_password',
-            userId: userId,
-            logoUrl: notifications.ses.logoUrl
-          }
-        }).catch(err => logger.warn('Error sending admin action notification', { error: err.message }));
-      });
-
-      return ResetPasswordDTO(user);
-    } catch (error) {
-      if (!transaction.finished) {
-        await transaction.rollback();
-      }
-      throw error;
-    }
+    return ResetPasswordDTO(user);
   }
 
   // ============================================================
@@ -133,9 +125,7 @@ class PersonCredentialsService {
   // ============================================================
 
   async changeEmail(userId: string, newEmail: string, auditContext: AdminAuditContext) {
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    const { user, oldEmail, updatedEmail } = await this.unitOfWork.run(async transaction => {
       const user = await this.userRepository.findById(userId, {
         include: [
           {
@@ -163,55 +153,49 @@ class PersonCredentialsService {
         transaction,
         skipVerificationCheck: true
       });
+      return { user, oldEmail, updatedEmail };
+    });
 
-      await transaction.commit();
+    logAudit(
+      'PERSON_EMAIL_CHANGED',
+      auditContext.adminUserId,
+      {
+        before: { email: oldEmail },
+        after: { email: updatedEmail }
+      },
+      { entityId: userId, entityType: 'User', entityTable: 'users' }
+    );
 
-      logAudit(
-        'PERSON_EMAIL_CHANGED',
-        auditContext.adminUserId,
-        {
-          before: { email: oldEmail },
-          after: { email: updatedEmail }
-        },
-        { entityId: userId, entityType: 'User', entityTable: 'users' }
-      );
+    const firstName = user.person?.first_name;
 
-      const firstName = user.person?.first_name;
+    setImmediate(() => {
+      this.NotificationUtil.crearNotificacionDirecta({
+        tipoNotificacion: 'EMAIL_CHANGED_OLD',
+        email: oldEmail,
+        metadata: { nombre: firstName, email: oldEmail, logoUrl: notifications.ses.logoUrl }
+      }).catch(err => logger.warn('Error sending old email notification', { error: err.message }));
 
-      setImmediate(() => {
-        this.NotificationUtil.crearNotificacionDirecta({
-          tipoNotificacion: 'EMAIL_CHANGED_OLD',
-          email: oldEmail,
-          metadata: { nombre: firstName, email: oldEmail, logoUrl: notifications.ses.logoUrl }
-        }).catch(err => logger.warn('Error sending old email notification', { error: err.message }));
+      this.NotificationUtil.crearNotificacion({
+        tipoNotificacion: 'EMAIL_CHANGED_NEW',
+        userId: user.user_id,
+        relatedEntity: null,
+        metadata: { nombre: firstName, email: updatedEmail, logoUrl: notifications.ses.logoUrl }
+      }).catch(err => logger.warn('Error sending new email notification', { error: err.message }));
 
-        this.NotificationUtil.crearNotificacion({
-          tipoNotificacion: 'EMAIL_CHANGED_NEW',
-          userId: user.user_id,
-          relatedEntity: null,
-          metadata: { nombre: firstName, email: updatedEmail, logoUrl: notifications.ses.logoUrl }
-        }).catch(err => logger.warn('Error sending new email notification', { error: err.message }));
+      this.NotificationUtil.crearNotificacion({
+        tipoNotificacion: 'PERSON_ADMIN_ACTION',
+        userId: auditContext.adminUserId,
+        relatedEntity: null,
+        metadata: {
+          nombre: auditContext.adminFirstName,
+          accion: 'cambiar_email',
+          userId: userId,
+          logoUrl: notifications.ses.logoUrl
+        }
+      }).catch(err => logger.warn('Error sending admin action notification', { error: err.message }));
+    });
 
-        this.NotificationUtil.crearNotificacion({
-          tipoNotificacion: 'PERSON_ADMIN_ACTION',
-          userId: auditContext.adminUserId,
-          relatedEntity: null,
-          metadata: {
-            nombre: auditContext.adminFirstName,
-            accion: 'cambiar_email',
-            userId: userId,
-            logoUrl: notifications.ses.logoUrl
-          }
-        }).catch(err => logger.warn('Error sending admin action notification', { error: err.message }));
-      });
-
-      return ChangeEmailDTO(user, oldEmail, updatedEmail);
-    } catch (error) {
-      if (!transaction.finished) {
-        await transaction.rollback();
-      }
-      throw error;
-    }
+    return ChangeEmailDTO(user, oldEmail, updatedEmail);
   }
 
   // ============================================================
@@ -219,9 +203,7 @@ class PersonCredentialsService {
   // ============================================================
 
   async changeNationalId(userId: string, newNationalId: string, auditContext: AdminAuditContext) {
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    const { user, oldNationalId, updated, unchanged } = await this.unitOfWork.run(async transaction => {
       const user = await this.userRepository.findById(userId, {
         include: [
           {
@@ -254,56 +236,50 @@ class PersonCredentialsService {
         auditContext: { ipAddress: auditContext.ipAddress, userAgent: auditContext.userAgent },
         transaction
       });
+      return { user, oldNationalId, updated, unchanged };
+    });
 
-      await transaction.commit();
-
-      // Idempotente: el valor enviado es igual al actual — no hubo cambio real,
-      // se omite auditoría, re-screening SARLAFT y notificaciones; se responde OK.
-      if (unchanged) {
-        return ChangeNationalIdDTO(user, oldNationalId, updated);
-      }
-
-      logAudit(
-        'PERSON_NATIONAL_ID_CHANGED',
-        auditContext.adminUserId,
-        {
-          before: { nationalId: oldNationalId },
-          after: { nationalId: updated }
-        },
-        { entityId: userId, entityType: 'User', entityTable: 'users' }
-      );
-
-      const affectedEmail = user.person?.contact?.email;
-      const firstName = user.person?.first_name;
-
-      setImmediate(() => {
-        this.NotificationUtil.crearNotificacion({
-          tipoNotificacion: 'NATIONAL_ID_CHANGED',
-          userId: user.user_id,
-          relatedEntity: null,
-          metadata: { nombre: firstName, email: affectedEmail, logoUrl: notifications.ses.logoUrl }
-        }).catch(err => logger.warn('Error sending national id notification', { error: err.message }));
-
-        this.NotificationUtil.crearNotificacion({
-          tipoNotificacion: 'PERSON_ADMIN_ACTION',
-          userId: auditContext.adminUserId,
-          relatedEntity: null,
-          metadata: {
-            nombre: auditContext.adminFirstName,
-            accion: 'cambiar_national_id',
-            userId: userId,
-            logoUrl: notifications.ses.logoUrl
-          }
-        }).catch(err => logger.warn('Error sending admin action notification', { error: err.message }));
-      });
-
+    // Idempotente: el valor enviado es igual al actual — no hubo cambio real,
+    // se omite auditoría, re-screening SARLAFT y notificaciones; se responde OK.
+    if (unchanged) {
       return ChangeNationalIdDTO(user, oldNationalId, updated);
-    } catch (error) {
-      if (!transaction.finished) {
-        await transaction.rollback();
-      }
-      throw error;
     }
+
+    logAudit(
+      'PERSON_NATIONAL_ID_CHANGED',
+      auditContext.adminUserId,
+      {
+        before: { nationalId: oldNationalId },
+        after: { nationalId: updated }
+      },
+      { entityId: userId, entityType: 'User', entityTable: 'users' }
+    );
+
+    const affectedEmail = user.person?.contact?.email;
+    const firstName = user.person?.first_name;
+
+    setImmediate(() => {
+      this.NotificationUtil.crearNotificacion({
+        tipoNotificacion: 'NATIONAL_ID_CHANGED',
+        userId: user.user_id,
+        relatedEntity: null,
+        metadata: { nombre: firstName, email: affectedEmail, logoUrl: notifications.ses.logoUrl }
+      }).catch(err => logger.warn('Error sending national id notification', { error: err.message }));
+
+      this.NotificationUtil.crearNotificacion({
+        tipoNotificacion: 'PERSON_ADMIN_ACTION',
+        userId: auditContext.adminUserId,
+        relatedEntity: null,
+        metadata: {
+          nombre: auditContext.adminFirstName,
+          accion: 'cambiar_national_id',
+          userId: userId,
+          logoUrl: notifications.ses.logoUrl
+        }
+      }).catch(err => logger.warn('Error sending admin action notification', { error: err.message }));
+    });
+
+    return ChangeNationalIdDTO(user, oldNationalId, updated);
   }
 
   // ============================================================
@@ -311,9 +287,7 @@ class PersonCredentialsService {
   // ============================================================
 
   async disableMFA(userId: string, auditContext: AdminAuditContext) {
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    const user = await this.unitOfWork.run(async transaction => {
       const user = await this.userRepository.findById(userId, {
         include: [
           {
@@ -358,31 +332,25 @@ class PersonCredentialsService {
         },
         { transaction }
       );
+      return user;
+    });
 
-      await transaction.commit();
+    logAudit(
+      'PERSON_MFA_DISABLED',
+      auditContext.adminUserId,
+      {
+        before: { mfaEnabled: true },
+        after: { mfaEnabled: false }
+      },
+      { entityId: userId, entityType: 'User', entityTable: 'users' }
+    );
 
-      logAudit(
-        'PERSON_MFA_DISABLED',
-        auditContext.adminUserId,
-        {
-          before: { mfaEnabled: true },
-          after: { mfaEnabled: false }
-        },
-        { entityId: userId, entityType: 'User', entityTable: 'users' }
-      );
+    this._notifyMFADisabled(user, userId, auditContext);
 
-      this._notifyMFADisabled(user, userId, auditContext);
-
-      user.totp_enabled = false;
-      user.sms_mfa_enabled = false;
-      user.preferred_mfa_method = 'none';
-      return DisableMFADTO(user);
-    } catch (error) {
-      if (!transaction.finished) {
-        await transaction.rollback();
-      }
-      throw error;
-    }
+    user.totp_enabled = false;
+    user.sms_mfa_enabled = false;
+    user.preferred_mfa_method = 'none';
+    return DisableMFADTO(user);
   }
 
   /** @private Dispara en background las notificaciones de desactivación de MFA. */

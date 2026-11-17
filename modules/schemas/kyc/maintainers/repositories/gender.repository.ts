@@ -9,13 +9,13 @@ const SORTABLE = Object.values(Prisma.GenderScalarFieldEnum);
 const SEARCH_FIELDS = ['name'] as const;
 
 class GenderRepository extends PrismaRepository {
-  findById(genderId: string): Promise<Gender | null> {
-    return this.db.gender.findUnique({ where: { genderId } });
+  async findById(genderId: string): Promise<Gender | null> {
+    return (await this.db()).gender.findUnique({ where: { genderId } });
   }
 
   /** true si hay al menos un género que cumple el criterio. */
   async exists(where: Prisma.GenderWhereInput): Promise<boolean> {
-    return (await this.db.gender.count({ where, take: 1 })) > 0;
+    return (await (await this.db()).gender.count({ where, take: 1 })) > 0;
   }
 
   /** Listado paginado del catálogo (mismo contrato que ReadRepository#findAllPaginated). */
@@ -28,9 +28,10 @@ class GenderRepository extends PrismaRepository {
       ...(filters.isActive !== undefined ? { isActive: filters.isActive } : {}),
       ...this.searchWhere(searchTerm, SEARCH_FIELDS)
     };
+    const db = await this.db();
     const [rows, count] = await Promise.all([
-      this.db.gender.findMany({ where, ...this.paginationArgs(SORTABLE, pagination) }),
-      this.db.gender.count({ where })
+      db.gender.findMany({ where, ...this.paginationArgs(SORTABLE, pagination) }),
+      db.gender.count({ where })
     ]);
     return { rows, count };
   }

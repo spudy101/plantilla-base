@@ -51,6 +51,7 @@ jest.mock('modules/admin/notification/dtos/admin-notification-type.dto', () => (
   CreateDirectNotificationResponseDTO: (p: Loose) => ({ dto: 'direct', ...p })
 }));
 
+import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
 import typeRepoModule from 'modules/schemas/notification/repositories/notification-type.repository';
 const typeRepo = mocked(typeRepoModule);
@@ -74,7 +75,7 @@ describe('NotificationTypeService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     transaction = { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn().mockResolvedValue(undefined) };
-    sequelize.transaction.mockResolvedValue(transaction);
+    sequelize.transaction.mockImplementation(managedTransaction(transaction));
   });
 
   describe('list', () => {
@@ -95,29 +96,29 @@ describe('NotificationTypeService', () => {
   });
 
   describe('update', () => {
-    it('lanza 404 (con rollback) si el tipo no existe', async () => {
+    it('lanza 404 si el tipo no existe, sin abrir transacción', async () => {
       typeRepo.findById.mockResolvedValue(null);
 
       await expect(service.update('t-x', { name: 'X' }, ADMIN)).rejects.toMatchObject({ statusCode: 404 });
-      expect(transaction.rollback).toHaveBeenCalled();
+      expect(sequelize.transaction).not.toHaveBeenCalled();
     });
 
-    it('lanza badRequest si la categoría reasignada no existe', async () => {
+    it('lanza badRequest si la categoría reasignada no existe, sin abrir transacción', async () => {
       typeRepo.findById.mockResolvedValue({ code: 'X', update: jest.fn() });
       categoryRepo.findById.mockResolvedValue(null);
 
       await expect(service.update('t-1', { notificationCategoryId: 'c-x' }, ADMIN)).rejects.toMatchObject({ statusCode: 400 });
-      expect(transaction.rollback).toHaveBeenCalled();
+      expect(sequelize.transaction).not.toHaveBeenCalled();
     });
 
-    it('sin campos mapeables hace rollback y devuelve el DTO actual', async () => {
+    it('sin campos mapeables devuelve el DTO actual sin abrir transacción', async () => {
       const nt = { code: 'X', update: jest.fn() };
       typeRepo.findById.mockResolvedValue(nt);
 
       const result = await service.update('t-1', { campoNoMapeado: 1 }, ADMIN);
 
       expect(nt.update).not.toHaveBeenCalled();
-      expect(transaction.rollback).toHaveBeenCalled();
+      expect(sequelize.transaction).not.toHaveBeenCalled();
       expect(result).toMatchObject({ dto: 'type', code: 'X' });
     });
 

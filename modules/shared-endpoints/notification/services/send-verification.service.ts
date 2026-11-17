@@ -56,9 +56,7 @@ class SendVerificationService {
     const code = this._generateCode();
     const expiresAt = new Date(Date.now() + VERIFICATION_EXPIRATION_MINUTES * 60 * 1000);
 
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    const verificationCode = await this.unitOfWork.run(async transaction => {
       const verificationCode = await this.verificationCodeRepository.create(
         {
           type,
@@ -68,39 +66,35 @@ class SendVerificationService {
         },
         { transaction }
       );
+      return verificationCode;
+    });
 
-      await transaction.commit();
+    // Ruta pública — userId = null (no hay sesión activa)
+    logAudit(
+      'VERIFICATION_CODE_SENT',
+      null,
+      {
+        type,
+        contact,
+        expiresAt
+      },
+      { entityId: verificationCode.verification_code_id, entityType: 'VerificationCode', entityTable: 'verification_codes' }
+    );
 
-      // Ruta pública — userId = null (no hay sesión activa)
-      logAudit(
-        'VERIFICATION_CODE_SENT',
-        null,
-        {
+    setImmediate(() => {
+      this._sendCode(type, contact, phonePrefixId, code).catch(err =>
+        // El código no llegó al usuario: integración (SES/SMS) caída → solo el admin lo resuelve.
+        logger.warn('Error sending verification code', {
+          error: err.message,
           type,
           contact,
-          expiresAt
-        },
-        { entityId: verificationCode.verification_code_id, entityType: 'VerificationCode', entityTable: 'verification_codes' }
+          codeId: verificationCode.verification_code_id
+        })
       );
+    });
 
-      setImmediate(() => {
-        this._sendCode(type, contact, phonePrefixId, code).catch(err =>
-          // El código no llegó al usuario: integración (SES/SMS) caída → solo el admin lo resuelve.
-          logger.warn('Error sending verification code', {
-            error: err.message,
-            type,
-            contact,
-            codeId: verificationCode.verification_code_id
-          })
-        );
-      });
-
-      const truncatedCode = this._getTruncatedCode(type, code);
-      return SendVerificationResponseDTO({ verificationCode, truncatedCode });
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    const truncatedCode = this._getTruncatedCode(type, code);
+    return SendVerificationResponseDTO({ verificationCode, truncatedCode });
   }
 
   // ============================================================
@@ -128,18 +122,11 @@ class SendVerificationService {
     }
 
     if (verificationCode.code !== code) {
-      const transaction = await this.unitOfWork.begin();
-      try {
+      await this.unitOfWork.run(async transaction => {
         await this.verificationCodeRepository.incrementAttempts(verificationCode.verification_code_id, {
           transaction
         });
-        await transaction.commit();
-      } catch (err) {
-        if (!transaction.finished) {
-          await transaction.rollback();
-        }
-        throw err;
-      }
+      });
 
       // Evento de seguridad (mismo patrón que LOGIN_FAILED / MFA SMS fallido): se audita el
       // intento fallido con outcome=failure y datos (contact, attempts) que el middleware no captura.
@@ -164,18 +151,11 @@ class SendVerificationService {
       throw AppError.badRequest(`Código inválido. Te quedan ${remaining} intento${remaining !== 1 ? 's' : ''}`);
     }
 
-    const transaction = await this.unitOfWork.begin();
-    try {
+    await this.unitOfWork.run(async transaction => {
       await this.verificationCodeRepository.markAsVerified(verificationCode.verification_code_id, {
         transaction
       });
-      await transaction.commit();
-    } catch (err) {
-      if (!transaction.finished) {
-        await transaction.rollback();
-      }
-      throw err;
-    }
+    });
 
     // Verificación exitosa — ruta pública, userId = null
     logAudit(

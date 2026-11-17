@@ -55,6 +55,7 @@ jest.mock('modules/schemas/notification/utils/notification-count.util', () => ({
   emitCountUpdate: jest.fn()
 }));
 
+import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked, fixture } from 'tests/helpers/mock';
 import modelsModule from 'shared/models';
 const { sequelize } = mocked(modelsModule);
@@ -87,13 +88,13 @@ describe('NotificationService', () => {
     notificationRepo.markAsReadByIds.mockResolvedValue([1]);
     globalNotificationRepo.findActiveNotifications.mockResolvedValue([]);
     globalReadRepo.getReadIdsByUser.mockResolvedValue([]);
-    sequelize.transaction.mockResolvedValue(fakeTransaction());
+    sequelize.transaction.mockImplementation(managedTransaction(fakeTransaction()));
   });
 
   describe('getNotificationsList', () => {
     it('mezcla y ordena DESC, marca la página como leída en transacción y audita', async () => {
       const tx = fakeTransaction();
-      sequelize.transaction.mockResolvedValue(tx);
+      sequelize.transaction.mockImplementation(managedTransaction(tx));
       notificationRepo.findAll.mockResolvedValue([
         { notification_id: 'n-1', createdAt: new Date('2024-01-02'), is_read: false }
       ]);
@@ -125,7 +126,7 @@ describe('NotificationService', () => {
 
     it('hace rollback y loguea error si la escritura de marcado falla (sin propagar)', async () => {
       const tx = fakeTransaction();
-      sequelize.transaction.mockResolvedValue(tx);
+      sequelize.transaction.mockImplementation(managedTransaction(tx));
       notificationRepo.findAll.mockResolvedValue([
         { notification_id: 'n-1', createdAt: new Date('2024-01-02'), is_read: false }
       ]);

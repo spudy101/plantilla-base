@@ -122,6 +122,7 @@ jest.mock('modules/admin/kyc/person/dtos/admin-person.dto', () => ({
   RoleOptionDTO: jest.fn(r => ({ dto: 'RoleOptionDTO', id: r.role_id }))
 }));
 
+import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked, Loose } from 'tests/helpers/mock';
 import modelsModule from 'shared/models';
 const { sequelize } = mocked(modelsModule);
@@ -168,7 +169,7 @@ describe('PersonService (admin)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     txn = makeTransaction();
-    sequelize.transaction.mockResolvedValue(txn);
+    sequelize.transaction.mockImplementation(managedTransaction(txn));
     // roles cliente por defecto para _clientRoleIds
     roleRepository.findByNames.mockResolvedValue([{ role_id: 'rc1' }, { role_id: 'rc2' }]);
   });

@@ -66,6 +66,7 @@ jest.mock('shared/dtos/kyc', () => ({
   PersonLocationComponent: { build: jest.fn(l => ({ built: 'location', l })) }
 }));
 
+import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
 import modelsModule from 'shared/models';
 const { sequelize } = mocked(modelsModule);
@@ -115,7 +116,7 @@ describe('ProfileService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     transaction = makeTransaction();
-    sequelize.transaction.mockResolvedValue(transaction);
+    sequelize.transaction.mockImplementation(managedTransaction(transaction));
   });
 
   // ============================================================

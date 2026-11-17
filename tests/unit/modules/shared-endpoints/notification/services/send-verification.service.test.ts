@@ -48,6 +48,7 @@ jest.mock('modules/shared-endpoints/notification/dtos/send-verification.dto', ()
   VerifyCodeResponseDTO: jest.fn(() => ({ verified: true }))
 }));
 
+import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked } from 'tests/helpers/mock';
 import modelsModule from 'shared/models';
 const { sequelize } = mocked(modelsModule);
@@ -84,7 +85,7 @@ describe('SendVerificationService', () => {
     NotificationUtil.crearNotificacionDirecta.mockResolvedValue(undefined);
     SmsService.resolveE164.mockResolvedValue('+56911112222');
     SmsService.enviarSmsOtp.mockResolvedValue({ success: true });
-    sequelize.transaction.mockResolvedValue(fakeTransaction());
+    sequelize.transaction.mockImplementation(managedTransaction(fakeTransaction()));
   });
 
   describe('sendVerificationCode', () => {
@@ -99,7 +100,7 @@ describe('SendVerificationService', () => {
 
     it('email — crea el código en transacción, audita y despacha el email en background', async () => {
       const tx = fakeTransaction();
-      sequelize.transaction.mockResolvedValue(tx);
+      sequelize.transaction.mockImplementation(managedTransaction(tx));
       verificationCodeRepo.canRequestNewCode.mockResolvedValue(true);
       verificationCodeRepo.create.mockResolvedValue({ verification_code_id: 'vc-1' });
 
@@ -158,7 +159,7 @@ describe('SendVerificationService', () => {
 
     it('hace rollback y propaga si falla la creación del código', async () => {
       const tx = fakeTransaction();
-      sequelize.transaction.mockResolvedValue(tx);
+      sequelize.transaction.mockImplementation(managedTransaction(tx));
       verificationCodeRepo.canRequestNewCode.mockResolvedValue(true);
       verificationCodeRepo.create.mockRejectedValue(new Error('db down'));
 
@@ -205,7 +206,7 @@ describe('SendVerificationService', () => {
 
     it('código incorrecto — incrementa intentos, audita failure y lanza 400 con intentos restantes', async () => {
       const tx = fakeTransaction();
-      sequelize.transaction.mockResolvedValue(tx);
+      sequelize.transaction.mockImplementation(managedTransaction(tx));
       verificationCodeRepo.findActiveByContact.mockResolvedValue({
         verification_code_id: 'vc-1',
         verified_at: null,
@@ -229,7 +230,7 @@ describe('SendVerificationService', () => {
 
     it('código correcto — marca verificado, audita y devuelve el DTO { verified: true }', async () => {
       const tx = fakeTransaction();
-      sequelize.transaction.mockResolvedValue(tx);
+      sequelize.transaction.mockImplementation(managedTransaction(tx));
       verificationCodeRepo.findActiveByContact.mockResolvedValue({
         verification_code_id: 'vc-1',
         verified_at: null,

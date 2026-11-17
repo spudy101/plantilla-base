@@ -112,6 +112,7 @@ const mockConstants = {
 };
 jest.mock('shared/constants', () => mockConstants);
 
+import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked } from 'tests/helpers/mock';
 import userRepositoryModule from 'modules/schemas/kyc/iam/repositories/user.repository';
 const userRepository = mocked(userRepositoryModule);
@@ -182,10 +183,10 @@ function armHappyRegister() {
   personContactRepository.findByEmail.mockResolvedValue(null);
   personRepository.findByNationalId.mockResolvedValue(null);
 
-  sequelize.transaction.mockResolvedValue({
+  sequelize.transaction.mockImplementation(managedTransaction({
     commit: jest.fn().mockResolvedValue(undefined),
     rollback: jest.fn().mockResolvedValue(undefined)
-  });
+  }));
   roleRepository.findByName.mockResolvedValue({ role_id: 'role-cliente' });
   personRepository.create.mockResolvedValue({ person_id: 'p-1' });
   personContactRepository.create.mockResolvedValue({ person_contact_id: 'pc-1' });
@@ -301,7 +302,7 @@ describe('AuthRegisterService', () => {
     it('mapea un error NO operativo a internal tras el rollback de la transacción', async () => {
       armHappyRegister();
       const tx = { commit: jest.fn(), rollback: jest.fn().mockResolvedValue(undefined) };
-      sequelize.transaction.mockResolvedValue(tx);
+      sequelize.transaction.mockImplementation(managedTransaction(tx));
       roleRepository.findByName.mockResolvedValue({ role_id: 'r' });
       personRepository.create.mockRejectedValue(new Error('db boom')); // error crudo, no operativo
 
@@ -370,7 +371,7 @@ describe('AuthRegisterService', () => {
   describe('confirmResetCredentials', () => {
     function txOk() {
       const tx = { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn().mockResolvedValue(undefined) };
-      sequelize.transaction.mockResolvedValue(tx);
+      sequelize.transaction.mockImplementation(managedTransaction(tx));
       return tx;
     }
 
