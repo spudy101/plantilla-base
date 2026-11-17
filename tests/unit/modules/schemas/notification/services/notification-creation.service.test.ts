@@ -65,29 +65,29 @@ jest.mock('shared/utils/logger.util', () => ({
 jest.mock('shared/models', () => ({}));
 
 import { mocked, fixture } from 'tests/helpers/mock';
-import notificationRepoModule = require('modules/schemas/notification/repositories/notification.repository');
+import notificationRepoModule from 'modules/schemas/notification/repositories/notification.repository';
 const notificationRepo = mocked(notificationRepoModule);
-import globalNotificationRepoModule = require('modules/schemas/notification/repositories/global-notification.repository');
+import globalNotificationRepoModule from 'modules/schemas/notification/repositories/global-notification.repository';
 const globalNotificationRepo = mocked(globalNotificationRepoModule);
-import notificationTypeRepoModule = require('modules/schemas/notification/repositories/notification-type.repository');
+import notificationTypeRepoModule from 'modules/schemas/notification/repositories/notification-type.repository';
 const notificationTypeRepo = mocked(notificationTypeRepoModule);
-import userPreferenceRepoModule = require('modules/schemas/kyc/person/repositories/user-notification-preference.repository');
+import userPreferenceRepoModule from 'modules/schemas/kyc/person/repositories/user-notification-preference.repository';
 const userPreferenceRepo = mocked(userPreferenceRepoModule);
-import NotificationCountUtilModule = require('modules/schemas/notification/utils/notification-count.util');
+import NotificationCountUtilModule from 'modules/schemas/notification/utils/notification-count.util';
 const NotificationCountUtil = mocked(NotificationCountUtilModule);
-import NotificationContentUtilModule = require('modules/schemas/notification/utils/notification-content.util');
+import NotificationContentUtilModule from 'modules/schemas/notification/utils/notification-content.util';
 const NotificationContentUtil = mocked(NotificationContentUtilModule);
-import schedulerServiceModule = require('modules/schemas/notification/services/notification-scheduler.service');
+import schedulerServiceModule from 'modules/schemas/notification/services/notification-scheduler.service';
 const schedulerService = mocked(schedulerServiceModule);
-import sendingServiceModule = require('modules/schemas/notification/services/notification-sending.service');
+import sendingServiceModule from 'modules/schemas/notification/services/notification-sending.service';
 const sendingService = mocked(sendingServiceModule);
-import emailServiceModule = require('modules/schemas/notification/services/email-notification.service');
+import emailServiceModule from 'modules/schemas/notification/services/email-notification.service';
 const emailService = mocked(emailServiceModule);
-import batchServiceModule = require('modules/schemas/notification/services/notification-batch.service');
+import batchServiceModule from 'modules/schemas/notification/services/notification-batch.service';
 const batchService = mocked(batchServiceModule);
-import EncryptionUtilModule = require('shared/utils/encryption.util');
+import EncryptionUtilModule from 'shared/utils/encryption.util';
 const EncryptionUtil = mocked(EncryptionUtilModule);
-import creationService = require('modules/schemas/notification/services/notification-creation.service');
+import creationService from 'modules/schemas/notification/services/notification-creation.service';
 
 // Los envíos/side-effects se agendan con setImmediate; drenamos la cola para observarlos.
 const flush = () => new Promise(resolve => { setImmediate(resolve); });

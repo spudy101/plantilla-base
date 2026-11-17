@@ -1,5 +1,5 @@
-import commonResponses = require('../../../../responses/common.responses');
-import piiMaskingDocModule = require('../../../../schemas/pii-masking.doc');
+import commonResponses from '../../../../responses/common.responses';
+import piiMaskingDocModule from '../../../../schemas/pii-masking.doc';
 const { MASKED_PHONE_DESC } = piiMaskingDocModule;
 
 /**
@@ -179,4 +179,4 @@ const paths = {
   }
 };
 
-export = { paths, schemas };
+export default { paths, schemas };

@@ -10,11 +10,11 @@ jest.mock('sequelize', () => ({
 }));
 
 import { mocked, fixture } from 'tests/helpers/mock';
-import sequelizeModule = require('sequelize');
+import sequelizeModule from 'sequelize';
 const { Op } = mocked(sequelizeModule);
-import ReadRepository = require('shared/repositories/read.repository');
-import BaseRepository = require('shared/repositories/base.repository');
-import AppendOnlyRepository = require('shared/repositories/append-only.repository');
+import ReadRepository from 'shared/repositories/read.repository';
+import BaseRepository from 'shared/repositories/base.repository';
+import AppendOnlyRepository from 'shared/repositories/append-only.repository';
 
 const fakeModel = () => ({
   primaryKeyAttribute: 'thing_id',

@@ -1,9 +1,9 @@
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../../shared/models';
 const { PersonContact } = modelsModule;
-import HashUtil = require('../../../../../shared/utils/hash.util');
+import HashUtil from '../../../../../shared/utils/hash.util';
 import type { InstanceUpdateOptions } from 'sequelize';
-import type definePersonContact = require('../models/person-contact.model');
+import type definePersonContact from '../models/person-contact.model';
 
 class PersonContactRepository extends BaseRepository<definePersonContact.Instance> {
   constructor() {
@@ -101,4 +101,4 @@ class PersonContactRepository extends BaseRepository<definePersonContact.Instanc
   }
 }
 
-export = new PersonContactRepository();
+export default new PersonContactRepository();

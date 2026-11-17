@@ -85,4 +85,4 @@ const sanitizePlainText = (text: unknown, maxLength = MAX_TEXT_LENGTH): string |
   return trimmed.slice(0, maxLength);
 };
 
-export = { sanitizePlainText, stripHtmlTags, decodeHtmlEntities };
+export default { sanitizePlainText, stripHtmlTags, decodeHtmlEntities };

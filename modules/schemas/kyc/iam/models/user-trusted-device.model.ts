@@ -3,21 +3,14 @@
 // por usuario con fingerprint_hash, status, geolocalización y metadata de browser/os
 // Todos los logAudit relativos a dispositivos usan entityTable='user_trusted_devices'.
 
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../../shared/constants';
 const { database } = constantsModule;
-import EncryptionUtil = require('../../../../../shared/utils/encryption.util');
+import EncryptionUtil from '../../../../../shared/utils/encryption.util';
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../../shared/models/registry';
-import type defineUser = require('./user.model');
-import type defineUserSession = require('./user-session.model');
-
-
-
-
-
-
+import type defineUser from './user.model';
+import type defineUserSession from './user-session.model';
 
 function defineUserTrustedDevice(sequelize: Sequelize): defineUserTrustedDevice.Static {
   const UserTrustedDevice = sequelize.define<defineUserTrustedDevice.Instance>(
@@ -251,4 +244,4 @@ namespace defineUserTrustedDevice {
   };
 }
 
-export = defineUserTrustedDevice;
+export default defineUserTrustedDevice;

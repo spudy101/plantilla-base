@@ -1,7 +1,7 @@
 // config/swagger/modules/admin/kyc/person/person.paths.ts
 
-import commonResponses = require('../../../../responses/common.responses');
-import piiMaskingDocModule = require('../../../../schemas/pii-masking.doc');
+import commonResponses from '../../../../responses/common.responses';
+import piiMaskingDocModule from '../../../../schemas/pii-masking.doc';
 const { MASKED_DOCUMENT_DESC, MASKED_EMAIL_DESC, MASKED_PHONE_DESC } = piiMaskingDocModule;
 
 /**
@@ -715,4 +715,4 @@ Tras la eliminación la cuenta queda **intocable** (toda operación de escritura
   }
 };
 
-export = { paths, schemas };
+export default { paths, schemas };

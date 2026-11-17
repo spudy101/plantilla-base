@@ -5,7 +5,7 @@
 // Mockeamos shared/constants para no arrancar la validación real de .env (que haría process.exit),
 // entregando una llave/IV deterministas.
 
-import crypto = require('node:crypto');
+import crypto from 'node:crypto';
 
 // 32 bytes (64 hex) para AES-256, 16 bytes (32 hex) para el IV legado.
 const AES_KEY_HEX = '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
@@ -19,7 +19,7 @@ jest.mock('shared/constants', () => ({
   }
 }));
 
-import EncryptionUtil = require('shared/utils/encryption.util');
+import EncryptionUtil from 'shared/utils/encryption.util';
 
 describe('EncryptionUtil', () => {
   describe('encrypt / decrypt (AES-256-GCM, formato nuevo)', () => {

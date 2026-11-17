@@ -22,9 +22,9 @@ jest.mock('modules/schemas/kyc/iam/repositories/auth-trusted-device.repository',
 }));
 
 import { mocked, fixture } from 'tests/helpers/mock';
-import HmacService = require('shared/services/hmac.service');
-import EncryptionUtil = require('shared/utils/encryption.util');
-import trustedDeviceRepoModule = require('modules/schemas/kyc/iam/repositories/auth-trusted-device.repository');
+import HmacService from 'shared/services/hmac.service';
+import EncryptionUtil from 'shared/utils/encryption.util';
+import trustedDeviceRepoModule from 'modules/schemas/kyc/iam/repositories/auth-trusted-device.repository';
 const trustedDeviceRepo = mocked(trustedDeviceRepoModule);
 
 const DEVICE_SECRET = 'secreto-hmac-del-dispositivo';

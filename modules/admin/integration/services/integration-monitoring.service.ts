@@ -2,16 +2,16 @@
 // central (integration_api_logs) + el estado del circuit breaker + el historial de fallbacks.
 // No gestiona integraciones — se controlan por código.
 
-import CircuitBreaker = require('../../../../shared/utils/circuit-breaker.util');
-import integrationApiLogRepository = require('../../../schemas/integration/repositories/integration-api-log.repository');
-import providerFallbackRepository = require('../../../schemas/integration/repositories/provider-fallback-event.repository');
-import PaginationHelper = require('../../../../shared/utils/pagination.util');
-import componentsCatalogDtoModule = require('../../../../shared/dtos/kyc/components-catalog.dto');
+import CircuitBreaker from '../../../../shared/utils/circuit-breaker.util';
+import integrationApiLogRepository from '../../../schemas/integration/repositories/integration-api-log.repository';
+import providerFallbackRepository from '../../../schemas/integration/repositories/provider-fallback-event.repository';
+import PaginationHelper from '../../../../shared/utils/pagination.util';
+import componentsCatalogDtoModule from '../../../../shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
-import AppError = require('../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import AppError from '../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
-import integrationMonitoringDtoModule = require('../dtos/integration-monitoring.dto');
+import integrationMonitoringDtoModule from '../dtos/integration-monitoring.dto';
 const {
   IntegrationDashboardDTO,
   buildProductView,
@@ -196,4 +196,4 @@ namespace IntegrationMonitoringService {
   }
 }
 
-export = Object.assign(new IntegrationMonitoringService(), { IntegrationMonitoringService });
+export default Object.assign(new IntegrationMonitoringService(), { IntegrationMonitoringService });

@@ -1,5 +1,5 @@
-import type defineUser = require('../../../../../schemas/kyc/iam/models/user.model');
-import type defineUserChangeLog = require('../../../../../schemas/records/audit/models/user-change-log.model');
+import type defineUser from '../../../../../schemas/kyc/iam/models/user.model';
+import type defineUserChangeLog from '../../../../../schemas/records/audit/models/user-change-log.model';
 import type { RequestAuditContext } from '../../../../../../shared/types/audit-context';
 // modules/shared-endpoints/kyc/iam/services/mfa/mfa-account.ts
 //
@@ -7,9 +7,9 @@ import type { RequestAuditContext } from '../../../../../../shared/types/audit-c
 // Extraído de MFAService (SOLID: S).
 
 import type { Transaction } from 'sequelize';
-import userRepository = require('../../../../../schemas/kyc/iam/repositories/user.repository');
-import KycSharedUtil = require('../../../../../schemas/kyc/person/utils/kyc-shared.util');
-import AppError = require('../../../../../../shared/utils/app-error.util');
+import userRepository from '../../../../../schemas/kyc/iam/repositories/user.repository';
+import KycSharedUtil from '../../../../../schemas/kyc/person/utils/kyc-shared.util';
+import AppError from '../../../../../../shared/utils/app-error.util';
 
 class MfaAccount {
   userRepository: typeof userRepository;
@@ -92,4 +92,4 @@ namespace MfaAccount {
   }
 }
 
-export = MfaAccount;
+export default MfaAccount;

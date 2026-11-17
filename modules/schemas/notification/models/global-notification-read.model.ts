@@ -1,17 +1,10 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../shared/models/registry';
-import type defineGlobalNotification = require('./global-notification.model');
-import type defineUser = require('../../kyc/iam/models/user.model');
-
-
-
-
-
-
+import type defineGlobalNotification from './global-notification.model';
+import type defineUser from '../../kyc/iam/models/user.model';
 
 function defineGlobalNotificationRead(sequelize: Sequelize): defineGlobalNotificationRead.Static {
   const GlobalNotificationRead = sequelize.define<defineGlobalNotificationRead.Instance>(
@@ -100,4 +93,4 @@ namespace defineGlobalNotificationRead {
   };
 }
 
-export = defineGlobalNotificationRead;
+export default defineGlobalNotificationRead;

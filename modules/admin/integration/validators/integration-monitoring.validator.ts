@@ -1,7 +1,6 @@
-import expressValidatorModule = require('express-validator');
-const { query } = expressValidatorModule;
-import BaseValidator = require('../../../../shared/validators/base.validator');
-import domainEnumsModule = require('../../../../shared/constants/domain-enums');
+import { query } from 'express-validator';
+import BaseValidator from '../../../../shared/validators/base.validator';
+import domainEnumsModule from '../../../../shared/constants/domain-enums';
 const {
   INTEGRATION_PRODUCTS: PRODUCTS,
   INTEGRATION_RESULTS: RESULTS
@@ -51,4 +50,4 @@ class IntegrationMonitoringValidator {
   }
 }
 
-export = IntegrationMonitoringValidator;
+export default IntegrationMonitoringValidator;

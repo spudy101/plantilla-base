@@ -8,9 +8,10 @@
 // que el IntegrationGuard). Si la global no está disponible (arranque temprano, BD caída), se cae a
 // FALLBACK DURO con los mismos defaults históricos: el breaker NUNCA queda sin umbrales.
 
-import loggerUtilModule = require('./logger.util');
+import { interopDefault } from './interop.util';
+import loggerUtilModule from './logger.util';
 const { logger } = loggerUtilModule;
-import errorMessageModule = require('./error-message.util');
+import errorMessageModule from './error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -54,11 +55,10 @@ let _cacheAt = 0;
 // camelCase para el consumo interno, a partir del snake_case persistido en la global.
 async function _load(): Promise<ResilienceConfig> {
   // require lazy: evita ciclos de carga (models ↔ utils) al arrancar.
-  const systemGlobalConfigRepository: {
-    findActiveResilience(): Promise<{ integration_resilience?: StoredResilience | null } | null>;
-  } = require('../../modules/schemas/core/repositories/system-global-config.repository');
+  const systemGlobalConfigRepository = interopDefault(require('../../modules/schemas/core/repositories/system-global-config.repository') as typeof import('../../modules/schemas/core/repositories/system-global-config.repository'));
   const config = await systemGlobalConfigRepository.findActiveResilience();
-  const r: StoredResilience = config?.integration_resilience ?? {};
+  // integration_resilience es JSONB (unknown en el modelo): lo escribe el admin validado por su DTO
+  const r = (config?.integration_resilience ?? {}) as StoredResilience;
   const cb = r.circuit_breaker ?? {};
   const st = r.screening_throttle ?? {};
   return {
@@ -105,4 +105,4 @@ function _resetCache(): void {
   _cacheAt = 0;
 }
 
-export = { get, HARD_DEFAULTS, _resetCache };
+export default { get, HARD_DEFAULTS, _resetCache };

@@ -1,16 +1,9 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../../shared/models/registry';
-import type defineUser = require('../../../kyc/iam/models/user.model');
-
-
-
-
-
-
+import type defineUser from '../../../kyc/iam/models/user.model';
 
 function defineAuditLog(sequelize: Sequelize): defineAuditLog.Static {
   const AuditLog = sequelize.define<defineAuditLog.Instance>(
@@ -239,4 +232,4 @@ namespace defineAuditLog {
   };
 }
 
-export = defineAuditLog;
+export default defineAuditLog;

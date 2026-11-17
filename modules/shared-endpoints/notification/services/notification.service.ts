@@ -1,17 +1,17 @@
-import type Feed = require('../notification-feed.types');
+import type * as Feed from '../notification-feed.types';
 import type { Transaction } from 'sequelize';
-import unitOfWork = require('../../../../shared/database/unit-of-work');
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import unitOfWork from '../../../../shared/database/unit-of-work';
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import PaginationHelper = require('../../../../shared/utils/pagination.util');
-import notificationRepository = require('../../../schemas/notification/repositories/notification.repository');
-import globalNotificationRepository = require('../../../schemas/notification/repositories/global-notification.repository');
+import PaginationHelper from '../../../../shared/utils/pagination.util';
+import notificationRepository from '../../../schemas/notification/repositories/notification.repository';
+import globalNotificationRepository from '../../../schemas/notification/repositories/global-notification.repository';
 // eslint-disable-next-line max-len -- ruta de require de una sola línea; Prettier no la parte
-import globalNotificationReadRepository = require('../../../schemas/notification/repositories/global-notification-read.repository');
-import notificationCreationService = require('../../../schemas/notification/services/notification-creation.service');
-import NotificationEmitter = require('../../../schemas/notification/utils/notification-emitter.util');
-import NotificationCountUtil = require('../../../schemas/notification/utils/notification-count.util');
-import errorMessageModule = require('../../../../shared/utils/error-message.util');
+import globalNotificationReadRepository from '../../../schemas/notification/repositories/global-notification-read.repository';
+import notificationCreationService from '../../../schemas/notification/services/notification-creation.service';
+import NotificationEmitter from '../../../schemas/notification/utils/notification-emitter.util';
+import NotificationCountUtil from '../../../schemas/notification/utils/notification-count.util';
+import errorMessageModule from '../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -269,4 +269,4 @@ namespace NotificationService {
   }
 }
 
-export = Object.assign(new NotificationService(), { NotificationService });
+export default Object.assign(new NotificationService(), { NotificationService });

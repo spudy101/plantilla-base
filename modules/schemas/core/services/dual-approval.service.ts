@@ -12,32 +12,33 @@
 // El "estado doble aprobación" de cualquier módulo vive en `approval_requests` — no se duplican
 // columnas ni máquina de estados por tabla.
 
-import AppError = require('../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import { interopDefault } from '../../../../shared/utils/interop.util';
+import AppError from '../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logAudit, logger } = loggerUtilModule;
-import businessHoursUtilModule = require('../../../../shared/utils/business-hours.util');
+import businessHoursUtilModule from '../../../../shared/utils/business-hours.util';
 const { addBusinessHours } = businessHoursUtilModule;
-import PaginationHelper = require('../../../../shared/utils/pagination.util');
-import requestContext = require('../../../../shared/utils/request-context.util');
-import approvalRequestRepository = require('../repositories/approval-request.repository');
-import userRepository = require('../../kyc/iam/repositories/user.repository');
-import NotificationCreationService = require('../../../schemas/notification/services/notification-creation.service');
-import DualApprovalNotifierService = require('./dual-approval/dual-approval-notifier.service');
-import domainEnumsModule = require('../../../../shared/constants/domain-enums');
+import PaginationHelper from '../../../../shared/utils/pagination.util';
+import requestContext from '../../../../shared/utils/request-context.util';
+import approvalRequestRepository from '../repositories/approval-request.repository';
+import userRepository from '../../kyc/iam/repositories/user.repository';
+import NotificationCreationService from '../../../schemas/notification/services/notification-creation.service';
+import DualApprovalNotifierService from './dual-approval/dual-approval-notifier.service';
+import domainEnumsModule from '../../../../shared/constants/domain-enums';
 const { APPROVAL_REQUEST_STATUS } = domainEnumsModule;
-import dualApprovalModule = require('../../../../shared/constants/dual-approval');
-import type DualApprovalConstants = require('../../../../shared/constants/dual-approval');
+import dualApprovalModule from '../../../../shared/constants/dual-approval';
+import type DualApprovalConstants from '../../../../shared/constants/dual-approval';
 import type { SystemGlobalConfigRepositoryPort } from '../../repository-ports';
 const { WILDCARD_ROLES, CONDITION, DEFAULT_TTL_HOURS, DUAL_APPROVAL_OPS } = dualApprovalModule;
-import rbacModule = require('../../../../shared/constants/rbac');
+import rbacModule from '../../../../shared/constants/rbac';
 const { SUPERADMIN_ROLE_NAMES } = rbacModule;
-import componentsApprovalDtoModule = require('../../../../shared/dtos/core/components-approval.dto');
+import componentsApprovalDtoModule from '../../../../shared/dtos/core/components-approval.dto';
 const { ApprovalRequestComponent, PendingApprovalComponent } = componentsApprovalDtoModule;
-import componentsCatalogDtoModule = require('../../../../shared/dtos/kyc/components-catalog.dto');
+import componentsCatalogDtoModule from '../../../../shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
-import errorMessageModule = require('../../../../shared/utils/error-message.util');
+import errorMessageModule from '../../../../shared/utils/error-message.util';
 import type { AdminAuditContext } from '../../../../shared/types/audit-context';
-import type defineApprovalRequest = require('../models/approval-request.model');
+import type defineApprovalRequest from '../models/approval-request.model';
 
 const { errorMessage } = errorMessageModule;
 
@@ -470,7 +471,7 @@ async function _resolveThreshold(op: DualApprovalConstants.Op): Promise<number> 
   }
   try {
     // require perezoso: evita un ciclo de carga con los módulos que dependen de dual-approval
-    const systemGlobalConfigRepository = require('../repositories/system-global-config.repository') as SystemGlobalConfigRepositoryPort;
+    const systemGlobalConfigRepository = interopDefault(require('../repositories/system-global-config.repository') as typeof import('../repositories/system-global-config.repository')) as SystemGlobalConfigRepositoryPort;
     const cfg = await systemGlobalConfigRepository.findActive();
     const raw = cfg ? (cfg as unknown as Record<string, unknown>)[op.thresholdConfigKey] : null;
     if (raw === null || raw === undefined) {
@@ -565,4 +566,4 @@ namespace DualApprovalService {
   }
 }
 
-export = Object.assign(new DualApprovalService(), { DualApprovalService });
+export default Object.assign(new DualApprovalService(), { DualApprovalService });

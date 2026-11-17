@@ -1,19 +1,19 @@
-import type defineNotification = require('../models/notification.model');
-import type Types = require('../notification.types');
-import notificationRepo = require('../repositories/notification.repository');
-import notificationTypeRepo = require('../repositories/notification-type.repository');
-import userRepo = require('../../kyc/iam/repositories/user.repository');
-import userPushTokenRepo = require('../repositories/user-push-token.repository');
-import emailService = require('./email-notification.service');
-import pushService = require('./push-notification.service');
-import smsService = require('./sms.service');
-import schedulerService = require('./notification-scheduler.service');
-import EncryptionUtil = require('../../../../shared/utils/encryption.util');
-import domainEnumsModule = require('../../../../shared/constants/domain-enums');
+import type defineNotification from '../models/notification.model';
+import type * as Types from '../notification.types';
+import notificationRepo from '../repositories/notification.repository';
+import notificationTypeRepo from '../repositories/notification-type.repository';
+import userRepo from '../../kyc/iam/repositories/user.repository';
+import userPushTokenRepo from '../repositories/user-push-token.repository';
+import emailService from './email-notification.service';
+import pushService from './push-notification.service';
+import smsService from './sms.service';
+import schedulerService from './notification-scheduler.service';
+import EncryptionUtil from '../../../../shared/utils/encryption.util';
+import domainEnumsModule from '../../../../shared/constants/domain-enums';
 const { NOTIFICATION_PROCESSING_STATUS } = domainEnumsModule;
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import errorMessageModule = require('../../../../shared/utils/error-message.util');
+import errorMessageModule from '../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -462,4 +462,4 @@ namespace NotificationSendingService {
   }
 }
 
-export = Object.assign(new NotificationSendingService(), { NotificationSendingService });
+export default Object.assign(new NotificationSendingService(), { NotificationSendingService });

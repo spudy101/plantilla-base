@@ -1,11 +1,10 @@
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../../shared/models';
 const { ResetCredentials } = modelsModule;
-import requestContext = require('../../../../../shared/utils/request-context.util');
-import sequelizeModule = require('sequelize');
-const { Op } = sequelizeModule;
+import requestContext from '../../../../../shared/utils/request-context.util';
+import { Op } from 'sequelize';
 import type { CreateOptions } from 'sequelize';
-import type defineResetCredentials = require('../models/reset-credentials.model');
+import type defineResetCredentials from '../models/reset-credentials.model';
 
 class ResetCredentialsRepository extends BaseRepository<defineResetCredentials.Instance> {
   constructor() {
@@ -172,4 +171,4 @@ class ResetCredentialsRepository extends BaseRepository<defineResetCredentials.I
   }
 }
 
-export = new ResetCredentialsRepository();
+export default new ResetCredentialsRepository();

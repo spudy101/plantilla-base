@@ -18,6 +18,8 @@ revisión manual: resuelven la parte mecánica y dejan lo que no saben resolver 
 | `dto-picks.js` | DTOs que desestructuran su entrada: `({ a, b })` → `({ a, b }: Pick<Campos, 'a' \| 'b'>)` contra una interfaz escrita a mano. | `node scripts/ts-migration/dto-picks.js <archivo.dto.ts> <Interfaz>` |
 | `test-mocks.js` | Tests `.ts`: los módulos pasados a `jest.mock()` se leen con `mocked()` (`tests/helpers/mock.ts`) para poder usar `.mockReturnValue` & cía. Idempotente. | `node scripts/ts-migration/test-mocks.js <tests.ts…>` |
 | `fix-test-types.js` | Tests `.ts`: corre el typecheck y resuelve lo mecánico — parámetros/`let` sin tipo → `Loose`, fixtures parciales pasados al código bajo prueba → `fixture(…)`. | `node scripts/ts-migration/fix-test-types.js [prefijo]` |
+| `migrations-to-ts.js` | Migraciones/seeders `.js` → `.ts` con `export default { up, down } satisfies Migration`. | `node scripts/ts-migration/migrations-to-ts.js <archivos.js…>` |
+| `esm-exports.js` | `export =` → `export default`, `import x = require()` → `import x from` / `import * as x` / `import { a }`, y `require()` diferidos → `interopDefault(…)`. Usa el TS compiler API sobre todo `tsconfig.test.json`. | `node scripts/ts-migration/esm-exports.js` |
 | `edit.js` | Helper para scripts de edición: pares `[buscar, reemplazar]` exactos; respeta CRLF; no escribe nada si algún texto no aparece. | `require('./scripts/ts-migration/edit.js')(archivo, pares, { all })` |
 
 ## Flujo recomendado por carpeta
@@ -62,3 +64,12 @@ Para **repositorios**, entre el paso 1 y el 2: `type-repositories.js` (genérico
 `tests/helpers/mock.ts` concentra la única laxitud de tipos de los tests: `mocked()` (módulos
 mockeados), `fixture()` (entradas parciales) y `Loose` (parámetros de implementaciones de mocks y
 resultados cuya forma la define un mock). El código bajo prueba se importa sin envolver.
+
+## Después de la fase 6
+
+Los generadores que se siguen usando — `gen-model-types.js` (al cambiar columnas o asociaciones) y
+`gen-repository-ports.js` (al agregar un repositorio) — emiten imports/exports nativos y son
+idempotentes. El resto de los codemods (`cjs-to-ts`, `fix-*`, `class-deps`, `req-user`,
+`where-builders`, `type-repositories`, `dto-picks`) se escribieron para las fases 1–5 y generan la
+sintaxis puente de entonces (`import x = require()` / `export =`), que hoy ESLint rechaza: quedan como
+referencia de cómo se hizo la migración.

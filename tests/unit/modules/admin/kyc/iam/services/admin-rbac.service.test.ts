@@ -51,15 +51,15 @@ jest.mock('modules/admin/kyc/iam/dtos/admin-rbac.dto', () => ({
 }));
 
 import { mocked, Loose } from 'tests/helpers/mock';
-import RbacServiceModule = require('shared/services/rbac.service');
+import RbacServiceModule from 'shared/services/rbac.service';
 const RbacService = mocked(RbacServiceModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import NotificationCreationServiceModule = require('modules/schemas/notification/services/notification-creation.service');
+import NotificationCreationServiceModule from 'modules/schemas/notification/services/notification-creation.service';
 const NotificationCreationService = mocked(NotificationCreationServiceModule);
-import overrideRepoModule = require('modules/schemas/kyc/iam/repositories/role-permission-override.repository');
+import overrideRepoModule from 'modules/schemas/kyc/iam/repositories/role-permission-override.repository';
 const overrideRepo = mocked(overrideRepoModule);
-import service = require('modules/admin/kyc/iam/services/admin-rbac.service');
+import service from 'modules/admin/kyc/iam/services/admin-rbac.service';
 
 const flush = () => new Promise(resolve => { setImmediate(resolve); });
 

@@ -6,10 +6,10 @@
 // Services: notification, notification-preference
 // ================================================================
 
-import auditCatalogModule = require('./audit-catalog');
+import auditCatalogModule from './audit-catalog';
 const { AUDIT_CATEGORIES, AUDIT_RISKS, AUDIT_MODULES } = auditCatalogModule;
 
-export = {
+export default {
   // ── LISTADOS DE NOTIFICACIONES ────────────────────────────────────────────
   NOTIFICATION_LIST_VIEWED: {
     description: 'Usuario consultó su bandeja mixta de notificaciones (personal + global)',

@@ -1,8 +1,9 @@
 // === RF-OPS-01: Pipeline DevSecOps, Infraestructura Base ===
-import asyncHooksModule = require('node:async_hooks');
+import { interopDefault } from './interop.util';
+import asyncHooksModule from 'node:async_hooks';
 const { AsyncLocalStorage } = asyncHooksModule;
-import crypto = require('node:crypto');
-import errorMessageModule = require('./error-message.util');
+import crypto from 'node:crypto';
+import errorMessageModule from './error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -62,7 +63,7 @@ const _runWorkerGuarded = async <T>(label: string, fn: () => T | Promise<T>): Pr
   try {
     return await fn();
   } catch (error) {
-    const { logger, logAudit } = require('./logger.util');
+    const { logger, logAudit } = interopDefault(require('./logger.util') as typeof import('./logger.util'));
     logger.error(`[worker] Ciclo abortado por excepción no controlada: ${label}`, {
       error: errorMessage(error),
       stack: error instanceof Error ? error.stack : undefined
@@ -77,7 +78,7 @@ const _runWorkerGuarded = async <T>(label: string, fn: () => T | Promise<T>): Pr
   }
 };
 
-export = {
+export default {
   /**
    * Inicia el contexto para una request HTTP.
    * Llamado desde audit.middleware — propaga el auditContext

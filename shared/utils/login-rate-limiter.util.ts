@@ -20,13 +20,13 @@
 
 // === RF-AUTH-01: Registro de Usuario (confirmación de correo y celular) ===
 
-import crypto = require('node:crypto');
-import redisClient = require('./redis.util');
-import loggerUtilModule = require('./logger.util');
+import crypto from 'node:crypto';
+import redisClient from './redis.util';
+import loggerUtilModule from './logger.util';
 const { logger } = loggerUtilModule;
-import constantsModule = require('../constants');
+import constantsModule from '../constants';
 const { LOGIN_RATE_LIMIT } = constantsModule;
-import errorMessageModule = require('./error-message.util');
+import errorMessageModule from './error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -223,4 +223,4 @@ class LoginRateLimiterUtil {
   }
 }
 
-export = LoginRateLimiterUtil;
+export default LoginRateLimiterUtil;

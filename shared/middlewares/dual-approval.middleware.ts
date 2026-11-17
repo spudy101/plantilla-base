@@ -8,13 +8,13 @@
 // dentro del handler), usar el gate a nivel de servicio: DualApprovalService.gate('OP_KEY', {...}).
 
 import type { NextFunction, Request, Response } from 'express';
-import ApiResponse = require('../utils/app-response.util');
-import errorMiddlewareModule = require('./error.middleware');
+import ApiResponse from '../utils/app-response.util';
+import errorMiddlewareModule from './error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
-import DualApprovalService = require('../../modules/schemas/core/services/dual-approval.service');
-import dualApprovalModule = require('../constants/dual-approval');
+import DualApprovalService from '../../modules/schemas/core/services/dual-approval.service';
+import dualApprovalModule from '../constants/dual-approval';
 const { DUAL_APPROVAL_OPS } = dualApprovalModule;
-import authUserUtil = require('../utils/auth-user.util');
+import authUserUtil from '../utils/auth-user.util';
 
 const { requireAuthUser } = authUserUtil;
 
@@ -80,4 +80,4 @@ function _ctxFromReq(req: Request, res: Response) {
   };
 }
 
-export = DualApprovalMiddleware;
+export default DualApprovalMiddleware;

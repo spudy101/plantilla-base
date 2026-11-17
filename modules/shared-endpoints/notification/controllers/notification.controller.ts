@@ -1,16 +1,16 @@
 import type { Request, Response } from 'express';
-import NotificationService = require('../services/notification.service');
-import NotificationEmitter = require('../../../schemas/notification/utils/notification-emitter.util');
-import ApiResponse = require('../../../../shared/utils/app-response.util');
-import errorMiddlewareModule = require('../../../../shared/middlewares/error.middleware');
+import NotificationService from '../services/notification.service';
+import NotificationEmitter from '../../../schemas/notification/utils/notification-emitter.util';
+import ApiResponse from '../../../../shared/utils/app-response.util';
+import errorMiddlewareModule from '../../../../shared/middlewares/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger } = loggerUtilModule;
-import notificationDtoModule = require('../dtos/notification.dto');
-import errorMessageModule = require('../../../../shared/utils/error-message.util');
+import notificationDtoModule from '../dtos/notification.dto';
+import errorMessageModule from '../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
-import authUserUtilModule = require('../../../../shared/utils/auth-user.util');
+import authUserUtilModule from '../../../../shared/utils/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
 
 const {
@@ -104,4 +104,4 @@ class NotificationController {
   });
 }
 
-export = new NotificationController();
+export default new NotificationController();

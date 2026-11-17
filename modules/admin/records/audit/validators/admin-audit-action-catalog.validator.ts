@@ -1,7 +1,6 @@
-import expressValidatorModule = require('express-validator');
-const { query } = expressValidatorModule;
-import BaseValidator = require('../../../../../shared/validators/base.validator');
-import auditactionsModule = require('../../../../../shared/constants/auditActions');
+import { query } from 'express-validator';
+import BaseValidator from '../../../../../shared/validators/base.validator';
+import auditactionsModule from '../../../../../shared/constants/auditActions';
 const { AUDIT_CATEGORIES, AUDIT_RISKS, AUDIT_MODULES } = auditactionsModule;
 
 const CATEGORIES = Object.values(AUDIT_CATEGORIES);
@@ -38,4 +37,4 @@ class AdminAuditActionCatalogValidator {
   }
 }
 
-export = AdminAuditActionCatalogValidator;
+export default AdminAuditActionCatalogValidator;

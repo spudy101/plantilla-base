@@ -1,5 +1,5 @@
 // src/utils/sanitize-audit-body.js
-import constantsModule = require('../constants');
+import constantsModule from '../constants';
 const { server } = constantsModule;
 
 const MAX_STRING_LENGTH = 500;
@@ -84,7 +84,7 @@ function sanitizeErrorContext(context: unknown): Record<string, unknown> {
   };
 }
 
-export = {
+export default {
   sanitizeAuditBody,
   sanitizeErrorContext,
   SENSITIVE_FIELDS // Por si quieres extenderlo en otro módulo

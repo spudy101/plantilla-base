@@ -1,14 +1,14 @@
-import AppendOnlyRepository = require('../../../../../shared/repositories/append-only.repository');
-import modelsModule = require('../../../../../shared/models');
+import { interopDefault } from '../../../../../shared/utils/interop.util';
+import AppendOnlyRepository from '../../../../../shared/repositories/append-only.repository';
+import modelsModule from '../../../../../shared/models';
 const { AuditLog } = modelsModule;
-import sequelizeModule = require('sequelize');
-const { Op, fn, col } = sequelizeModule;
+import { Op, fn, col } from 'sequelize';
 import type { Includeable } from 'sequelize';
-import type defineAuditLog = require('../models/audit-log.model');
-import errorMessageModule = require('../../../../../shared/utils/error-message.util');
+import type defineAuditLog from '../models/audit-log.model';
+import errorMessageModule from '../../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
-import queryModule = require('../../../../../shared/repositories/query');
+import * as queryModule from '../../../../../shared/repositories/query';
 const { range, toWhere } = queryModule;
 import type { WhereClause } from '../../../../../shared/repositories/query';
 
@@ -44,7 +44,7 @@ class AuditLogRepository extends AppendOnlyRepository<defineAuditLog.Instance> {
       return await this.model.create(entry);
     } catch (err) {
       // Importar logger aquí para evitar dependencia circular
-      const { logger } = require('../../../../../shared/utils/logger.util');
+      const { logger } = interopDefault(require('../../../../../shared/utils/logger.util') as typeof import('../../../../../shared/utils/logger.util'));
       logger.error('AuditLogRepository.register — error guardando en BD', {
         error: errorMessage(err),
         action: entry.action,
@@ -456,4 +456,4 @@ namespace AuditLogRepository {
   }
 }
 
-export = new AuditLogRepository();
+export default new AuditLogRepository();

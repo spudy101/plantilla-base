@@ -70,27 +70,27 @@ jest.mock('shared/constants', () => ({
 }));
 
 import { mocked, fixture } from 'tests/helpers/mock';
-import globalNotificationRepoModule = require('modules/schemas/notification/repositories/global-notification.repository');
+import globalNotificationRepoModule from 'modules/schemas/notification/repositories/global-notification.repository';
 const globalNotificationRepo = mocked(globalNotificationRepoModule);
-import preferenceRepoModule = require('modules/schemas/kyc/person/repositories/user-notification-preference.repository');
+import preferenceRepoModule from 'modules/schemas/kyc/person/repositories/user-notification-preference.repository';
 const preferenceRepo = mocked(preferenceRepoModule);
-import pushTokenRepoModule = require('modules/schemas/notification/repositories/user-push-token.repository');
+import pushTokenRepoModule from 'modules/schemas/notification/repositories/user-push-token.repository';
 const pushTokenRepo = mocked(pushTokenRepoModule);
-import localCacheModule = require('shared/utils/cache.util');
+import localCacheModule from 'shared/utils/cache.util';
 const localCache = mocked(localCacheModule);
-import emailServiceModule = require('modules/schemas/notification/services/email-notification.service');
+import emailServiceModule from 'modules/schemas/notification/services/email-notification.service';
 const emailService = mocked(emailServiceModule);
-import pushServiceModule = require('modules/schemas/notification/services/push-notification.service');
+import pushServiceModule from 'modules/schemas/notification/services/push-notification.service';
 const pushService = mocked(pushServiceModule);
-import rateLimitServiceModule = require('modules/schemas/notification/services/notification-rate-limit.service');
+import rateLimitServiceModule from 'modules/schemas/notification/services/notification-rate-limit.service';
 const rateLimitService = mocked(rateLimitServiceModule);
-import userRepositoryModule = require('modules/schemas/kyc/iam/repositories/user.repository');
+import userRepositoryModule from 'modules/schemas/kyc/iam/repositories/user.repository';
 const userRepository = mocked(userRepositoryModule);
-import EncryptionUtilModule = require('shared/utils/encryption.util');
+import EncryptionUtilModule from 'shared/utils/encryption.util';
 const EncryptionUtil = mocked(EncryptionUtilModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logger } = mocked(loggerUtilModule);
-import service = require('modules/schemas/notification/services/notification-batch.service');
+import service from 'modules/schemas/notification/services/notification-batch.service';
 
 const GID = 'g-1';
 

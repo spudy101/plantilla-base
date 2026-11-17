@@ -27,17 +27,17 @@ jest.mock('modules/client/records/audit/dtos/user-activity.dto', () => ({
 }));
 
 import { mocked, Loose } from 'tests/helpers/mock';
-import auditLogRepositoryModule = require('modules/schemas/records/audit/repositories/audit-log.repository');
+import auditLogRepositoryModule from 'modules/schemas/records/audit/repositories/audit-log.repository';
 const auditLogRepository = mocked(auditLogRepositoryModule);
-import userChangeLogRepositoryModule = require('modules/schemas/records/audit/repositories/user-change-log.repository');
+import userChangeLogRepositoryModule from 'modules/schemas/records/audit/repositories/user-change-log.repository';
 const userChangeLogRepository = mocked(userChangeLogRepositoryModule);
-import userSessionRepositoryModule = require('modules/schemas/kyc/iam/repositories/user-session.repository');
+import userSessionRepositoryModule from 'modules/schemas/kyc/iam/repositories/user-session.repository';
 const userSessionRepository = mocked(userSessionRepositoryModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import userActivityDtoModule = require('modules/client/records/audit/dtos/user-activity.dto');
+import userActivityDtoModule from 'modules/client/records/audit/dtos/user-activity.dto';
 const { UserActivityListResponseDTO } = mocked(userActivityDtoModule);
-import service = require('modules/client/records/audit/services/user-activity.service');
+import service from 'modules/client/records/audit/services/user-activity.service';
 
 const USER_ID = 'user-1';
 

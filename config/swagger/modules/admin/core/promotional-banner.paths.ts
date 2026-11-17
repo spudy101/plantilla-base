@@ -1,6 +1,6 @@
 // config/swagger/modules/admin/core/promotional-banner.paths.ts
 
-import commonResponses = require('../../../responses/common.responses');
+import commonResponses from '../../../responses/common.responses';
 
 /**
  * ============================================================
@@ -195,4 +195,4 @@ const paths = {
   }
 };
 
-export = { paths, schemas };
+export default { paths, schemas };

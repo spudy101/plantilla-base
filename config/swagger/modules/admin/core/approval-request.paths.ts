@@ -11,7 +11,7 @@
 // Las operaciones gateadas (RBAC, roles, operaciones sobre umbral) responden 202
 // con el ApprovalRequest cuando quedan pendientes.
 
-import commonResponses = require('../../../responses/common.responses');
+import commonResponses from '../../../responses/common.responses';
 
 const TAG = 'Admin — Doble Aprobación';
 
@@ -315,4 +315,4 @@ Al **rechazar** se descarta la operación pendiente.
 
 const tags = [{ name: TAG, description: 'Framework de doble aprobación (maker-checker): cola, política y resolución.' }];
 
-export = { schemas, paths, tags };
+export default { schemas, paths, tags };

@@ -1,15 +1,15 @@
-import type defineUserSession = require('../../../../schemas/kyc/iam/models/user-session.model');
-import type defineUserTrustedDevice = require('../../../../schemas/kyc/iam/models/user-trusted-device.model');
-import type defineAuditLog = require('../../../../schemas/records/audit/models/audit-log.model');
+import type defineUserSession from '../../../../schemas/kyc/iam/models/user-session.model';
+import type defineUserTrustedDevice from '../../../../schemas/kyc/iam/models/user-trusted-device.model';
+import type defineAuditLog from '../../../../schemas/records/audit/models/audit-log.model';
 // Fase 5 — API admin de sesiones (traza forense). DTOs de salida.
 // El timeline sale de audit_logs (fuente única); la hidratación reusa DTOs admin ya existentes.
 // Mapeo campo a campo; nunca spread sobre instancias Sequelize.
 
-import componentsAuditDtoModule = require('../../../../../shared/dtos/audit/components-audit.dto');
+import componentsAuditDtoModule from '../../../../../shared/dtos/audit/components-audit.dto';
 const { AuditLogComponent } = componentsAuditDtoModule;
-import kycModule = require('../../../../../shared/dtos/kyc');
+import kycModule from '../../../../../shared/dtos/kyc';
 const { UserSessionComponent } = kycModule;
-import componentsCatalogDtoModule = require('../../../../../shared/dtos/kyc/components-catalog.dto');
+import componentsCatalogDtoModule from '../../../../../shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
 
 function _deviceRef(
@@ -103,4 +103,4 @@ declare namespace SessionTraceDto {
   type EntityGroup = EntityGroupRow;
 }
 
-export = SessionTraceDto;
+export default SessionTraceDto;

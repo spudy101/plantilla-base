@@ -1,5 +1,5 @@
-import commonResponses = require('../../../../responses/common.responses');
-import piiMaskingDocModule = require('../../../../schemas/pii-masking.doc');
+import commonResponses from '../../../../responses/common.responses';
+import piiMaskingDocModule from '../../../../schemas/pii-masking.doc';
 const { REDACTED_PAYLOAD_DESC } = piiMaskingDocModule;
 
 /**
@@ -269,4 +269,4 @@ Los logs son **append-only** (inmutables) — ningún rol puede modificarlos ni 
   }
 };
 
-export = { paths, schemas };
+export default { paths, schemas };

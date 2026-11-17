@@ -1,5 +1,5 @@
-import commonResponses = require('../../../../responses/common.responses');
-import auditactionsModule = require('../../../../../../shared/constants/auditActions');
+import commonResponses from '../../../../responses/common.responses';
+import auditactionsModule from '../../../../../../shared/constants/auditActions';
 const { AUDIT_CATEGORIES, AUDIT_RISKS, AUDIT_MODULES } = auditactionsModule;
 
 /**
@@ -192,4 +192,4 @@ const paths = {
   }
 };
 
-export = { paths, schemas };
+export default { paths, schemas };

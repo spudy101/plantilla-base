@@ -1,13 +1,13 @@
-import type defineSystemGlobalConfig = require('../../../schemas/core/models/system-global-config.model');
+import type defineSystemGlobalConfig from '../../../schemas/core/models/system-global-config.model';
 import type { AdminAuditContext } from '../../../../shared/types/audit-context';
-import AppError = require('../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import AppError from '../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import requestContext = require('../../../../shared/utils/request-context.util');
-import systemGlobalConfigRepository = require('../../../schemas/core/repositories/system-global-config.repository');
-import systemGlobalConfigDtoModule = require('../dtos/system-global-config.dto');
+import requestContext from '../../../../shared/utils/request-context.util';
+import systemGlobalConfigRepository from '../../../schemas/core/repositories/system-global-config.repository';
+import systemGlobalConfigDtoModule from '../dtos/system-global-config.dto';
 const { SystemGlobalConfigDTO } = systemGlobalConfigDtoModule;
-import notificationCreationService = require('../../../schemas/notification/services/notification-creation.service');
+import notificationCreationService from '../../../schemas/notification/services/notification-creation.service';
 
 const NOTIF_SYSTEM_CONFIG_UPDATED = 'SYSTEM_CONFIG_UPDATED_INTERNAL';
 
@@ -181,4 +181,4 @@ namespace SystemGlobalConfigService {
   }
 }
 
-export = Object.assign(new SystemGlobalConfigService(), { SystemGlobalConfigService });
+export default Object.assign(new SystemGlobalConfigService(), { SystemGlobalConfigService });

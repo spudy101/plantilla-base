@@ -1,18 +1,11 @@
 // === RF-AUTH-02: Login, Gestión de Sesión Segura y Recuperación de Contraseña ===
 
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../../shared/models/registry';
-import type defineUser = require('./user.model');
-
-
-
-
-
-
+import type defineUser from './user.model';
 
 function defineResetCredentials(sequelize: Sequelize): defineResetCredentials.Static {
   // [RF-AUTH-02] | CA-03 | Tabla reset_credentials: token único, expires_at, used/used_at para enlace de un solo uso
@@ -157,4 +150,4 @@ namespace defineResetCredentials {
   };
 }
 
-export = defineResetCredentials;
+export default defineResetCredentials;

@@ -1,9 +1,9 @@
 import type { NextFunction, Request, Response } from 'express';
-import multer = require('multer');
-import AppError = require('../utils/app-error.util');
-import loggerUtilModule = require('../utils/logger.util');
+import multer from 'multer';
+import AppError from '../utils/app-error.util';
+import loggerUtilModule from '../utils/logger.util';
 const { logger } = loggerUtilModule;
-import errorMessageModule = require('../utils/error-message.util');
+import errorMessageModule from '../utils/error-message.util';
 
 const { errorMessage, isOperationalError } = errorMessageModule;
 
@@ -155,4 +155,4 @@ class UploadMiddleware {
   };
 }
 
-export = UploadMiddleware;
+export default UploadMiddleware;

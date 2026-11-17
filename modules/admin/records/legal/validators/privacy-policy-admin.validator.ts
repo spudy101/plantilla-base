@@ -1,8 +1,7 @@
 // modules/admin/privacy-policy/validators/privacy-policy-admin.validator.ts
 
-import expressValidatorModule = require('express-validator');
-const { body, check } = expressValidatorModule;
-import BaseValidator = require('../../../../../shared/validators/base.validator');
+import { body, check } from 'express-validator';
+import BaseValidator from '../../../../../shared/validators/base.validator';
 
 /**
  * Valida que la versión siga el formato semántico simple: N.N (ej: 1.0, 1.1, 2.0)
@@ -90,4 +89,4 @@ class PrivacyPolicyAdminValidator {
   }
 }
 
-export = PrivacyPolicyAdminValidator;
+export default PrivacyPolicyAdminValidator;

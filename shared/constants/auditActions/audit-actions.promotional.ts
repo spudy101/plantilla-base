@@ -5,10 +5,10 @@
 // Services: promotional-banner (admin y shared-endpoints)
 // ================================================================
 
-import auditCatalogModule = require('./audit-catalog');
+import auditCatalogModule from './audit-catalog';
 const { AUDIT_CATEGORIES, AUDIT_RISKS, AUDIT_MODULES } = auditCatalogModule;
 
-export = {
+export default {
   PROMOTIONAL_BANNERS_VIEWED_ADMIN: {
     description: 'Banners promocionales consultados desde el mantenedor admin',
     category: AUDIT_CATEGORIES.CONFIGURATION,

@@ -1,4 +1,4 @@
-import kycModule = require('../../../../../shared/dtos/kyc');
+import kycModule from '../../../../../shared/dtos/kyc';
 const { UserComponent, PersonComponent, PersonContactComponent } = kycModule;
 
 /**
@@ -54,6 +54,6 @@ function RegisterResponseDTO({
   return dto;
 }
 
-export = {
+export default {
   RegisterResponseDTO
 };

@@ -49,24 +49,24 @@ jest.mock('modules/admin/records/audit/dtos/admin-session-trace.dto', () => ({
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import auditLogRepositoryModule = require('modules/schemas/records/audit/repositories/audit-log.repository');
+import auditLogRepositoryModule from 'modules/schemas/records/audit/repositories/audit-log.repository';
 const auditLogRepository = mocked(auditLogRepositoryModule);
-import userSessionRepositoryModule = require('modules/schemas/kyc/iam/repositories/user-session.repository');
+import userSessionRepositoryModule from 'modules/schemas/kyc/iam/repositories/user-session.repository';
 const userSessionRepository = mocked(userSessionRepositoryModule);
-import userConsentRepositoryModule = require('modules/schemas/records/legal/repositories/user-consent.repository');
+import userConsentRepositoryModule from 'modules/schemas/records/legal/repositories/user-consent.repository';
 const userConsentRepository = mocked(userConsentRepositoryModule);
-import trustedDeviceRepoModule = require('modules/schemas/kyc/iam/repositories/auth-trusted-device.repository');
+import trustedDeviceRepoModule from 'modules/schemas/kyc/iam/repositories/auth-trusted-device.repository';
 const trustedDeviceRepo = mocked(trustedDeviceRepoModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import adminSessionTraceDtoModuleModule = require('modules/admin/records/audit/dtos/admin-session-trace.dto');
+import adminSessionTraceDtoModuleModule from 'modules/admin/records/audit/dtos/admin-session-trace.dto';
 const adminSessionTraceDtoModule = mocked(adminSessionTraceDtoModuleModule);
 const {
   SessionTraceListDTO,
   SessionTimelineDTO,
   SessionEntitiesDTO
 } = mocked(adminSessionTraceDtoModule);
-import service = require('modules/admin/records/audit/services/admin-session-trace.service');
+import service from 'modules/admin/records/audit/services/admin-session-trace.service';
 
 const ADMIN_ID = 'admin-1';
 

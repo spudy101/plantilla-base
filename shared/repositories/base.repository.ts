@@ -13,7 +13,7 @@ import type {
   UpdateOptions,
   WhereOptions
 } from 'sequelize';
-import ReadRepository = require('./read.repository');
+import ReadRepository from './read.repository';
 
 class BaseRepository<M extends Model = Model> extends ReadRepository<M> {
   // ─── Writes ───────────────────────────────────────────────────────────────
@@ -59,4 +59,4 @@ class BaseRepository<M extends Model = Model> extends ReadRepository<M> {
   }
 }
 
-export = BaseRepository;
+export default BaseRepository;

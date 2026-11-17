@@ -4,10 +4,10 @@
 // Services: admin-user, admin-rbac
 // ================================================================
 
-import auditCatalogModule = require('./audit-catalog');
+import auditCatalogModule from './audit-catalog';
 const { AUDIT_CATEGORIES, AUDIT_RISKS } = auditCatalogModule;
 
-export = {
+export default {
   // ── USUARIOS INTERNOS ─────────────────────────────────────────
 
   INTERNAL_USER_LIST_VIEWED: {

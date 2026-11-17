@@ -1,6 +1,5 @@
-import expressValidatorModule = require('express-validator');
-const { body } = expressValidatorModule;
-import BaseValidator = require('../../../../../shared/validators/base.validator');
+import { body } from 'express-validator';
+import BaseValidator from '../../../../../shared/validators/base.validator';
 
 class ConsentTypeValidator {
   static listQuery() {
@@ -51,4 +50,4 @@ class ConsentTypeValidator {
   }
 }
 
-export = ConsentTypeValidator;
+export default ConsentTypeValidator;

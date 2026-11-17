@@ -1,9 +1,9 @@
-import notificationRepo = require('../repositories/notification.repository');
-import globalNotificationRepo = require('../repositories/global-notification.repository');
-import notificationEmitter = require('./notification-emitter.util');
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import notificationRepo from '../repositories/notification.repository';
+import globalNotificationRepo from '../repositories/global-notification.repository';
+import notificationEmitter from './notification-emitter.util';
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger } = loggerUtilModule;
-import errorMessageModule = require('../../../../shared/utils/error-message.util');
+import errorMessageModule from '../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -57,4 +57,4 @@ class NotificationCountUtil {
   }
 }
 
-export = NotificationCountUtil;
+export default NotificationCountUtil;

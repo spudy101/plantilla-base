@@ -10,12 +10,14 @@
 //
 // Todo corre dentro de requestContext.runAsSystem (source:'system').
 
-import CircuitBreaker = require('../utils/circuit-breaker.util');
-import requestContext = require('../utils/request-context.util');
-import loggerUtilModule = require('../utils/logger.util');
+import { Op } from 'sequelize';
+import { interopDefault } from '../utils/interop.util';
+import CircuitBreaker from '../utils/circuit-breaker.util';
+import requestContext from '../utils/request-context.util';
+import loggerUtilModule from '../utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import providerFallbackRepository = require('../../modules/schemas/integration/repositories/provider-fallback-event.repository');
-import errorMessageModule = require('../utils/error-message.util');
+import providerFallbackRepository from '../../modules/schemas/integration/repositories/provider-fallback-event.repository';
+import errorMessageModule from '../utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -41,10 +43,9 @@ async function _contarProcesosAfectados(product: string, startedAt: Date | null,
     if (product !== 'aws_sms') {
       return null;
     }
-    const { Op } = require('sequelize');
-    const { SmsDeliveryAttempt } = require('../models');
+    const { SmsDeliveryAttempt } = interopDefault(require('../models') as typeof import('../models'));
     const windowFilter = startedAt ? { [Op.between]: [startedAt, endedAt] } : { [Op.lte]: endedAt };
-    return await SmsDeliveryAttempt.count({ where: { status: 'failed', created_at: windowFilter } });
+    return await SmsDeliveryAttempt.count({ where: { status: 'failed', createdAt: windowFilter } });
   } catch {
     return null;
   }
@@ -107,4 +108,4 @@ function registerCircuitBreakerCallbacks() {
   logger.info('✅ Circuit breaker fallback callbacks registrados');
 }
 
-export = { registerCircuitBreakerCallbacks };
+export default { registerCircuitBreakerCallbacks };

@@ -1,16 +1,9 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../../shared/models/registry';
-import type defineCountry = require('./country.model');
-
-
-
-
-
-
+import type defineCountry from './country.model';
 
 function defineDepartment(sequelize: Sequelize): defineDepartment.Static {
   const Department = sequelize.define<defineDepartment.Instance>(
@@ -95,4 +88,4 @@ namespace defineDepartment {
   };
 }
 
-export = defineDepartment;
+export default defineDepartment;

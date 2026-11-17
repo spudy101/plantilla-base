@@ -1,8 +1,8 @@
 // modules/schemas/kyc/src/repositories/avatar-theme.repository.ts
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../../shared/models';
 const { AvatarTheme } = modelsModule;
-import type defineAvatarTheme = require('../models/avatar-theme.model');
+import type defineAvatarTheme from '../models/avatar-theme.model';
 
 class AvatarThemeRepository extends BaseRepository<defineAvatarTheme.Instance> {
   constructor() {
@@ -10,4 +10,4 @@ class AvatarThemeRepository extends BaseRepository<defineAvatarTheme.Instance> {
   }
 }
 
-export = new AvatarThemeRepository();
+export default new AvatarThemeRepository();

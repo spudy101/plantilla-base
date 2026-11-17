@@ -3,24 +3,24 @@
 // Alta y edición de datos básicos de usuarios internos. Extraído de AdminUserService (SOLID: S).
 
 import type { AdminAuditContext } from '../../../../../../shared/types/audit-context';
-import userRepository = require('../../../../../schemas/kyc/iam/repositories/user.repository');
-import roleRepository = require('../../../../../schemas/kyc/iam/repositories/role.repository');
-import personRepository = require('../../../../../schemas/kyc/person/repositories/person.repository');
-import documentTypeRepository = require('../../../../../schemas/kyc/maintainers/repositories/document-type.repository');
-import InternalUserHelper = require('../../../../../schemas/kyc/iam/helpers/internal-user.helper');
-import ProfileHelper = require('../../../../../schemas/kyc/person/helpers/profile.helper');
-import KycSharedUtil = require('../../../../../schemas/kyc/person/utils/kyc-shared.util');
-import NotificationCreationService = require('../../../../../schemas/notification/services/notification-creation.service');
-import AppError = require('../../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../../shared/utils/logger.util');
+import userRepository from '../../../../../schemas/kyc/iam/repositories/user.repository';
+import roleRepository from '../../../../../schemas/kyc/iam/repositories/role.repository';
+import personRepository from '../../../../../schemas/kyc/person/repositories/person.repository';
+import documentTypeRepository from '../../../../../schemas/kyc/maintainers/repositories/document-type.repository';
+import InternalUserHelper from '../../../../../schemas/kyc/iam/helpers/internal-user.helper';
+import ProfileHelper from '../../../../../schemas/kyc/person/helpers/profile.helper';
+import KycSharedUtil from '../../../../../schemas/kyc/person/utils/kyc-shared.util';
+import NotificationCreationService from '../../../../../schemas/notification/services/notification-creation.service';
+import AppError from '../../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import auditDiffUtilModule = require('../../../../../../shared/utils/audit-diff.util');
+import auditDiffUtilModule from '../../../../../../shared/utils/audit-diff.util';
 const { buildAuditDiff } = auditDiffUtilModule;
-import constantsModule = require('../../../../../../shared/constants');
+import constantsModule from '../../../../../../shared/constants';
 const { RBAC_ROLES, notifications } = constantsModule;
-import adminUserDtoModule = require('../../dtos/admin-user.dto');
+import adminUserDtoModule from '../../dtos/admin-user.dto';
 const { InternalUserDTO, InternalUserCreatedDTO } = adminUserDtoModule;
-import internalUserGuardsModule = require('./internal-user-guards');
+import internalUserGuardsModule from './internal-user-guards';
 const { InternalUserGuards } = internalUserGuardsModule;
 
 class InternalUserProfileService {
@@ -170,4 +170,4 @@ namespace InternalUserProfileService {
   }
 }
 
-export = InternalUserProfileService;
+export default InternalUserProfileService;

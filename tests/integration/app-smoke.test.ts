@@ -11,10 +11,10 @@
 // La BD en test es SQLite en memoria (config/database.ts perfil `test`), así que el
 // health check contra la BD responde sano sin infraestructura externa.
 
-import request = require('supertest');
+import request from 'supertest';
 
 // La app se exporta ya construida: `new ClientApp().getApp()`.
-import app = require('../../modules/client/app');
+import app from '../../modules/client/app';
 
 describe('App smoke (client) · pipeline HTTP end-to-end', () => {
   it('GET /health responde 200 con el contrato de health check', async () => {

@@ -1,10 +1,11 @@
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import AppError = require('../../../../../shared/utils/app-error.util');
-import modelsModule = require('../../../../../shared/models');
+import { interopDefault } from '../../../../../shared/utils/interop.util';
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import AppError from '../../../../../shared/utils/app-error.util';
+import modelsModule from '../../../../../shared/models';
 const { UserTrustedDevice } = modelsModule;
-import HmacService = require('../../../../../shared/services/hmac.service');
-import requestContext = require('../../../../../shared/utils/request-context.util');
-import type defineUserTrustedDevice = require('../models/user-trusted-device.model');
+import HmacService from '../../../../../shared/services/hmac.service';
+import requestContext from '../../../../../shared/utils/request-context.util';
+import type defineUserTrustedDevice from '../models/user-trusted-device.model';
 import type { CreateOptions } from 'sequelize';
 
 class TrustedDeviceRepository extends BaseRepository<defineUserTrustedDevice.Instance> {
@@ -51,7 +52,7 @@ class TrustedDeviceRepository extends BaseRepository<defineUserTrustedDevice.Ins
    * Usa separate:true para poder aplicar limit:1 sin afectar el query principal.
    */
   findAllByUserWithSessions(userId: string) {
-    const { UserSession } = require('../../../../../shared/models');
+    const { UserSession } = interopDefault(require('../../../../../shared/models') as typeof import('../../../../../shared/models'));
     return this.model.findAll({
       where: { user_id: userId },
       include: [
@@ -261,4 +262,4 @@ class TrustedDeviceRepository extends BaseRepository<defineUserTrustedDevice.Ins
   }
 }
 
-export = new TrustedDeviceRepository();
+export default new TrustedDeviceRepository();

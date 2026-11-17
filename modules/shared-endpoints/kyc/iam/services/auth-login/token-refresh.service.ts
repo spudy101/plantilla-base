@@ -3,17 +3,17 @@
 // Rotación de refresh tokens (RF-AUTH-02): detección de reuse attack y tope
 // absoluto de vida de la sesión. Extraído de AuthLoginService (SOLID: S).
 
-import crypto = require('node:crypto');
-import userRepository = require('../../../../../schemas/kyc/iam/repositories/user.repository');
-import userSessionRepository = require('../../../../../schemas/kyc/iam/repositories/user-session.repository');
-import JwtUtil = require('../../../../../../shared/utils/jwt.util');
-import RefreshTokenStore = require('../../../../../../shared/utils/refresh-token-store.util');
-import TokenBlacklistUtil = require('../../../../../../shared/utils/token-blacklist.util');
-import redisClient = require('../../../../../../shared/utils/redis.util');
-import AppError = require('../../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../../shared/utils/logger.util');
+import crypto from 'node:crypto';
+import userRepository from '../../../../../schemas/kyc/iam/repositories/user.repository';
+import userSessionRepository from '../../../../../schemas/kyc/iam/repositories/user-session.repository';
+import JwtUtil from '../../../../../../shared/utils/jwt.util';
+import RefreshTokenStore from '../../../../../../shared/utils/refresh-token-store.util';
+import TokenBlacklistUtil from '../../../../../../shared/utils/token-blacklist.util';
+import redisClient from '../../../../../../shared/utils/redis.util';
+import AppError from '../../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import constantsModule = require('../../../../../../shared/constants');
+import constantsModule from '../../../../../../shared/constants';
 const { SECURITY, AUTH_ERROR_CODES, jwt: jwtConfig } = constantsModule;
 
 class TokenRefreshService {
@@ -292,4 +292,4 @@ namespace TokenRefreshService {
   }
 }
 
-export = TokenRefreshService;
+export default TokenRefreshService;

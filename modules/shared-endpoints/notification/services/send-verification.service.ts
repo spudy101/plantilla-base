@@ -1,15 +1,15 @@
-import type defineVerificationCode = require('../../../schemas/notification/models/verification-code.model');
-import unitOfWork = require('../../../../shared/database/unit-of-work');
-import verificationCodeRepository = require('../../../schemas/notification/repositories/verification-code.repository');
-import NotificationUtil = require('../../../schemas/notification/services/notification-creation.service');
-import SmsService = require('../../../schemas/notification/services/sms.service');
-import AppError = require('../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import type defineVerificationCode from '../../../schemas/notification/models/verification-code.model';
+import unitOfWork from '../../../../shared/database/unit-of-work';
+import verificationCodeRepository from '../../../schemas/notification/repositories/verification-code.repository';
+import NotificationUtil from '../../../schemas/notification/services/notification-creation.service';
+import SmsService from '../../../schemas/notification/services/sms.service';
+import AppError from '../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import constantsModule = require('../../../../shared/constants');
+import constantsModule from '../../../../shared/constants';
 const { notifications, MOCKS } = constantsModule;
-import crypto = require('node:crypto');
-import sendVerificationDtoModule = require('../dtos/send-verification.dto');
+import crypto from 'node:crypto';
+import sendVerificationDtoModule from '../dtos/send-verification.dto';
 const { SendVerificationResponseDTO, VerifyCodeResponseDTO } = sendVerificationDtoModule;
 
 // [RF-AUTH-01] | CA-02 | 🔄 MODIFICADO: CA-02 especifica
@@ -255,4 +255,4 @@ namespace SendVerificationService {
   }
 }
 
-export = Object.assign(new SendVerificationService(), { SendVerificationService });
+export default Object.assign(new SendVerificationService(), { SendVerificationService });

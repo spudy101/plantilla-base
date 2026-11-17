@@ -32,23 +32,23 @@ jest.mock('shared/dtos/notification/components-notification.dto', () => ({
 }));
 
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
-import modelsModule = require('shared/models');
+import modelsModule from 'shared/models';
 const { sequelize } = mocked(modelsModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import prefRepoModule = require('modules/schemas/kyc/person/repositories/user-notification-preference.repository');
+import prefRepoModule from 'modules/schemas/kyc/person/repositories/user-notification-preference.repository';
 const prefRepo = mocked(prefRepoModule);
-import categoryRepoModule = require('modules/schemas/notification/repositories/notification-category.repository');
+import categoryRepoModule from 'modules/schemas/notification/repositories/notification-category.repository';
 const categoryRepo = mocked(categoryRepoModule);
-import notificationPreferenceDtoModuleModule = require('modules/shared-endpoints/kyc/person/dtos/notification-preference.dto');
+import notificationPreferenceDtoModuleModule from 'modules/shared-endpoints/kyc/person/dtos/notification-preference.dto';
 const notificationPreferenceDtoModule = mocked(notificationPreferenceDtoModuleModule);
 const {
   UpdatePreferenceResponseDTO,
   CategoryPreferencesViewDTO
 } = mocked(notificationPreferenceDtoModule);
-import componentsNotificationDtoModule = require('shared/dtos/notification/components-notification.dto');
+import componentsNotificationDtoModule from 'shared/dtos/notification/components-notification.dto';
 const { UserNotificationPreferenceComponent } = mocked(componentsNotificationDtoModule);
-import service = require('modules/shared-endpoints/kyc/person/services/notification-preference.service');
+import service from 'modules/shared-endpoints/kyc/person/services/notification-preference.service';
 
 function makeTransaction() {
   return { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn().mockResolvedValue(undefined) };

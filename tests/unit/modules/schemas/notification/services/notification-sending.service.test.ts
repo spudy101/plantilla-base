@@ -44,25 +44,25 @@ jest.mock('shared/utils/logger.util', () => ({
 }));
 
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
-import notificationRepoModule = require('modules/schemas/notification/repositories/notification.repository');
+import notificationRepoModule from 'modules/schemas/notification/repositories/notification.repository';
 const notificationRepo = mocked(notificationRepoModule);
-import notificationTypeRepoModule = require('modules/schemas/notification/repositories/notification-type.repository');
+import notificationTypeRepoModule from 'modules/schemas/notification/repositories/notification-type.repository';
 const notificationTypeRepo = mocked(notificationTypeRepoModule);
-import userRepoModule = require('modules/schemas/kyc/iam/repositories/user.repository');
+import userRepoModule from 'modules/schemas/kyc/iam/repositories/user.repository';
 const userRepo = mocked(userRepoModule);
-import userPushTokenRepoModule = require('modules/schemas/notification/repositories/user-push-token.repository');
+import userPushTokenRepoModule from 'modules/schemas/notification/repositories/user-push-token.repository';
 const userPushTokenRepo = mocked(userPushTokenRepoModule);
-import emailServiceModule = require('modules/schemas/notification/services/email-notification.service');
+import emailServiceModule from 'modules/schemas/notification/services/email-notification.service';
 const emailService = mocked(emailServiceModule);
-import pushServiceModule = require('modules/schemas/notification/services/push-notification.service');
+import pushServiceModule from 'modules/schemas/notification/services/push-notification.service';
 const pushService = mocked(pushServiceModule);
-import smsServiceModule = require('modules/schemas/notification/services/sms.service');
+import smsServiceModule from 'modules/schemas/notification/services/sms.service';
 const smsService = mocked(smsServiceModule);
-import schedulerServiceModule = require('modules/schemas/notification/services/notification-scheduler.service');
+import schedulerServiceModule from 'modules/schemas/notification/services/notification-scheduler.service';
 const schedulerService = mocked(schedulerServiceModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import sending = require('modules/schemas/notification/services/notification-sending.service');
+import sending from 'modules/schemas/notification/services/notification-sending.service';
 
 const NID = 'notif-1';
 const UID = 'user-1';

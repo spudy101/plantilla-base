@@ -1,6 +1,5 @@
-import expressValidatorModule = require('express-validator');
-const { header, body } = expressValidatorModule;
-import BaseValidator = require('../../../../../shared/validators/base.validator');
+import { header, body } from 'express-validator';
+import BaseValidator from '../../../../../shared/validators/base.validator';
 
 /**
  * ============================================================
@@ -72,4 +71,4 @@ class AuthRegisterValidator {
   }
 }
 
-export = AuthRegisterValidator;
+export default AuthRegisterValidator;

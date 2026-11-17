@@ -32,19 +32,19 @@ for (const file of walk(path.join(ROOT, 'modules')).sort()) {
   const rel = `./${path.relative(path.dirname(OUT), file).split(path.sep).join('/').replace(/\.ts$/, '')}`;
   const base = path.basename(file, '.repository.ts');
   const alias = `${camel(base)}RepositoryModule`;
-  const single = src.match(/^export = new (\w+)\(\);/m);
+  const single = src.match(/^export default new (\w+)\(\);/m);
   if (single) {
     // El nombre del puerto sale de la clase (TrustedDeviceRepository → TrustedDeviceRepositoryPort)
     entries.push({ alias, rel, ports: [[`${single[1]}Port`, `typeof ${alias}`]] });
     continue;
   }
-  const multi = src.match(/^export = \{([\s\S]*?)\};/m);
+  const multi = src.match(/^export default \{([\s\S]*?)\};/m);
   if (multi) {
     const keys = [...multi[1].matchAll(/^\s*(\w+):/gm)].map(m => m[1]);
     entries.push({ alias, rel, ports: keys.map(k => [`${pascal(k)}Port`, `(typeof ${alias})['${k}']`]) });
     continue;
   }
-  throw new Error(`${file}: export no reconocido (se espera "export = new X();" o "export = { … };")`);
+  throw new Error(`${file}: export no reconocido (se espera "export default new X();" o "export default { … };")`);
 }
 
 const out = `// modules/schemas/repository-ports.ts
@@ -57,7 +57,7 @@ const out = `// modules/schemas/repository-ports.ts
 //
 //   type UserReader = Pick<UserRepositoryPort, 'findByUserId'>;
 //   constructor(deps: { userRepository?: UserReader } = {})
-${entries.map(e => `import type ${e.alias} = require('${e.rel}');`).join('\n')}
+${entries.map(e => `import type ${e.alias} from '${e.rel}';`).join('\n')}
 
 ${entries
   .flatMap(e => e.ports)

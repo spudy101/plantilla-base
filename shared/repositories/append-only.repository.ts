@@ -9,7 +9,7 @@
 // no hace falta sobrescribirlos para lanzar error.
 // ============================================================
 import type { Attributes, BulkCreateOptions, CreateOptions, CreationAttributes, Model } from 'sequelize';
-import ReadRepository = require('./read.repository');
+import ReadRepository from './read.repository';
 
 class AppendOnlyRepository<M extends Model = Model> extends ReadRepository<M> {
   create(data: CreationAttributes<M>, options: CreateOptions<Attributes<M>> = {}): Promise<M> {
@@ -21,4 +21,4 @@ class AppendOnlyRepository<M extends Model = Model> extends ReadRepository<M> {
   }
 }
 
-export = AppendOnlyRepository;
+export default AppendOnlyRepository;

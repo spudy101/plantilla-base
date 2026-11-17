@@ -9,9 +9,8 @@
 // Idempotente: solo inserta los roles que aún no existen (busca por `name`).
 
 import type { Migration } from '../shared/types/migration';
-import uuidModule = require('uuid');
-const { v4: uuidv4 } = uuidModule;
-import constantsModule = require('../shared/constants');
+import { v4 as uuidv4 } from 'uuid';
+import constantsModule from '../shared/constants';
 const { database, RBAC_ROLES } = constantsModule;
 
 const SCHEMA = database.schema;

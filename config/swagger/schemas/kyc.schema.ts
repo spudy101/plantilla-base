@@ -28,7 +28,7 @@
  * cuenta salen SIEMPRE enmascarados (últimos 4). Los campos de REQUEST van completos.
  */
 
-import piiMaskingDocModule = require('./pii-masking.doc');
+import piiMaskingDocModule from './pii-masking.doc';
 const { MASKED_DOCUMENT_DESC, MASKED_PHONE_DESC, MASKED_EMAIL_DESC } = piiMaskingDocModule;
 
 // ─── CountryComponent.build() ─────────────────────────────────
@@ -495,7 +495,7 @@ const UserSession = {
 
 // ─── Exports ──────────────────────────────────────────────────
 
-export = {
+export default {
   // Catálogo geográfico
   Country,
   Department,

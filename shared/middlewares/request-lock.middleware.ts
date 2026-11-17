@@ -1,18 +1,19 @@
 // src/middlewares/request-lock.middleware.ts
 
+import { interopDefault } from '../utils/interop.util';
 import type { NextFunction, Request, Response } from 'express';
-import redisClient = require('../utils/redis.util');
-import localCache = require('../utils/cache.util');
-import EncryptionUtil = require('../utils/encryption.util');
-import ApiResponse = require('../utils/app-response.util');
-import authUserUtil = require('../utils/auth-user.util');
+import redisClient from '../utils/redis.util';
+import localCache from '../utils/cache.util';
+import EncryptionUtil from '../utils/encryption.util';
+import ApiResponse from '../utils/app-response.util';
+import authUserUtil from '../utils/auth-user.util';
 
 const { requireAuthUser } = authUserUtil;
-import loggerUtilModule = require('../utils/logger.util');
+import loggerUtilModule from '../utils/logger.util';
 const { logger } = loggerUtilModule;
-import constantsModule = require('../constants');
+import constantsModule from '../constants';
 const { TTL } = constantsModule;
-import errorMessageModule = require('../utils/error-message.util');
+import errorMessageModule from '../utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -151,7 +152,7 @@ class RequestLockMiddleware {
    */
   static _buildRefreshLockKey(req: Request) {
     // Lazy require: jwt.util carga las claves RS256 al primer uso.
-    const JwtUtil = require('../utils/jwt.util');
+    const JwtUtil = interopDefault(require('../utils/jwt.util') as typeof import('../utils/jwt.util'));
     const token = req.cookies?.refresh_token || req.headers['x-refresh-token'] || null;
     const payload = JwtUtil.decodeUnverified(token);
 
@@ -239,4 +240,4 @@ class RequestLockMiddleware {
   }
 }
 
-export = RequestLockMiddleware;
+export default RequestLockMiddleware;

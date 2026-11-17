@@ -1,12 +1,12 @@
-import type definePersonReference = require('../../../../schemas/kyc/person/models/person-reference.model');
+import type definePersonReference from '../../../../schemas/kyc/person/models/person-reference.model';
 // modules/client/kyc/services/person-reference.service.ts
 
-import AppError = require('../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import AppError from '../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
-import requestContext = require('../../../../../shared/utils/request-context.util');
-import personReferenceRepository = require('../../../../schemas/kyc/person/repositories/person-reference.repository');
-import personReferenceDtoModule = require('../dtos/person-reference.dto');
+import requestContext from '../../../../../shared/utils/request-context.util';
+import personReferenceRepository from '../../../../schemas/kyc/person/repositories/person-reference.repository';
+import personReferenceDtoModule from '../dtos/person-reference.dto';
 const { PersonReferenceDTO, PersonReferenceListDTO } = personReferenceDtoModule;
 
 const MAX_REFERENCES_PER_PERSON = 5;
@@ -120,4 +120,4 @@ namespace PersonReferenceService {
   }
 }
 
-export = Object.assign(new PersonReferenceService(), { PersonReferenceService });
+export default Object.assign(new PersonReferenceService(), { PersonReferenceService });

@@ -1,4 +1,4 @@
-import componentsAuditDtoModule = require('../../../../../shared/dtos/audit/components-audit.dto');
+import componentsAuditDtoModule from '../../../../../shared/dtos/audit/components-audit.dto';
 const { UserConsentComponent } = componentsAuditDtoModule;
 
 const MyConsentDTO = (record: Parameters<typeof UserConsentComponent.buildForClient>[0]) => UserConsentComponent.buildForClient(record);
@@ -10,4 +10,4 @@ const MyConsentCatalogDTO = (
 
 const ConsentGrantedDTO = (record: Parameters<typeof UserConsentComponent.buildGranted>[0]) => UserConsentComponent.buildGranted(record);
 
-export = { MyConsentDTO, MyConsentCatalogDTO, ConsentGrantedDTO };
+export default { MyConsentDTO, MyConsentCatalogDTO, ConsentGrantedDTO };

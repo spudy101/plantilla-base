@@ -1,4 +1,4 @@
-import commonResponses = require('../../../../responses/common.responses');
+import commonResponses from '../../../../responses/common.responses';
 
 const schemas = {
   AuthTokens: {
@@ -643,4 +643,4 @@ Se requiere enviar **exactamente uno** de los dos campos (\`totpCode\` o \`smsCo
   }
 };
 
-export = { paths, schemas };
+export default { paths, schemas };

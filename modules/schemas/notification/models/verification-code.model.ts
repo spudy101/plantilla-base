@@ -1,15 +1,8 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../shared/models/registry';
-
-
-
-
-
-
 
 function defineVerificationCode(sequelize: Sequelize): defineVerificationCode.Static {
   const VerificationCode = sequelize.define<defineVerificationCode.Instance>(
@@ -112,4 +105,4 @@ namespace defineVerificationCode {
   };
 }
 
-export = defineVerificationCode;
+export default defineVerificationCode;

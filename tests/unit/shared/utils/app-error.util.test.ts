@@ -4,7 +4,7 @@
 // por código HTTP. Es lógica pura (sin dependencias externas): verificamos statusCode, code,
 // details, isOperational y retryAfter de cada factory, más el contrato del constructor.
 
-import AppError = require('shared/utils/app-error.util');
+import AppError from 'shared/utils/app-error.util';
 
 describe('AppError', () => {
   describe('constructor', () => {

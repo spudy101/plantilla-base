@@ -1,8 +1,8 @@
-import UserActivityService = require('../services/user-activity.service');
-import ApiResponse = require('../../../../../shared/utils/app-response.util');
-import errorMiddlewareModule = require('../../../../../shared/middlewares/error.middleware');
+import UserActivityService from '../services/user-activity.service';
+import ApiResponse from '../../../../../shared/utils/app-response.util';
+import errorMiddlewareModule from '../../../../../shared/middlewares/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
-import authUserUtilModule = require('../../../../../shared/utils/auth-user.util');
+import authUserUtilModule from '../../../../../shared/utils/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
 
 class UserActivityController {
@@ -13,4 +13,4 @@ class UserActivityController {
   });
 }
 
-export = new UserActivityController();
+export default new UserActivityController();

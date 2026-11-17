@@ -1,8 +1,8 @@
 // modules/schemas/kyc/src/repositories/avatar.repository.ts
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../../shared/models';
 const { Avatar } = modelsModule;
-import type defineAvatar = require('../models/avatar.model');
+import type defineAvatar from '../models/avatar.model';
 
 class AvatarRepository extends BaseRepository<defineAvatar.Instance> {
   constructor() {
@@ -15,4 +15,4 @@ class AvatarRepository extends BaseRepository<defineAvatar.Instance> {
   }
 }
 
-export = new AvatarRepository();
+export default new AvatarRepository();

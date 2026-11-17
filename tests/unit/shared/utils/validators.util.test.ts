@@ -9,10 +9,10 @@ jest.mock('express-validator', () => ({
 }));
 
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
-import expressValidatorModule = require('express-validator');
+import expressValidatorModule from 'express-validator';
 const { validationResult } = mocked(expressValidatorModule);
-import AppError = require('shared/utils/app-error.util');
-import ValidatorUtil = require('shared/utils/validators.util');
+import AppError from 'shared/utils/app-error.util';
+import ValidatorUtil from 'shared/utils/validators.util';
 
 describe('ValidatorUtil', () => {
   describe('handleValidationErrors', () => {

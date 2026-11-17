@@ -1,19 +1,12 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../../shared/constants';
 const { database } = constantsModule;
-import EncryptionUtil = require('../../../../../shared/utils/encryption.util');
-import HashUtil = require('../../../../../shared/utils/hash.util');
+import EncryptionUtil from '../../../../../shared/utils/encryption.util';
+import HashUtil from '../../../../../shared/utils/hash.util';
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../../shared/models/registry';
-import type definePerson = require('./person.model');
-import type definePhonePrefix = require('../../maintainers/models/phone-prefix.model');
-
-
-
-
-
-
+import type definePerson from './person.model';
+import type definePhonePrefix from '../../maintainers/models/phone-prefix.model';
 
 function definePersonContact(sequelize: Sequelize): definePersonContact.Static {
   const PersonContact = sequelize.define<definePersonContact.Instance>(
@@ -256,4 +249,4 @@ namespace definePersonContact {
   };
 }
 
-export = definePersonContact;
+export default definePersonContact;

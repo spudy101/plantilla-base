@@ -1,15 +1,14 @@
-import sequelizeModule = require('sequelize');
-const { Op } = sequelizeModule;
+import { Op } from 'sequelize';
 import type { CreateOptions } from 'sequelize';
-import ReadRepository = require('../../../../../shared/repositories/read.repository');
-import queryModule = require('../../../../../shared/repositories/query');
+import ReadRepository from '../../../../../shared/repositories/read.repository';
+import * as queryModule from '../../../../../shared/repositories/query';
 const { dateRange } = queryModule;
 import type { WhereClause } from '../../../../../shared/repositories/query';
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../../shared/models';
 const { UserChangeLog } = modelsModule;
-import requestContext = require('../../../../../shared/utils/request-context.util');
-import type defineUserChangeLog = require('../models/user-change-log.model');
+import requestContext from '../../../../../shared/utils/request-context.util';
+import type defineUserChangeLog from '../models/user-change-log.model';
 
 class UserChangeLogRepository extends BaseRepository<defineUserChangeLog.Instance> {
   constructor() {
@@ -235,4 +234,4 @@ namespace UserChangeLogRepository {
   }
 }
 
-export = new UserChangeLogRepository();
+export default new UserChangeLogRepository();

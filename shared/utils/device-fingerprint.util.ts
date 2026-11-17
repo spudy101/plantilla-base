@@ -1,6 +1,6 @@
 import type { Request } from 'express';
-import crypto = require('node:crypto');
-import geoip = require('geoip-lite');
+import crypto from 'node:crypto';
+import geoip from 'geoip-lite';
 import { UAParser } from 'ua-parser-js';
 
 /**
@@ -239,4 +239,4 @@ class DeviceFingerprintUtil {
   }
 }
 
-export = DeviceFingerprintUtil;
+export default DeviceFingerprintUtil;

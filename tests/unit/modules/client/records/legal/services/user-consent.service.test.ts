@@ -32,15 +32,15 @@ jest.mock('shared/utils/logger.util', () => ({
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import consentTypeRepositoryModule = require('modules/schemas/records/legal/repositories/consent-type.repository');
+import consentTypeRepositoryModule from 'modules/schemas/records/legal/repositories/consent-type.repository';
 const consentTypeRepository = mocked(consentTypeRepositoryModule);
-import userConsentRepositoryModule = require('modules/schemas/records/legal/repositories/user-consent.repository');
+import userConsentRepositoryModule from 'modules/schemas/records/legal/repositories/user-consent.repository';
 const userConsentRepository = mocked(userConsentRepositoryModule);
-import modelsModule = require('shared/models');
+import modelsModule from 'shared/models';
 const { sequelize } = mocked(modelsModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import service = require('modules/client/records/legal/services/user-consent.service');
+import service from 'modules/client/records/legal/services/user-consent.service';
 
 const USER_ID = 'user-1';
 const AUDIT_CTX = { ip: '1.2.3.4', userAgent: 'jest', reason: 'ya no quiero' };

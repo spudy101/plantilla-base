@@ -1,18 +1,18 @@
 // modules/admin/privacy-policy/routes/privacy-policy-admin.routes.ts
 
-import express = require('express');
+import express from 'express';
 const router = express.Router();
-import PrivacyPolicyAdminController = require('../controllers/privacy-policy-admin.controller');
-import PrivacyPolicyAdminValidator = require('../validators/privacy-policy-admin.validator');
-import BaseValidator = require('../../../../../shared/validators/base.validator');
-import AuthMiddleware = require('../../../../../shared/middlewares/auth.middleware');
-import RateLimitMiddleware = require('../../../../../shared/middlewares/rate-limit.middleware');
-import RequestLockMiddleware = require('../../../../../shared/middlewares/request-lock.middleware');
-import RbacMiddleware = require('../../../../../shared/middlewares/rbac.middleware');
-import UploadMiddleware = require('../../../../../shared/middlewares/upload.middleware');
-import ValidatorUtil = require('../../../../../shared/utils/validators.util');
-import AuditAction = require('../../../../../shared/middlewares/audit-action.middleware');
-import rbacModule = require('../../../../../shared/constants/rbac');
+import PrivacyPolicyAdminController from '../controllers/privacy-policy-admin.controller';
+import PrivacyPolicyAdminValidator from '../validators/privacy-policy-admin.validator';
+import BaseValidator from '../../../../../shared/validators/base.validator';
+import AuthMiddleware from '../../../../../shared/middlewares/auth.middleware';
+import RateLimitMiddleware from '../../../../../shared/middlewares/rate-limit.middleware';
+import RequestLockMiddleware from '../../../../../shared/middlewares/request-lock.middleware';
+import RbacMiddleware from '../../../../../shared/middlewares/rbac.middleware';
+import UploadMiddleware from '../../../../../shared/middlewares/upload.middleware';
+import ValidatorUtil from '../../../../../shared/utils/validators.util';
+import AuditAction from '../../../../../shared/middlewares/audit-action.middleware';
+import rbacModule from '../../../../../shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
 /**
@@ -74,4 +74,4 @@ router.post(
   PrivacyPolicyAdminController.createVersion
 );
 
-export = router;
+export default router;

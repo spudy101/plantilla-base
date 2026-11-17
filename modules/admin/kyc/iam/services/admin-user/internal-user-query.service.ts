@@ -5,19 +5,19 @@ type UserRepositoryFilters = NonNullable<Parameters<UserRepositoryPort['findAllP
 // Lecturas de usuarios internos: listados, detalle, catálogo de roles, sesiones y bitácora.
 // Extraído de AdminUserService (SOLID: S).
 
-import userRepository = require('../../../../../schemas/kyc/iam/repositories/user.repository');
-import roleRepository = require('../../../../../schemas/kyc/iam/repositories/role.repository');
-import userSessionRepository = require('../../../../../schemas/kyc/iam/repositories/user-session.repository');
-import userChangeLogRepository = require('../../../../../schemas/records/audit/repositories/user-change-log.repository');
-import DualApprovalService = require('../../../../../schemas/core/services/dual-approval.service');
-import PaginationHelper = require('../../../../../../shared/utils/pagination.util');
-import loggerUtilModule = require('../../../../../../shared/utils/logger.util');
+import userRepository from '../../../../../schemas/kyc/iam/repositories/user.repository';
+import roleRepository from '../../../../../schemas/kyc/iam/repositories/role.repository';
+import userSessionRepository from '../../../../../schemas/kyc/iam/repositories/user-session.repository';
+import userChangeLogRepository from '../../../../../schemas/records/audit/repositories/user-change-log.repository';
+import DualApprovalService from '../../../../../schemas/core/services/dual-approval.service';
+import PaginationHelper from '../../../../../../shared/utils/pagination.util';
+import loggerUtilModule from '../../../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
-import componentsCatalogDtoModule = require('../../../../../../shared/dtos/kyc/components-catalog.dto');
+import componentsCatalogDtoModule from '../../../../../../shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
-import constantsModule = require('../../../../../../shared/constants');
+import constantsModule from '../../../../../../shared/constants';
 const { INTERNAL_ROLE_NAMES, SUPERADMIN_ROLE_NAMES } = constantsModule;
-import adminUserDtoModule = require('../../dtos/admin-user.dto');
+import adminUserDtoModule from '../../dtos/admin-user.dto';
 const {
   InternalUserDTO,
   InternalUserListDTO,
@@ -25,7 +25,7 @@ const {
   UserChangeLogDTO,
   RoleOptionDTO
 } = adminUserDtoModule;
-import internalUserGuardsModule = require('./internal-user-guards');
+import internalUserGuardsModule from './internal-user-guards';
 const { InternalUserGuards } = internalUserGuardsModule;
 
 const ENTITY = { entityType: 'InternalUser', entityTable: 'users' };
@@ -179,4 +179,4 @@ namespace InternalUserQueryService {
   }
 }
 
-export = InternalUserQueryService;
+export default InternalUserQueryService;

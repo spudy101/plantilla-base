@@ -1,6 +1,5 @@
-import expressValidatorModule = require('express-validator');
-const { query } = expressValidatorModule;
-import BaseValidator = require('../../../../../shared/validators/base.validator');
+import { query } from 'express-validator';
+import BaseValidator from '../../../../../shared/validators/base.validator';
 
 class AdminUserConsentValidator {
   static listQuery() {
@@ -25,4 +24,4 @@ class AdminUserConsentValidator {
   }
 }
 
-export = AdminUserConsentValidator;
+export default AdminUserConsentValidator;

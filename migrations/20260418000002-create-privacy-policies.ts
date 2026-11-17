@@ -11,7 +11,7 @@
 // === RF-LP-01: Landing Page & UX Pública — Tabla de documentos legales ===
 
 import type { Migration } from '../shared/types/migration';
-import constantsModule = require('../shared/constants');
+import constantsModule from '../shared/constants';
 const { database } = constantsModule;
 
 const SCHEMA = database.schema;

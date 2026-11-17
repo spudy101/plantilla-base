@@ -1,11 +1,11 @@
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
-import PaginationHelper = require('../../../../../shared/utils/pagination.util');
-import componentsCatalogDtoModule = require('../../../../../shared/dtos/kyc/components-catalog.dto');
+import PaginationHelper from '../../../../../shared/utils/pagination.util';
+import componentsCatalogDtoModule from '../../../../../shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
-import AppError = require('../../../../../shared/utils/app-error.util');
-import userConsentRepository = require('../../../../schemas/records/legal/repositories/user-consent.repository');
-import adminUserConsentDtoModule = require('../dtos/admin-user-consent.dto');
+import AppError from '../../../../../shared/utils/app-error.util';
+import userConsentRepository from '../../../../schemas/records/legal/repositories/user-consent.repository';
+import adminUserConsentDtoModule from '../dtos/admin-user-consent.dto';
 const { UserConsentAuditItemDTO } = adminUserConsentDtoModule;
 
 class AdminUserConsentService {
@@ -114,4 +114,4 @@ namespace AdminUserConsentService {
   }
 }
 
-export = Object.assign(new AdminUserConsentService(), { AdminUserConsentService });
+export default Object.assign(new AdminUserConsentService(), { AdminUserConsentService });

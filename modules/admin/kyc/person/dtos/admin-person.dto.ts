@@ -1,10 +1,10 @@
-import type defineUser = require('../../../../schemas/kyc/iam/models/user.model');
-import type definePerson = require('../../../../schemas/kyc/person/models/person.model');
-import adminUserDtoModule = require('../../iam/dtos/admin-user.dto');
+import type defineUser from '../../../../schemas/kyc/iam/models/user.model';
+import type definePerson from '../../../../schemas/kyc/person/models/person.model';
+import adminUserDtoModule from '../../iam/dtos/admin-user.dto';
 const { RoleOptionDTO } = adminUserDtoModule;
 // modules/admin/kyc/dtos/admin-person.dto.ts
 
-import kycModule = require('../../../../../shared/dtos/kyc');
+import kycModule from '../../../../../shared/dtos/kyc';
 const {
   UserComponent,
   PersonComponent,
@@ -12,9 +12,9 @@ const {
   PersonLocationComponent,
   safeDecrypt
 } = kycModule;
-import MaskingUtil = require('../../../../../shared/utils/masking.util');
+import MaskingUtil from '../../../../../shared/utils/masking.util';
 
-import componentsCatalogDtoModule = require('../../../../../shared/dtos/kyc/components-catalog.dto');
+import componentsCatalogDtoModule from '../../../../../shared/dtos/kyc/components-catalog.dto';
 const { RoleComponent } = componentsCatalogDtoModule;
 
 /**
@@ -244,7 +244,7 @@ function ChangeRoleDTO(
 
 // Opción de rol para el filtro del listado: misma forma que en el listado de internos
 
-export = {
+export default {
   UserDTO,
   UserListItemDTO,
   CreateUserDTO,

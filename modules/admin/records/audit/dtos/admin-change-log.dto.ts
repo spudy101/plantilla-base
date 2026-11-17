@@ -1,6 +1,6 @@
-import kycModule = require('../../../../../shared/dtos/kyc');
+import kycModule from '../../../../../shared/dtos/kyc';
 const { UserChangeLogComponent } = kycModule;
-import componentsCatalogDtoModule = require('../../../../../shared/dtos/kyc/components-catalog.dto');
+import componentsCatalogDtoModule from '../../../../../shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
 
 function ListUserChangeLogsResponseDTO(rows: Array<Parameters<typeof UserChangeLogComponent.build>[0]>, metadata: Parameters<typeof MetadataDTO.build>[0]) {
@@ -17,7 +17,7 @@ function ListChangeLogsResponseDTO<T, R>(rows: T[], metadata: Parameters<typeof 
   };
 }
 
-export = {
+export default {
   ListUserChangeLogsResponseDTO,
   ListChangeLogsResponseDTO
 };

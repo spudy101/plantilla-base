@@ -17,25 +17,21 @@
 //   uploadDocument  → siempre BUCKET PRIVADO
 //   uploadPublicDocument → siempre BUCKET PÚBLICO
 
-import clientS3Module = require('@aws-sdk/client-s3');
-const { S3Client, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand, GetObjectCommand } = clientS3Module;
-import clientCloudfrontModule = require('@aws-sdk/client-cloudfront');
-const { CloudFrontClient, CreateInvalidationCommand } = clientCloudfrontModule;
-import s3RequestPresignerModule = require('@aws-sdk/s3-request-presigner');
-const { getSignedUrl } = s3RequestPresignerModule;
-import sharp = require('sharp');
-import uuidModule = require('uuid');
-const { v4: uuidv4 } = uuidModule;
-import loggerUtilModule = require('./logger.util');
+import { S3Client, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { CloudFrontClient, CreateInvalidationCommand } from '@aws-sdk/client-cloudfront';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import sharp from 'sharp';
+import { v4 as uuidv4 } from 'uuid';
+import loggerUtilModule from './logger.util';
 const { logger } = loggerUtilModule;
-import AppError = require('./app-error.util');
-import constantsModule = require('../constants');
+import AppError from './app-error.util';
+import constantsModule from '../constants';
 const { aws } = constantsModule;
-import CircuitBreaker = require('./circuit-breaker.util');
-import ProviderApiLogger = require('./integration-api-logger.util');
-import awsProviderMetaUtilModule = require('./aws-provider-meta.util');
+import CircuitBreaker from './circuit-breaker.util';
+import ProviderApiLogger from './integration-api-logger.util';
+import awsProviderMetaUtilModule from './aws-provider-meta.util';
 const { resolveAwsGate, awsErrorCode } = awsProviderMetaUtilModule;
-import errorMessageModule = require('./error-message.util');
+import errorMessageModule from './error-message.util';
 
 const { errorMessage, errorName, isOperationalError } = errorMessageModule;
 
@@ -582,4 +578,4 @@ class S3Util {
   }
 }
 
-export = S3Util;
+export default S3Util;

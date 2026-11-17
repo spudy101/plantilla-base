@@ -295,7 +295,7 @@ const SUPERADMIN_ROLE_NAMES = [RBAC_ROLES.SUPERADMIN];
 // Roles destinatarios de las notificaciones por correo dirigidas "al admin".
 const ADMIN_NOTIFICATION_ROLE_NAMES = [RBAC_ROLES.SUPERADMIN, RBAC_ROLES.ADMIN];
 
-export = {
+export default {
   RBAC_WILDCARD,
   RBAC_ROLES,
   RBAC_MODULES,

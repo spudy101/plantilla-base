@@ -6,7 +6,7 @@
  * no mapean directamente a entidades de BD.
  */
 
-import type defineUser = require('../../../../schemas/kyc/iam/models/user.model');
+import type defineUser from '../../../../schemas/kyc/iam/models/user.model';
 
 /** Campos que exponen las respuestas de MFA. */
 interface MfaFields {
@@ -62,7 +62,7 @@ function SMSActivationRequestResponseDTO({ verificationCodeId, expiresAt, trunca
   return { verificationCodeId, expiresAt, truncatedCode };
 }
 
-export = {
+export default {
   TOTPSetupResponseDTO,
   TOTPActivationResponseDTO,
   TOTPVerificationResponseDTO,

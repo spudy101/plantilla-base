@@ -1,9 +1,9 @@
 // src/utils/cache.util.ts
 
-import NodeCache = require('node-cache');
-import loggerUtilModule = require('./logger.util');
+import NodeCache from 'node-cache';
+import loggerUtilModule from './logger.util';
 const { logger } = loggerUtilModule;
-import errorMessageModule = require('./error-message.util');
+import errorMessageModule from './error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -116,4 +116,4 @@ class LocalCache {
   }
 }
 
-export = Object.assign(new LocalCache(), { LocalCache });
+export default Object.assign(new LocalCache(), { LocalCache });

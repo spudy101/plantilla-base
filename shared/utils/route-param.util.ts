@@ -4,7 +4,7 @@
 // el tipo es `string | undefined` (índice de ParamsDictionary). Si falta, la ruta está mal
 // declarada: 400 explícito en vez de seguir con undefined hasta la BD.
 import type { Request } from 'express';
-import AppError = require('./app-error.util');
+import AppError from './app-error.util';
 
 function routeParam(req: Request, name: string): string {
   const value = req.params[name];
@@ -14,4 +14,4 @@ function routeParam(req: Request, name: string): string {
   return value;
 }
 
-export = { routeParam };
+export default { routeParam };

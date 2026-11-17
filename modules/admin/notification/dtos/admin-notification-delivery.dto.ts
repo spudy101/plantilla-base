@@ -1,6 +1,6 @@
-import type defineNotification = require('../../../schemas/notification/models/notification.model');
+import type defineNotification from '../../../schemas/notification/models/notification.model';
 import type { NotificationRepositoryPort } from '../../../schemas/repository-ports';
-import MaskingUtil = require('../../../../shared/utils/masking.util');
+import MaskingUtil from '../../../../shared/utils/masking.util';
 
 /** Notificación con su tipo y categoría (listado/detalle de entregas del admin). */
 type DeliveryRecord = defineNotification.Instance & { retry_count?: number | null };
@@ -134,4 +134,4 @@ function NotificationDeliveryMetricsDTO(rows: MetricsRow[], range: Record<string
   };
 }
 
-export = { NotificationDeliveryListDTO, NotificationDeliveryDetailDTO, NotificationDeliveryMetricsDTO };
+export default { NotificationDeliveryListDTO, NotificationDeliveryDetailDTO, NotificationDeliveryMetricsDTO };

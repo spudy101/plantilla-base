@@ -1,7 +1,7 @@
 import type { Migration } from '../shared/types/migration';
-import constantsModule = require('../shared/constants');
+import constantsModule from '../shared/constants';
 const { database } = constantsModule;
-import originSessionMixinModule = require('../shared/models/mixins/origin-session.mixin');
+import originSessionMixinModule from '../shared/models/mixins/origin-session.mixin';
 const { originSessionMigrationColumns } = originSessionMixinModule;
 
 const SCHEMA = database.schema;

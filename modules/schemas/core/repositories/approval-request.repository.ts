@@ -1,14 +1,13 @@
-import sequelizeModule = require('sequelize');
-const { Op } = sequelizeModule;
-import BaseRepository = require('../../../../shared/repositories/base.repository');
-import ReadRepository = require('../../../../shared/repositories/read.repository');
-import queryModule = require('../../../../shared/repositories/query');
+import { Op } from 'sequelize';
+import BaseRepository from '../../../../shared/repositories/base.repository';
+import ReadRepository from '../../../../shared/repositories/read.repository';
+import * as queryModule from '../../../../shared/repositories/query';
 const { toWhere } = queryModule;
 import type { WhereClause } from '../../../../shared/repositories/query';
-import modelsModule = require('../../../../shared/models');
+import modelsModule from '../../../../shared/models';
 const { ApprovalRequest, User, Person } = modelsModule;
-import type defineApprovalRequest = require('../models/approval-request.model');
-import type defineUser = require('../../kyc/iam/models/user.model');
+import type defineApprovalRequest from '../models/approval-request.model';
+import type defineUser from '../../kyc/iam/models/user.model';
 
 // first_name y last_name viven en Person, no en User.
 // Se incluye Person como sub-include para obtenerlos.
@@ -164,4 +163,4 @@ namespace ApprovalRequestRepository {
   }
 }
 
-export = new ApprovalRequestRepository();
+export default new ApprovalRequestRepository();

@@ -1,21 +1,21 @@
-import type Types = require('./profile.types');
+import type * as Types from './profile.types';
 import type { Transaction } from 'sequelize';
-import userRepository = require('../../iam/repositories/user.repository');
-import personRepository = require('../repositories/person.repository');
-import personContactRepository = require('../repositories/person-contact.repository');
-import personLocationRepository = require('../repositories/person-location.repository');
-import userConsentRepository = require('../../../records/legal/repositories/user-consent.repository');
-import avatarRepository = require('../../maintainers/repositories/avatar.repository');
-import genderRepository = require('../../maintainers/repositories/gender.repository');
-import documentTypeRepository = require('../../maintainers/repositories/document-type.repository');
-import verificationCodeRepository = require('../../../notification/repositories/verification-code.repository');
-import departmentRepository = require('../../maintainers/repositories/department.repository');
-import cityRepository = require('../../maintainers/repositories/city.repository');
-import KycSharedUtil = require('../utils/kyc-shared.util');
-import type definePerson = require('../models/person.model');
-import type definePersonContact = require('../models/person-contact.model');
-import AppError = require('../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import userRepository from '../../iam/repositories/user.repository';
+import personRepository from '../repositories/person.repository';
+import personContactRepository from '../repositories/person-contact.repository';
+import personLocationRepository from '../repositories/person-location.repository';
+import userConsentRepository from '../../../records/legal/repositories/user-consent.repository';
+import avatarRepository from '../../maintainers/repositories/avatar.repository';
+import genderRepository from '../../maintainers/repositories/gender.repository';
+import documentTypeRepository from '../../maintainers/repositories/document-type.repository';
+import verificationCodeRepository from '../../../notification/repositories/verification-code.repository';
+import departmentRepository from '../../maintainers/repositories/department.repository';
+import cityRepository from '../../maintainers/repositories/city.repository';
+import KycSharedUtil from '../utils/kyc-shared.util';
+import type definePerson from '../models/person.model';
+import type definePersonContact from '../models/person-contact.model';
+import AppError from '../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger } = loggerUtilModule;
 
 /**
@@ -688,4 +688,4 @@ namespace ProfileHelper {
   }
 }
 
-export = Object.assign(new ProfileHelper(), { ProfileHelper });
+export default Object.assign(new ProfileHelper(), { ProfileHelper });

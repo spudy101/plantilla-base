@@ -1,16 +1,16 @@
-import type defineConsentType = require('../../../../schemas/records/legal/models/consent-type.model');
+import type defineConsentType from '../../../../schemas/records/legal/models/consent-type.model';
 import type { AdminAuditContext } from '../../../../../shared/types/audit-context';
-import AppError = require('../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import AppError from '../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import PaginationHelper = require('../../../../../shared/utils/pagination.util');
-import componentsCatalogDtoModule = require('../../../../../shared/dtos/kyc/components-catalog.dto');
+import PaginationHelper from '../../../../../shared/utils/pagination.util';
+import componentsCatalogDtoModule from '../../../../../shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
-import consentTypeRepository = require('../../../../schemas/records/legal/repositories/consent-type.repository');
-import NotificationUtil = require('../../../../schemas/notification/services/notification-creation.service');
-import constantsModule = require('../../../../../shared/constants');
+import consentTypeRepository from '../../../../schemas/records/legal/repositories/consent-type.repository';
+import NotificationUtil from '../../../../schemas/notification/services/notification-creation.service';
+import constantsModule from '../../../../../shared/constants';
 const { notifications } = constantsModule;
-import consentTypeDtoModule = require('../dtos/consent-type.dto');
+import consentTypeDtoModule from '../dtos/consent-type.dto';
 const { ConsentTypeListDTO, ConsentTypeDTO } = consentTypeDtoModule;
 
 class ConsentTypeService {
@@ -157,4 +157,4 @@ namespace ConsentTypeService {
   }
 }
 
-export = Object.assign(new ConsentTypeService(), { ConsentTypeService });
+export default Object.assign(new ConsentTypeService(), { ConsentTypeService });

@@ -4,17 +4,17 @@
 // irreversible. Extraído de AdminUserService (SOLID: S).
 
 import type { AdminAuditContext } from '../../../../../../shared/types/audit-context';
-import userRepository = require('../../../../../schemas/kyc/iam/repositories/user.repository');
-import ProfileHelper = require('../../../../../schemas/kyc/person/helpers/profile.helper');
-import NotificationCreationService = require('../../../../../schemas/notification/services/notification-creation.service');
-import DualApprovalService = require('../../../../../schemas/core/services/dual-approval.service');
-import unitOfWork = require('../../../../../../shared/database/unit-of-work');
-import AppError = require('../../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../../shared/utils/logger.util');
+import userRepository from '../../../../../schemas/kyc/iam/repositories/user.repository';
+import ProfileHelper from '../../../../../schemas/kyc/person/helpers/profile.helper';
+import NotificationCreationService from '../../../../../schemas/notification/services/notification-creation.service';
+import DualApprovalService from '../../../../../schemas/core/services/dual-approval.service';
+import unitOfWork from '../../../../../../shared/database/unit-of-work';
+import AppError from '../../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import constantsModule = require('../../../../../../shared/constants');
+import constantsModule from '../../../../../../shared/constants';
 const { notifications } = constantsModule;
-import internalUserGuardsModule = require('./internal-user-guards');
+import internalUserGuardsModule from './internal-user-guards';
 const { InternalUserGuards } = internalUserGuardsModule;
 
 class InternalUserDeletionService {
@@ -139,4 +139,4 @@ namespace InternalUserDeletionService {
   }
 }
 
-export = InternalUserDeletionService;
+export default InternalUserDeletionService;

@@ -1,7 +1,7 @@
 // migrations/20260327000001-create-audit-logs.ts
 
 import type { Migration } from '../shared/types/migration';
-import constantsModule = require('../shared/constants');
+import constantsModule from '../shared/constants';
 const { database } = constantsModule;
 
 const SCHEMA = database.schema;

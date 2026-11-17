@@ -1,5 +1,4 @@
-import expressValidatorModule = require('express-validator');
-const { body } = expressValidatorModule;
+import { body } from 'express-validator';
 
 class SendVerificationValidator {
   /** POST /verification/send-verification */
@@ -71,4 +70,4 @@ class SendVerificationValidator {
   }
 }
 
-export = SendVerificationValidator;
+export default SendVerificationValidator;

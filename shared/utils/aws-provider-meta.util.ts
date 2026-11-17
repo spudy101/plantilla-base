@@ -25,4 +25,4 @@ function awsErrorCode(error: unknown): string | number | null {
   return e?.name || e?.$metadata?.httpStatusCode || null;
 }
 
-export = { resolveAwsGate, awsErrorCode };
+export default { resolveAwsGate, awsErrorCode };

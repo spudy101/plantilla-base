@@ -3,7 +3,7 @@
 // PaginationHelper: parseo/validación de paginación, metadata, filtros y conversores de caso.
 // Lógica pura (la búsqueda con operadores de Sequelize vive en ReadRepository).
 
-import PaginationHelper = require('shared/utils/pagination.util');
+import PaginationHelper from 'shared/utils/pagination.util';
 
 describe('PaginationHelper', () => {
   describe('getPaginationParams', () => {

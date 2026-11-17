@@ -202,4 +202,4 @@ namespace ReadRepository {
   };
 }
 
-export = ReadRepository;
+export default ReadRepository;

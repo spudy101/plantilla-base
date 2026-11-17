@@ -17,11 +17,11 @@ jest.mock('@aws-sdk/client-sns', () => {
 });
 
 import { fixture } from 'tests/helpers/mock';
-import pushNotificationServiceModule = require('modules/schemas/notification/services/push-notification.service');
+import pushNotificationServiceModule from 'modules/schemas/notification/services/push-notification.service';
 const { PushNotificationService } = pushNotificationServiceModule;
-import notificationBatchServiceModule = require('modules/schemas/notification/services/notification-batch.service');
+import notificationBatchServiceModule from 'modules/schemas/notification/services/notification-batch.service';
 const { NotificationBatchService } = notificationBatchServiceModule;
-import notificationCreationServiceModule = require('modules/schemas/notification/services/notification-creation.service');
+import notificationCreationServiceModule from 'modules/schemas/notification/services/notification-creation.service';
 const { NotificationCreationService } = notificationCreationServiceModule;
 
 beforeEach(() => jest.clearAllMocks());

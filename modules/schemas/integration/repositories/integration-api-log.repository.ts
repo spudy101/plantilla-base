@@ -1,12 +1,11 @@
-import sequelizeModule = require('sequelize');
-const { fn, col } = sequelizeModule;
-import BaseRepository = require('../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../shared/models');
+import { fn, col } from 'sequelize';
+import BaseRepository from '../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../shared/models';
 const { IntegrationApiLog } = modelsModule;
 import type { FindOptions } from 'sequelize';
-import ReadRepository = require('../../../../shared/repositories/read.repository');
-import type defineIntegrationApiLog = require('../models/integration-api-log.model');
-import queryModule = require('../../../../shared/repositories/query');
+import ReadRepository from '../../../../shared/repositories/read.repository';
+import type defineIntegrationApiLog from '../models/integration-api-log.model';
+import * as queryModule from '../../../../shared/repositories/query';
 const { dateRange, toWhere } = queryModule;
 import type { WhereClause } from '../../../../shared/repositories/query';
 
@@ -220,4 +219,4 @@ namespace IntegrationApiLogRepository {
   }
 }
 
-export = new IntegrationApiLogRepository();
+export default new IntegrationApiLogRepository();

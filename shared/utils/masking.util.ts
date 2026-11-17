@@ -1,6 +1,6 @@
 // shared/utils/masking.util.ts
 
-import piiFieldsModule = require('../constants/pii-fields');
+import piiFieldsModule from '../constants/pii-fields';
 const { PII_FIELD_MASKS, PII_MASK_TYPES, PII_RAW_PAYLOAD_KEYS, normalizePiiKey } = piiFieldsModule;
 
 const VISIBLE_CHARS = 4;
@@ -157,4 +157,4 @@ class MaskingUtil {
   }
 }
 
-export = MaskingUtil;
+export default MaskingUtil;

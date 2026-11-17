@@ -1,21 +1,14 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../../shared/models/registry';
-import type defineAvatar = require('../../maintainers/models/avatar.model');
-import type definePerson = require('../../person/models/person.model');
-import type defineRole = require('./role.model');
-import type defineUserLoginAttempt = require('../../../records/audit/models/user-login-attempt.model');
-import type defineUserNotificationPreference = require('../../person/models/user-notification-preference.model');
-import type defineUserTrustedDevice = require('./user-trusted-device.model');
-
-
-
-
-
-
+import type defineAvatar from '../../maintainers/models/avatar.model';
+import type definePerson from '../../person/models/person.model';
+import type defineRole from './role.model';
+import type defineUserLoginAttempt from '../../../records/audit/models/user-login-attempt.model';
+import type defineUserNotificationPreference from '../../person/models/user-notification-preference.model';
+import type defineUserTrustedDevice from './user-trusted-device.model';
 
 function defineUser(sequelize: Sequelize): defineUser.Static {
   const User = sequelize.define<defineUser.Instance>(
@@ -240,4 +233,4 @@ namespace defineUser {
   };
 }
 
-export = defineUser;
+export default defineUser;

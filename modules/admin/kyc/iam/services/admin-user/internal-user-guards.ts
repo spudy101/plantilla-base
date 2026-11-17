@@ -1,19 +1,19 @@
-import personGuardsModule = require('../../../person/services/admin-person/person-guards');
+import personGuardsModule from '../../../person/services/admin-person/person-guards';
 const { requirePerson } = personGuardsModule;
-import type defineUser = require('../../../../../schemas/kyc/iam/models/user.model');
+import type defineUser from '../../../../../schemas/kyc/iam/models/user.model';
 // modules/admin/kyc/iam/services/admin-user/internal-user-guards.ts
 //
 // Reglas y lecturas compartidas por los servicios de gestión de usuarios internos
 // (equivalente a person-guards.js en admin-person). Extraído de AdminUserService (SOLID: S).
 
-import userRepository = require('../../../../../schemas/kyc/iam/repositories/user.repository');
-import roleRepository = require('../../../../../schemas/kyc/iam/repositories/role.repository');
-import userSessionRepository = require('../../../../../schemas/kyc/iam/repositories/user-session.repository');
-import TokenBlacklistUtil = require('../../../../../../shared/utils/token-blacklist.util');
-import AppError = require('../../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../../shared/utils/logger.util');
+import userRepository from '../../../../../schemas/kyc/iam/repositories/user.repository';
+import roleRepository from '../../../../../schemas/kyc/iam/repositories/role.repository';
+import userSessionRepository from '../../../../../schemas/kyc/iam/repositories/user-session.repository';
+import TokenBlacklistUtil from '../../../../../../shared/utils/token-blacklist.util';
+import AppError from '../../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../../shared/utils/logger.util';
 const { logger } = loggerUtilModule;
-import constantsModule = require('../../../../../../shared/constants');
+import constantsModule from '../../../../../../shared/constants';
 const { INTERNAL_ROLE_NAMES, SUPERADMIN_ROLE_NAMES } = constantsModule;
 
 class InternalUserGuards {
@@ -106,4 +106,4 @@ namespace InternalUserGuards {
   }
 }
 
-export = { InternalUserGuards, displayName };
+export default { InternalUserGuards, displayName };

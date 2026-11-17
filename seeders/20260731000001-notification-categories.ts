@@ -6,10 +6,9 @@
 // emails de una categoría heredan el mismo diseño y editar cada notificación es solo cambiar texto.
 
 import type { Migration } from '../shared/types/migration';
-import constantsModule = require('../shared/constants');
+import constantsModule from '../shared/constants';
 const { database } = constantsModule;
-import uuidModule = require('uuid');
-const { v4: uuidv4 } = uuidModule;
+import { v4 as uuidv4 } from 'uuid';
 
 const SCHEMA = database.schema;
 const TABLE = { tableName: 'notification_categories', schema: SCHEMA };

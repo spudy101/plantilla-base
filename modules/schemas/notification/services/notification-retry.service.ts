@@ -1,13 +1,13 @@
-import type defineNotification = require('../models/notification.model');
-import notificationRepo = require('../repositories/notification.repository');
-import notificationTypeRepo = require('../repositories/notification-type.repository');
-import integrationApiLogRepo = require('../../integration/repositories/integration-api-log.repository');
-import notificationSendingService = require('./notification-sending.service');
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import type defineNotification from '../models/notification.model';
+import notificationRepo from '../repositories/notification.repository';
+import notificationTypeRepo from '../repositories/notification-type.repository';
+import integrationApiLogRepo from '../../integration/repositories/integration-api-log.repository';
+import notificationSendingService from './notification-sending.service';
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger } = loggerUtilModule;
-import awsErrorCodesModule = require('../../../../shared/constants/aws-error-codes');
+import awsErrorCodesModule from '../../../../shared/constants/aws-error-codes';
 const { isHardBounce } = awsErrorCodesModule;
-import errorMessageModule = require('../../../../shared/utils/error-message.util');
+import errorMessageModule from '../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -183,4 +183,4 @@ namespace NotificationRetryService {
   }
 }
 
-export = Object.assign(new NotificationRetryService(), { NotificationRetryService });
+export default Object.assign(new NotificationRetryService(), { NotificationRetryService });

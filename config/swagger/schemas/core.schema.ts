@@ -51,7 +51,7 @@ const PendingApproval = {
   }
 };
 
-export = {
+export default {
   SystemGlobalConfig,
   PendingApproval
 };

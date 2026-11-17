@@ -160,4 +160,4 @@ class PaginationHelper {
   }
 }
 
-export = PaginationHelper;
+export default PaginationHelper;

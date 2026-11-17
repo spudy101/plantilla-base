@@ -19,8 +19,8 @@
 //   El HMAC_SECRET se configura en Secrets Manager y el mobile lo obtiene
 //   de forma segura en el primer login o a través del backend.
 
-import crypto = require('node:crypto');
-import constantsModule = require('../constants');
+import crypto from 'node:crypto';
+import constantsModule from '../constants';
 const { encryption } = constantsModule;
 
 const AES_KEY = Buffer.from(encryption.aesKey, 'hex'); // 32 bytes
@@ -210,4 +210,4 @@ class EncryptionUtil {
   }
 }
 
-export = EncryptionUtil;
+export default EncryptionUtil;

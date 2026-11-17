@@ -1,9 +1,9 @@
-import rbacModule = require('../../../../../../shared/constants/rbac');
+import rbacModule from '../../../../../../shared/constants/rbac';
 const { CLIENT_ROLE_NAMES } = rbacModule;
 // modules/admin/kyc/person/services/admin-person/person-guards.ts
 //
 // Reglas de negocio compartidas por los servicios de administración de personas.
-import AppError = require('../../../../../../shared/utils/app-error.util');
+import AppError from '../../../../../../shared/utils/app-error.util';
 
 /**
  * Bloquea toda operación de escritura sobre una cuenta eliminada (deleted_at != null).
@@ -32,4 +32,4 @@ function isClientRole(roleName: string | null | undefined): boolean {
   return Boolean(roleName) && (CLIENT_ROLE_NAMES as readonly string[]).includes(roleName as string);
 }
 
-export = { assertNotDeleted, requirePerson, isClientRole };
+export default { assertNotDeleted, requirePerson, isClientRole };

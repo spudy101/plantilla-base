@@ -28,8 +28,8 @@ jest.mock('shared/utils/redis.util', () => ({
 jest.mock('shared/utils/logger.util', () => ({ logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn() } }));
 
 import { mocked } from 'tests/helpers/mock';
-import RefreshTokenStore = require('shared/utils/refresh-token-store.util');
-import redisClientModule = require('shared/utils/redis.util');
+import RefreshTokenStore from 'shared/utils/refresh-token-store.util';
+import redisClientModule from 'shared/utils/redis.util';
 const redisClient = mocked(redisClientModule);
 
 const TOKENS = { accessToken: 'a-1', refreshToken: 'r-1', expiresIn: 900 };

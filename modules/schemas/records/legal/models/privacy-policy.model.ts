@@ -1,15 +1,8 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../../shared/models/registry';
-
-
-
-
-
-
 
 function definePrivacyPolicy(sequelize: Sequelize): definePrivacyPolicy.Static {
   const PrivacyPolicy = sequelize.define<definePrivacyPolicy.Instance>(
@@ -109,4 +102,4 @@ namespace definePrivacyPolicy {
   };
 }
 
-export = definePrivacyPolicy;
+export default definePrivacyPolicy;

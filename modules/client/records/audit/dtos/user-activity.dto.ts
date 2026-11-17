@@ -1,5 +1,5 @@
-import type defineAuditLog = require('../../../../schemas/records/audit/models/audit-log.model');
-import type defineUserChangeLog = require('../../../../schemas/records/audit/models/user-change-log.model');
+import type defineAuditLog from '../../../../schemas/records/audit/models/audit-log.model';
+import type defineUserChangeLog from '../../../../schemas/records/audit/models/user-change-log.model';
 // DTO del feed de actividad del propio usuario. Client-safe: NUNCA expone `details` de audit_logs
 // (claves before/after), `previous_value`/`new_value` de user_change_logs, user_agent ni datos de
 // terceros. Keys camelCase; `source`/`action`/`category`/`outcome`/`changedByRole` son enums → snake_case.
@@ -82,4 +82,4 @@ declare namespace UserActivityDto {
   type DeviceMap = DeviceBySession;
 }
 
-export = UserActivityDto;
+export default UserActivityDto;

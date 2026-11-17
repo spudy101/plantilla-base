@@ -5,8 +5,8 @@
 // real de pii-fields (valores deterministas) sin mocks.
 
 import { Loose } from 'tests/helpers/mock';
-import MaskingUtil = require('shared/utils/masking.util');
-import piiFieldsModule = require('shared/constants/pii-fields');
+import MaskingUtil from 'shared/utils/masking.util';
+import piiFieldsModule from 'shared/constants/pii-fields';
 const { PII_MASK_TYPES } = piiFieldsModule;
 
 // redactPayload devuelve unknown (acepta arrays y primitivos); sobre un objeto plano devuelve otro.

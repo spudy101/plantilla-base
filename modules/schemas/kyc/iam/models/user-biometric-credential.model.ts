@@ -1,17 +1,10 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../../shared/models/registry';
-import type defineUser = require('./user.model');
-import type defineUserTrustedDevice = require('./user-trusted-device.model');
-
-
-
-
-
-
+import type defineUser from './user.model';
+import type defineUserTrustedDevice from './user-trusted-device.model';
 
 // Credencial biométrica (llave pública ES256) registrada para un dispositivo de confianza.
 function defineUserBiometricCredential(sequelize: Sequelize): defineUserBiometricCredential.Static {
@@ -114,4 +107,4 @@ namespace defineUserBiometricCredential {
   };
 }
 
-export = defineUserBiometricCredential;
+export default defineUserBiometricCredential;

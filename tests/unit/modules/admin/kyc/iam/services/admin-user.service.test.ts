@@ -78,8 +78,8 @@ jest.mock('shared/utils/logger.util', () => ({
 }));
 
 jest.mock('shared/utils/pagination.util', () => ({
-  stringParam: jest.requireActual('shared/utils/pagination.util').stringParam,
-  booleanParam: jest.requireActual('shared/utils/pagination.util').booleanParam,
+  stringParam: jest.requireActual('shared/utils/pagination.util').default.stringParam,
+  booleanParam: jest.requireActual('shared/utils/pagination.util').default.booleanParam,
   getPaginationParams: jest.fn().mockReturnValue({ limit: 10, offset: 0, page: 1, sortBy: 'created_at', order: 'DESC' })
 }));
 
@@ -117,35 +117,35 @@ jest.mock('modules/admin/kyc/iam/dtos/admin-user.dto', () => ({
 }));
 
 import { mocked, Loose } from 'tests/helpers/mock';
-import userRepositoryModule = require('modules/schemas/kyc/iam/repositories/user.repository');
+import userRepositoryModule from 'modules/schemas/kyc/iam/repositories/user.repository';
 const userRepository = mocked(userRepositoryModule);
-import personRepositoryModule = require('modules/schemas/kyc/person/repositories/person.repository');
+import personRepositoryModule from 'modules/schemas/kyc/person/repositories/person.repository';
 const personRepository = mocked(personRepositoryModule);
-import roleRepositoryModule = require('modules/schemas/kyc/iam/repositories/role.repository');
+import roleRepositoryModule from 'modules/schemas/kyc/iam/repositories/role.repository';
 const roleRepository = mocked(roleRepositoryModule);
-import documentTypeRepositoryModule = require('modules/schemas/kyc/maintainers/repositories/document-type.repository');
+import documentTypeRepositoryModule from 'modules/schemas/kyc/maintainers/repositories/document-type.repository';
 const documentTypeRepository = mocked(documentTypeRepositoryModule);
-import userSessionRepositoryModule = require('modules/schemas/kyc/iam/repositories/user-session.repository');
+import userSessionRepositoryModule from 'modules/schemas/kyc/iam/repositories/user-session.repository';
 const userSessionRepository = mocked(userSessionRepositoryModule);
-import userChangeLogRepositoryModule = require('modules/schemas/records/audit/repositories/user-change-log.repository');
+import userChangeLogRepositoryModule from 'modules/schemas/records/audit/repositories/user-change-log.repository';
 const userChangeLogRepository = mocked(userChangeLogRepositoryModule);
-import InternalUserHelperModule = require('modules/schemas/kyc/iam/helpers/internal-user.helper');
+import InternalUserHelperModule from 'modules/schemas/kyc/iam/helpers/internal-user.helper';
 const InternalUserHelper = mocked(InternalUserHelperModule);
-import ProfileHelperModule = require('modules/schemas/kyc/person/helpers/profile.helper');
+import ProfileHelperModule from 'modules/schemas/kyc/person/helpers/profile.helper';
 const ProfileHelper = mocked(ProfileHelperModule);
-import KycSharedUtilModule = require('modules/schemas/kyc/person/utils/kyc-shared.util');
+import KycSharedUtilModule from 'modules/schemas/kyc/person/utils/kyc-shared.util';
 const KycSharedUtil = mocked(KycSharedUtilModule);
-import TokenBlacklistUtilModule = require('shared/utils/token-blacklist.util');
+import TokenBlacklistUtilModule from 'shared/utils/token-blacklist.util';
 const TokenBlacklistUtil = mocked(TokenBlacklistUtilModule);
-import modelsModule = require('shared/models');
+import modelsModule from 'shared/models';
 const { sequelize } = mocked(modelsModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import NotificationCreationServiceModule = require('modules/schemas/notification/services/notification-creation.service');
+import NotificationCreationServiceModule from 'modules/schemas/notification/services/notification-creation.service';
 const NotificationCreationService = mocked(NotificationCreationServiceModule);
-import DualApprovalServiceModule = require('modules/schemas/core/services/dual-approval.service');
+import DualApprovalServiceModule from 'modules/schemas/core/services/dual-approval.service';
 const DualApprovalService = mocked(DualApprovalServiceModule);
-import service = require('modules/admin/kyc/iam/services/admin-user.service');
+import service from 'modules/admin/kyc/iam/services/admin-user.service';
 
 // Helper de cuerpo de bloque para vaciar la cola de macrotareas (setImmediate en notificaciones).
 const flush = () => new Promise(resolve => { setImmediate(resolve); });

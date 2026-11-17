@@ -1,8 +1,8 @@
-import MFAService = require('../services/mfa.service');
-import ApiResponse = require('../../../../../shared/utils/app-response.util');
-import errorMiddlewareModule = require('../../../../../shared/middlewares/error.middleware');
+import MFAService from '../services/mfa.service';
+import ApiResponse from '../../../../../shared/utils/app-response.util';
+import errorMiddlewareModule from '../../../../../shared/middlewares/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
-import authUserUtilModule = require('../../../../../shared/utils/auth-user.util');
+import authUserUtilModule from '../../../../../shared/utils/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
 
 class MFAController {
@@ -107,4 +107,4 @@ class MFAController {
   });
 }
 
-export = new MFAController();
+export default new MFAController();

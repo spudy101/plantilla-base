@@ -193,40 +193,40 @@ jest.mock('modules/shared-endpoints/kyc/iam/dtos/auth-login.dto', () => ({
 
 // ── requires DESPUÉS de los mocks ────────────────────────────────────────────
 import { mocked, Loose } from 'tests/helpers/mock';
-import userRepositoryModule = require('modules/schemas/kyc/iam/repositories/user.repository');
+import userRepositoryModule from 'modules/schemas/kyc/iam/repositories/user.repository';
 const userRepository = mocked(userRepositoryModule);
-import userLoginAttemptRepositoryModule = require('modules/schemas/records/audit/repositories/user-login-attempt.repository');
+import userLoginAttemptRepositoryModule from 'modules/schemas/records/audit/repositories/user-login-attempt.repository';
 const userLoginAttemptRepository = mocked(userLoginAttemptRepositoryModule);
-import verificationCodeRepositoryModule = require('modules/schemas/notification/repositories/verification-code.repository');
+import verificationCodeRepositoryModule from 'modules/schemas/notification/repositories/verification-code.repository';
 const verificationCodeRepository = mocked(verificationCodeRepositoryModule);
-import userSessionRepositoryModule = require('modules/schemas/kyc/iam/repositories/user-session.repository');
+import userSessionRepositoryModule from 'modules/schemas/kyc/iam/repositories/user-session.repository';
 const userSessionRepository = mocked(userSessionRepositoryModule);
-import trustedDeviceRepositoryModule = require('modules/schemas/kyc/iam/repositories/auth-trusted-device.repository');
+import trustedDeviceRepositoryModule from 'modules/schemas/kyc/iam/repositories/auth-trusted-device.repository';
 const trustedDeviceRepository = mocked(trustedDeviceRepositoryModule);
-import privacyPolicyRepositoryModule = require('modules/schemas/records/legal/repositories/privacy-policy.repository');
+import privacyPolicyRepositoryModule from 'modules/schemas/records/legal/repositories/privacy-policy.repository';
 const privacyPolicyRepository = mocked(privacyPolicyRepositoryModule);
-import JwtUtilModule = require('shared/utils/jwt.util');
+import JwtUtilModule from 'shared/utils/jwt.util';
 const JwtUtil = mocked(JwtUtilModule);
-import TotpUtilModule = require('shared/utils/totp.util');
+import TotpUtilModule from 'shared/utils/totp.util';
 const TotpUtil = mocked(TotpUtilModule);
-import RefreshTokenStoreModule = require('shared/utils/refresh-token-store.util');
+import RefreshTokenStoreModule from 'shared/utils/refresh-token-store.util';
 const RefreshTokenStore = mocked(RefreshTokenStoreModule);
-import DeviceBlocklistUtilModule = require('shared/utils/device-blocklist.util');
+import DeviceBlocklistUtilModule from 'shared/utils/device-blocklist.util';
 const DeviceBlocklistUtil = mocked(DeviceBlocklistUtilModule);
-import TokenBlacklistUtilModule = require('shared/utils/token-blacklist.util');
+import TokenBlacklistUtilModule from 'shared/utils/token-blacklist.util';
 const TokenBlacklistUtil = mocked(TokenBlacklistUtilModule);
-import redisClientModule = require('shared/utils/redis.util');
+import redisClientModule from 'shared/utils/redis.util';
 const redisClient = mocked(redisClientModule);
-import NotificationUtilModule = require('modules/schemas/notification/services/notification-creation.service');
+import NotificationUtilModule from 'modules/schemas/notification/services/notification-creation.service';
 const NotificationUtil = mocked(NotificationUtilModule);
-import SmsServiceModule = require('modules/schemas/notification/services/sms.service');
+import SmsServiceModule from 'modules/schemas/notification/services/sms.service';
 const SmsService = mocked(SmsServiceModule);
-import LoginRateLimiterModule = require('shared/utils/login-rate-limiter.util');
+import LoginRateLimiterModule from 'shared/utils/login-rate-limiter.util';
 const LoginRateLimiter = mocked(LoginRateLimiterModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
 
-import service = require('modules/shared-endpoints/kyc/iam/services/auth-login.service');
+import service from 'modules/shared-endpoints/kyc/iam/services/auth-login.service';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const flush = () => new Promise(resolve => { setImmediate(resolve); });

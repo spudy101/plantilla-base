@@ -1,8 +1,8 @@
-import userChangeLogRepository = require('../../../../schemas/records/audit/repositories/user-change-log.repository');
-import PaginationHelper = require('../../../../../shared/utils/pagination.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import userChangeLogRepository from '../../../../schemas/records/audit/repositories/user-change-log.repository';
+import PaginationHelper from '../../../../../shared/utils/pagination.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
-import adminChangeLogDtoModule = require('../dtos/admin-change-log.dto');
+import adminChangeLogDtoModule from '../dtos/admin-change-log.dto';
 const { ListUserChangeLogsResponseDTO } = adminChangeLogDtoModule;
 
 class ChangeLogService {
@@ -69,4 +69,4 @@ namespace ChangeLogService {
   }
 }
 
-export = Object.assign(new ChangeLogService(), { ChangeLogService });
+export default Object.assign(new ChangeLogService(), { ChangeLogService });

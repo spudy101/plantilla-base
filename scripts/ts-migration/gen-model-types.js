@@ -85,7 +85,8 @@ const isTimestamp = (model, attr) => {
 };
 
 function main() {
-  const db = require(path.join(ROOT, 'shared/models'));
+  const dbModule = require(path.join(ROOT, 'shared/models'));
+  const db = dbModule.default ?? dbModule;
   const files = walk(path.join(ROOT, 'modules'));
   const byModel = new Map();
   for (const file of files) {
@@ -111,7 +112,7 @@ function main() {
       s = s.slice(0, marker).trimEnd() + '\n';
       s = s.replace(/^import type \{ Model as SequelizeModel[^\n]*\n/m, '');
       s = s.replace(/^import type \{ ModelRegistry \}[^\n]*\n/m, '');
-      s = s.replace(/^import type define\w+ = require\([^\n]*\n/gm, '');
+      s = s.replace(/^import type define\w+ (?:= require\(|from )[^\n]*\n/gm, '');
     }
 
     // ── Columnas ── (los timestamps automáticos van en Attributes como OPCIONALES: define<M>() exige
@@ -151,8 +152,8 @@ function main() {
 
     // ── Reescritura de la factory ── (solo la primera vez)
     if (!converted) {
-    const header = /^export = sequelize => \{$/m;
-    if (!header.test(s)) throw new Error(`${file}: no encontré "export = sequelize => {"`);
+    const header = /^export (?:=|default) sequelize => \{$/m;
+    if (!header.test(s)) throw new Error(`${file}: no encontré "export default sequelize => {"`);
     s = s.replace(header, `function ${fn}(sequelize: Sequelize): ${fn}.Static {`);
     const defineRe = new RegExp(`const ${name} = sequelize\\.define\\(`);
     const at = s.search(defineRe);
@@ -188,7 +189,7 @@ ${[...timestampLines, ...assocLines].join('\n') || '    // sin timestamps ni aso
   };
 }
 
-export = ${fn};
+export default ${fn};
 `;
     s = s.trimEnd() + '\n' + ns;
 
@@ -196,11 +197,14 @@ export = ${fn};
     const typeImports = [
       "import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';",
       `import type { ModelRegistry } from '${rel(file, path.join(ROOT, 'shared/models/registry.ts'))}';`,
-      ...[...imports].sort().map(([id, p]) => `import type ${id} = require('${p}');`)
+      ...[...imports].sort().map(([id, p]) => `import type ${id} from '${p}';`)
     ].join('\n');
     const lastImport = [...s.matchAll(/^(?:import .*;|const .* = [\w$]+Module(?:\.[\w$]+)?;)$/gm)].pop();
     const pos = lastImport ? lastImport.index + lastImport[0].length : 0;
     s = s.slice(0, pos) + '\n' + typeImports + '\n' + s.slice(pos);
+    // al regenerar quedan los saltos de línea de los imports quitados: una sola línea en blanco antes
+    // de la factory (sin esto cada corrida sumaba una)
+    s = s.replace(/\n{3,}(?=(?:\/\/[^\n]*\n|\/\*\*[\s\S]*?\*\/\n)*(?:function define|export (?:=|default) sequelize))/, '\n\n');
 
     if (/\.prototype\.\w+\s*=/.test(s)) notes.push(`${name}: métodos de instancia (prototype) → agregarlos a ${fn}.Instance`);
     const statics = [...s.matchAll(new RegExp(`^\\s+${name}\\.(\\w+) =`, 'gm'))].map(x => x[1]).filter(x => x !== 'associate');
@@ -219,7 +223,7 @@ export = ${fn};
 // valor lo arma shared/models/index.ts. Separado del índice para que los modelos puedan referenciarlo
 // (en associate) sin ciclos de carga.
 import type { Sequelize } from 'sequelize';
-${names.map(n => `import type define${n} = require('${rel(regFile, byModel.get(n))}');`).join('\n')}
+${names.map(n => `import type define${n} from '${rel(regFile, byModel.get(n))}';`).join('\n')}
 
 export interface ModelRegistry {
   sequelize: Sequelize;

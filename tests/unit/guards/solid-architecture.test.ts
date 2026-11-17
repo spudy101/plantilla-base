@@ -4,8 +4,8 @@
 // docs/solid.md para que no se pierdan con el tiempo. Si una falla, la corrección casi siempre es
 // mover la consulta/enum/include al repositorio o a shared/constants — no ampliar el allowlist.
 
-import fs = require('node:fs');
-import path = require('node:path');
+import fs from 'node:fs';
+import path from 'node:path';
 
 const ROOT = path.resolve(__dirname, '../../..');
 
@@ -35,7 +35,7 @@ const ORM_ALLOWLIST = new Set([
   'shared/utils/integration-api-logger.util.ts' // escribe integration_api_logs (mismo motivo)
 ]);
 
-// require('…') (JS), `import x = require('…')` e `import … from '…'` (TS).
+// `import … from '…'` y los require('…') diferidos (cortan ciclos de carga).
 // `import type` se excluye: solo trae tipos, no acopla en runtime.
 const MODELS_REQUIRE = /(?:require\(\s*|(?<!import type [^\n]*)from\s+)['"][^'"]*(?:shared\/models|\.\.\/models)['"]/;
 const SEQUELIZE_REQUIRE = /(?:require\(\s*|^import (?!type)[^\n]*from\s+)['"]sequelize['"]/m;
@@ -75,14 +75,8 @@ describe('SOLID — guardas de arquitectura', () => {
     const offenders = sourceFiles
       .filter(isService)
       .filter(f => {
-        const src = read(f);
-        // JS:  module.exports = new X();  module.exports.X = X;
-        const js = src.match(/module\.exports\s*=\s*new\s+(\w+)\(/);
-        if (js) {
-          return !new RegExp(`module\\.exports\\.${js[1]}\\s*=\\s*${js[1]}`).test(src);
-        }
-        // TS:  export = Object.assign(new X(), { X });   (export = new X() sin la clase no vale)
-        return /export\s*=\s*new\s+\w+\(/.test(src);
+        // export default Object.assign(new X(), { X });   (export default new X() sin la clase no vale)
+        return /export\s+default\s+new\s+\w+\(/.test(read(f));
       })
       .map(rel);
     expect(offenders).toEqual([]);

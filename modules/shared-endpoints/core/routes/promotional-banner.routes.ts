@@ -1,10 +1,10 @@
-import express = require('express');
+import express from 'express';
 const router = express.Router();
-import PromotionalBannerPublicController = require('../controllers/promotional-banner.controller');
-import PromotionalBannerPublicValidator = require('../validators/promotional-banner.validator');
-import RateLimitMiddleware = require('../../../../shared/middlewares/rate-limit.middleware');
-import ValidatorUtil = require('../../../../shared/utils/validators.util');
-import AuditAction = require('../../../../shared/middlewares/audit-action.middleware');
+import PromotionalBannerPublicController from '../controllers/promotional-banner.controller';
+import PromotionalBannerPublicValidator from '../validators/promotional-banner.validator';
+import RateLimitMiddleware from '../../../../shared/middlewares/rate-limit.middleware';
+import ValidatorUtil from '../../../../shared/utils/validators.util';
+import AuditAction from '../../../../shared/middlewares/audit-action.middleware';
 
 // Público (sin authenticate, patrón del formulario de contacto): la landing y la app cliente
 // consumen el mismo endpoint. publicLimiter = límite estricto anti-abuso para rutas sin sesión.
@@ -20,4 +20,4 @@ router.get(
   PromotionalBannerPublicController.list
 );
 
-export = router;
+export default router;

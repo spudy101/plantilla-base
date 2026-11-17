@@ -16,6 +16,7 @@
 // cambia de ORM, solo se reemplaza esta clase (el adaptador) y los services
 // quedan intactos. En tests se inyecta un fake con la misma forma.
 // ============================================================
+import { interopDefault } from '../utils/interop.util';
 import type { Sequelize, Transaction, TransactionOptions } from 'sequelize';
 
 class SequelizeUnitOfWork implements SequelizeUnitOfWork.Port {
@@ -31,7 +32,7 @@ class SequelizeUnitOfWork implements SequelizeUnitOfWork.Port {
 
   private _db(): Sequelize {
     // require diferido: shared/models carga todos los modelos y no debe resolverse al importar este puerto.
-    return this._sequelize ?? (require('../models') as { sequelize: Sequelize }).sequelize;
+    return this._sequelize ?? (interopDefault(require('../models') as typeof import('../models')) as { sequelize: Sequelize }).sequelize;
   }
 
   /** Abre una transacción manual (el llamador hace commit/rollback). */
@@ -66,4 +67,4 @@ namespace SequelizeUnitOfWork {
 // Instancia por defecto + la clase (tests y composición), igual que el resto de los services.
 const unitOfWork = Object.assign(new SequelizeUnitOfWork(), { SequelizeUnitOfWork });
 
-export = unitOfWork;
+export default unitOfWork;

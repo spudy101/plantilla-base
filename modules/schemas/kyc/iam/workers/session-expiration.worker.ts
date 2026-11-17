@@ -10,17 +10,17 @@
 // El middleware ya cierra reactivamente la sesión (cliente o interno) en su siguiente request;
 // este worker cubre el caso en que ese request nunca llega — "cerró la pestaña/app y no volvió".
 
-import cron = require('node-cron');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import cron from 'node-cron';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import requestContext = require('../../../../../shared/utils/request-context.util');
-import userSessionRepository = require('../repositories/user-session.repository');
-import type defineUserSession = require('../models/user-session.model');
-import RefreshTokenStore = require('../../../../../shared/utils/refresh-token-store.util');
-import TokenBlacklistUtil = require('../../../../../shared/utils/token-blacklist.util');
-import constantsModule = require('../../../../../shared/constants');
+import requestContext from '../../../../../shared/utils/request-context.util';
+import userSessionRepository from '../repositories/user-session.repository';
+import type defineUserSession from '../models/user-session.model';
+import RefreshTokenStore from '../../../../../shared/utils/refresh-token-store.util';
+import TokenBlacklistUtil from '../../../../../shared/utils/token-blacklist.util';
+import constantsModule from '../../../../../shared/constants';
 const { SECURITY } = constantsModule;
-import errorMessageModule = require('../../../../../shared/utils/error-message.util');
+import errorMessageModule from '../../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -122,4 +122,4 @@ class SessionExpirationWorker {
   }
 }
 
-export = SessionExpirationWorker;
+export default SessionExpirationWorker;

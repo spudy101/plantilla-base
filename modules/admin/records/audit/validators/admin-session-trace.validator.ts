@@ -1,6 +1,5 @@
-import expressValidatorModule = require('express-validator');
-const { query } = expressValidatorModule;
-import BaseValidator = require('../../../../../shared/validators/base.validator');
+import { query } from 'express-validator';
+import BaseValidator from '../../../../../shared/validators/base.validator';
 
 const VALID_STATUSES = ['active', 'closed'];
 
@@ -43,4 +42,4 @@ class AdminSessionTraceValidator {
   }
 }
 
-export = AdminSessionTraceValidator;
+export default AdminSessionTraceValidator;

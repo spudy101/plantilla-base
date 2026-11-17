@@ -4,10 +4,10 @@
 // Services: admin-audit-log, admin-audit-alert
 // ================================================================
 
-import auditCatalogModule = require('./audit-catalog');
+import auditCatalogModule from './audit-catalog';
 const { AUDIT_CATEGORIES, AUDIT_RISKS } = auditCatalogModule;
 
-export = {
+export default {
   // ── LOGS DE AUDITORÍA ─────────────────────────────────────────
 
   AUDIT_LOG_LISTED: {

@@ -1,6 +1,6 @@
-import MaintainersService = require('../services/maintainers.service');
-import ApiResponse = require('../../../../../shared/utils/app-response.util');
-import errorMiddlewareModule = require('../../../../../shared/middlewares/error.middleware');
+import MaintainersService from '../services/maintainers.service';
+import ApiResponse from '../../../../../shared/utils/app-response.util';
+import errorMiddlewareModule from '../../../../../shared/middlewares/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
 
 class MaintainersController {
@@ -61,4 +61,4 @@ class MaintainersController {
   });
 }
 
-export = new MaintainersController();
+export default new MaintainersController();

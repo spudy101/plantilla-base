@@ -1,14 +1,13 @@
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../../shared/models';
 const { UserNotificationPreference } = modelsModule;
-import requestContext = require('../../../../../shared/utils/request-context.util');
-import sequelizeModule = require('sequelize');
-const { Op } = sequelizeModule;
-import queryModule = require('../../../../../shared/repositories/query');
+import requestContext from '../../../../../shared/utils/request-context.util';
+import { Op } from 'sequelize';
+import * as queryModule from '../../../../../shared/repositories/query';
 const { toWhere } = queryModule;
 import type { WhereClause } from '../../../../../shared/repositories/query';
 import type { CreateOptions, DestroyOptions } from 'sequelize';
-import type defineUserNotificationPreference = require('../models/user-notification-preference.model');
+import type defineUserNotificationPreference from '../models/user-notification-preference.model';
 
 /** Preferencias tal como llegan del DTO de entrada (camelCase). */
 interface PreferenceInput {
@@ -221,4 +220,4 @@ class UserNotificationPreferenceRepository extends BaseRepository<defineUserNoti
   }
 }
 
-export = new UserNotificationPreferenceRepository();
+export default new UserNotificationPreferenceRepository();

@@ -1,25 +1,25 @@
-import type defineUser = require('../../../../../schemas/kyc/iam/models/user.model');
+import type defineUser from '../../../../../schemas/kyc/iam/models/user.model';
 // modules/shared-endpoints/kyc/iam/services/mfa/sms-mfa.service.ts
 //
 // Segundo factor por SMS: solicitud de código de activación, confirmación y baja.
 // Extraído de MFAService (SOLID: S).
 
 import type { RequestAuditContext } from '../../../../../../shared/types/audit-context';
-import crypto = require('node:crypto');
-import unitOfWork = require('../../../../../../shared/database/unit-of-work');
-import userRepository = require('../../../../../schemas/kyc/iam/repositories/user.repository');
-import verificationCodeRepository = require('../../../../../schemas/notification/repositories/verification-code.repository');
-import NotificationUtil = require('../../../../../schemas/notification/services/notification-creation.service');
-import SmsService = require('../../../../../schemas/notification/services/sms.service');
-import AppError = require('../../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../../shared/utils/logger.util');
+import crypto from 'node:crypto';
+import unitOfWork from '../../../../../../shared/database/unit-of-work';
+import userRepository from '../../../../../schemas/kyc/iam/repositories/user.repository';
+import verificationCodeRepository from '../../../../../schemas/notification/repositories/verification-code.repository';
+import NotificationUtil from '../../../../../schemas/notification/services/notification-creation.service';
+import SmsService from '../../../../../schemas/notification/services/sms.service';
+import AppError from '../../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import constantsModule = require('../../../../../../shared/constants');
+import constantsModule from '../../../../../../shared/constants';
 const { MOCKS } = constantsModule;
-import mfaDtoModule = require('../../dtos/mfa.dto');
+import mfaDtoModule from '../../dtos/mfa.dto';
 const { SMSMFAActivationResponseDTO, SMSActivationRequestResponseDTO } = mfaDtoModule;
-import MfaAccount = require('./mfa-account');
-import errorMessageModule = require('../../../../../../shared/utils/error-message.util');
+import MfaAccount from './mfa-account';
+import errorMessageModule from '../../../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -263,4 +263,4 @@ namespace SmsMfaService {
   }
 }
 
-export = SmsMfaService;
+export default SmsMfaService;

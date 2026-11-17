@@ -13,13 +13,14 @@
 //   - La firma cubre timestamp + método + path → protección contra replay más fuerte
 //   - Comparación en tiempo constante (timingSafeEqual) → sin timing attacks
 
+import { interopDefault } from '../utils/interop.util';
 import type { NextFunction, Request, Response } from 'express';
 import type { AuthenticatedUser } from '../types/express';
-import crypto = require('node:crypto');
-import AppError = require('../utils/app-error.util');
-import loggerUtilModule = require('../utils/logger.util');
+import crypto from 'node:crypto';
+import AppError from '../utils/app-error.util';
+import loggerUtilModule from '../utils/logger.util';
 const { logger } = loggerUtilModule;
-import constantsModule = require('../constants');
+import constantsModule from '../constants';
 const {
   server,
   encryption,
@@ -29,21 +30,21 @@ const {
   MFA_REQUIRED_ROLES,
   MFA_NOT_ACTIVE_LOG_MSG
 } = constantsModule;
-import HmacService = require('../services/hmac.service');
-import DeviceBlocklistUtil = require('../utils/device-blocklist.util');
-import TokenBlacklistUtil = require('../utils/token-blacklist.util');
-import JwtUtil = require('../utils/jwt.util');
-import redisClient = require('../utils/redis.util');
-import requestContext = require('../utils/request-context.util');
-import domainEnumsModule = require('../constants/domain-enums');
+import HmacService from '../services/hmac.service';
+import DeviceBlocklistUtil from '../utils/device-blocklist.util';
+import TokenBlacklistUtil from '../utils/token-blacklist.util';
+import JwtUtil from '../utils/jwt.util';
+import redisClient from '../utils/redis.util';
+import requestContext from '../utils/request-context.util';
+import domainEnumsModule from '../constants/domain-enums';
 const { USER_SESSION_STATUS } = domainEnumsModule;
 
 // Lazy require: el repositorio vive en modules/ y cargarlo al arrancar crearía un ciclo
 // (igual que auth-trusted-device.repository más abajo). SOLID: D — el middleware no consulta modelos.
-const sessionRepository = () => require('../../modules/schemas/kyc/iam/repositories/user-session.repository');
-import mfaStatusUtilModule = require('../utils/mfa-status.util');
+const sessionRepository = () => interopDefault(require('../../modules/schemas/kyc/iam/repositories/user-session.repository') as typeof import('../../modules/schemas/kyc/iam/repositories/user-session.repository'));
+import mfaStatusUtilModule from '../utils/mfa-status.util';
 const { isMfaActive } = mfaStatusUtilModule;
-import errorMessageModule = require('../utils/error-message.util');
+import errorMessageModule from '../utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -498,7 +499,7 @@ class AuthMiddleware {
    */
   static async _assertDeviceNotBlockedDbFallback(userId: string, fingerprintHash: string, req: Request) {
     // Lazy require para evitar dependencia circular al arrancar (igual que HmacService).
-    const trustedDeviceRepo = require('../../modules/schemas/kyc/iam/repositories/auth-trusted-device.repository');
+    const trustedDeviceRepo = interopDefault(require('../../modules/schemas/kyc/iam/repositories/auth-trusted-device.repository') as typeof import('../../modules/schemas/kyc/iam/repositories/auth-trusted-device.repository'));
     const device = await trustedDeviceRepo.findByFingerprint(userId, fingerprintHash);
 
     if (device && device.status === 'blocked') {
@@ -514,4 +515,4 @@ class AuthMiddleware {
   }
 }
 
-export = AuthMiddleware;
+export default AuthMiddleware;

@@ -1,5 +1,6 @@
-import userChangeLogRepository = require('../../../records/audit/repositories/user-change-log.repository');
-import crypto = require('node:crypto');
+import { interopDefault } from '../../../../../shared/utils/interop.util';
+import userChangeLogRepository from '../../../records/audit/repositories/user-change-log.repository';
+import crypto from 'node:crypto';
 import type { UserChangeLogRepositoryPort } from '../../../repository-ports';
 
 /**
@@ -111,7 +112,7 @@ class KycSharedUtil {
   }
 
   static validateNationalIdByRole(nationalId: string, role: { name: string }) {
-    const AppError = require('../../../../../shared/utils/app-error.util');
+    const AppError = interopDefault(require('../../../../../shared/utils/app-error.util') as typeof import('../../../../../shared/utils/app-error.util'));
 
     const isAdmin = role.name.toLowerCase() === 'admin';
 
@@ -132,4 +133,4 @@ class KycSharedUtil {
   }
 }
 
-export = KycSharedUtil;
+export default KycSharedUtil;

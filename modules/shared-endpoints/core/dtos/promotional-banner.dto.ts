@@ -40,4 +40,4 @@ declare namespace PromotionalBannerDto {
 
 const PromotionalBannerDto = { PublicPromotionalBannerListDTO };
 
-export = PromotionalBannerDto;
+export default PromotionalBannerDto;

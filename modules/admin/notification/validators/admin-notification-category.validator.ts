@@ -1,6 +1,5 @@
-import expressValidatorModule = require('express-validator');
-const { body, query } = expressValidatorModule;
-import BaseValidator = require('../../../../shared/validators/base.validator');
+import { body, query } from 'express-validator';
+import BaseValidator from '../../../../shared/validators/base.validator';
 
 const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 const TIME_REGEX = /^\d{2}:\d{2}(:\d{2})?$/;
@@ -66,4 +65,4 @@ class NotificationCategoryValidator {
   }
 }
 
-export = NotificationCategoryValidator;
+export default NotificationCategoryValidator;

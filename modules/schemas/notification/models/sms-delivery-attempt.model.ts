@@ -1,16 +1,9 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../shared/models/registry';
-import type defineUser = require('../../kyc/iam/models/user.model');
-
-
-
-
-
-
+import type defineUser from '../../kyc/iam/models/user.model';
 
 // Registro de intentos de envío de SMS (OTP/transaccional) vía AWS SNS. Nunca persiste el número
 // en claro (solo su hash HMAC). Alimenta el reintento y el conteo de impacto durante un fallback.
@@ -123,4 +116,4 @@ namespace defineSmsDeliveryAttempt {
   };
 }
 
-export = defineSmsDeliveryAttempt;
+export default defineSmsDeliveryAttempt;

@@ -1,8 +1,7 @@
 // modules/admin/users/validators/admin-user.validator.ts
 
-import expressValidatorModule = require('express-validator');
-const { body } = expressValidatorModule;
-import BaseValidator = require('../../../../../shared/validators/base.validator');
+import { body } from 'express-validator';
+import BaseValidator from '../../../../../shared/validators/base.validator';
 
 class AdminUserValidator {
   static listQuery() {
@@ -73,4 +72,4 @@ class AdminUserValidator {
   }
 }
 
-export = AdminUserValidator;
+export default AdminUserValidator;

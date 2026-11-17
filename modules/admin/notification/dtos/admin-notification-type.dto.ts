@@ -1,10 +1,10 @@
-import type defineNotificationType = require('../../../schemas/notification/models/notification-type.model');
+import type defineNotificationType from '../../../schemas/notification/models/notification-type.model';
 // modules/admin/kyc/dtos/admin-notification-type.dto.ts
 
-import componentsNotificationDtoModule = require('../../../../shared/dtos/notification/components-notification.dto');
+import componentsNotificationDtoModule from '../../../../shared/dtos/notification/components-notification.dto';
 const { NotificationTypeComponent } = componentsNotificationDtoModule;
 
-import componentsCatalogDtoModule = require('../../../../shared/dtos/kyc/components-catalog.dto');
+import componentsCatalogDtoModule from '../../../../shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
 
 /**
@@ -73,7 +73,7 @@ function CreateDirectNotificationResponseDTO({
   };
 }
 
-export = {
+export default {
   NotificationTypeAdminDTO,
   ListNotificationTypesResponseDTO,
   UpdateNotificationTypeResponseDTO,

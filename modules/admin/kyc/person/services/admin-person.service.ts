@@ -1,23 +1,23 @@
 import type { AdminAuditContext } from '../../../../../shared/types/audit-context';
-import unitOfWork = require('../../../../../shared/database/unit-of-work');
-import userRepository = require('../../../../schemas/kyc/iam/repositories/user.repository');
-import personRepository = require('../../../../schemas/kyc/person/repositories/person.repository');
-import personContactRepository = require('../../../../schemas/kyc/person/repositories/person-contact.repository');
-import roleRepository = require('../../../../schemas/kyc/iam/repositories/role.repository');
-import NotificationUtil = require('../../../../schemas/notification/services/notification-creation.service');
-import AppError = require('../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import unitOfWork from '../../../../../shared/database/unit-of-work';
+import userRepository from '../../../../schemas/kyc/iam/repositories/user.repository';
+import personRepository from '../../../../schemas/kyc/person/repositories/person.repository';
+import personContactRepository from '../../../../schemas/kyc/person/repositories/person-contact.repository';
+import roleRepository from '../../../../schemas/kyc/iam/repositories/role.repository';
+import NotificationUtil from '../../../../schemas/notification/services/notification-creation.service';
+import AppError from '../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import ProfileHelper = require('../../../../schemas/kyc/person/helpers/profile.helper');
-import DualApprovalService = require('../../../../schemas/core/services/dual-approval.service');
-import constantsModule = require('../../../../../shared/constants');
+import ProfileHelper from '../../../../schemas/kyc/person/helpers/profile.helper';
+import DualApprovalService from '../../../../schemas/core/services/dual-approval.service';
+import constantsModule from '../../../../../shared/constants';
 const { notifications } = constantsModule;
-import personGuardsModule = require('./admin-person/person-guards');
+import personGuardsModule from './admin-person/person-guards';
 const { assertNotDeleted, requirePerson } = personGuardsModule;
-import PersonQueryService = require('./admin-person/person-query.service');
-import PersonCreationService = require('./admin-person/person-creation.service');
-import PersonAccessService = require('./admin-person/person-access.service');
-import PersonCredentialsService = require('./admin-person/person-credentials.service');
+import PersonQueryService from './admin-person/person-query.service';
+import PersonCreationService from './admin-person/person-creation.service';
+import PersonAccessService from './admin-person/person-access.service';
+import PersonCredentialsService from './admin-person/person-credentials.service';
 
 /**
  * ============================================================
@@ -294,4 +294,4 @@ namespace PersonService {
   }
 }
 
-export = Object.assign(new PersonService(), { PersonService });
+export default Object.assign(new PersonService(), { PersonService });

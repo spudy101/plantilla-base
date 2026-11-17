@@ -99,4 +99,4 @@ declare namespace DualApproval {
   type OpKey = keyof typeof OPS;
 }
 
-export = DualApproval;
+export default DualApproval;

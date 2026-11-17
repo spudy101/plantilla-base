@@ -1,16 +1,17 @@
 // shared/middlewares/rate-limit.middleware.ts
 
+import { interopDefault } from '../utils/interop.util';
 import type { NextFunction, Request, Response } from 'express';
 import { rateLimit } from 'express-rate-limit';
-import redisClient = require('../utils/redis.util');
-import ApiResponse = require('../utils/app-response.util');
-import AppError = require('../utils/app-error.util');
-import LoginRateLimiter = require('../utils/login-rate-limiter.util');
-import loggerUtilModule = require('../utils/logger.util');
+import redisClient from '../utils/redis.util';
+import ApiResponse from '../utils/app-response.util';
+import AppError from '../utils/app-error.util';
+import LoginRateLimiter from '../utils/login-rate-limiter.util';
+import loggerUtilModule from '../utils/logger.util';
 const { logger } = loggerUtilModule;
-import constantsModule = require('../constants');
+import constantsModule from '../constants';
 const { RATE_LIMIT, ASSISTANT_RATE_LIMIT, FORGOT_PASSWORD_RATE_LIMIT } = constantsModule;
-import errorMessageModule = require('../utils/error-message.util');
+import errorMessageModule from '../utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -239,7 +240,7 @@ class RateLimitMiddleware {
       keyGenerator: (req: Request) => {
         // Lazy require: jwt.util carga las claves RS256 al primer uso y este módulo se
         // evalúa durante el arranque de la app.
-        const JwtUtil = require('../utils/jwt.util');
+        const JwtUtil = interopDefault(require('../utils/jwt.util') as typeof import('../utils/jwt.util'));
         const payload = JwtUtil.decodeUnverified(getRefreshToken(req));
         if (payload?.sessionId) {
           return `session:${payload.sessionId}`;
@@ -342,4 +343,4 @@ class RateLimitMiddleware {
   }
 }
 
-export = RateLimitMiddleware;
+export default RateLimitMiddleware;

@@ -18,7 +18,7 @@
 // privados se ejercen sobre el singleton exportado (spy/llamada directa) para aislar cada rama.
 
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
-import crypto = require('node:crypto');
+import crypto from 'node:crypto';
 
 jest.mock('modules/schemas/kyc/iam/repositories/user.repository', () => ({
   findByUserId: jest.fn(),
@@ -117,36 +117,36 @@ jest.mock('modules/shared-endpoints/kyc/iam/dtos/auth-login.dto', () => ({
   PolicyUpdateRequiredDTO: jest.fn(x => ({ dto: 'policyUpdate', ...x }))
 }));
 
-import userRepositoryModule = require('modules/schemas/kyc/iam/repositories/user.repository');
+import userRepositoryModule from 'modules/schemas/kyc/iam/repositories/user.repository';
 const userRepository = mocked(userRepositoryModule);
-import userLoginAttemptRepositoryModule = require('modules/schemas/records/audit/repositories/user-login-attempt.repository');
+import userLoginAttemptRepositoryModule from 'modules/schemas/records/audit/repositories/user-login-attempt.repository';
 const userLoginAttemptRepository = mocked(userLoginAttemptRepositoryModule);
-import trustedDeviceRepositoryModule = require('modules/schemas/kyc/iam/repositories/auth-trusted-device.repository');
+import trustedDeviceRepositoryModule from 'modules/schemas/kyc/iam/repositories/auth-trusted-device.repository';
 const trustedDeviceRepository = mocked(trustedDeviceRepositoryModule);
-import privacyPolicyRepositoryModule = require('modules/schemas/records/legal/repositories/privacy-policy.repository');
+import privacyPolicyRepositoryModule from 'modules/schemas/records/legal/repositories/privacy-policy.repository';
 const privacyPolicyRepository = mocked(privacyPolicyRepositoryModule);
-import userConsentRepositoryModule = require('modules/schemas/records/legal/repositories/user-consent.repository');
+import userConsentRepositoryModule from 'modules/schemas/records/legal/repositories/user-consent.repository';
 const userConsentRepository = mocked(userConsentRepositoryModule);
-import consentTypeRepositoryModule = require('modules/schemas/records/legal/repositories/consent-type.repository');
+import consentTypeRepositoryModule from 'modules/schemas/records/legal/repositories/consent-type.repository';
 const consentTypeRepository = mocked(consentTypeRepositoryModule);
-import biometricRepositoryModuleModule = require('modules/schemas/kyc/iam/repositories/biometric.repository');
+import biometricRepositoryModuleModule from 'modules/schemas/kyc/iam/repositories/biometric.repository';
 const biometricRepositoryModule = mocked(biometricRepositoryModuleModule);
 const {
   biometricCredentialRepository,
   biometricChallengeRepository
 } = mocked(biometricRepositoryModule);
-import JwtUtilModule = require('shared/utils/jwt.util');
+import JwtUtilModule from 'shared/utils/jwt.util';
 const JwtUtil = mocked(JwtUtilModule);
-import RefreshTokenStoreModule = require('shared/utils/refresh-token-store.util');
+import RefreshTokenStoreModule from 'shared/utils/refresh-token-store.util';
 const RefreshTokenStore = mocked(RefreshTokenStoreModule);
-import userSessionRepositoryModule = require('modules/schemas/kyc/iam/repositories/user-session.repository');
+import userSessionRepositoryModule from 'modules/schemas/kyc/iam/repositories/user-session.repository';
 const userSessionRepository = mocked(userSessionRepositoryModule);
-import NotificationUtilModule = require('modules/schemas/notification/services/notification-creation.service');
+import NotificationUtilModule from 'modules/schemas/notification/services/notification-creation.service';
 const NotificationUtil = mocked(NotificationUtilModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
 
-import service = require('modules/client/kyc/iam/services/auth-biometric.service');
+import service from 'modules/client/kyc/iam/services/auth-biometric.service';
 
 const USER_ID = 'user-1';
 const FP_HASH = 'fp-hash-1';

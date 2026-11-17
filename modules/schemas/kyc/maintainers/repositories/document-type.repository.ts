@@ -1,9 +1,9 @@
 // modules/schemas/kyc/repositories/document-type.repository.ts
 
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../../shared/models';
 const { DocumentType } = modelsModule;
-import type defineDocumentType = require('../models/document-type.model');
+import type defineDocumentType from '../models/document-type.model';
 
 class DocumentTypeRepository extends BaseRepository<defineDocumentType.Instance> {
   constructor() {
@@ -33,4 +33,4 @@ class DocumentTypeRepository extends BaseRepository<defineDocumentType.Instance>
   }
 }
 
-export = new DocumentTypeRepository();
+export default new DocumentTypeRepository();

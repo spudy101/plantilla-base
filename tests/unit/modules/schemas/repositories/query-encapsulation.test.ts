@@ -34,13 +34,13 @@ jest.mock('shared/models', () => ({
 }));
 
 import { mocked, fixture } from 'tests/helpers/mock';
-import sequelizeModule = require('sequelize');
+import sequelizeModule from 'sequelize';
 const { Op } = mocked(sequelizeModule);
-import modelsModule = require('shared/models');
+import modelsModule from 'shared/models';
 const { AuditLog, Role, Notification } = mocked(modelsModule);
-import auditLogRepository = require('modules/schemas/records/audit/repositories/audit-log.repository');
-import roleRepository = require('modules/schemas/kyc/iam/repositories/role.repository');
-import notificationRepository = require('modules/schemas/notification/repositories/notification.repository');
+import auditLogRepository from 'modules/schemas/records/audit/repositories/audit-log.repository';
+import roleRepository from 'modules/schemas/kyc/iam/repositories/role.repository';
+import notificationRepository from 'modules/schemas/notification/repositories/notification.repository';
 
 describe('AuditLogRepository — filtros de negocio a WHERE', () => {
   it('buildSearchWhere mapea filtros a columnas y rango de fechas', () => {

@@ -1,10 +1,9 @@
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../../shared/models';
 const { AuditAlert } = modelsModule;
-import sequelizeModule = require('sequelize');
-const { Op } = sequelizeModule;
-import type defineAuditAlert = require('../models/audit-alert.model');
-import queryModule = require('../../../../../shared/repositories/query');
+import { Op } from 'sequelize';
+import type defineAuditAlert from '../models/audit-alert.model';
+import * as queryModule from '../../../../../shared/repositories/query';
 const { range, toWhere } = queryModule;
 import type { WhereClause } from '../../../../../shared/repositories/query';
 
@@ -97,4 +96,4 @@ namespace AuditAlertRepository {
   }
 }
 
-export = new AuditAlertRepository();
+export default new AuditAlertRepository();

@@ -32,8 +32,8 @@ jest.mock('modules/schemas/notification/services/notification-creation.service',
 }));
 
 jest.mock('shared/utils/pagination.util', () => ({
-  stringParam: jest.requireActual('shared/utils/pagination.util').stringParam,
-  booleanParam: jest.requireActual('shared/utils/pagination.util').booleanParam,
+  stringParam: jest.requireActual('shared/utils/pagination.util').default.stringParam,
+  booleanParam: jest.requireActual('shared/utils/pagination.util').default.booleanParam,
   getPaginationParams: jest.fn().mockReturnValue({ limit: 10, offset: 0, page: 1, sortBy: 'created_at', order: 'DESC' })
 }));
 
@@ -59,17 +59,17 @@ jest.mock('shared/constants', () => ({
 jest.mock('shared/models', () => ({}));
 
 import { mocked, Loose } from 'tests/helpers/mock';
-import notificationRepoModule = require('modules/schemas/notification/repositories/notification.repository');
+import notificationRepoModule from 'modules/schemas/notification/repositories/notification.repository';
 const notificationRepo = mocked(notificationRepoModule);
-import notificationTypeRepoModule = require('modules/schemas/notification/repositories/notification-type.repository');
+import notificationTypeRepoModule from 'modules/schemas/notification/repositories/notification-type.repository';
 const notificationTypeRepo = mocked(notificationTypeRepoModule);
-import sendingServiceModule = require('modules/schemas/notification/services/notification-sending.service');
+import sendingServiceModule from 'modules/schemas/notification/services/notification-sending.service';
 const sendingService = mocked(sendingServiceModule);
-import notificationCreationModule = require('modules/schemas/notification/services/notification-creation.service');
+import notificationCreationModule from 'modules/schemas/notification/services/notification-creation.service';
 const notificationCreation = mocked(notificationCreationModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import service = require('modules/admin/notification/services/admin-notification-delivery.service');
+import service from 'modules/admin/notification/services/admin-notification-delivery.service';
 
 const ADMIN = 'admin-1';
 const flush = () => new Promise(resolve => { setImmediate(resolve); });

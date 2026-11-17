@@ -4,19 +4,19 @@
 // Agregar cada nuevo archivo de módulo en este index.
 // ================================================================
 
-import systemActions = require('./audit-actions.system');
-import kycSharedActions = require('./audit-actions.kyc-shared');
-import kycClientActions = require('./audit-actions.kyc-client');
-import kycAdminActions = require('./audit-actions.kyc-admin');
-import kycSystemActions = require('./audit-actions.kyc-system');
-import iamAdminActions = require('./audit-actions.iam-admin');
-import auditAdminActions = require('./audit-actions.audit-admin');
-import auditSystemActions = require('./audit-actions.audit-system');
-import approvalsAdminActions = require('./audit-actions.approvals-admin');
-import approvalsSystemActions = require('./audit-actions.approvals-system');
-import notificationSharedActions = require('./audit-actions.notification-shared');
-import activityClientActions = require('./audit-actions.activity-client');
-import promotionalActions = require('./audit-actions.promotional');
+import systemActions from './audit-actions.system';
+import kycSharedActions from './audit-actions.kyc-shared';
+import kycClientActions from './audit-actions.kyc-client';
+import kycAdminActions from './audit-actions.kyc-admin';
+import kycSystemActions from './audit-actions.kyc-system';
+import iamAdminActions from './audit-actions.iam-admin';
+import auditAdminActions from './audit-actions.audit-admin';
+import auditSystemActions from './audit-actions.audit-system';
+import approvalsAdminActions from './audit-actions.approvals-admin';
+import approvalsSystemActions from './audit-actions.approvals-system';
+import notificationSharedActions from './audit-actions.notification-shared';
+import activityClientActions from './audit-actions.activity-client';
+import promotionalActions from './audit-actions.promotional';
 
 const AUDIT_ACTIONS = {
   ...systemActions,
@@ -34,13 +34,13 @@ const AUDIT_ACTIONS = {
   ...promotionalActions
 };
 
-import auditAlertTriggersModule = require('./audit-alert-triggers');
+import auditAlertTriggersModule from './audit-alert-triggers';
 const { AUDIT_ALERT_TRIGGER_ACTIONS } = auditAlertTriggersModule;
 
 // Catálogo canónico (fuente de verdad de category/risk/module). Toda acción
 // de AUDIT_ACTIONS usa estos valores — homologación garantizada por el test
 // audit-catalog.consistency. Lo consume la API /api/audit-action-catalog/*.
-import auditCatalogModule = require('./audit-catalog');
+import auditCatalogModule from './audit-catalog';
 const {
   AUDIT_CATEGORIES,
   AUDIT_RISKS,
@@ -55,7 +55,7 @@ const {
 // Usado por los middlewares que aplican el gate de 2FA: rbac, auth.
 const MFA_NOT_ACTIVE_LOG_MSG = 'Acción bloqueada — 2FA no activo';
 
-export = {
+export default {
   AUDIT_ACTIONS,
   AUDIT_ALERT_TRIGGER_ACTIONS,
   AUDIT_CATEGORIES,

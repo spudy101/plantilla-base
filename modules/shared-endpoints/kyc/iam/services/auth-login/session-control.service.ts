@@ -3,13 +3,13 @@
 // Control de sesiones: cierre selectivo, cierre de sesiones previas del mismo
 // dispositivo y límite de sesiones simultáneas. Extraído de AuthLoginService (SOLID: S).
 
-import userSessionRepository = require('../../../../../schemas/kyc/iam/repositories/user-session.repository');
-import RefreshTokenStore = require('../../../../../../shared/utils/refresh-token-store.util');
-import TokenBlacklistUtil = require('../../../../../../shared/utils/token-blacklist.util');
-import AppError = require('../../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../../shared/utils/logger.util');
+import userSessionRepository from '../../../../../schemas/kyc/iam/repositories/user-session.repository';
+import RefreshTokenStore from '../../../../../../shared/utils/refresh-token-store.util';
+import TokenBlacklistUtil from '../../../../../../shared/utils/token-blacklist.util';
+import AppError from '../../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import constantsModule = require('../../../../../../shared/constants');
+import constantsModule from '../../../../../../shared/constants';
 const { SECURITY } = constantsModule;
 
 class SessionControlService {
@@ -218,4 +218,4 @@ namespace SessionControlService {
   }
 }
 
-export = SessionControlService;
+export default SessionControlService;

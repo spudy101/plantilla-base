@@ -1,11 +1,11 @@
-import express = require('express');
+import express from 'express';
 const router = express.Router();
-import SendVerificationController = require('../controllers/send-verification.controller');
-import SendVerificationValidator = require('../validators/send-verification.validator');
-import RateLimitMiddleware = require('../../../../shared/middlewares/rate-limit.middleware');
-import RequestLockMiddleware = require('../../../../shared/middlewares/request-lock.middleware');
-import ValidatorUtil = require('../../../../shared/utils/validators.util');
-import AuditAction = require('../../../../shared/middlewares/audit-action.middleware');
+import SendVerificationController from '../controllers/send-verification.controller';
+import SendVerificationValidator from '../validators/send-verification.validator';
+import RateLimitMiddleware from '../../../../shared/middlewares/rate-limit.middleware';
+import RequestLockMiddleware from '../../../../shared/middlewares/request-lock.middleware';
+import ValidatorUtil from '../../../../shared/utils/validators.util';
+import AuditAction from '../../../../shared/middlewares/audit-action.middleware';
 
 // ============================================================
 // PUBLIC
@@ -33,4 +33,4 @@ router.post(
   SendVerificationController.verifyCode
 );
 
-export = router;
+export default router;

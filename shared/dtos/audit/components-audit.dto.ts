@@ -1,7 +1,7 @@
 // shared/dtos/audit/components-audit.dto.ts
 // Componentes reutilizables de auditoría — RF-ADM-03
 
-import MaskingUtil = require('../../utils/masking.util');
+import MaskingUtil from '../../utils/masking.util';
 import type { DbDate, Maybe, UserRefRow } from '../../types/db-rows';
 
 interface AuditLogRow {
@@ -403,7 +403,7 @@ class TrustedDeviceComponent {
   }
 }
 
-export = {
+export default {
   AuditLogComponent,
   AuditAlertComponent,
   ConsentTypeComponent,

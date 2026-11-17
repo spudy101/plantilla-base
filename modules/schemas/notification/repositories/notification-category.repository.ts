@@ -1,9 +1,9 @@
-import BaseRepository = require('../../../../shared/repositories/base.repository');
-import ReadRepository = require('../../../../shared/repositories/read.repository');
+import BaseRepository from '../../../../shared/repositories/base.repository';
+import ReadRepository from '../../../../shared/repositories/read.repository';
 import type { WhereClause } from '../../../../shared/repositories/query';
-import modelsModule = require('../../../../shared/models');
+import modelsModule from '../../../../shared/models';
 const { NotificationCategory } = modelsModule;
-import type defineNotificationCategory = require('../models/notification-category.model');
+import type defineNotificationCategory from '../models/notification-category.model';
 
 class NotificationCategoryRepository extends BaseRepository<defineNotificationCategory.Instance> {
   constructor() {
@@ -56,4 +56,4 @@ class NotificationCategoryRepository extends BaseRepository<defineNotificationCa
   }
 }
 
-export = new NotificationCategoryRepository();
+export default new NotificationCategoryRepository();

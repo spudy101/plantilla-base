@@ -1,8 +1,8 @@
-import type defineUserSession = require('../../../../schemas/kyc/iam/models/user-session.model');
-import type defineAuditLog = require('../../../../schemas/records/audit/models/audit-log.model');
-import kycModule = require('../../../../../shared/dtos/kyc');
+import type defineUserSession from '../../../../schemas/kyc/iam/models/user-session.model';
+import type defineAuditLog from '../../../../schemas/records/audit/models/audit-log.model';
+import kycModule from '../../../../../shared/dtos/kyc';
 const { UserSessionComponent } = kycModule;
-import componentsCatalogDtoModule = require('../../../../../shared/dtos/kyc/components-catalog.dto');
+import componentsCatalogDtoModule from '../../../../../shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
 
 type SessionRow = defineUserSession.Instance;
@@ -69,7 +69,7 @@ function AuthAttemptListDTO(rows: AttemptRow[], metadata: Parameters<typeof Meta
   };
 }
 
-export = {
+export default {
   SessionDTO,
   SessionListDTO,
   AuthAttemptDTO,

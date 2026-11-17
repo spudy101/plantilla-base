@@ -21,12 +21,12 @@
 //   HCAPTCHA_SITE_KEY   = 10000000-ffff-ffff-ffff-000000000001
 //   (hCaptcha acepta estos valores como siempre válidos en desarrollo)
 
-import loggerUtilModule = require('./logger.util');
+import loggerUtilModule from './logger.util';
 const { logger } = loggerUtilModule;
-import constantsModule = require('../constants');
+import constantsModule from '../constants';
 const { hcaptcha } = constantsModule;
-import AppError = require('./app-error.util');
-import errorMessageModule = require('./error-message.util');
+import AppError from './app-error.util';
+import errorMessageModule from './error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -118,4 +118,4 @@ class HCaptchaUtil {
   }
 }
 
-export = HCaptchaUtil;
+export default HCaptchaUtil;

@@ -4,19 +4,19 @@
 // solicitud y aviso al solicitante (maker) cuando se resuelve. Extraído de DualApprovalService
 // (SOLID: S) — el canal y el contenido de los avisos cambian por razones distintas que el motor.
 
-import userRepository = require('../../../kyc/iam/repositories/user.repository');
-import NotificationCreationService = require('../../../notification/services/notification-creation.service');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import userRepository from '../../../kyc/iam/repositories/user.repository';
+import NotificationCreationService from '../../../notification/services/notification-creation.service';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger } = loggerUtilModule;
-import constantsModule = require('../../../../../shared/constants');
+import constantsModule from '../../../../../shared/constants';
 const { notifications } = constantsModule;
-import errorMessageModule = require('../../../../../shared/utils/error-message.util');
+import errorMessageModule from '../../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 import type { AdminAuditContext } from '../../../../../shared/types/audit-context';
-import type DualApprovalConstants = require('../../../../../shared/constants/dual-approval');
-import type defineApprovalRequest = require('../../models/approval-request.model');
-import type defineUser = require('../../../kyc/iam/models/user.model');
+import type DualApprovalConstants from '../../../../../shared/constants/dual-approval';
+import type defineApprovalRequest from '../../models/approval-request.model';
+import type defineUser from '../../../kyc/iam/models/user.model';
 
 
 const NOTIF_DUAL_APPROVAL_RESOLVED = 'DUAL_APPROVAL_RESOLVED';
@@ -103,4 +103,4 @@ namespace DualApprovalNotifierService {
   }
 }
 
-export = DualApprovalNotifierService;
+export default DualApprovalNotifierService;

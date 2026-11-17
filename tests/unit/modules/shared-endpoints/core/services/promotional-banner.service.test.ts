@@ -1,3 +1,4 @@
+import { interopDefault } from 'shared/utils/interop.util';
 import { Loose } from 'tests/helpers/mock';
 // tests/unit/modules/shared-endpoints/core/services/promotional-banner.service.test.ts
 //
@@ -22,10 +23,10 @@ describe('PromotionalBannerPublicService', () => {
   beforeEach(() => {
     // Caché en memoria a nivel de módulo → reset para cada test.
     jest.resetModules();
-    systemGlobalConfigRepository = require('modules/schemas/core/repositories/system-global-config.repository');
-    ({ logAudit } = require('shared/utils/logger.util'));
-    ({ PublicPromotionalBannerListDTO } = require('modules/shared-endpoints/core/dtos/promotional-banner.dto'));
-    service = require('modules/shared-endpoints/core/services/promotional-banner.service');
+    systemGlobalConfigRepository = interopDefault(require('modules/schemas/core/repositories/system-global-config.repository') as typeof import('modules/schemas/core/repositories/system-global-config.repository'));
+    ({ logAudit } = interopDefault(require('shared/utils/logger.util') as typeof import('shared/utils/logger.util')));
+    ({ PublicPromotionalBannerListDTO } = interopDefault(require('modules/shared-endpoints/core/dtos/promotional-banner.dto') as typeof import('modules/shared-endpoints/core/dtos/promotional-banner.dto')));
+    service = interopDefault(require('modules/shared-endpoints/core/services/promotional-banner.service') as typeof import('modules/shared-endpoints/core/services/promotional-banner.service'));
   });
 
   describe('getActiveBanners — cache miss', () => {

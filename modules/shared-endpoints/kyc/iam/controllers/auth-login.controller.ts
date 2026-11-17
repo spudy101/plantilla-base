@@ -1,16 +1,16 @@
 import type { Request } from 'express';
-import AuthLoginService = require('../services/auth-login.service');
-import ApiResponse = require('../../../../../shared/utils/app-response.util');
-import AppError = require('../../../../../shared/utils/app-error.util');
-import errorMiddlewareModule = require('../../../../../shared/middlewares/error.middleware');
+import AuthLoginService from '../services/auth-login.service';
+import ApiResponse from '../../../../../shared/utils/app-response.util';
+import AppError from '../../../../../shared/utils/app-error.util';
+import errorMiddlewareModule from '../../../../../shared/middlewares/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
-import constantsModule = require('../../../../../shared/constants');
+import constantsModule from '../../../../../shared/constants';
 const { AUTH_ERROR_CODES } = constantsModule;
-import authUserUtilModule = require('../../../../../shared/utils/auth-user.util');
+import authUserUtilModule from '../../../../../shared/utils/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
-import routeParamUtilModule = require('../../../../../shared/utils/route-param.util');
+import routeParamUtilModule from '../../../../../shared/utils/route-param.util';
 const { routeParam } = routeParamUtilModule;
-import authCookiesUtilModule = require('../../../../../shared/utils/auth-cookies.util');
+import authCookiesUtilModule from '../../../../../shared/utils/auth-cookies.util';
 const { setAuthCookies, clearAuthCookies } = authCookiesUtilModule;
 
 /**
@@ -224,4 +224,4 @@ class AuthLoginController {
   });
 }
 
-export = new AuthLoginController();
+export default new AuthLoginController();

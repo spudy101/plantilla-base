@@ -12,8 +12,8 @@ jest.mock('shared/utils/logger.util', () => ({
 }));
 
 jest.mock('shared/utils/pagination.util', () => ({
-  stringParam: jest.requireActual('shared/utils/pagination.util').stringParam,
-  booleanParam: jest.requireActual('shared/utils/pagination.util').booleanParam,
+  stringParam: jest.requireActual('shared/utils/pagination.util').default.stringParam,
+  booleanParam: jest.requireActual('shared/utils/pagination.util').default.booleanParam,
   getPaginationParams: jest.fn(),
   buildFilters: jest.fn()
 }));
@@ -35,13 +35,13 @@ jest.mock('shared/constants/auditActions', () => ({
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import PaginationHelperModule = require('shared/utils/pagination.util');
+import PaginationHelperModule from 'shared/utils/pagination.util';
 const PaginationHelper = mocked(PaginationHelperModule);
-import componentsCatalogDtoModule = require('shared/dtos/kyc/components-catalog.dto');
+import componentsCatalogDtoModule from 'shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = mocked(componentsCatalogDtoModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import service = require('modules/admin/records/audit/services/admin-audit-action-catalog.service');
+import service from 'modules/admin/records/audit/services/admin-audit-action-catalog.service';
 
 const ADMIN = 'admin-1';
 

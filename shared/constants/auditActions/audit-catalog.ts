@@ -78,7 +78,7 @@ const AUDIT_SOURCES = {
   UNKNOWN: 'unknown'
 };
 
-export = {
+export default {
   AUDIT_CATEGORIES,
   AUDIT_RISKS,
   AUDIT_RISK_ORDER,

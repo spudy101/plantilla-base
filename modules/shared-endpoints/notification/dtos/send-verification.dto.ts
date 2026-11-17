@@ -1,4 +1,4 @@
-import kycModule = require('../../../../shared/dtos/kyc');
+import kycModule from '../../../../shared/dtos/kyc';
 const { VerificationCodeComponent } = kycModule;
 
 function SendVerificationResponseDTO({
@@ -24,7 +24,7 @@ function VerifyCodeResponseDTO() {
   return { verified: true };
 }
 
-export = {
+export default {
   SendVerificationResponseDTO,
   VerifyCodeResponseDTO
 };

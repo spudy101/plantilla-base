@@ -40,4 +40,4 @@ function buildAuditDiff(
   return { before, after };
 }
 
-export = { buildAuditDiff };
+export default { buildAuditDiff };

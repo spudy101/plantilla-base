@@ -1,11 +1,10 @@
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../../shared/models';
 const { UserSession } = modelsModule;
-import sequelizeModule = require('sequelize');
-const { Op } = sequelizeModule;
+import { Op } from 'sequelize';
 import type { Includeable } from 'sequelize';
-import type defineUserSession = require('../models/user-session.model');
-import queryModule = require('../../../../../shared/repositories/query');
+import type defineUserSession from '../models/user-session.model';
+import * as queryModule from '../../../../../shared/repositories/query';
 const { dateRange, toWhere } = queryModule;
 import type { WhereClause } from '../../../../../shared/repositories/query';
 
@@ -212,4 +211,4 @@ namespace UserSessionRepository {
   }
 }
 
-export = new UserSessionRepository();
+export default new UserSessionRepository();

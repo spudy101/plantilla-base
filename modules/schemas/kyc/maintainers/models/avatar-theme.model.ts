@@ -1,16 +1,9 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../../shared/models/registry';
-import type defineAvatar = require('./avatar.model');
-
-
-
-
-
-
+import type defineAvatar from './avatar.model';
 
 function defineAvatarTheme(sequelize: Sequelize): defineAvatarTheme.Static {
   const AvatarTheme = sequelize.define<defineAvatarTheme.Instance>(
@@ -82,4 +75,4 @@ namespace defineAvatarTheme {
   };
 }
 
-export = defineAvatarTheme;
+export default defineAvatarTheme;

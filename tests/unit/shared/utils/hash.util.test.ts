@@ -7,9 +7,10 @@
 // Debe fijarse ANTES de requerir el módulo: el PEPPER se captura en una const al cargar.
 process.env.HASH_PEPPER = 'pepper-de-test-determinista-con-mas-de-32-chars';
 
+import { interopDefault } from 'shared/utils/interop.util';
 import { fixture } from 'tests/helpers/mock';
-import crypto = require('node:crypto');
-import HashUtil = require('shared/utils/hash.util');
+import crypto from 'node:crypto';
+import HashUtil from 'shared/utils/hash.util';
 
 describe('HashUtil', () => {
   describe('hashForSearch', () => {
@@ -89,7 +90,7 @@ describe('HashUtil', () => {
         const original = process.env.HASH_PEPPER;
         delete process.env.HASH_PEPPER;
         try {
-          const FreshHashUtil: typeof import('shared/utils/hash.util') = require('shared/utils/hash.util');
+          const FreshHashUtil: typeof import('shared/utils/hash.util').default = interopDefault(require('shared/utils/hash.util') as typeof import('shared/utils/hash.util'));
           expect(() => FreshHashUtil.hashForSearch('algo')).toThrow(/HASH_PEPPER/);
         } finally {
           process.env.HASH_PEPPER = original;

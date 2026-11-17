@@ -1,6 +1,6 @@
 // config/swagger/modules/client/records/audit/user-activity.paths.ts
 
-import commonResponses = require('../../../../responses/common.responses');
+import commonResponses from '../../../../responses/common.responses';
 
 /**
  * ============================================================
@@ -130,4 +130,4 @@ Fusiona dos fuentes (campo \`source\` de cada ítem):
   }
 };
 
-export = { paths, schemas };
+export default { paths, schemas };

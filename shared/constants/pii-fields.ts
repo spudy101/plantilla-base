@@ -117,7 +117,7 @@ const PII_RAW_PAYLOAD_KEYS: string[] = [
   'responsepayload'
 ];
 
-export = {
+export default {
   PII_MASK_TYPES,
   PII_FIELD_MASKS,
   PII_RAW_PAYLOAD_KEYS,

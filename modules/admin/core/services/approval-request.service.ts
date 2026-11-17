@@ -2,9 +2,9 @@ import type { AdminAuditContext } from '../../../../shared/types/audit-context';
 // Service del módulo admin de doble aprobación. Delega en el core DualApprovalService
 // (capa de datos en schemas/core) y agrega la auditoría de los endpoints admin.
 
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
-import DualApprovalService = require('../../../schemas/core/services/dual-approval.service');
+import DualApprovalService from '../../../schemas/core/services/dual-approval.service';
 
 const ENTITY = { entityType: 'ApprovalRequest', entityTable: 'approval_requests' };
 
@@ -59,4 +59,4 @@ namespace ApprovalRequestService {
   }
 }
 
-export = Object.assign(new ApprovalRequestService(), { ApprovalRequestService });
+export default Object.assign(new ApprovalRequestService(), { ApprovalRequestService });

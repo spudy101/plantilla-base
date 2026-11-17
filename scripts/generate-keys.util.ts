@@ -6,7 +6,7 @@
 // En producción estas claves las genera Terraform automáticamente
 // y las guarda en Secrets Manager — no se ponen a mano.
 
-import crypto = require('node:crypto');
+import crypto from 'node:crypto';
 
 const AES_KEY_BYTES = 32; // 256 bits para AES-256-GCM
 const AES_IV_BYTES = 16; // 128 bits — solo para descifrar datos legados AES-CBC (GCM usa IV aleatorio por operación)
@@ -179,7 +179,7 @@ if (require.main === module) {
   }
 }
 
-export = {
+export default {
   generateEncryptionKeys,
   generateHashPepper,
   generateJwtKeys,

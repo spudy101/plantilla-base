@@ -1,7 +1,7 @@
-import emailBounceSuppressionRepo = require('../repositories/email-bounce-suppression.repository');
-import EncryptionUtil = require('../../../../shared/utils/encryption.util');
-import MaskingUtil = require('../../../../shared/utils/masking.util');
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import emailBounceSuppressionRepo from '../repositories/email-bounce-suppression.repository';
+import EncryptionUtil from '../../../../shared/utils/encryption.util';
+import MaskingUtil from '../../../../shared/utils/masking.util';
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
 
 // Umbral de rebotes duros para bloquear una dirección de correo. Regla de negocio (no configurable
@@ -125,4 +125,4 @@ namespace EmailSuppressionService {
   }
 }
 
-export = Object.assign(new EmailSuppressionService(), { EmailSuppressionService });
+export default Object.assign(new EmailSuppressionService(), { EmailSuppressionService });

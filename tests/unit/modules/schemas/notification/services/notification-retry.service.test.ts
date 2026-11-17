@@ -38,17 +38,17 @@ jest.mock('shared/utils/logger.util', () => ({
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import notificationRepoModule = require('modules/schemas/notification/repositories/notification.repository');
+import notificationRepoModule from 'modules/schemas/notification/repositories/notification.repository';
 const notificationRepo = mocked(notificationRepoModule);
-import notificationTypeRepoModule = require('modules/schemas/notification/repositories/notification-type.repository');
+import notificationTypeRepoModule from 'modules/schemas/notification/repositories/notification-type.repository';
 const notificationTypeRepo = mocked(notificationTypeRepoModule);
-import integrationApiLogRepoModule = require('modules/schemas/integration/repositories/integration-api-log.repository');
+import integrationApiLogRepoModule from 'modules/schemas/integration/repositories/integration-api-log.repository';
 const integrationApiLogRepo = mocked(integrationApiLogRepoModule);
-import sendingModule = require('modules/schemas/notification/services/notification-sending.service');
+import sendingModule from 'modules/schemas/notification/services/notification-sending.service';
 const sending = mocked(sendingModule);
-import awsErrorCodesModule = require('shared/constants/aws-error-codes');
+import awsErrorCodesModule from 'shared/constants/aws-error-codes';
 const { isHardBounce } = mocked(awsErrorCodesModule);
-import retry = require('modules/schemas/notification/services/notification-retry.service');
+import retry from 'modules/schemas/notification/services/notification-retry.service';
 
 function notif(overrides = {}) {
   return {

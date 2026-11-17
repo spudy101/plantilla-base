@@ -1,8 +1,8 @@
 // modules/schemas/kyc/src/repositories/phone-prefix.repository.ts
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../../shared/models';
 const { PhonePrefix } = modelsModule;
-import type definePhonePrefix = require('../models/phone-prefix.model');
+import type definePhonePrefix from '../models/phone-prefix.model';
 
 class PhonePrefixRepository extends BaseRepository<definePhonePrefix.Instance> {
   constructor() {
@@ -30,4 +30,4 @@ class PhonePrefixRepository extends BaseRepository<definePhonePrefix.Instance> {
   }
 }
 
-export = new PhonePrefixRepository();
+export default new PhonePrefixRepository();

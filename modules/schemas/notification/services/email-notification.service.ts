@@ -1,20 +1,19 @@
-import clientSesModule = require('@aws-sdk/client-ses');
-const { SESClient, SendEmailCommand, SendRawEmailCommand } = clientSesModule;
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import { SESClient, SendEmailCommand, SendRawEmailCommand } from '@aws-sdk/client-ses';
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import constantsModule = require('../../../../shared/constants');
+import constantsModule from '../../../../shared/constants';
 const { notifications, aws } = constantsModule;
-import retryUtilModule = require('../../../../shared/utils/retry.util');
+import retryUtilModule from '../../../../shared/utils/retry.util';
 const { withRetry } = retryUtilModule;
-import CircuitBreaker = require('../../../../shared/utils/circuit-breaker.util');
-import ProviderApiLogger = require('../../../../shared/utils/integration-api-logger.util');
-import awsProviderMetaUtilModule = require('../../../../shared/utils/aws-provider-meta.util');
+import CircuitBreaker from '../../../../shared/utils/circuit-breaker.util';
+import ProviderApiLogger from '../../../../shared/utils/integration-api-logger.util';
+import awsProviderMetaUtilModule from '../../../../shared/utils/aws-provider-meta.util';
 const { resolveAwsGate, awsErrorCode } = awsProviderMetaUtilModule;
-import MaskingUtil = require('../../../../shared/utils/masking.util');
-import emailSuppressionService = require('./email-suppression.service');
-import NotificationContentUtil = require('../utils/notification-content.util');
-import type Types = require('../notification.types');
-import errorMessageModule = require('../../../../shared/utils/error-message.util');
+import MaskingUtil from '../../../../shared/utils/masking.util';
+import emailSuppressionService from './email-suppression.service';
+import NotificationContentUtil from '../utils/notification-content.util';
+import type * as Types from '../notification.types';
+import errorMessageModule from '../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -420,4 +419,4 @@ namespace EmailNotificationService {
   }
 }
 
-export = Object.assign(new EmailNotificationService(), { EmailNotificationService });
+export default Object.assign(new EmailNotificationService(), { EmailNotificationService });

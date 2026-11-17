@@ -1,11 +1,11 @@
 import type { RequestAuditContext } from '../../../../../shared/types/audit-context';
-import AppError = require('../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import AppError from '../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import unitOfWork = require('../../../../../shared/database/unit-of-work');
-import consentTypeRepository = require('../../../../schemas/records/legal/repositories/consent-type.repository');
-import userConsentRepository = require('../../../../schemas/records/legal/repositories/user-consent.repository');
-import userConsentDtoModule = require('../dtos/user-consent.dto');
+import unitOfWork from '../../../../../shared/database/unit-of-work';
+import consentTypeRepository from '../../../../schemas/records/legal/repositories/consent-type.repository';
+import userConsentRepository from '../../../../schemas/records/legal/repositories/user-consent.repository';
+import userConsentDtoModule from '../dtos/user-consent.dto';
 const { MyConsentCatalogDTO, ConsentGrantedDTO } = userConsentDtoModule;
 
 class UserConsentService {
@@ -166,4 +166,4 @@ namespace UserConsentService {
   }
 }
 
-export = Object.assign(new UserConsentService(), { UserConsentService });
+export default Object.assign(new UserConsentService(), { UserConsentService });

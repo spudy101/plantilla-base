@@ -8,7 +8,7 @@
 // Todos los logAudit que escriben sobre esta tabla usan entityTable='user_sessions'.
 
 import type { Migration } from '../shared/types/migration';
-import constantsModule = require('../shared/constants');
+import constantsModule from '../shared/constants';
 const { database } = constantsModule;
 
 const SCHEMA = database.schema;

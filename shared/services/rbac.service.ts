@@ -23,9 +23,10 @@
 //   surta efecto de inmediato sin esperar los 60s.
 //   Fail-open: si Redis no está disponible, se consulta BD directamente.
 
-import constantsModule = require('../constants');
+import { interopDefault } from '../utils/interop.util';
+import constantsModule from '../constants';
 const { RBAC_WILDCARD, RBAC_MODULES, RBAC_MODULE_GROUPS, RBAC_ACTIONS, ROLE_PERMISSIONS } = constantsModule;
-import redisClient = require('../utils/redis.util');
+import redisClient from '../utils/redis.util';
 
 const CACHE_TTL_SECONDS = 60;
 const CACHE_KEY_PREFIX = 'rbac:overrides:';
@@ -56,7 +57,7 @@ class RbacService {
 
   get overrideRepository(): OverrideRepositoryPort {
     // require diferido: el repositorio vive en modules/ y cargarlo al importar crearía un ciclo
-    this._overrideRepository ??= require('../../modules/schemas/kyc/iam/repositories/role-permission-override.repository') as OverrideRepositoryPort;
+    this._overrideRepository ??= interopDefault(require('../../modules/schemas/kyc/iam/repositories/role-permission-override.repository') as typeof import('../../modules/schemas/kyc/iam/repositories/role-permission-override.repository')) as OverrideRepositoryPort;
     return this._overrideRepository;
   }
 
@@ -283,4 +284,4 @@ class RbacService {
   }
 }
 
-export = Object.assign(new RbacService(), { RbacService });
+export default Object.assign(new RbacService(), { RbacService });

@@ -1,17 +1,10 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import EncryptionUtil = require('../../../../../shared/utils/encryption.util');
-import constantsModule = require('../../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import EncryptionUtil from '../../../../../shared/utils/encryption.util';
+import constantsModule from '../../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../../shared/models/registry';
-import type defineUser = require('../../../kyc/iam/models/user.model');
-
-
-
-
-
-
+import type defineUser from '../../../kyc/iam/models/user.model';
 
 function defineUserLoginAttempt(sequelize: Sequelize): defineUserLoginAttempt.Static {
   const UserLoginAttempt = sequelize.define<defineUserLoginAttempt.Instance>(
@@ -187,4 +180,4 @@ namespace defineUserLoginAttempt {
   };
 }
 
-export = defineUserLoginAttempt;
+export default defineUserLoginAttempt;

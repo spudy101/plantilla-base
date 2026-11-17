@@ -1,14 +1,14 @@
-import express = require('express');
+import express from 'express';
 const router = express.Router();
-import SystemGlobalConfigController = require('../controllers/system-global-config.controller');
-import SystemGlobalConfigValidator = require('../validators/system-global-config.validator');
-import AuthMiddleware = require('../../../../shared/middlewares/auth.middleware');
-import RbacMiddleware = require('../../../../shared/middlewares/rbac.middleware');
-import RateLimitMiddleware = require('../../../../shared/middlewares/rate-limit.middleware');
-import RequestLockMiddleware = require('../../../../shared/middlewares/request-lock.middleware');
-import AuditAction = require('../../../../shared/middlewares/audit-action.middleware');
-import ValidatorUtil = require('../../../../shared/utils/validators.util');
-import rbacModule = require('../../../../shared/constants/rbac');
+import SystemGlobalConfigController from '../controllers/system-global-config.controller';
+import SystemGlobalConfigValidator from '../validators/system-global-config.validator';
+import AuthMiddleware from '../../../../shared/middlewares/auth.middleware';
+import RbacMiddleware from '../../../../shared/middlewares/rbac.middleware';
+import RateLimitMiddleware from '../../../../shared/middlewares/rate-limit.middleware';
+import RequestLockMiddleware from '../../../../shared/middlewares/request-lock.middleware';
+import AuditAction from '../../../../shared/middlewares/audit-action.middleware';
+import ValidatorUtil from '../../../../shared/utils/validators.util';
+import rbacModule from '../../../../shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
 // Lectura — Superadmin y Auditor (y cualquier rol con ADMIN.READ)
@@ -35,4 +35,4 @@ router.patch(
   SystemGlobalConfigController.updateConfig
 );
 
-export = router;
+export default router;

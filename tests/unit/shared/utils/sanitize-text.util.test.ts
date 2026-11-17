@@ -4,7 +4,7 @@
 // Funciones puras: no tocan red, BD ni logger. Verificamos el comportamiento real
 // de stripHtmlTags, decodeHtmlEntities y sanitizePlainText (doble pasada + truncado).
 
-import sanitizeTextUtilModule = require('shared/utils/sanitize-text.util');
+import sanitizeTextUtilModule from 'shared/utils/sanitize-text.util';
 const { sanitizePlainText, stripHtmlTags, decodeHtmlEntities } = sanitizeTextUtilModule;
 
 describe('sanitize-text.util', () => {

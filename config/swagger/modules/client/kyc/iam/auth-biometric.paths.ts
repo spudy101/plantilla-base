@@ -1,4 +1,4 @@
-import commonResponses = require('../../../../responses/common.responses');
+import commonResponses from '../../../../responses/common.responses';
 
 /**
  * ============================================================
@@ -363,4 +363,4 @@ Tras eliminarla, el dispositivo asociado ya no podrá hacer login biométrico ha
   }
 };
 
-export = { paths, schemas };
+export default { paths, schemas };

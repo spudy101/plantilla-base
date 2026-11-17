@@ -1,12 +1,12 @@
-import express = require('express');
+import express from 'express';
 const router = express.Router();
-import NotificationController = require('../controllers/notification.controller');
-import NotificationValidator = require('../validators/notification.validator');
-import AuthMiddleware = require('../../../../shared/middlewares/auth.middleware');
-import RateLimitMiddleware = require('../../../../shared/middlewares/rate-limit.middleware');
-import RequestLockMiddleware = require('../../../../shared/middlewares/request-lock.middleware');
-import ValidatorUtil = require('../../../../shared/utils/validators.util');
-import AuditAction = require('../../../../shared/middlewares/audit-action.middleware');
+import NotificationController from '../controllers/notification.controller';
+import NotificationValidator from '../validators/notification.validator';
+import AuthMiddleware from '../../../../shared/middlewares/auth.middleware';
+import RateLimitMiddleware from '../../../../shared/middlewares/rate-limit.middleware';
+import RequestLockMiddleware from '../../../../shared/middlewares/request-lock.middleware';
+import ValidatorUtil from '../../../../shared/utils/validators.util';
+import AuditAction from '../../../../shared/middlewares/audit-action.middleware';
 
 /**
  * GET /count/stream debe ir ANTES de GET /count para que Express no lo confunda.
@@ -76,4 +76,4 @@ router.get(
   NotificationController.getGlobalNotifications
 );
 
-export = router;
+export default router;

@@ -1,8 +1,9 @@
-import EventEmitter = require('node:events');
+import { interopDefault } from '../../../../shared/utils/interop.util';
+import EventEmitter from 'node:events';
 import type { Redis } from 'ioredis';
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger } = loggerUtilModule;
-import errorMessageModule = require('../../../../shared/utils/error-message.util');
+import errorMessageModule from '../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -41,7 +42,7 @@ class NotificationEmitter extends EventEmitter {
     }
 
     try {
-      const redisClient = require('../../../../shared/utils/redis.util') as typeof import('../../../../shared/utils/redis.util');
+      const redisClient = interopDefault(require('../../../../shared/utils/redis.util') as typeof import('../../../../shared/utils/redis.util'));
 
       if (redisClient.isAvailable()) {
         const client = redisClient.getClient();
@@ -170,4 +171,4 @@ process.on('SIGINT', async () => {
   await notificationEmitter.close();
 });
 
-export = notificationEmitter;
+export default notificationEmitter;

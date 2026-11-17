@@ -10,9 +10,9 @@ jest.mock('shared/utils/logger.util', () => ({
 }));
 
 import { mocked, Loose } from 'tests/helpers/mock';
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logger } = mocked(loggerUtilModule);
-import retryUtilModule = require('shared/utils/retry.util');
+import retryUtilModule from 'shared/utils/retry.util';
 const { withRetry } = retryUtilModule;
 
 describe('withRetry', () => {

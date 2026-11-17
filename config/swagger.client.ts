@@ -1,35 +1,35 @@
 import type { Application, Request, Response } from 'express';
 // config/swagger.client.ts
 
-import swaggerUi = require('swagger-ui-express');
-import getAllSchemas = require('./swagger/schemas');
-import constantsModule = require('../shared/constants');
+import swaggerUi from 'swagger-ui-express';
+import getAllSchemas from './swagger/schemas';
+import constantsModule from '../shared/constants';
 const { server } = constantsModule;
 
 // ─── Módulos KYC (compartidos con admin) ──────────────────────
-import authLoginPaths = require('./swagger/modules/shared-endpoints/kyc/iam/auth-login.paths');
-import catalogPaths = require('./swagger/modules/shared-endpoints/kyc/maintainers/maintainers.paths');
-import profilePaths = require('./swagger/modules/shared-endpoints/kyc/person/profile.paths');
-import mfaPaths = require('./swagger/modules/shared-endpoints/kyc/iam/mfa.paths');
+import authLoginPaths from './swagger/modules/shared-endpoints/kyc/iam/auth-login.paths';
+import catalogPaths from './swagger/modules/shared-endpoints/kyc/maintainers/maintainers.paths';
+import profilePaths from './swagger/modules/shared-endpoints/kyc/person/profile.paths';
+import mfaPaths from './swagger/modules/shared-endpoints/kyc/iam/mfa.paths';
 
 // ─── Módulos Notification (compartidos con admin) ─────────────
-import notificationSharedPaths = require('./swagger/modules/shared-endpoints/notification/notification.paths');
-import notificationPreferencePaths = require('./swagger/modules/shared-endpoints/kyc/person/notification-preference.paths');
+import notificationSharedPaths from './swagger/modules/shared-endpoints/notification/notification.paths';
+import notificationPreferencePaths from './swagger/modules/shared-endpoints/kyc/person/notification-preference.paths';
 
 // ─── Módulos Client ───────────────────────────────────────────
-import authRegisterPaths = require('./swagger/modules/client/kyc/iam/auth-register.paths');
-import sendVerificationPaths = require('./swagger/modules/shared-endpoints/notification/send-verification.paths');
-import authBiometricPaths = require('./swagger/modules/client/kyc/iam/auth-biometric.paths');
-import personReferencePaths = require('./swagger/modules/client/kyc/person/person-reference.paths');
+import authRegisterPaths from './swagger/modules/client/kyc/iam/auth-register.paths';
+import sendVerificationPaths from './swagger/modules/shared-endpoints/notification/send-verification.paths';
+import authBiometricPaths from './swagger/modules/client/kyc/iam/auth-biometric.paths';
+import personReferencePaths from './swagger/modules/client/kyc/person/person-reference.paths';
 
 // ─── Módulos Client — Consentimientos ─────────────────────────
-import userConsentPaths = require('./swagger/modules/client/records/legal/user-consent.paths');
+import userConsentPaths from './swagger/modules/client/records/legal/user-consent.paths';
 
 // ─── Módulos Client — Actividad reciente del usuario ──────────
-import userActivityPaths = require('./swagger/modules/client/records/audit/user-activity.paths');
+import userActivityPaths from './swagger/modules/client/records/audit/user-activity.paths';
 
 // ─── Módulos Client — Banners promocionales (público) ─────────
-import promotionalBannerPublicPaths = require('./swagger/modules/shared-endpoints/core/promotional-banner.paths');
+import promotionalBannerPublicPaths from './swagger/modules/shared-endpoints/core/promotional-banner.paths';
 
 // ─── Merge paths ──────────────────────────────────────────────
 
@@ -195,4 +195,4 @@ Los clientes **mobile** deben enviar los siguientes headers en cada request aute
   console.log(`📚 [CLIENT] Swagger Docs: http://${HOST}:${PORT}/client/docs`);
 };
 
-export = swaggerClientDocs;
+export default swaggerClientDocs;

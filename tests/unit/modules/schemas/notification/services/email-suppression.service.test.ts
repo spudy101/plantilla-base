@@ -28,15 +28,15 @@ jest.mock('shared/utils/logger.util', () => ({
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import suppressionRepoModule = require('modules/schemas/notification/repositories/email-bounce-suppression.repository');
+import suppressionRepoModule from 'modules/schemas/notification/repositories/email-bounce-suppression.repository';
 const suppressionRepo = mocked(suppressionRepoModule);
-import EncryptionUtilModule = require('shared/utils/encryption.util');
+import EncryptionUtilModule from 'shared/utils/encryption.util';
 const EncryptionUtil = mocked(EncryptionUtilModule);
-import MaskingUtilModule = require('shared/utils/masking.util');
+import MaskingUtilModule from 'shared/utils/masking.util';
 const MaskingUtil = mocked(MaskingUtilModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logger, logAudit } = mocked(loggerUtilModule);
-import service = require('modules/schemas/notification/services/email-suppression.service');
+import service from 'modules/schemas/notification/services/email-suppression.service';
 
 // Un SHA-256 válido: 64 chars hexadecimales (en mayúsculas para verificar que se normaliza a minúsculas).
 const HASHED_EMAIL = 'A'.repeat(64);

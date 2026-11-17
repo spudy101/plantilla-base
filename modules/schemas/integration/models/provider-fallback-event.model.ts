@@ -1,15 +1,8 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../shared/models/registry';
-
-
-
-
-
-
 
 // Historial de ventanas de fallback: cada vez que el circuit breaker de un producto se ABRE se
 // crea una fila (started_at); al CERRARSE se completa (ended_at + duración). Da el "tiempo de
@@ -105,4 +98,4 @@ namespace defineProviderFallbackEvent {
   };
 }
 
-export = defineProviderFallbackEvent;
+export default defineProviderFallbackEvent;

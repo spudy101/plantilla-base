@@ -1,4 +1,4 @@
-import type defineNotificationType = require('../models/notification-type.model');
+import type defineNotificationType from '../models/notification-type.model';
 // ============================================================
 // NOTIFICATION CONTENT UTIL
 // ============================================================
@@ -82,4 +82,4 @@ class NotificationContentUtil {
   }
 }
 
-export = NotificationContentUtil;
+export default NotificationContentUtil;

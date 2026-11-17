@@ -25,7 +25,7 @@
 //   HASH_PEPPER=<string secreto largo — mínimo 32 chars>
 //   Generar con: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
-import crypto = require('node:crypto');
+import crypto from 'node:crypto';
 
 // El PEPPER se carga una sola vez al iniciar el proceso.
 // Si no existe, el servidor no debe arrancar (ver validación en config.js).
@@ -77,4 +77,4 @@ class HashUtil {
   }
 }
 
-export = HashUtil;
+export default HashUtil;

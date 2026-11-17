@@ -412,7 +412,7 @@ class MetadataDTO {
 // EXPORTS
 // ============================================================
 
-export = {
+export default {
   // Catálogo geográfico
   CountryComponent,
   DepartmentComponent,

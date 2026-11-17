@@ -4,17 +4,17 @@
 // Extraído de MFAService (SOLID: S).
 
 import type { RequestAuditContext } from '../../../../../../shared/types/audit-context';
-import unitOfWork = require('../../../../../../shared/database/unit-of-work');
-import userRepository = require('../../../../../schemas/kyc/iam/repositories/user.repository');
-import NotificationUtil = require('../../../../../schemas/notification/services/notification-creation.service');
-import TotpUtil = require('../../../../../../shared/utils/totp.util');
-import EncryptionUtil = require('../../../../../../shared/utils/encryption.util');
-import AppError = require('../../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../../shared/utils/logger.util');
+import unitOfWork from '../../../../../../shared/database/unit-of-work';
+import userRepository from '../../../../../schemas/kyc/iam/repositories/user.repository';
+import NotificationUtil from '../../../../../schemas/notification/services/notification-creation.service';
+import TotpUtil from '../../../../../../shared/utils/totp.util';
+import EncryptionUtil from '../../../../../../shared/utils/encryption.util';
+import AppError from '../../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import mfaDtoModule = require('../../dtos/mfa.dto');
+import mfaDtoModule from '../../dtos/mfa.dto';
 const { TOTPSetupResponseDTO, TOTPActivationResponseDTO, TOTPVerificationResponseDTO } = mfaDtoModule;
-import MfaAccount = require('./mfa-account');
+import MfaAccount from './mfa-account';
 
 const ENTITY = { entityType: 'User', entityTable: 'users' };
 
@@ -198,4 +198,4 @@ namespace TotpMfaService {
   }
 }
 
-export = TotpMfaService;
+export default TotpMfaService;

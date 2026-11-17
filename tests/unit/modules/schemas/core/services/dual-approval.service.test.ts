@@ -33,10 +33,10 @@ jest.mock('shared/dtos/core/components-approval.dto', () => ({
 }));
 
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
-import approvalRepoModule = require('modules/schemas/core/repositories/approval-request.repository');
+import approvalRepoModule from 'modules/schemas/core/repositories/approval-request.repository';
 const approvalRepo = mocked(approvalRepoModule);
-import dualApproval = require('modules/schemas/core/services/dual-approval.service');
-import modelsModule = require('shared/models');
+import dualApproval from 'modules/schemas/core/services/dual-approval.service';
+import modelsModule from 'shared/models';
 const { ApprovalRequest } = modelsModule;
 
 const OP = 'RBAC_ROLE_CHANGE'; // condición ALWAYS, approverRoles: ['ADMIN']

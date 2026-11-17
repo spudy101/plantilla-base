@@ -2,9 +2,9 @@
 //
 // Formas compartidas entre los services de notificación (creación, envío, email, lotes). Solo tipos.
 // Los services exportan instancias (`export =`), así que los tipos que cruzan archivos viven aquí.
-import type defineNotificationType = require('./models/notification-type.model');
-import type defineNotificationCategory = require('./models/notification-category.model');
-import type defineUserNotificationPreference = require('../kyc/person/models/user-notification-preference.model');
+import type defineNotificationType from './models/notification-type.model';
+import type defineNotificationCategory from './models/notification-category.model';
+import type defineUserNotificationPreference from '../kyc/person/models/user-notification-preference.model';
 
 export type ChannelKey = 'push' | 'email' | 'sms';
 

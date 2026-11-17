@@ -23,8 +23,8 @@ jest.mock('modules/schemas/notification/services/notification-creation.service',
 }));
 
 jest.mock('shared/utils/pagination.util', () => ({
-  stringParam: jest.requireActual('shared/utils/pagination.util').stringParam,
-  booleanParam: jest.requireActual('shared/utils/pagination.util').booleanParam,
+  stringParam: jest.requireActual('shared/utils/pagination.util').default.stringParam,
+  booleanParam: jest.requireActual('shared/utils/pagination.util').default.booleanParam,
   getPaginationParams: jest.fn()
 }));
 
@@ -47,15 +47,15 @@ jest.mock('shared/constants', () => ({
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import consentTypeRepositoryModule = require('modules/schemas/records/legal/repositories/consent-type.repository');
+import consentTypeRepositoryModule from 'modules/schemas/records/legal/repositories/consent-type.repository';
 const consentTypeRepository = mocked(consentTypeRepositoryModule);
-import NotificationUtilModule = require('modules/schemas/notification/services/notification-creation.service');
+import NotificationUtilModule from 'modules/schemas/notification/services/notification-creation.service';
 const NotificationUtil = mocked(NotificationUtilModule);
-import PaginationHelperModule = require('shared/utils/pagination.util');
+import PaginationHelperModule from 'shared/utils/pagination.util';
 const PaginationHelper = mocked(PaginationHelperModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit, logger } = mocked(loggerUtilModule);
-import service = require('modules/admin/records/legal/services/consent-type.service');
+import service from 'modules/admin/records/legal/services/consent-type.service';
 
 const ADMIN_ID = 'admin-1';
 const AUDIT_CTX = { adminUserId: ADMIN_ID };

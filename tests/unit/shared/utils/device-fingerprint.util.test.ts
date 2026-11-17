@@ -7,9 +7,9 @@
 jest.mock('geoip-lite', () => ({ lookup: jest.fn() }));
 
 import { mocked, fixture } from 'tests/helpers/mock';
-import geoipModule = require('geoip-lite');
+import geoipModule from 'geoip-lite';
 const geoip = mocked(geoipModule);
-import DeviceFingerprintUtil = require('shared/utils/device-fingerprint.util');
+import DeviceFingerprintUtil from 'shared/utils/device-fingerprint.util';
 
 const UA_CHROME_WIN =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.129 Safari/537.36';

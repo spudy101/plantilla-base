@@ -40,19 +40,19 @@ jest.mock('shared/constants', () => ({
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import attemptRepoModule = require('modules/schemas/notification/repositories/sms-delivery-attempt.repository');
+import attemptRepoModule from 'modules/schemas/notification/repositories/sms-delivery-attempt.repository';
 const attemptRepo = mocked(attemptRepoModule);
-import phonePrefixRepoModule = require('modules/schemas/kyc/maintainers/repositories/phone-prefix.repository');
+import phonePrefixRepoModule from 'modules/schemas/kyc/maintainers/repositories/phone-prefix.repository';
 const phonePrefixRepo = mocked(phonePrefixRepoModule);
-import CircuitBreakerModule = require('shared/utils/circuit-breaker.util');
+import CircuitBreakerModule from 'shared/utils/circuit-breaker.util';
 const CircuitBreaker = mocked(CircuitBreakerModule);
-import ProviderApiLoggerModule = require('shared/utils/integration-api-logger.util');
+import ProviderApiLoggerModule from 'shared/utils/integration-api-logger.util';
 const ProviderApiLogger = mocked(ProviderApiLoggerModule);
-import retryUtilModule = require('shared/utils/retry.util');
+import retryUtilModule from 'shared/utils/retry.util';
 const { withRetry } = mocked(retryUtilModule);
-import constantsModule = require('shared/constants');
+import constantsModule from 'shared/constants';
 const constants = mocked(constantsModule);
-import sms = require('modules/schemas/notification/services/sms.service');
+import sms from 'modules/schemas/notification/services/sms.service';
 
 const ATTEMPT_ID = 'att-1';
 const okParams = { phoneNumber: '+56911112222', message: 'Tu código es 123456', userId: 'u-1', purpose: 'mfa_login' };

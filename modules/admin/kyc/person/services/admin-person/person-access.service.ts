@@ -4,20 +4,20 @@
 // Extraído de PersonService (SOLID: S).
 
 import type { AdminAuditContext } from '../../../../../../shared/types/audit-context';
-import unitOfWork = require('../../../../../../shared/database/unit-of-work');
-import userRepository = require('../../../../../schemas/kyc/iam/repositories/user.repository');
-import roleRepository = require('../../../../../schemas/kyc/iam/repositories/role.repository');
-import KycSharedUtil = require('../../../../../schemas/kyc/person/utils/kyc-shared.util');
-import NotificationUtil = require('../../../../../schemas/notification/services/notification-creation.service');
-import AppError = require('../../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../../shared/utils/logger.util');
+import unitOfWork from '../../../../../../shared/database/unit-of-work';
+import userRepository from '../../../../../schemas/kyc/iam/repositories/user.repository';
+import roleRepository from '../../../../../schemas/kyc/iam/repositories/role.repository';
+import KycSharedUtil from '../../../../../schemas/kyc/person/utils/kyc-shared.util';
+import NotificationUtil from '../../../../../schemas/notification/services/notification-creation.service';
+import AppError from '../../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import constantsModule = require('../../../../../../shared/constants');
+import constantsModule from '../../../../../../shared/constants';
 const { notifications } = constantsModule;
 
-import adminPersonDtoModule = require('../../dtos/admin-person.dto');
+import adminPersonDtoModule from '../../dtos/admin-person.dto';
 const { ToggleUserStatusDTO, ChangeRoleDTO } = adminPersonDtoModule;
-import personGuardsModule = require('./person-guards');
+import personGuardsModule from './person-guards';
 const { assertNotDeleted, isClientRole } = personGuardsModule;
 
 class PersonAccessService {
@@ -261,4 +261,4 @@ namespace PersonAccessService {
   }
 }
 
-export = PersonAccessService;
+export default PersonAccessService;

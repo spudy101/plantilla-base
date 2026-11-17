@@ -1,19 +1,20 @@
+import { interopDefault } from '../../../../../shared/utils/interop.util';
 import type { Transaction } from 'sequelize';
-import type ProfileTypes = require('../../../../schemas/kyc/person/helpers/profile.types');
-import type definePerson = require('../../../../schemas/kyc/person/models/person.model');
+import type * as ProfileTypes from '../../../../schemas/kyc/person/helpers/profile.types';
+import type definePerson from '../../../../schemas/kyc/person/models/person.model';
 import type { RequestAuditContext } from '../../../../../shared/types/audit-context';
-import unitOfWork = require('../../../../../shared/database/unit-of-work');
-import userRepository = require('../../../../schemas/kyc/iam/repositories/user.repository');
-import personRepository = require('../../../../schemas/kyc/person/repositories/person.repository');
-import userConsentRepository = require('../../../../schemas/records/legal/repositories/user-consent.repository');
-import consentTypeRepository = require('../../../../schemas/records/legal/repositories/consent-type.repository');
-import NotificationUtil = require('../../../../schemas/notification/services/notification-creation.service');
-import AppError = require('../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import unitOfWork from '../../../../../shared/database/unit-of-work';
+import userRepository from '../../../../schemas/kyc/iam/repositories/user.repository';
+import personRepository from '../../../../schemas/kyc/person/repositories/person.repository';
+import userConsentRepository from '../../../../schemas/records/legal/repositories/user-consent.repository';
+import consentTypeRepository from '../../../../schemas/records/legal/repositories/consent-type.repository';
+import NotificationUtil from '../../../../schemas/notification/services/notification-creation.service';
+import AppError from '../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import KycSharedUtil = require('../../../../schemas/kyc/person/utils/kyc-shared.util');
-import ProfileHelper = require('../../../../schemas/kyc/person/helpers/profile.helper');
-import profileDtoModule = require('../dtos/profile.dto');
+import KycSharedUtil from '../../../../schemas/kyc/person/utils/kyc-shared.util';
+import ProfileHelper from '../../../../schemas/kyc/person/helpers/profile.helper';
+import profileDtoModule from '../dtos/profile.dto';
 const {
   BasicProfileDTO,
   ExtendedProfileDTO,
@@ -78,8 +79,8 @@ class ProfileService {
   }
 
   async getContactInfo(personId: string, userId: string) {
-    const { PersonContactComponent } = require('../../../../../shared/dtos/kyc');
-    const personContactRepository = require('../../../../schemas/kyc/person/repositories/person-contact.repository');
+    const { PersonContactComponent } = interopDefault(require('../../../../../shared/dtos/kyc') as typeof import('../../../../../shared/dtos/kyc'));
+    const personContactRepository = interopDefault(require('../../../../schemas/kyc/person/repositories/person-contact.repository') as typeof import('../../../../schemas/kyc/person/repositories/person-contact.repository'));
     const contact = await personContactRepository.findByPersonIdWithPrefixes(personId);
     if (!contact) {
       throw AppError.notFound('Informacion de contacto no encontrada');
@@ -89,8 +90,8 @@ class ProfileService {
   }
 
   async getLocation(personId: string, userId: string) {
-    const { PersonLocationComponent } = require('../../../../../shared/dtos/kyc');
-    const personLocationRepository = require('../../../../schemas/kyc/person/repositories/person-location.repository');
+    const { PersonLocationComponent } = interopDefault(require('../../../../../shared/dtos/kyc') as typeof import('../../../../../shared/dtos/kyc'));
+    const personLocationRepository = interopDefault(require('../../../../schemas/kyc/person/repositories/person-location.repository') as typeof import('../../../../schemas/kyc/person/repositories/person-location.repository'));
     const location = await personLocationRepository.findByPersonId(personId);
     logAudit('PROFILE_LOCATION_VIEWED', userId, { personId }, { entityId: userId, entityType: 'User', entityTable: 'users' });
     return PersonLocationComponent.build(location);
@@ -554,4 +555,4 @@ namespace ProfileService {
   }
 }
 
-export = Object.assign(new ProfileService(), { ProfileService });
+export default Object.assign(new ProfileService(), { ProfileService });

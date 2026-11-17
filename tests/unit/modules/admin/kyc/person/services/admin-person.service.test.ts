@@ -65,8 +65,8 @@ jest.mock('modules/schemas/core/services/dual-approval.service', () => ({
   gate: jest.fn()
 }));
 jest.mock('shared/utils/pagination.util', () => ({
-  stringParam: jest.requireActual('shared/utils/pagination.util').stringParam,
-  booleanParam: jest.requireActual('shared/utils/pagination.util').booleanParam,
+  stringParam: jest.requireActual('shared/utils/pagination.util').default.stringParam,
+  booleanParam: jest.requireActual('shared/utils/pagination.util').default.booleanParam,
   getPaginationParams: jest.fn(() => ({ page: 1, limit: 10, sortBy: 'created_at', order: 'DESC' }))
 }));
 jest.mock('shared/utils/request-context.util', () => ({
@@ -81,7 +81,7 @@ jest.mock('shared/utils/logger.util', () => ({
 // AppError real-ish: factories que devuelven Error con statusCode/code para poder usar .rejects.
 // Dos roles de cliente para poder probar el cambio entre ellos (la plantilla trae solo CLIENTE).
 jest.mock('shared/constants/rbac', () => ({
-  ...jest.requireActual('shared/constants/rbac'),
+  ...jest.requireActual('shared/constants/rbac').default,
   CLIENT_ROLE_NAMES: ['CLIENTE', 'CLIENTE_VERIFICADO']
 }));
 
@@ -123,27 +123,27 @@ jest.mock('modules/admin/kyc/person/dtos/admin-person.dto', () => ({
 }));
 
 import { mocked, Loose } from 'tests/helpers/mock';
-import modelsModule = require('shared/models');
+import modelsModule from 'shared/models';
 const { sequelize } = mocked(modelsModule);
-import userRepositoryModule = require('modules/schemas/kyc/iam/repositories/user.repository');
+import userRepositoryModule from 'modules/schemas/kyc/iam/repositories/user.repository';
 const userRepository = mocked(userRepositoryModule);
-import personRepositoryModule = require('modules/schemas/kyc/person/repositories/person.repository');
+import personRepositoryModule from 'modules/schemas/kyc/person/repositories/person.repository';
 const personRepository = mocked(personRepositoryModule);
-import personContactRepositoryModule = require('modules/schemas/kyc/person/repositories/person-contact.repository');
+import personContactRepositoryModule from 'modules/schemas/kyc/person/repositories/person-contact.repository';
 const personContactRepository = mocked(personContactRepositoryModule);
-import roleRepositoryModule = require('modules/schemas/kyc/iam/repositories/role.repository');
+import roleRepositoryModule from 'modules/schemas/kyc/iam/repositories/role.repository';
 const roleRepository = mocked(roleRepositoryModule);
-import KycSharedUtilModule = require('modules/schemas/kyc/person/utils/kyc-shared.util');
+import KycSharedUtilModule from 'modules/schemas/kyc/person/utils/kyc-shared.util';
 const KycSharedUtil = mocked(KycSharedUtilModule);
-import NotificationUtilModule = require('modules/schemas/notification/services/notification-creation.service');
+import NotificationUtilModule from 'modules/schemas/notification/services/notification-creation.service';
 const NotificationUtil = mocked(NotificationUtilModule);
-import ProfileHelperModule = require('modules/schemas/kyc/person/helpers/profile.helper');
+import ProfileHelperModule from 'modules/schemas/kyc/person/helpers/profile.helper';
 const ProfileHelper = mocked(ProfileHelperModule);
-import DualApprovalServiceModule = require('modules/schemas/core/services/dual-approval.service');
+import DualApprovalServiceModule from 'modules/schemas/core/services/dual-approval.service';
 const DualApprovalService = mocked(DualApprovalServiceModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import service = require('modules/admin/kyc/person/services/admin-person.service');
+import service from 'modules/admin/kyc/person/services/admin-person.service';
 
 const flushMacrotasks = () => new Promise(resolve => { setImmediate(resolve); });
 

@@ -19,9 +19,9 @@ jest.mock('shared/utils/logger.util', () => ({
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import notificationRepoModule = require('modules/schemas/notification/repositories/notification.repository');
+import notificationRepoModule from 'modules/schemas/notification/repositories/notification.repository';
 const notificationRepo = mocked(notificationRepoModule);
-import scheduler = require('modules/schemas/notification/services/notification-scheduler.service');
+import scheduler from 'modules/schemas/notification/services/notification-scheduler.service';
 
 // Reloj fijo: 15-jun-2026 23:30:00 hora local. getHours()=23, getMinutes()=30 → "23:30:00".
 const FIXED_NOW = new Date(2026, 5, 15, 23, 30, 0);

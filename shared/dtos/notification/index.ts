@@ -1,5 +1,5 @@
-import componentsNotification = require('./components-notification.dto');
+import componentsNotification from './components-notification.dto';
 
-export = {
+export default {
   ...componentsNotification
 };

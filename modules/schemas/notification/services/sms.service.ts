@@ -1,22 +1,21 @@
-import type defineSmsDeliveryAttempt = require('../models/sms-delivery-attempt.model');
-import clientSnsModule = require('@aws-sdk/client-sns');
-const { SNSClient, PublishCommand } = clientSnsModule;
+import type defineSmsDeliveryAttempt from '../models/sms-delivery-attempt.model';
+import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 /** Lo único que se usa del cliente SNS (un doble de test solo necesita send). */
 type SnsSender = Pick<InstanceType<typeof SNSClient>, 'send'>;
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger } = loggerUtilModule;
-import retryUtilModule = require('../../../../shared/utils/retry.util');
+import retryUtilModule from '../../../../shared/utils/retry.util';
 const { withRetry } = retryUtilModule;
-import CircuitBreaker = require('../../../../shared/utils/circuit-breaker.util');
-import ProviderApiLogger = require('../../../../shared/utils/integration-api-logger.util');
-import awsProviderMetaUtilModule = require('../../../../shared/utils/aws-provider-meta.util');
+import CircuitBreaker from '../../../../shared/utils/circuit-breaker.util';
+import ProviderApiLogger from '../../../../shared/utils/integration-api-logger.util';
+import awsProviderMetaUtilModule from '../../../../shared/utils/aws-provider-meta.util';
 const { awsErrorCode } = awsProviderMetaUtilModule;
-import EncryptionUtil = require('../../../../shared/utils/encryption.util');
-import constantsModule = require('../../../../shared/constants');
+import EncryptionUtil from '../../../../shared/utils/encryption.util';
+import constantsModule from '../../../../shared/constants';
 const { MOCKS, aws } = constantsModule;
-import smsDeliveryAttemptRepository = require('../repositories/sms-delivery-attempt.repository');
-import phonePrefixRepository = require('../../kyc/maintainers/repositories/phone-prefix.repository');
-import errorMessageModule = require('../../../../shared/utils/error-message.util');
+import smsDeliveryAttemptRepository from '../repositories/sms-delivery-attempt.repository';
+import phonePrefixRepository from '../../kyc/maintainers/repositories/phone-prefix.repository';
+import errorMessageModule from '../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -290,4 +289,4 @@ namespace SmsService {
   }
 }
 
-export = Object.assign(new SmsService(), { SmsService });
+export default Object.assign(new SmsService(), { SmsService });

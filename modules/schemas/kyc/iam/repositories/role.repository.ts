@@ -1,11 +1,10 @@
 // modules/schemas/kyc/src/repositories/role.repository.ts
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../../shared/models';
 const { Role } = modelsModule;
-import sequelizeModule = require('sequelize');
-const { Op } = sequelizeModule;
+import { Op } from 'sequelize';
 import type { FindOptions, WhereOperators } from 'sequelize';
-import type defineRole = require('../models/role.model');
+import type defineRole from '../models/role.model';
 
 class RoleRepository extends BaseRepository<defineRole.Instance> {
   constructor() {
@@ -33,4 +32,4 @@ class RoleRepository extends BaseRepository<defineRole.Instance> {
   }
 }
 
-export = new RoleRepository();
+export default new RoleRepository();

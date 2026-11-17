@@ -1,5 +1,5 @@
-import EncryptionUtil = require('../../utils/encryption.util');
-import MaskingUtil = require('../../utils/masking.util');
+import EncryptionUtil from '../../utils/encryption.util';
+import MaskingUtil from '../../utils/masking.util';
 import type { DbDate, Maybe } from '../../types/db-rows';
 
 /** Objeto de salida con campos opcionales que se agregan según las opciones de build. */
@@ -371,7 +371,7 @@ class PersonReferenceComponent {
   }
 }
 
-export = {
+export default {
   PersonContactComponent,
   PersonLocationComponent,
   UserComponent,

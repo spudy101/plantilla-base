@@ -3,9 +3,8 @@
 // Todos los .withMessage() deben identificar campo y restricción.
 // [RF-LP-03][CA-05 IMPLEMENTADO]: todos los métodos base
 // incluyen hint. Validators de dominio heredan hint automáticamente.
-import expressValidatorModule = require('express-validator');
-const { body, param, query, header } = expressValidatorModule;
-import constantsModule = require('../constants');
+import { body, param, query, header } from 'express-validator';
+import constantsModule from '../constants';
 const { REGEX } = constantsModule;
 
 class BaseValidator {
@@ -596,4 +595,4 @@ class BaseValidator {
   }
 }
 
-export = BaseValidator;
+export default BaseValidator;

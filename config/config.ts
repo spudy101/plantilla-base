@@ -1,9 +1,8 @@
 // config.ts
-import sequelizeModule = require('sequelize');
-const { Sequelize } = sequelizeModule;
-import constantsModule = require('../shared/constants');
+import { Sequelize } from 'sequelize';
+import constantsModule from '../shared/constants';
 const { server } = constantsModule;
-import dbConfigs = require('./database');
+import dbConfigs from './database';
 
 const env = server.nodeEnv;
 // Perfil del entorno actual (development | test | production)
@@ -15,4 +14,4 @@ if (!config) {
 // Constructor por opciones: toma database/username/password del propio perfil (el de test no los tiene)
 const sequelize = new Sequelize(config);
 
-export = sequelize;
+export default sequelize;

@@ -6,4 +6,4 @@ const FIELD_LABELS: Record<string, string> = {
   // email_hash, auth_username → NO se mapean a propósito
 };
 const DEFAULT_FIELD_LABEL = 'uno de los datos ingresados';
-export = { FIELD_LABELS, DEFAULT_FIELD_LABEL };
+export default { FIELD_LABELS, DEFAULT_FIELD_LABEL };

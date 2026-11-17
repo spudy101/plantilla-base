@@ -1,7 +1,7 @@
-import type definePrivacyPolicy = require('../../../../schemas/records/legal/models/privacy-policy.model');
+import type definePrivacyPolicy from '../../../../schemas/records/legal/models/privacy-policy.model';
 // modules/admin/privacy-policy/dtos/privacy-policy-admin.dto.ts
 
-import componentsCatalogDtoModule = require('../../../../../shared/dtos/kyc/components-catalog.dto');
+import componentsCatalogDtoModule from '../../../../../shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
 
 // ============================================================
@@ -63,7 +63,7 @@ function PrivacyPolicyCreatedResponseDTO(policy: definePrivacyPolicy.Instance) {
   };
 }
 
-export = {
+export default {
   ListPrivacyPoliciesResponseDTO,
   PrivacyPolicyDetailResponseDTO,
   PrivacyPolicyCreatedResponseDTO

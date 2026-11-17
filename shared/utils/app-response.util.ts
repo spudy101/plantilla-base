@@ -1,9 +1,9 @@
 // shared/utils/app-response.util.ts
 
 import type { Response } from 'express';
-import constantsModule = require('../constants');
+import constantsModule from '../constants';
 const { HTTP_STATUS } = constantsModule;
-import PiiMaskingMiddleware = require('../middlewares/pii-masking.middleware');
+import PiiMaskingMiddleware from '../middlewares/pii-masking.middleware';
 
 /**
  * Clase centralizada para respuestas HTTP estandarizadas.
@@ -130,4 +130,4 @@ class ApiResponse {
   }
 }
 
-export = ApiResponse;
+export default ApiResponse;

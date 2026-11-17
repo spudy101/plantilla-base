@@ -25,13 +25,13 @@ jest.mock('shared/constants', () => ({
 }));
 
 import { mocked, fixture } from 'tests/helpers/mock';
-import emailSuppressionServiceModule = require('modules/schemas/notification/services/email-suppression.service');
+import emailSuppressionServiceModule from 'modules/schemas/notification/services/email-suppression.service';
 const emailSuppressionService = mocked(emailSuppressionServiceModule);
-import snsSignatureUtilModule = require('shared/utils/sns-signature.util');
+import snsSignatureUtilModule from 'shared/utils/sns-signature.util';
 const { verifySnsSignature, confirmSnsSubscription } = mocked(snsSignatureUtilModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import service = require('modules/client/notification/webhook/services/email-bounce-webhook.service');
+import service from 'modules/client/notification/webhook/services/email-bounce-webhook.service';
 
 const TOPIC = 'arn:aws:sns:us-east-1:1:bounces';
 

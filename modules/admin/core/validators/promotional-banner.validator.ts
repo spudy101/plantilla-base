@@ -1,6 +1,5 @@
-import expressValidatorModule = require('express-validator');
-const { body } = expressValidatorModule;
-import BaseValidator = require('../../../../shared/validators/base.validator');
+import { body } from 'express-validator';
+import BaseValidator from '../../../../shared/validators/base.validator';
 
 const IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/webp'];
 
@@ -70,4 +69,4 @@ class PromotionalBannerValidator extends BaseValidator {
   }
 }
 
-export = PromotionalBannerValidator;
+export default PromotionalBannerValidator;

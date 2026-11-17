@@ -4,7 +4,7 @@
 // kyc, notification, records — modelos Sequelize y definiciones de esquema).
 // Ver la mecánica en tests/helpers/loadability.js.
 
-import loadabilityModule = require('tests/helpers/loadability');
+import loadabilityModule from 'tests/helpers/loadability';
 const { describeLoadability } = loadabilityModule;
 
 describeLoadability('modules/schemas');

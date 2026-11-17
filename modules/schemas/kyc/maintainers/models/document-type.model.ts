@@ -1,18 +1,11 @@
 // modules/schemas/kyc/models/document-type.model.ts
 
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../../shared/models/registry';
-import type definePerson = require('../../person/models/person.model');
-
-
-
-
-
-
+import type definePerson from '../../person/models/person.model';
 
 function defineDocumentType(sequelize: Sequelize): defineDocumentType.Static {
   const DocumentType = sequelize.define<defineDocumentType.Instance>(
@@ -106,4 +99,4 @@ namespace defineDocumentType {
   };
 }
 
-export = defineDocumentType;
+export default defineDocumentType;

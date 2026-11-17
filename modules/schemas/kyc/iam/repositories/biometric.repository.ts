@@ -1,12 +1,11 @@
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import AppError = require('../../../../../shared/utils/app-error.util');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import AppError from '../../../../../shared/utils/app-error.util';
+import modelsModule from '../../../../../shared/models';
 const { UserBiometricCredential, BiometricChallenge } = modelsModule;
-import sequelizeModule = require('sequelize');
-const { Op } = sequelizeModule;
+import { Op } from 'sequelize';
 import type { CreateOptions } from 'sequelize';
-import type defineBiometricChallenge = require('../models/biometric-challenge.model');
-import type defineUserBiometricCredential = require('../models/user-biometric-credential.model');
+import type defineBiometricChallenge from '../models/biometric-challenge.model';
+import type defineUserBiometricCredential from '../models/user-biometric-credential.model';
 
 // TTL del challenge biométrico en milisegundos
 const BIOMETRIC_CHALLENGE_TTL_MINUTES = 5;
@@ -164,7 +163,7 @@ class BiometricChallengeRepository extends BaseRepository<defineBiometricChallen
   }
 }
 
-export = {
+export default {
   biometricCredentialRepository: new BiometricCredentialRepository(),
   biometricChallengeRepository: new BiometricChallengeRepository()
 };

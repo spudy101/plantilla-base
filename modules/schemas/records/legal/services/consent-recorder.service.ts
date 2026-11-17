@@ -14,10 +14,10 @@
 
 import type { Transaction } from 'sequelize';
 import type { UserConsentRepositoryPort } from '../../../repository-ports';
-import consentTypeRepository = require('../repositories/consent-type.repository');
-import userConsentRepository = require('../repositories/user-consent.repository');
-import privacyPolicyRepository = require('../repositories/privacy-policy.repository');
-import constantsModule = require('../../../../../shared/constants');
+import consentTypeRepository from '../repositories/consent-type.repository';
+import userConsentRepository from '../repositories/user-consent.repository';
+import privacyPolicyRepository from '../repositories/privacy-policy.repository';
+import constantsModule from '../../../../../shared/constants';
 const { CONSENT_TYPE_CODES } = constantsModule;
 
 class ConsentRecorderService {
@@ -111,4 +111,4 @@ namespace ConsentRecorderService {
   }
 }
 
-export = Object.assign(new ConsentRecorderService(), { ConsentRecorderService });
+export default Object.assign(new ConsentRecorderService(), { ConsentRecorderService });

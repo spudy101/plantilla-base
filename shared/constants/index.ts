@@ -8,11 +8,11 @@
  * relajado en localhost). La configuración de entorno cruda vive en src/config.
  */
 
-import config = require('./config');
-import fieldLabelsModule = require('./field-labels');
-import auditAlertTriggers = require('./auditActions/audit-alert-triggers');
-import auditCatalog = require('./auditActions/audit-catalog');
-import auditActions = require('./auditActions');
+import config from './config';
+import fieldLabelsModule from './field-labels';
+import auditAlertTriggers from './auditActions/audit-alert-triggers';
+import auditCatalog from './auditActions/audit-catalog';
+import auditActions from './auditActions';
 
 const { FIELD_LABELS, DEFAULT_FIELD_LABEL } = fieldLabelsModule;
 
@@ -179,7 +179,7 @@ const HTTP_STATUS = {
 // RBAC (RF-ADM-01) — roles internos, módulos y matriz de permisos
 // ==============================================
 
-import rbac = require('./rbac');
+import rbac from './rbac';
 
 // Roles con acceso completo al panel admin (acceso total en la matriz): SUPERADMIN + ADMIN.
 const ADMIN_ACCESS_ROLES = [...rbac.ADMIN_FULL_ACCESS_ROLES];
@@ -297,7 +297,7 @@ const MOCKS = {
 // EXPORTS
 // ==============================================
 
-export = {
+export default {
   // Config (env vars)
   ...config,
 

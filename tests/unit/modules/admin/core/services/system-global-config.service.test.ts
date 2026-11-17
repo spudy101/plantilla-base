@@ -35,13 +35,13 @@ jest.mock('modules/schemas/notification/services/notification-creation.service',
 }));
 
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import systemGlobalConfigRepositoryModule = require('modules/schemas/core/repositories/system-global-config.repository');
+import systemGlobalConfigRepositoryModule from 'modules/schemas/core/repositories/system-global-config.repository';
 const systemGlobalConfigRepository = mocked(systemGlobalConfigRepositoryModule);
-import notificationCreationServiceModule = require('modules/schemas/notification/services/notification-creation.service');
+import notificationCreationServiceModule from 'modules/schemas/notification/services/notification-creation.service';
 const notificationCreationService = mocked(notificationCreationServiceModule);
-import service = require('modules/admin/core/services/system-global-config.service');
+import service from 'modules/admin/core/services/system-global-config.service';
 
 const flush = () => new Promise(resolve => { setImmediate(resolve); });
 

@@ -15,11 +15,12 @@
  * Productos válidos (ENUM del modelo): 'ses' | 's3' | 'sns' | 'aws_sms'
  */
 
-import loggerUtilModule = require('./logger.util');
+import { interopDefault } from './interop.util';
+import loggerUtilModule from './logger.util';
 const { logger } = loggerUtilModule;
-import requestContext = require('./request-context.util');
-import errorMessageModule = require('./error-message.util');
-import type DomainEnums = require('../constants/domain-enums');
+import requestContext from './request-context.util';
+import errorMessageModule from './error-message.util';
+import type DomainEnums from '../constants/domain-enums';
 
 // Se usa como errorMessageModule.errorMessage(…): `log()` recibe un parámetro llamado errorMessage.
 
@@ -124,7 +125,7 @@ class IntegrationApiLogger {
     setImmediate(async () => {
       try {
         // Carga lazy para evitar ciclos de dependencia al importar shared/models
-        const { IntegrationApiLog } = require('../models');
+        const { IntegrationApiLog } = interopDefault(require('../models') as typeof import('../models'));
 
         await IntegrationApiLog.create({
           product,
@@ -151,4 +152,4 @@ class IntegrationApiLogger {
   }
 }
 
-export = Object.assign(new IntegrationApiLogger(), { IntegrationApiLogger });
+export default Object.assign(new IntegrationApiLogger(), { IntegrationApiLogger });

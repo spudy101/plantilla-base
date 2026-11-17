@@ -1,10 +1,10 @@
-import NotificationPreferenceService = require('../services/notification-preference.service');
-import ApiResponse = require('../../../../../shared/utils/app-response.util');
-import errorMiddlewareModule = require('../../../../../shared/middlewares/error.middleware');
+import NotificationPreferenceService from '../services/notification-preference.service';
+import ApiResponse from '../../../../../shared/utils/app-response.util';
+import errorMiddlewareModule from '../../../../../shared/middlewares/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
-import authUserUtilModule = require('../../../../../shared/utils/auth-user.util');
+import authUserUtilModule from '../../../../../shared/utils/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
-import routeParamUtilModule = require('../../../../../shared/utils/route-param.util');
+import routeParamUtilModule from '../../../../../shared/utils/route-param.util';
 const { routeParam } = routeParamUtilModule;
 
 class NotificationPreferenceController {
@@ -43,4 +43,4 @@ class NotificationPreferenceController {
   });
 }
 
-export = new NotificationPreferenceController();
+export default new NotificationPreferenceController();

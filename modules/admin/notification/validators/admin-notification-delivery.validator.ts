@@ -1,6 +1,5 @@
-import expressValidatorModule = require('express-validator');
-const { query } = expressValidatorModule;
-import BaseValidator = require('../../../../shared/validators/base.validator');
+import { query } from 'express-validator';
+import BaseValidator from '../../../../shared/validators/base.validator';
 
 const VALID_STATUSES = ['pending', 'processing', 'completed', 'partial_failure', 'failed'];
 const VALID_CHANNELS = ['email', 'push', 'sms', 'all'];
@@ -59,4 +58,4 @@ class AdminNotificationDeliveryValidator {
   }
 }
 
-export = AdminNotificationDeliveryValidator;
+export default AdminNotificationDeliveryValidator;

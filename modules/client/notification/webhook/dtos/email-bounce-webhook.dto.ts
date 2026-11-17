@@ -21,4 +21,4 @@ class EmailBounceWebhookAckDTO {
   }
 }
 
-export = { EmailBounceWebhookAckDTO };
+export default { EmailBounceWebhookAckDTO };

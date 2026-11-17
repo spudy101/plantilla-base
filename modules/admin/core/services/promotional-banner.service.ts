@@ -1,12 +1,11 @@
-import type BannerDto = require('../dtos/promotional-banner.dto');
-import uuidModule = require('uuid');
-const { v4: uuidv4 } = uuidModule;
-import AppError = require('../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import type BannerDto from '../dtos/promotional-banner.dto';
+import { v4 as uuidv4 } from 'uuid';
+import AppError from '../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logAudit, logger } = loggerUtilModule;
-import S3Util = require('../../../../shared/utils/s3.util');
-import systemGlobalConfigRepository = require('../../../schemas/core/repositories/system-global-config.repository');
-import promotionalBannerDtoModule = require('../dtos/promotional-banner.dto');
+import S3Util from '../../../../shared/utils/s3.util';
+import systemGlobalConfigRepository from '../../../schemas/core/repositories/system-global-config.repository';
+import promotionalBannerDtoModule from '../dtos/promotional-banner.dto';
 const { PromotionalBannerListDTO, PromotionalBannerImageDTO } = promotionalBannerDtoModule;
 
 // Prefijo del bucket PÚBLICO (CloudFront). Cada imagen sube con key única (uuid), así que no hay
@@ -181,4 +180,4 @@ namespace PromotionalBannerService {
   }
 }
 
-export = Object.assign(new PromotionalBannerService(), { PromotionalBannerService });
+export default Object.assign(new PromotionalBannerService(), { PromotionalBannerService });

@@ -230,4 +230,4 @@ function addBusinessHours(startDate: Date, hours: number): Date {
   return current;
 }
 
-export = { addBusinessHours, isBusinessDay };
+export default { addBusinessHours, isBusinessDay };

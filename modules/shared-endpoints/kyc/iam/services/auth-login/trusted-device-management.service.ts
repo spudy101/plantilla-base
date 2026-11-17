@@ -3,12 +3,12 @@
 // Gestión de dispositivos de confianza por el propio usuario (RF-AUTH-03):
 // listar, renombrar, bloquear, desbloquear y aprobar. Extraído de AuthLoginService (SOLID: S).
 
-import trustedDeviceRepository = require('../../../../../schemas/kyc/iam/repositories/auth-trusted-device.repository');
-import DeviceBlocklistUtil = require('../../../../../../shared/utils/device-blocklist.util');
-import AppError = require('../../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../../shared/utils/logger.util');
+import trustedDeviceRepository from '../../../../../schemas/kyc/iam/repositories/auth-trusted-device.repository';
+import DeviceBlocklistUtil from '../../../../../../shared/utils/device-blocklist.util';
+import AppError from '../../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import authLoginDtoModule = require('../../dtos/auth-login.dto');
+import authLoginDtoModule from '../../dtos/auth-login.dto';
 const { TrustedDeviceListDTO, TrustedDeviceUpdateDTO } = authLoginDtoModule;
 
 class TrustedDeviceManagementService {
@@ -229,4 +229,4 @@ namespace TrustedDeviceManagementService {
   }
 }
 
-export = TrustedDeviceManagementService;
+export default TrustedDeviceManagementService;

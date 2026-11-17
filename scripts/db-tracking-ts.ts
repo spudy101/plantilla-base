@@ -10,8 +10,8 @@
 // hace nada) y corre antes de cada comando db:* (ver package.json). Se puede eliminar cuando todos los
 // entornos hayan corrido una vez una versión con migraciones .ts.
 import { QueryTypes } from 'sequelize';
-import sequelize = require('../config/config');
-import constantsModule = require('../shared/constants');
+import sequelize from '../config/config';
+import constantsModule from '../shared/constants';
 const { database } = constantsModule;
 
 const TRACKING_TABLES = ['SequelizeMeta', 'SequelizeData'];

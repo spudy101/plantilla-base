@@ -1,18 +1,18 @@
-import type defineUser = require('../../../../../schemas/kyc/iam/models/user.model');
-import type defineUserTrustedDevice = require('../../../../../schemas/kyc/iam/models/user-trusted-device.model');
+import type defineUser from '../../../../../schemas/kyc/iam/models/user.model';
+import type defineUserTrustedDevice from '../../../../../schemas/kyc/iam/models/user-trusted-device.model';
 // modules/shared-endpoints/kyc/iam/services/auth-login/login-device.service.ts
 //
 // Resolución del dispositivo durante el login: primer dispositivo, dispositivo
 // conocido o nuevo pendiente de aprobación. Extraído de AuthLoginService (SOLID: S).
 
 import type { RequestAuditContext } from '../../../../../../shared/types/audit-context';
-import trustedDeviceRepository = require('../../../../../schemas/kyc/iam/repositories/auth-trusted-device.repository');
-import DeviceFingerprintUtil = require('../../../../../../shared/utils/device-fingerprint.util');
-import NotificationUtil = require('../../../../../schemas/notification/services/notification-creation.service');
-import AppError = require('../../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../../shared/utils/logger.util');
+import trustedDeviceRepository from '../../../../../schemas/kyc/iam/repositories/auth-trusted-device.repository';
+import DeviceFingerprintUtil from '../../../../../../shared/utils/device-fingerprint.util';
+import NotificationUtil from '../../../../../schemas/notification/services/notification-creation.service';
+import AppError from '../../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import constantsModule = require('../../../../../../shared/constants');
+import constantsModule from '../../../../../../shared/constants';
 const { notifications } = constantsModule;
 
 class LoginDeviceService {
@@ -199,4 +199,4 @@ namespace LoginDeviceService {
   }
 }
 
-export = LoginDeviceService;
+export default LoginDeviceService;

@@ -2,10 +2,10 @@
 
 import type { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
-import cors = require('cors');
-import loggerUtilModule = require('../utils/logger.util');
+import cors from 'cors';
+import loggerUtilModule from '../utils/logger.util';
 const { logger } = loggerUtilModule;
-import constantsModule = require('../constants');
+import constantsModule from '../constants';
 const { server } = constantsModule;
 
 class SecurityMiddleware {
@@ -109,4 +109,4 @@ class SecurityMiddleware {
   }
 }
 
-export = SecurityMiddleware;
+export default SecurityMiddleware;
