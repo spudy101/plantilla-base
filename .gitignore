@@ -151,3 +151,6 @@ vite.config.ts.timestamp-*
 
 # Planning / scratch docs (no versionar)
 /PLAN*.md
+
+# Cliente de Prisma generado (npm run prisma:generate)
+shared/database/generated/

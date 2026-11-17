@@ -59,8 +59,13 @@ interface PhonePrefixRow extends CatalogRow {
   country?: Maybe<CountryRow>;
 }
 
-interface GenderRow extends CatalogRow {
-  gender_id: string;
+// Ya sobre Prisma (camelCase): docs/prisma-migration.md
+interface GenderRow {
+  genderId: string;
+  name?: Maybe<string>;
+  isActive?: Maybe<boolean>;
+  createdAt?: Maybe<DbDate>;
+  updatedAt?: Maybe<DbDate>;
 }
 
 interface RoleRow extends CatalogRow {
@@ -228,9 +233,9 @@ class GenderComponent {
       return null;
     }
     return {
-      genderId: gender.gender_id,
+      genderId: gender.genderId,
       name: gender.name,
-      isActive: gender.is_active,
+      isActive: gender.isActive,
       createdAt: gender.createdAt,
       updatedAt: gender.updatedAt
     };
