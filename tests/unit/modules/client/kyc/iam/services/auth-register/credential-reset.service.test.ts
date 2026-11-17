@@ -7,6 +7,7 @@ jest.mock('shared/models', () => ({}));
 jest.mock('shared/utils/logger.util', () => ({ logger: { info: jest.fn(), warn: jest.fn() }, logAudit: jest.fn() }));
 jest.mock('shared/utils/token-blacklist.util', () => ({ invalidateUserSessions: jest.fn().mockResolvedValue(undefined) }));
 
+import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
 import CredentialResetService from 'modules/client/kyc/iam/services/auth-register/credential-reset.service';
 import TokenBlacklistUtilModule from 'shared/utils/token-blacklist.util';
@@ -19,7 +20,8 @@ const flush = () => new Promise(resolve => { setImmediate(resolve); });
 const makeService = () => {
   const transaction = { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn().mockResolvedValue(undefined) };
   const deps = {
-    unitOfWork: { begin: jest.fn().mockResolvedValue(transaction) },
+    // UoW falso con la semántica de run(): commit si el trabajo termina bien, rollback si lanza
+    unitOfWork: { run: jest.fn(managedTransaction(transaction)) },
     userRepository: { updatePassword: jest.fn().mockResolvedValue(undefined), update: jest.fn().mockResolvedValue(undefined) },
     personContactRepository: { findByEmailWithUser: jest.fn() },
     resetCredentialsRepository: {
@@ -86,7 +88,7 @@ describe('CredentialResetService', () => {
       deps.resetCredentialsRepository.findValidTokenWithUser.mockResolvedValueOnce(resetRecord('mfa'));
       await expect(service.confirmResetCredentials({ token: 't', type: 'password' })).rejects.toThrow('Tipo de reset incorrecto');
 
-      expect(deps.unitOfWork.begin).not.toHaveBeenCalled();
+      expect(deps.unitOfWork.run).not.toHaveBeenCalled();
     });
 
     it('password: actualiza, marca el token usado en la transacción e invalida todas las sesiones', async () => {

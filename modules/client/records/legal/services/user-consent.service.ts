@@ -53,8 +53,7 @@ class UserConsentService {
       throw AppError.badRequest('Debe proporcionar al menos un consentimiento a otorgar');
     }
 
-    const transaction = await this.unitOfWork.begin();
-    try {
+    const { granted, auditEntries } = await this.unitOfWork.run(async transaction => {
       const granted = [];
       const auditEntries = [];
 
@@ -84,29 +83,25 @@ class UserConsentService {
 
         granted.push(ConsentGrantedDTO(record));
       }
+      return { granted, auditEntries };
+    });
 
-      await transaction.commit();
-
-      for (const entry of auditEntries) {
-        logAudit(
-          'CONSENT_GRANTED',
-          userId,
-          {
-            consentTypeCode: entry.consentTypeCode,
-            consentTypeId: entry.consentTypeId,
-            privacyPolicyId: entry.privacyPolicyId
-          },
-          { entityType: 'UserConsent', entityId: entry.userConsentId, entityTable: 'user_consents' }
-        );
-      }
-
-      logger.info('UserConsentService.grant', { userId, count: granted.length });
-
-      return granted;
-    } catch (err) {
-      await transaction.rollback();
-      throw err;
+    for (const entry of auditEntries) {
+      logAudit(
+        'CONSENT_GRANTED',
+        userId,
+        {
+          consentTypeCode: entry.consentTypeCode,
+          consentTypeId: entry.consentTypeId,
+          privacyPolicyId: entry.privacyPolicyId
+        },
+        { entityType: 'UserConsent', entityId: entry.userConsentId, entityTable: 'user_consents' }
+      );
     }
+
+    logger.info('UserConsentService.grant', { userId, count: granted.length });
+
+    return granted;
   }
 
   async revokeMarketing(
@@ -122,8 +117,7 @@ class UserConsentService {
       throw AppError.badRequest('Este consentimiento no puede ser revocado');
     }
 
-    const transaction = await this.unitOfWork.begin();
-    try {
+    const revoked = await this.unitOfWork.run(async transaction => {
       const revoked = await this.userConsentRepository.revoke(
         {
           userId,
@@ -137,22 +131,18 @@ class UserConsentService {
       if (!revoked) {
         throw AppError.notFound('No se encontró un consentimiento activo para revocar');
       }
+      return revoked;
+    });
 
-      await transaction.commit();
+    logAudit(
+      'CONSENT_REVOKED',
+      userId,
+      { consentTypeId, reason: auditCtx.reason || null },
+      { entityType: 'UserConsent', entityId: revoked.user_consent_id, entityTable: 'user_consents' }
+    );
 
-      logAudit(
-        'CONSENT_REVOKED',
-        userId,
-        { consentTypeId, reason: auditCtx.reason || null },
-        { entityType: 'UserConsent', entityId: revoked.user_consent_id, entityTable: 'user_consents' }
-      );
-
-      logger.info('UserConsentService.revokeMarketing', { userId, consentTypeId });
-      return { message: 'Consentimiento revocado exitosamente' };
-    } catch (err) {
-      await transaction.rollback();
-      throw err;
-    }
+    logger.info('UserConsentService.revokeMarketing', { userId, consentTypeId });
+    return { message: 'Consentimiento revocado exitosamente' };
   }
 }
 

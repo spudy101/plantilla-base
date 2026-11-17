@@ -39,6 +39,7 @@ jest.mock('modules/admin/notification/dtos/admin-notification-category.dto', () 
   ListNotificationCategoriesResponseDTO: (rows: Loose, metadata: Loose) => ({ data: rows, metadata })
 }));
 
+import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked, Loose } from 'tests/helpers/mock';
 import categoryRepoModule from 'modules/schemas/notification/repositories/notification-category.repository';
 const categoryRepo = mocked(categoryRepoModule);
@@ -58,7 +59,7 @@ describe('NotificationCategoryService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     transaction = { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn().mockResolvedValue(undefined) };
-    sequelize.transaction.mockResolvedValue(transaction);
+    sequelize.transaction.mockImplementation(managedTransaction(transaction));
   });
 
   describe('list', () => {
@@ -124,21 +125,21 @@ describe('NotificationCategoryService', () => {
   });
 
   describe('update', () => {
-    it('lanza 404 (con rollback) si no existe', async () => {
+    it('lanza 404 si no existe, sin abrir transacción (la lectura y la validación van antes)', async () => {
       categoryRepo.findById.mockResolvedValue(null);
 
       await expect(service.update('c-x', { name: 'X' }, ADMIN)).rejects.toMatchObject({ statusCode: 404 });
-      expect(transaction.rollback).toHaveBeenCalled();
+      expect(sequelize.transaction).not.toHaveBeenCalled();
     });
 
-    it('sin campos a actualizar hace rollback y devuelve el DTO actual', async () => {
+    it('sin campos a actualizar devuelve el DTO actual sin abrir transacción', async () => {
       const category = { notification_category_id: 'c-1', code: 'ALERTS', update: jest.fn() };
       categoryRepo.findById.mockResolvedValue(category);
 
       const result = await service.update('c-1', { campoNoMapeado: 1 }, ADMIN);
 
       expect(category.update).not.toHaveBeenCalled();
-      expect(transaction.rollback).toHaveBeenCalled();
+      expect(sequelize.transaction).not.toHaveBeenCalled();
       expect(result).toMatchObject({ dto: 'category', code: 'ALERTS' });
     });
 

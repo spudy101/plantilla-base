@@ -135,9 +135,7 @@ class MFAService {
       throw AppError.badRequest('Debes activar SMS MFA antes de seleccionarlo como método preferido');
     }
 
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    await this.unitOfWork.run(async transaction => {
       // La preferencia de MFA vive solo en nuestra BD; el login la lee para decidir
       // qué segundo factor exigir.
       await this.userRepository.update(userId, { preferred_mfa_method: preferredMethod }, { transaction });
@@ -153,16 +151,11 @@ class MFAService {
         },
         transaction
       );
+    });
 
-      await transaction.commit();
+    logAudit('MFA_PREFERRED_METHOD_UPDATED', userId, { username, preferredMethod }, { entityId: userId, ...ENTITY });
 
-      logAudit('MFA_PREFERRED_METHOD_UPDATED', userId, { username, preferredMethod }, { entityId: userId, ...ENTITY });
-
-      return PreferredMethodResponseDTO({ userId, username, preferredMfaMethod: preferredMethod });
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    return PreferredMethodResponseDTO({ userId, username, preferredMfaMethod: preferredMethod });
   }
 }
 

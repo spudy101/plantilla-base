@@ -71,9 +71,7 @@ class InternalUserDeletionService {
    * sesiones). Punto de entrada del handler de doble aprobación y de la ejecución directa.
    */
   async executeDeleteUser(userId: string, auditCtx: AdminAuditContext) {
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    const user = await this.unitOfWork.run(async transaction => {
       const user = await this.userRepository.findForAccountDeletion(userId, { transaction });
       if (!user) {
         throw AppError.notFound('Usuario no encontrado');
@@ -93,36 +91,30 @@ class InternalUserDeletionService {
         auditContext: { ipAddress: auditCtx.ipAddress, userAgent: auditCtx.userAgent },
         transaction
       });
+      return user;
+    });
 
-      await transaction.commit();
+    // Tras el commit: cierra sesiones.
+    await this.guards.invalidateSessions(userId, 'account_deleted');
 
-      // Tras el commit: cierra sesiones.
-      await this.guards.invalidateSessions(userId, 'account_deleted');
+    logAudit(
+      'INTERNAL_USER_DELETED',
+      auditCtx.adminUserId,
+      {},
+      { entityId: userId, entityType: 'InternalUser', entityTable: 'users' }
+    );
 
-      logAudit(
-        'INTERNAL_USER_DELETED',
-        auditCtx.adminUserId,
-        {},
-        { entityId: userId, entityType: 'InternalUser', entityTable: 'users' }
-      );
+    const empleadoNombre = user.person?.first_name || 'Usuario';
+    setImmediate(() => {
+      this.NotificationCreationService.crearNotificacion({
+        tipoNotificacion: 'IAM_ADMIN_STATUS_CHANGED',
+        userId: auditCtx.adminUserId,
+        relatedEntity: { type: 'User', id: userId },
+        metadata: { nombreUsuario: empleadoNombre, accion: 'eliminado', logoUrl: notifications.ses.logoUrl }
+      }).catch(err => logger.warn('Error enviando IAM_ADMIN_STATUS_CHANGED (eliminación)', { error: err.message }));
+    });
 
-      const empleadoNombre = user.person?.first_name || 'Usuario';
-      setImmediate(() => {
-        this.NotificationCreationService.crearNotificacion({
-          tipoNotificacion: 'IAM_ADMIN_STATUS_CHANGED',
-          userId: auditCtx.adminUserId,
-          relatedEntity: { type: 'User', id: userId },
-          metadata: { nombreUsuario: empleadoNombre, accion: 'eliminado', logoUrl: notifications.ses.logoUrl }
-        }).catch(err => logger.warn('Error enviando IAM_ADMIN_STATUS_CHANGED (eliminación)', { error: err.message }));
-      });
-
-      return null;
-    } catch (error) {
-      if (!transaction.finished) {
-        await transaction.rollback();
-      }
-      throw error;
-    }
+    return null;
   }
 }
 

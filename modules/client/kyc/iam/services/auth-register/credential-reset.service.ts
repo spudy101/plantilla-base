@@ -128,28 +128,24 @@ class CredentialResetService {
       throw AppError.notFound('Usuario no encontrado');
     }
 
-    const transaction = await this.unitOfWork.begin();
-    try {
+    const tipoNotif = await this.unitOfWork.run(async transaction => {
       const tipoNotif = await this._applyCredentialReset(type, user, newPassword, transaction);
       await this.resetCredentialsRepository.markAsUsed(resetRecord.reset_credentials_id, {
         transaction
       });
-      await transaction.commit();
-      logAudit(
-        type === 'password' ? 'PASSWORD_RESET_CONFIRMED' : 'MFA_RESET_CONFIRMED',
-        user.user_id,
-        { type },
-        { entityId: user.user_id, entityType: 'User', entityTable: 'users' }
-      );
-      this._sendResetConfirmationNotification(user, tipoNotif);
-      if (type === 'password') {
-        this._invalidateSessionsAfterPasswordReset(user.user_id);
-      }
-      return null;
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
+      return tipoNotif;
+    });
+    logAudit(
+      type === 'password' ? 'PASSWORD_RESET_CONFIRMED' : 'MFA_RESET_CONFIRMED',
+      user.user_id,
+      { type },
+      { entityId: user.user_id, entityType: 'User', entityTable: 'users' }
+    );
+    this._sendResetConfirmationNotification(user, tipoNotif);
+    if (type === 'password') {
+      this._invalidateSessionsAfterPasswordReset(user.user_id);
     }
+    return null;
   }
 
   // ============================================================

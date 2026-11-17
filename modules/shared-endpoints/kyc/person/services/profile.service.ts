@@ -111,9 +111,7 @@ class ProfileService {
   ) {
     const snapshot = await this.profileHelper.fetchPersonSnapshot(personId);
 
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    await this.unitOfWork.run(async transaction => {
       if (data.username && data.username !== username) {
         await this.profileHelper.updateUsername(userId, data.username, transaction);
       }
@@ -131,41 +129,36 @@ class ProfileService {
       }
 
       await _logProfileFieldChanges({ data, snapshot, userId, auditContext, transaction });
+    });
 
-      await transaction.commit();
+    logAudit(
+      'PROFILE_UPDATED',
+      userId,
+      {
+        updatedFields: Object.keys(data)
+      },
+      { entityId: userId, entityType: 'User', entityTable: 'users' }
+    );
 
-      logAudit(
-        'PROFILE_UPDATED',
+    setImmediate(() => {
+      this.NotificationUtil.crearNotificacion({
+        tipoNotificacion: 'PROFILE_UPDATED',
         userId,
-        {
-          updatedFields: Object.keys(data)
-        },
-        { entityId: userId, entityType: 'User', entityTable: 'users' }
+        relatedEntity: null,
+        metadata: { nombre: firstName }
+      }).catch(err =>
+        logger.warn('Error enviando notificacion profile updated', {
+          error: err.message,
+          userId
+        })
       );
+    });
 
-      setImmediate(() => {
-        this.NotificationUtil.crearNotificacion({
-          tipoNotificacion: 'PROFILE_UPDATED',
-          userId,
-          relatedEntity: null,
-          metadata: { nombre: firstName }
-        }).catch(err =>
-          logger.warn('Error enviando notificacion profile updated', {
-            error: err.message,
-            userId
-          })
-        );
-      });
-
-      const updatedUser = await this.userRepository.findByUserId(userId, 'full');
-      if (!updatedUser) {
-        throw AppError.notFound('Usuario no encontrado');
-      }
-      return ExtendedProfileDTO(updatedUser);
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
+    const updatedUser = await this.userRepository.findByUserId(userId, 'full');
+    if (!updatedUser) {
+      throw AppError.notFound('Usuario no encontrado');
     }
+    return ExtendedProfileDTO(updatedUser);
   }
 
   async updateEmail(data: { email: string; currentPassword: string }, userId: string, personId: string, firstName: string | null, auditContext: RequestAuditContext) {
@@ -174,9 +167,7 @@ class ProfileService {
     const user = await this._getUserSecure(userId);
     await this.profileHelper.validateCurrentPassword(user.password_hash, currentPassword);
 
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    const newEmail = await this.unitOfWork.run(async transaction => {
       const { newEmail } = await this.profileHelper.updateEmailLogic({
         userId,
         personId,
@@ -188,26 +179,22 @@ class ProfileService {
         transaction,
         skipVerificationCheck: false
       });
+      return newEmail;
+    });
 
-      await transaction.commit();
+    // Cambio de email — riesgo high, dato de contacto crítico
+    logAudit('PROFILE_EMAIL_UPDATED', userId, { newEmail }, { entityId: userId, entityType: 'User', entityTable: 'users' });
 
-      // Cambio de email — riesgo high, dato de contacto crítico
-      logAudit('PROFILE_EMAIL_UPDATED', userId, { newEmail }, { entityId: userId, entityType: 'User', entityTable: 'users' });
+    setImmediate(() => {
+      this.NotificationUtil.crearNotificacion({
+        tipoNotificacion: 'EMAIL_UPDATED',
+        userId,
+        relatedEntity: null,
+        metadata: { nombre: firstName }
+      }).catch(err => logger.warn('Error enviando notificacion email updated', { error: err.message, userId }));
+    });
 
-      setImmediate(() => {
-        this.NotificationUtil.crearNotificacion({
-          tipoNotificacion: 'EMAIL_UPDATED',
-          userId,
-          relatedEntity: null,
-          metadata: { nombre: firstName }
-        }).catch(err => logger.warn('Error enviando notificacion email updated', { error: err.message, userId }));
-      });
-
-      return UpdateEmailResponseDTO(newEmail, new Date());
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    return UpdateEmailResponseDTO(newEmail, new Date());
   }
 
   async updatePhone(
@@ -218,9 +205,7 @@ class ProfileService {
     auditContext: ProfileTypes.AuditInfo = {}
   ) {
     const { newPhone, phonePrefixId, phoneType } = data;
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    const result = await this.unitOfWork.run(async transaction => {
       const result = await this.profileHelper.updatePhoneLogic({
         personId,
         phone: newPhone,
@@ -232,25 +217,21 @@ class ProfileService {
         changedByRole: 'user',
         auditContext
       });
+      return result;
+    });
 
-      await transaction.commit();
+    logAudit('PROFILE_PHONE_UPDATED', userId, { phoneType }, { entityId: userId, entityType: 'User', entityTable: 'users' });
 
-      logAudit('PROFILE_PHONE_UPDATED', userId, { phoneType }, { entityId: userId, entityType: 'User', entityTable: 'users' });
+    setImmediate(() => {
+      this.NotificationUtil.crearNotificacion({
+        tipoNotificacion: 'PHONE_UPDATED',
+        userId,
+        relatedEntity: null,
+        metadata: { nombre: firstName }
+      }).catch(err => logger.warn('Error enviando notificacion phone updated', { error: err.message, userId }));
+    });
 
-      setImmediate(() => {
-        this.NotificationUtil.crearNotificacion({
-          tipoNotificacion: 'PHONE_UPDATED',
-          userId,
-          relatedEntity: null,
-          metadata: { nombre: firstName }
-        }).catch(err => logger.warn('Error enviando notificacion phone updated', { error: err.message, userId }));
-      });
-
-      return UpdatePhoneResponseDTO(result.phone, result.phonePrefixId, result.phoneType, new Date());
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    return UpdatePhoneResponseDTO(result.phone, result.phonePrefixId, result.phoneType, new Date());
   }
 
   async updatePassword(data: { currentPassword: string; newPassword: string }, userId: string, firstName: string | null, auditContext: RequestAuditContext) {
@@ -259,9 +240,7 @@ class ProfileService {
     const user = await this._getUserSecure(userId);
     await this.profileHelper.validateCurrentPassword(user.password_hash, currentPassword);
 
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    await this.unitOfWork.run(async transaction => {
       await this.profileHelper.updatePasswordLogic({
         userId,
         newPassword,
@@ -271,32 +250,26 @@ class ProfileService {
         auditContext,
         transaction
       });
+    });
 
-      await transaction.commit();
+    // Cambio de contraseña — riesgo high
+    logAudit('PASSWORD_CHANGED', userId, {}, { entityId: userId, entityType: 'User', entityTable: 'users' });
 
-      // Cambio de contraseña — riesgo high
-      logAudit('PASSWORD_CHANGED', userId, {}, { entityId: userId, entityType: 'User', entityTable: 'users' });
+    setImmediate(() => {
+      this.NotificationUtil.crearNotificacion({
+        tipoNotificacion: 'PASSWORD_UPDATED',
+        userId,
+        relatedEntity: null,
+        metadata: { nombre: firstName }
+      }).catch(err =>
+        logger.warn('Error enviando notificacion password updated', {
+          error: err.message,
+          userId
+        })
+      );
+    });
 
-      setImmediate(() => {
-        this.NotificationUtil.crearNotificacion({
-          tipoNotificacion: 'PASSWORD_UPDATED',
-          userId,
-          relatedEntity: null,
-          metadata: { nombre: firstName }
-        }).catch(err =>
-          logger.warn('Error enviando notificacion password updated', {
-            error: err.message,
-            userId
-          })
-        );
-      });
-
-      return null;
-    } catch (error) {
-      await transaction.rollback();
-      // (Se eliminó el caso InvalidPasswordException: era un error de Cognito, código residual)
-      throw error;
-    }
+    return null;
   }
 
   /**
@@ -304,9 +277,7 @@ class ProfileService {
    * En la plantilla no hay validación de identidad, así que los nombres son libremente editables.
    */
   async updateNames(data: ProfileTypes.NamesInput, userId: string, personId: string, firstName: string | null, auditContext: RequestAuditContext) {
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    await this.unitOfWork.run(async transaction => {
       const before = await this.personRepository.findById(personId);
       if (!before) {
         throw AppError.notFound('Persona no encontrada');
@@ -347,34 +318,29 @@ class ProfileService {
           { transaction }
         );
       }
+    });
 
-      await transaction.commit();
+    logAudit(
+      'PROFILE_UPDATED',
+      userId,
+      { updatedFields: Object.keys(data) },
+      { entityId: userId, entityType: 'User', entityTable: 'users' }
+    );
 
-      logAudit(
-        'PROFILE_UPDATED',
+    setImmediate(() => {
+      this.NotificationUtil.crearNotificacion({
+        tipoNotificacion: 'PROFILE_UPDATED',
         userId,
-        { updatedFields: Object.keys(data) },
-        { entityId: userId, entityType: 'User', entityTable: 'users' }
-      );
+        relatedEntity: null,
+        metadata: { nombre: firstName }
+      }).catch(err => logger.warn('Error enviando notificacion profile updated', { error: err.message, userId }));
+    });
 
-      setImmediate(() => {
-        this.NotificationUtil.crearNotificacion({
-          tipoNotificacion: 'PROFILE_UPDATED',
-          userId,
-          relatedEntity: null,
-          metadata: { nombre: firstName }
-        }).catch(err => logger.warn('Error enviando notificacion profile updated', { error: err.message, userId }));
-      });
-
-      const updatedPerson = await this.personRepository.findById(personId);
-      if (!updatedPerson) {
-        throw AppError.notFound('Persona no encontrada');
-      }
-      return UpdateNamesResponseDTO(updatedPerson);
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
+    const updatedPerson = await this.personRepository.findById(personId);
+    if (!updatedPerson) {
+      throw AppError.notFound('Persona no encontrada');
     }
+    return UpdateNamesResponseDTO(updatedPerson);
   }
 
   async deleteAccount(data: { currentPassword: string }, { userId, personId, nationalId, email, firstName, auditContext }: ProfileService.DeleteAccountContext) {
@@ -383,9 +349,7 @@ class ProfileService {
     const user = await this._getUserSecure(userId);
     await this.profileHelper.validateCurrentPassword(user.password_hash, currentPassword);
 
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    const result = await this.unitOfWork.run(async transaction => {
       const result = await this.profileHelper.deleteAccountLogic({
         userId,
         personId,
@@ -399,38 +363,32 @@ class ProfileService {
         auditContext,
         transaction
       });
+      return result;
+    });
 
-      await transaction.commit();
+    // Eliminación de cuenta — crítico, acción irreversible
+    logAudit('ACCOUNT_DELETED', userId, {}, { entityId: userId, entityType: 'User', entityTable: 'users' });
 
-      // Eliminación de cuenta — crítico, acción irreversible
-      logAudit('ACCOUNT_DELETED', userId, {}, { entityId: userId, entityType: 'User', entityTable: 'users' });
-
-      const { deletedEmail } = result;
-      if (deletedEmail) {
-        setImmediate(() => {
-          this.NotificationUtil.crearNotificacionDirecta({
-            tipoNotificacion: 'CUENTA_ELIMINADA',
-            email: deletedEmail,
-            metadata: {
-              nombre: result.firstName,
-              email: deletedEmail
-            }
-          }).catch(err =>
-            logger.warn('Error sending account deletion notification', {
-              userId,
-              error: err.message
-            })
-          );
-        });
-      }
-
-      return null;
-    } catch (error) {
-      if (!transaction.finished) {
-        await transaction.rollback();
-      }
-      throw error;
+    const { deletedEmail } = result;
+    if (deletedEmail) {
+      setImmediate(() => {
+        this.NotificationUtil.crearNotificacionDirecta({
+          tipoNotificacion: 'CUENTA_ELIMINADA',
+          email: deletedEmail,
+          metadata: {
+            nombre: result.firstName,
+            email: deletedEmail
+          }
+        }).catch(err =>
+          logger.warn('Error sending account deletion notification', {
+            userId,
+            error: err.message
+          })
+        );
+      });
     }
+
+    return null;
   }
 
   /** @private */

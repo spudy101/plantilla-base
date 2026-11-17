@@ -67,9 +67,7 @@ class TotpMfaService {
       throw AppError.badRequest('Codigo TOTP invalido');
     }
 
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    await this.unitOfWork.run(async transaction => {
       await this.userRepository.updateTOTPStatus(userId, true, { transaction });
 
       // Primer MFA activado → queda como método preferido para que el login lo aplique
@@ -88,18 +86,13 @@ class TotpMfaService {
         },
         transaction
       );
+    });
 
-      await transaction.commit();
+    // TOTP activado — crítico, modifica seguridad de la cuenta
+    logAudit('MFA_TOTP_ACTIVATED', userId, { username }, { entityId: userId, ...ENTITY });
+    this._notify('TOTP_ACTIVADO', userId, firstName);
 
-      // TOTP activado — crítico, modifica seguridad de la cuenta
-      logAudit('MFA_TOTP_ACTIVATED', userId, { username }, { entityId: userId, ...ENTITY });
-      this._notify('TOTP_ACTIVADO', userId, firstName);
-
-      return TOTPActivationResponseDTO({ userId, username, totpEnabled: true });
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    return TOTPActivationResponseDTO({ userId, username, totpEnabled: true });
   }
 
   async verifyTOTP(totpCode: string, userId: string, username: string | null) {
@@ -133,9 +126,7 @@ class TotpMfaService {
       throw AppError.unauthorized('Contrasena incorrecta');
     }
 
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    await this.unitOfWork.run(async transaction => {
       // Limpia el flag y BORRA el secreto en un solo update.
       await this.userRepository.setTOTPStatus(userId, false, null, { transaction });
 
@@ -160,18 +151,13 @@ class TotpMfaService {
         },
         transaction
       );
+    });
 
-      await transaction.commit();
+    // TOTP desactivado — crítico, reduce seguridad de la cuenta
+    logAudit('MFA_TOTP_DEACTIVATED', userId, { username }, { entityId: userId, ...ENTITY });
+    this._notify('TOTP_ELIMINADO', userId, firstName);
 
-      // TOTP desactivado — crítico, reduce seguridad de la cuenta
-      logAudit('MFA_TOTP_DEACTIVATED', userId, { username }, { entityId: userId, ...ENTITY });
-      this._notify('TOTP_ELIMINADO', userId, firstName);
-
-      return TOTPActivationResponseDTO({ userId, username, totpEnabled: false });
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    return TOTPActivationResponseDTO({ userId, username, totpEnabled: false });
   }
 
   /** @private — notificación fire-and-forget al usuario */

@@ -223,21 +223,22 @@ Ejemplos reales: `consent-recorder.service.test.ts`, `unit-of-work.test.ts` y el
 
 ### 2. Unit of Work
 
-Los services ya no llaman `sequelize.transaction()`. Usan el puerto `shared/database/unit-of-work.ts`:
+Los services ya no llaman `sequelize.transaction()`. Usan el puerto `shared/database/unit-of-work.ts`,
+siempre en modo gestionado: lo que pasa dentro de `run()` se confirma junto o se revierte junto, y lo
+posterior al commit (auditoría, notificaciones) va **después**, fuera de la transacción:
 
-```js
-const transaction = await this.unitOfWork.begin();
-try {
-  await this.userRepository.update(id, data, { transaction });
-  await transaction.commit();
-} catch (error) {
-  await transaction.rollback();
-  throw error;
-}
-
-// o en modo gestionado:
-await this.unitOfWork.run(async transaction => { ... });
+```ts
+const user = await this.unitOfWork.run(async transaction => {
+  await this.userRepository.update(id, data, { transaction }); // repositorio Sequelize: por parámetro
+  await this.genderRepository.exists({ genderId });            // repositorio Prisma: la toma solo
+  return user;
+});
+logAudit('USER_UPDATED', …);
 ```
+
+No hay `begin()`/`commit()` manual: con commit a mano, un error **después** del commit hacía
+`rollback()` sobre una transacción confirmada y tapaba el error original. Mientras convivan Sequelize y
+Prisma (ver [`prisma-migration.md`](prisma-migration.md)), `run()` coordina una transacción de cada ORM.
 
 ### 3. La capa de aplicación no conoce el ORM
 

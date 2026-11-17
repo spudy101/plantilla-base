@@ -56,29 +56,25 @@ class NotificationPreferenceService {
   async updateGlobalPreference(data: PreferenceInput, userId: string) {
     const updateData = _pickPreferenceFields(data);
 
-    const transaction = await this.unitOfWork.begin();
-    try {
+    const preference = await this.unitOfWork.run(async transaction => {
       const preference = await this.userNotificationPreferenceRepository.upsertGlobalPreference(userId, updateData, {
         transaction
       });
-      await transaction.commit();
+      return preference;
+    });
 
-      logAudit(
-        'NOTIFICATION_GLOBAL_PREFERENCE_UPDATED',
-        userId,
-        { ...updateData },
-        {
-          entityId: preference.user_notification_preference_id,
-          entityType: 'UserNotificationPreference',
-          entityTable: 'user_notification_preferences'
-        }
-      );
+    logAudit(
+      'NOTIFICATION_GLOBAL_PREFERENCE_UPDATED',
+      userId,
+      { ...updateData },
+      {
+        entityId: preference.user_notification_preference_id,
+        entityType: 'UserNotificationPreference',
+        entityTable: 'user_notification_preferences'
+      }
+    );
 
-      return new UpdatePreferenceResponseDTO(preference);
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    return new UpdatePreferenceResponseDTO(preference);
   }
 
   /**
@@ -94,32 +90,28 @@ class NotificationPreferenceService {
 
     const updateData = _pickPreferenceFields(data);
 
-    const transaction = await this.unitOfWork.begin();
-    try {
+    const preference = await this.unitOfWork.run(async transaction => {
       const preference = await this.userNotificationPreferenceRepository.upsertCategoryPreference(
         userId,
         categoryCode,
         updateData,
         { transaction }
       );
-      await transaction.commit();
+      return preference;
+    });
 
-      logAudit(
-        'NOTIFICATION_CATEGORY_PREFERENCE_UPDATED',
-        userId,
-        { notificationCategoryCode: categoryCode, ...updateData },
-        {
-          entityId: preference.user_notification_preference_id,
-          entityType: 'UserNotificationPreference',
-          entityTable: 'user_notification_preferences'
-        }
-      );
+    logAudit(
+      'NOTIFICATION_CATEGORY_PREFERENCE_UPDATED',
+      userId,
+      { notificationCategoryCode: categoryCode, ...updateData },
+      {
+        entityId: preference.user_notification_preference_id,
+        entityType: 'UserNotificationPreference',
+        entityTable: 'user_notification_preferences'
+      }
+    );
 
-      return new UpdatePreferenceResponseDTO(preference);
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    return new UpdatePreferenceResponseDTO(preference);
   }
 
   /**
@@ -131,23 +123,18 @@ class NotificationPreferenceService {
       throw AppError.notFound('Categoría de notificación no encontrada');
     }
 
-    const transaction = await this.unitOfWork.begin();
-    try {
+    await this.unitOfWork.run(async transaction => {
       await this.userNotificationPreferenceRepository.deleteCategoryPreference(userId, categoryCode, { transaction });
-      await transaction.commit();
+    });
 
-      logAudit(
-        'NOTIFICATION_CATEGORY_PREFERENCE_DELETED',
-        userId,
-        { notificationCategoryCode: categoryCode },
-        { entityType: 'UserNotificationPreference', entityTable: 'user_notification_preferences' }
-      );
+    logAudit(
+      'NOTIFICATION_CATEGORY_PREFERENCE_DELETED',
+      userId,
+      { notificationCategoryCode: categoryCode },
+      { entityType: 'UserNotificationPreference', entityTable: 'user_notification_preferences' }
+    );
 
-      return { notificationCategoryCode: categoryCode };
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    return { notificationCategoryCode: categoryCode };
   }
 
   /**

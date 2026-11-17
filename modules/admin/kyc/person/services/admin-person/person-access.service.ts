@@ -50,10 +50,8 @@ class PersonAccessService {
   }
 
   async _toggleStatus(userId: string, action: 'activate' | 'deactivate', auditContext: AdminAuditContext) {
-    const transaction = await this.unitOfWork.begin();
     const isActivating = action === 'activate';
-
-    try {
+    const user = await this.unitOfWork.run(async transaction => {
       const user = await this.userRepository.findById(userId, {
         include: [
           {
@@ -90,50 +88,46 @@ class PersonAccessService {
         },
         { transaction }
       );
+      return user;
+    });
 
-      await transaction.commit();
+    logAudit(
+      isActivating ? 'PERSON_ACTIVATED' : 'PERSON_DEACTIVATED',
+      auditContext.adminUserId,
+      { before: { isActive: !isActivating }, after: { isActive: isActivating } },
+      { entityId: userId, entityType: 'User', entityTable: 'users' }
+    );
 
-      logAudit(
-        isActivating ? 'PERSON_ACTIVATED' : 'PERSON_DEACTIVATED',
-        auditContext.adminUserId,
-        { before: { isActive: !isActivating }, after: { isActive: isActivating } },
-        { entityId: userId, entityType: 'User', entityTable: 'users' }
-      );
+    const affectedNombre = user.person?.first_name || 'Usuario';
+    const affectedEmail = user.person?.contact?.email;
 
-      const affectedNombre = user.person?.first_name || 'Usuario';
-      const affectedEmail = user.person?.contact?.email;
+    setImmediate(() => {
+      this.NotificationUtil.crearNotificacion({
+        tipoNotificacion: isActivating ? 'ACCOUNT_ACTIVATED' : 'ACCOUNT_DEACTIVATED',
+        userId: userId,
+        relatedEntity: null,
+        metadata: {
+          nombre: affectedNombre,
+          email: affectedEmail,
+          logoUrl: notifications.ses.logoUrl
+        }
+      }).catch(err => logger.warn('Error sending status notification', { error: err.message }));
 
-      setImmediate(() => {
-        this.NotificationUtil.crearNotificacion({
-          tipoNotificacion: isActivating ? 'ACCOUNT_ACTIVATED' : 'ACCOUNT_DEACTIVATED',
+      this.NotificationUtil.crearNotificacion({
+        tipoNotificacion: 'PERSON_ADMIN_ACTION',
+        userId: auditContext.adminUserId,
+        relatedEntity: null,
+        metadata: {
+          nombre: auditContext.adminFirstName,
+          accion: action,
           userId: userId,
-          relatedEntity: null,
-          metadata: {
-            nombre: affectedNombre,
-            email: affectedEmail,
-            logoUrl: notifications.ses.logoUrl
-          }
-        }).catch(err => logger.warn('Error sending status notification', { error: err.message }));
+          logoUrl: notifications.ses.logoUrl
+        }
+      }).catch(err => logger.warn('Error sending admin action notification', { error: err.message }));
+    });
 
-        this.NotificationUtil.crearNotificacion({
-          tipoNotificacion: 'PERSON_ADMIN_ACTION',
-          userId: auditContext.adminUserId,
-          relatedEntity: null,
-          metadata: {
-            nombre: auditContext.adminFirstName,
-            accion: action,
-            userId: userId,
-            logoUrl: notifications.ses.logoUrl
-          }
-        }).catch(err => logger.warn('Error sending admin action notification', { error: err.message }));
-      });
-
-      user.is_active = isActivating;
-      return ToggleUserStatusDTO(user, action);
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    user.is_active = isActivating;
+    return ToggleUserStatusDTO(user, action);
   }
 
   // ============================================================
@@ -141,9 +135,7 @@ class PersonAccessService {
   // ============================================================
 
   async changeRole(userId: string, newRoleId: string, auditContext: AdminAuditContext) {
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    const { user, newRole, oldRole } = await this.unitOfWork.run(async transaction => {
       const user = await this.userRepository.findById(userId, {
         include: [
           {
@@ -198,55 +190,51 @@ class PersonAccessService {
         },
         { transaction }
       );
+      return { user, newRole, oldRole };
+    });
 
-      await transaction.commit();
+    logAudit(
+      'PERSON_ROLE_CHANGED',
+      auditContext.adminUserId,
+      {
+        before: { role: oldRole?.name ?? null },
+        after: { role: newRole.name }
+      },
+      { entityId: userId, entityType: 'User', entityTable: 'users' }
+    );
 
-      logAudit(
-        'PERSON_ROLE_CHANGED',
-        auditContext.adminUserId,
-        {
-          before: { role: oldRole?.name ?? null },
-          after: { role: newRole.name }
-        },
-        { entityId: userId, entityType: 'User', entityTable: 'users' }
-      );
+    const affectedNombre = user.person?.first_name || 'Usuario';
+    const affectedEmail = user.person?.contact?.email;
 
-      const affectedNombre = user.person?.first_name || 'Usuario';
-      const affectedEmail = user.person?.contact?.email;
+    setImmediate(() => {
+      this.NotificationUtil.crearNotificacion({
+        tipoNotificacion: 'ROL_CHANGE',
+        userId: user.user_id,
+        relatedEntity: null,
+        metadata: {
+          nombre: affectedNombre,
+          email: affectedEmail,
+          nuevo_rol: newRole.name,
+          permisos_descripcion: newRole.description,
+          logoUrl: notifications.ses.logoUrl
+        }
+      }).catch(err => logger.warn('Error sending role change notification', { error: err.message }));
 
-      setImmediate(() => {
-        this.NotificationUtil.crearNotificacion({
-          tipoNotificacion: 'ROL_CHANGE',
-          userId: user.user_id,
-          relatedEntity: null,
-          metadata: {
-            nombre: affectedNombre,
-            email: affectedEmail,
-            nuevo_rol: newRole.name,
-            permisos_descripcion: newRole.description,
-            logoUrl: notifications.ses.logoUrl
-          }
-        }).catch(err => logger.warn('Error sending role change notification', { error: err.message }));
+      this.NotificationUtil.crearNotificacion({
+        tipoNotificacion: 'PERSON_ADMIN_ACTION',
+        userId: auditContext.adminUserId,
+        relatedEntity: null,
+        metadata: {
+          nombre: auditContext.adminFirstName,
+          accion: 'cambiar_rol',
+          userId: userId,
+          logoUrl: notifications.ses.logoUrl
+        }
+      }).catch(err => logger.warn('Error sending admin action notification', { error: err.message }));
+    });
 
-        this.NotificationUtil.crearNotificacion({
-          tipoNotificacion: 'PERSON_ADMIN_ACTION',
-          userId: auditContext.adminUserId,
-          relatedEntity: null,
-          metadata: {
-            nombre: auditContext.adminFirstName,
-            accion: 'cambiar_rol',
-            userId: userId,
-            logoUrl: notifications.ses.logoUrl
-          }
-        }).catch(err => logger.warn('Error sending admin action notification', { error: err.message }));
-      });
-
-      user.role = newRole;
-      return ChangeRoleDTO(user, oldRole, newRole);
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    user.role = newRole;
+    return ChangeRoleDTO(user, oldRole, newRole);
   }
 }
 

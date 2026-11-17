@@ -116,6 +116,7 @@ jest.mock('modules/admin/kyc/iam/dtos/admin-user.dto', () => ({
   RoleOptionDTO: (r: Loose) => ({ dto: 'role', ...r })
 }));
 
+import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked, Loose } from 'tests/helpers/mock';
 import userRepositoryModule from 'modules/schemas/kyc/iam/repositories/user.repository';
 const userRepository = mocked(userRepositoryModule);
@@ -427,11 +428,11 @@ describe('AdminUserService', () => {
         .mockResolvedValueOnce({ password_hash: 'hash' })
         .mockResolvedValueOnce(makeUser());
       // executeDeleteUser usa una transacción propia.
-      sequelize.transaction.mockResolvedValue({
+      sequelize.transaction.mockImplementation(managedTransaction({
         commit: jest.fn().mockResolvedValue(undefined),
         rollback: jest.fn().mockResolvedValue(undefined),
         finished: false
-      });
+      }));
       userRepository.findForAccountDeletion.mockResolvedValue({
         user_id: 'u-1',
         username: 'jperez',
@@ -475,7 +476,7 @@ describe('AdminUserService', () => {
   describe('executeDeleteUser', () => {
     it('hace rollback y propaga si el usuario no existe dentro de la transacción', async () => {
       const tx = { commit: jest.fn(), rollback: jest.fn().mockResolvedValue(undefined), finished: false };
-      sequelize.transaction.mockResolvedValue(tx);
+      sequelize.transaction.mockImplementation(managedTransaction(tx));
       userRepository.findForAccountDeletion.mockResolvedValue(null);
 
       await expect(service.executeDeleteUser('u-1', AUDIT_CTX)).rejects.toThrow('Usuario no encontrado');
