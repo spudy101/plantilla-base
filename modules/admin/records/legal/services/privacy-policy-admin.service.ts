@@ -165,10 +165,10 @@ class PrivacyPolicyAdminService {
 
     const policy = await this.privacyPolicyAdminRepository.createVersion({
       version,
-      document_url: documentUrl,
-      document_hash: documentHash,
+      documentUrl,
+      documentHash,
       summary: summary || null,
-      effective_date: effectiveDate || new Date()
+      effectiveDate: effectiveDate || new Date()
     });
 
     logAudit(
@@ -179,7 +179,7 @@ class PrivacyPolicyAdminService {
         documentUrl,
         s3Key
       },
-      { entityId: policy.privacy_policy_id, entityType: 'PrivacyPolicy', entityTable: 'privacy_policies' }
+      { entityId: policy.privacyPolicyId, entityType: 'PrivacyPolicy', entityTable: 'privacy_policies' }
     );
 
     // RF-ADM-04: notificar a todos los usuarios activos en background
@@ -189,7 +189,7 @@ class PrivacyPolicyAdminService {
         userId: null, // null = notificación global
         metadata: {
           nuevaVersion: version,
-          fechaVigencia: policy.effective_date?.toISOString?.()?.split('T')[0] ?? version,
+          fechaVigencia: policy.effectiveDate.toISOString().split('T')[0] ?? version,
           resumenCambios: summary || 'Hemos realizado mejoras en nuestra política para proteger mejor tus datos.',
           documentUrl
         }

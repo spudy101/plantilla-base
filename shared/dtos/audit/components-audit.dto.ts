@@ -50,39 +50,47 @@ interface AuditAlertRow {
   createdAt?: Maybe<DbDate>;
 }
 
+// Filas de Prisma (camelCase): consent_types, privacy_policies y user_consents ya migraron (fase 5).
 interface ConsentTypeRow {
-  consent_type_id: string;
+  consentTypeId: string;
   code: string;
   name?: Maybe<string>;
   description?: Maybe<string>;
-  is_mandatory?: Maybe<boolean>;
-  is_revocable?: Maybe<boolean>;
-  is_active?: Maybe<boolean>;
+  isMandatory?: Maybe<boolean>;
+  isRevocable?: Maybe<boolean>;
+  isActive?: Maybe<boolean>;
   scope?: Maybe<string>;
   createdAt?: Maybe<DbDate>;
   updatedAt?: Maybe<DbDate>;
 }
 
 interface PrivacyPolicyRefRow {
-  privacy_policy_id: string;
+  privacyPolicyId: string;
   version: string;
-  document_url?: Maybe<string>;
-  effective_date?: Maybe<DbDate>;
+  documentUrl?: Maybe<string>;
+  effectiveDate?: Maybe<DbDate>;
+}
+
+/** Usuario incluido en un consentimiento (Prisma). El de las filas de auditoría sigue en snake_case. */
+interface ConsentUserRow {
+  userId: string;
+  username?: Maybe<string>;
+  person?: Maybe<{ firstName?: Maybe<string>; lastName?: Maybe<string> }>;
 }
 
 interface UserConsentRow {
-  user_consent_id: string;
-  user_id?: Maybe<string>;
-  user?: Maybe<UserRefRow>;
-  consent_type_id?: Maybe<string>;
+  userConsentId: string;
+  userId?: Maybe<string>;
+  user?: Maybe<ConsentUserRow>;
+  consentTypeId?: Maybe<string>;
   consentType?: Maybe<ConsentTypeRow>;
   privacyPolicy?: Maybe<PrivacyPolicyRefRow>;
-  granted_at?: Maybe<DbDate>;
-  granted_ip?: Maybe<string>;
-  origin_session_id?: Maybe<string>;
-  revoked_at?: Maybe<DbDate>;
-  revocation_reason?: Maybe<string>;
-  is_current?: Maybe<boolean>;
+  grantedAt?: Maybe<DbDate>;
+  grantedIp?: Maybe<string>;
+  originSessionId?: Maybe<string>;
+  revokedAt?: Maybe<DbDate>;
+  revocationReason?: Maybe<string>;
+  isCurrent?: Maybe<boolean>;
   createdAt?: Maybe<DbDate>;
 }
 
@@ -123,6 +131,17 @@ function _buildUserRef(user: Maybe<UserRefRow>) {
     userId: user.user_id,
     username: user.username,
     fullName: [user.person?.first_name, user.person?.last_name].filter(Boolean).join(' ') || null
+  };
+}
+
+function _buildConsentUserRef(user: Maybe<ConsentUserRow>) {
+  if (!user) {
+    return null;
+  }
+  return {
+    userId: user.userId,
+    username: user.username,
+    fullName: [user.person?.firstName, user.person?.lastName].filter(Boolean).join(' ') || null
   };
 }
 
@@ -226,12 +245,12 @@ class ConsentTypeComponent {
       return null;
     }
     return {
-      consentTypeId: consentType.consent_type_id,
+      consentTypeId: consentType.consentTypeId,
       code: consentType.code,
       name: consentType.name,
-      isMandatory: consentType.is_mandatory,
-      isRevocable: consentType.is_revocable,
-      isActive: consentType.is_active,
+      isMandatory: consentType.isMandatory,
+      isRevocable: consentType.isRevocable,
+      isActive: consentType.isActive,
       scope: consentType.scope
     };
   }
@@ -269,10 +288,10 @@ class PrivacyPolicyRefComponent {
       return null;
     }
     return {
-      privacyPolicyId: policy.privacy_policy_id,
+      privacyPolicyId: policy.privacyPolicyId,
       version: policy.version,
-      documentUrl: policy.document_url,
-      effectiveDate: policy.effective_date
+      documentUrl: policy.documentUrl,
+      effectiveDate: policy.effectiveDate
     };
   }
 }
@@ -287,19 +306,19 @@ class UserConsentComponent {
       return null;
     }
     return {
-      userConsentId: record.user_consent_id,
-      userId: record.user_id,
-      user: _buildUserRef(record.user),
+      userConsentId: record.userConsentId,
+      userId: record.userId,
+      user: _buildConsentUserRef(record.user),
       consentType: ConsentTypeComponent.build(record.consentType),
       privacyPolicy: PrivacyPolicyRefComponent.build(record.privacyPolicy),
-      grantedAt: record.granted_at,
-      grantedIp: record.granted_ip,
+      grantedAt: record.grantedAt,
+      grantedIp: record.grantedIp,
       // Solo variante admin: ata el consentimiento a su sesión de origen (user_sessions / audit_logs).
       // NO se expone en buildForClient/buildGranted/buildClientCatalogItem.
-      originSessionId: record.origin_session_id ?? null,
-      revokedAt: record.revoked_at ?? null,
-      revocationReason: record.revocation_reason ?? null,
-      isCurrent: record.is_current,
+      originSessionId: record.originSessionId ?? null,
+      revokedAt: record.revokedAt ?? null,
+      revocationReason: record.revocationReason ?? null,
+      isCurrent: record.isCurrent,
       createdAt: record.createdAt
     };
   }
@@ -309,12 +328,12 @@ class UserConsentComponent {
       return null;
     }
     return {
-      userConsentId: record.user_consent_id,
+      userConsentId: record.userConsentId,
       consentType: ConsentTypeComponent.build(record.consentType),
       privacyPolicy: PrivacyPolicyRefComponent.build(record.privacyPolicy),
-      grantedAt: record.granted_at,
-      revokedAt: record.revoked_at ?? null,
-      isCurrent: record.is_current
+      grantedAt: record.grantedAt,
+      revokedAt: record.revokedAt ?? null,
+      isCurrent: record.isCurrent
     };
   }
 
@@ -323,10 +342,10 @@ class UserConsentComponent {
       return null;
     }
     return {
-      userConsentId: record.user_consent_id,
-      consentTypeId: record.consent_type_id,
-      grantedAt: record.granted_at,
-      isCurrent: record.is_current
+      userConsentId: record.userConsentId,
+      consentTypeId: record.consentTypeId,
+      grantedAt: record.grantedAt,
+      isCurrent: record.isCurrent
     };
   }
 
@@ -340,11 +359,11 @@ class UserConsentComponent {
     return {
       consentType: ConsentTypeComponent.build(consentType),
       granted: Boolean(record),
-      userConsentId: record ? record.user_consent_id : null,
+      userConsentId: record ? record.userConsentId : null,
       privacyPolicy: record ? PrivacyPolicyRefComponent.build(record.privacyPolicy) : null,
-      grantedAt: record ? record.granted_at : null,
-      revokedAt: record ? (record.revoked_at ?? null) : null,
-      isCurrent: record ? record.is_current : false
+      grantedAt: record ? record.grantedAt : null,
+      revokedAt: record ? (record.revokedAt ?? null) : null,
+      isCurrent: record ? record.isCurrent : false
     };
   }
 

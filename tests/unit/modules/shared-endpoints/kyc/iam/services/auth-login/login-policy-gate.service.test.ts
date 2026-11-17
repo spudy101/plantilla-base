@@ -13,7 +13,7 @@ const { logAudit } = mocked(loggerUtilModule);
 import constantsModule from 'shared/constants';
 const { INTERNAL_ROLE_NAMES } = constantsModule;
 
-const ACTIVE_POLICY = { privacy_policy_id: 'pp-2', version: '2.0', document_url: 'http://x/p.pdf', summary: 's', effective_date: 'd' };
+const ACTIVE_POLICY = { privacyPolicyId: 'pp-2', version: '2.0', documentUrl: 'http://x/p.pdf', summary: 's', effectiveDate: 'd' };
 const CONTEXT = { blockedAuditAction: 'LOGIN_BLOCKED_POLICY_UPDATE', source: 'auth-login' };
 
 const makeGate = ({ activePolicy = ACTIVE_POLICY } = {}) => {

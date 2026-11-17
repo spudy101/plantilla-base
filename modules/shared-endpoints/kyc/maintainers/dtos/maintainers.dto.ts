@@ -11,8 +11,7 @@ const {
   RoleComponent
 } = componentsCatalogDtoModule;
 
-import type definePrivacyPolicy from '../../../../schemas/records/legal/models/privacy-policy.model';
-import type { DocumentType } from '../../../../../shared/database/generated/prisma/client';
+import type { DocumentType, PrivacyPolicy } from '../../../../../shared/database/generated/prisma/client';
 import componentsNotificationDtoModule from '../../../../../shared/dtos/notification/components-notification.dto';
 const { NotificationTypeComponent } = componentsNotificationDtoModule;
 
@@ -99,13 +98,13 @@ function ListCitiesResponseDTO(cities: Array<Parameters<typeof CityComponent.bui
 // ============================================================
 
 function ActivePrivacyPolicyResponseDTO(
-  policy: Pick<definePrivacyPolicy.Attributes, 'version' | 'document_url' | 'summary' | 'effective_date'>
+  policy: Pick<PrivacyPolicy, 'version' | 'documentUrl' | 'summary' | 'effectiveDate'>
 ) {
   return {
     version: policy.version,
-    documentUrl: policy.document_url,
+    documentUrl: policy.documentUrl,
     summary: policy.summary || null,
-    effectiveDate: policy.effective_date
+    effectiveDate: policy.effectiveDate
   };
 }
 

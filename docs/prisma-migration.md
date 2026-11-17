@@ -5,7 +5,7 @@
 > al final de cada fase la app arranca y los tests pasan. Durante la migración **Prisma y Sequelize
 > conviven contra la misma base**: cada repositorio cambia de ORM sin que los services se enteren.
 >
-> Estado: **fases 0 a 4 completas; fase 5 en curso** (grupo 1 de 6) en la rama `feat/prisma`; ver [Cómo funciona hoy](#cómo-funciona-hoy).
+> Estado: **fases 0 a 4 completas; fase 5 en curso** (grupos 1 y 2 de 6) en la rama `feat/prisma`; ver [Cómo funciona hoy](#cómo-funciona-hoy).
 
 ## Punto de partida (medido)
 
@@ -116,11 +116,11 @@ filas de Prisma (camelCase) y de Sequelize (snake_case) a la vez.
 | Grupo | Repositorios | Estado |
 |---|---|---|
 | 1. Catálogos | gender, country, department, city, phone-prefix, document-type, avatar-theme, avatar | ✅ |
-| 2. Legal | consent-type, privacy-policy, privacy-policy-admin, user-consent | ⏳ |
+| 2. Legal | consent-type, privacy-policy, privacy-policy-admin, user-consent | ✅ |
 | 3. Notificaciones | notification-category, notification-type, notification, global-notification, global-notification-read, user-notification-preference, user-push-token, verification-code, sms-delivery-attempt, email-bounce-suppression | ⏳ |
 | 4. Integraciones y config | system-global-config, integration-api-log, provider-fallback-event, approval-request | ⏳ |
 | 5. Auditoría | audit-log, audit-alert, user-change-log, user-login-attempt | ⏳ |
-| 6. Núcleo de identidad | user, person, person-contact, person-location, person-reference, role, role-permission-override, user-session, auth-trusted-device, biometric, reset-credentials | ⏳ |
+| 6. Núcleo de identidad | user, person, person-contact, person-location, person-reference, role, role-permission-override, user-session, auth-trusted-device, biometric, reset-credentials (al migrar: devolver los consentimientos del registro a la transacción del alta, ver grupo 2) | ⏳ |
 
 Receta por repositorio:
 
@@ -134,6 +134,28 @@ Receta por repositorio:
 4. Tests: los fixtures de los mocks a camelCase. Un test que pasa igual con el fixture viejo prueba algo
    equivocado: agregar el caso positivo (ver `profile.helper.test.ts`).
 5. Verificar contra la base de desarrollo los listados y búsquedas del grupo (totales iguales a Sequelize).
+
+#### Hallazgos del grupo 2
+
+- **Una FK entre ORMs dentro de la misma unidad falla**: el registro creaba el `user` (Sequelize) y en la
+  misma transacción insertaba en `user_consents`. Con `user-consent` en Prisma, ese INSERT va por otra
+  conexión y la FK no ve el usuario sin confirmar (`tests/integration/legal-consents.test.ts` lo prueba).
+  Los consentimientos del registro se graban **después del commit** del alta (ya eran best-effort, con
+  alerta `CONSENT_RECORD_FAILED` y respaldo en `users.privacy_policy_*`); vuelven a la transacción cuando
+  migre `user` (grupo 6). Es la regla de la convivencia aplicada a FKs, no solo a la misma fila: mismo
+  caso para `user-notification-preference` (grupo 3), que también se crea en el alta.
+- Ese `.catch` "best-effort" dentro de la transacción no lo era: un INSERT fallido aborta la transacción
+  de Postgres y el resto del alta fallaba igual. Fuera de la transacción sí es best-effort.
+- `grant`, `revoke` y `createVersion` (desactivar la versión activa + crear) eran dos escrituras sueltas
+  fuera de una unidad de trabajo; ahora son atómicas (`PrismaRepository#atomic`: se une a la unidad si
+  hay una, si no abre `$transaction`).
+- Alta de tipo de consentimiento: la unicidad se verificaba con el código tal como llegaba y se guardaba
+  en mayúsculas (`abc` pasaba el chequeo aunque existiera `ABC` → 500 por la UNIQUE). Se verifica el
+  código normalizado.
+- El usuario incluido en un consentimiento sale en camelCase (`_buildConsentUserRef`); el de las filas
+  de auditoría sigue en snake_case hasta el grupo 5.
+- Verificado contra la base de desarrollo: totales de listados y filtros, búsqueda, orden por
+  `effectiveDate`, política activa, historial y nombres descifrados en el include iguales a Sequelize.
 
 #### Hallazgos del grupo 1
 

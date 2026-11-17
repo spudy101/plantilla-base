@@ -1,21 +1,51 @@
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../../shared/models';
-const { ConsentType } = modelsModule;
-import type defineConsentType from '../models/consent-type.model';
+// modules/schemas/records/legal/repositories/consent-type.repository.ts
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import { Prisma } from '../../../../../shared/database/generated/prisma/client';
+import type { ConsentType } from '../../../../../shared/database/generated/prisma/client';
 
-class ConsentTypeRepository extends BaseRepository<defineConsentType.Instance> {
-  constructor() {
-    super(ConsentType, {
-      searchFields: ['name', 'code', 'description']
-    });
+const LIST = { sortable: Object.values(Prisma.ConsentTypeScalarFieldEnum), searchFields: ['name', 'code', 'description'] };
+
+class ConsentTypeRepository extends PrismaRepository {
+  async findById(consentTypeId: string): Promise<ConsentType | null> {
+    return (await this.db()).consentType.findUnique({ where: { consentTypeId } });
   }
 
-  findByCode(code: string) {
-    return this.model.findOne({ where: { code, is_active: true } });
+  /** Tipo activo por código (los inactivos no se pueden otorgar ni exigir). */
+  async findByCode(code: string): Promise<ConsentType | null> {
+    return (await this.db()).consentType.findFirst({ where: { code, isActive: true } });
   }
 
-  findAllActive() {
-    return this.model.findAll({ where: { is_active: true }, order: [['name', 'ASC']] });
+  /** Por código, activo o no (unicidad al crear). */
+  async findAnyByCode(code: string): Promise<ConsentType | null> {
+    return (await this.db()).consentType.findUnique({ where: { code } });
+  }
+
+  async findAllActive(): Promise<ConsentType[]> {
+    return (await this.db()).consentType.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
+  }
+
+  async findAllPaginated(
+    filters: PrismaRepository.Filters = {},
+    pagination: PrismaRepository.PaginationParams = {},
+    searchTerm: string | null = null
+  ): Promise<PrismaRepository.Page<ConsentType>> {
+    const { where, page } = this.listQuery(filters, pagination, searchTerm, LIST);
+    const db = await this.db();
+    const [rows, count] = await Promise.all([
+      db.consentType.findMany({ where: where as Prisma.ConsentTypeWhereInput, ...page }),
+      db.consentType.count({ where: where as Prisma.ConsentTypeWhereInput })
+    ]);
+    return { rows, count };
+  }
+
+  async create(data: Prisma.ConsentTypeUncheckedCreateInput): Promise<ConsentType> {
+    return (await this.db()).consentType.create({ data });
+  }
+
+  /** null si la fila ya no existe (mismo contrato que BaseRepository#update). */
+  async update(consentTypeId: string, data: Prisma.ConsentTypeUncheckedUpdateManyInput): Promise<ConsentType | null> {
+    const [row] = await (await this.db()).consentType.updateManyAndReturn({ where: { consentTypeId }, data });
+    return row ?? null;
   }
 }
 

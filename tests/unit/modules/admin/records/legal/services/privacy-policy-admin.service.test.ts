@@ -99,7 +99,7 @@ describe('PrivacyPolicyAdminService', () => {
     });
 
     it('audita y devuelve el detalle', async () => {
-      repo.findById.mockResolvedValue({ privacy_policy_id: 'p1', version: '1.0' });
+      repo.findById.mockResolvedValue({ privacyPolicyId: 'p1', version: '1.0' });
 
       const result = await service.getVersionDetail('p1', USER_ID);
 
@@ -109,7 +109,7 @@ describe('PrivacyPolicyAdminService', () => {
         { version: '1.0' },
         expect.objectContaining({ entityId: 'p1' })
       );
-      expect(PrivacyPolicyDetailResponseDTO).toHaveBeenCalledWith({ privacy_policy_id: 'p1', version: '1.0' });
+      expect(PrivacyPolicyDetailResponseDTO).toHaveBeenCalledWith({ privacyPolicyId: 'p1', version: '1.0' });
       expect(result).toEqual({ dto: 'detail' });
     });
   });
@@ -124,7 +124,7 @@ describe('PrivacyPolicyAdminService', () => {
     });
 
     it('lanza 409 si la versión ya existe', async () => {
-      repo.findByVersion.mockResolvedValue({ privacy_policy_id: 'existente' });
+      repo.findByVersion.mockResolvedValue({ privacyPolicyId: 'existente' });
 
       await expect(service.createVersion(baseData(), USER_ID)).rejects.toThrow('La versión 1.1 ya existe');
       expect(S3Util.uploadPublicDocument).not.toHaveBeenCalled();
@@ -133,8 +133,8 @@ describe('PrivacyPolicyAdminService', () => {
     it('sube el PDF, invalida caches, persiste con hash SHA-256, audita y notifica en background', async () => {
       repo.findByVersion.mockResolvedValue(null);
       repo.createVersion.mockResolvedValue({
-        privacy_policy_id: 'p-new',
-        effective_date: new Date('2026-01-01')
+        privacyPolicyId: 'p-new',
+        effectiveDate: new Date('2026-01-01')
       });
 
       const result = await service.createVersion(baseData(), USER_ID);
@@ -148,11 +148,11 @@ describe('PrivacyPolicyAdminService', () => {
       const created = repo.createVersion.mock.calls[0][0];
       expect(created).toMatchObject({
         version: '1.1',
-        document_url: 'https://cdn.test/legal/privacy-policy-v1-1.pdf',
+        documentUrl: 'https://cdn.test/legal/privacy-policy-v1-1.pdf',
         summary: 'cambios menores'
       });
       // SHA-256 en hex son 64 caracteres.
-      expect(created.document_hash).toMatch(/^[a-f0-9]{64}$/);
+      expect(created.documentHash).toMatch(/^[a-f0-9]{64}$/);
 
       expect(logAudit).toHaveBeenCalledWith(
         'PRIVACY_POLICY_VERSION_CREATED',
@@ -171,7 +171,7 @@ describe('PrivacyPolicyAdminService', () => {
 
     it('registra warn si falla la notificación global (best-effort)', async () => {
       repo.findByVersion.mockResolvedValue(null);
-      repo.createVersion.mockResolvedValue({ privacy_policy_id: 'p-new', effective_date: new Date('2026-01-01') });
+      repo.createVersion.mockResolvedValue({ privacyPolicyId: 'p-new', effectiveDate: new Date('2026-01-01') });
       NotificationCreationService.crearNotificacion.mockRejectedValue(new Error('notif down'));
 
       await service.createVersion(baseData(), USER_ID);
