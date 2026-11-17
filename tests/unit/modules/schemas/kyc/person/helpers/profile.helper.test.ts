@@ -10,7 +10,6 @@ import profileHelperModule from 'modules/schemas/kyc/person/helpers/profile.help
 const { ProfileHelper } = profileHelperModule;
 import KycSharedUtil from 'modules/schemas/kyc/person/utils/kyc-shared.util';
 
-const TX = { id: 'tx-1' };
 const AUDIT = { ip: '1.2.3.4', userAgent: 'jest' };
 
 const makeHelper = (overrides = {}) => {
@@ -53,14 +52,14 @@ describe('ProfileHelper', () => {
   describe('validateEmailUnique', () => {
     it('lanza 409 si el email pertenece a otra persona', async () => {
       const { helper, deps } = makeHelper();
-      deps.personContactRepository.findByEmail.mockResolvedValue({ person_id: 'otra' });
+      deps.personContactRepository.findByEmail.mockResolvedValue({ personId: 'otra' });
 
       await expect(helper.validateEmailUnique('a@b.cl', 'p-1')).rejects.toMatchObject({ statusCode: 409 });
     });
 
     it('acepta el email si es de la misma persona', async () => {
       const { helper, deps } = makeHelper();
-      deps.personContactRepository.findByEmail.mockResolvedValue({ person_id: 'p-1' });
+      deps.personContactRepository.findByEmail.mockResolvedValue({ personId: 'p-1' });
 
       await expect(helper.validateEmailUnique('a@b.cl', 'p-1')).resolves.toBe(true);
     });
@@ -72,7 +71,7 @@ describe('ProfileHelper', () => {
       deps.departmentRepository.findById.mockResolvedValue({ departmentId: 'd-1' });
       deps.cityRepository.findById.mockResolvedValue({ cityId: 'c-1', departmentId: 'd-2' });
 
-      await expect(helper.updateLocation('p-1', fixture({ departmentId: 'd-1', cityId: 'c-1' }), fixture(TX))).rejects.toMatchObject({
+      await expect(helper.updateLocation('p-1', fixture({ departmentId: 'd-1', cityId: 'c-1' }))).rejects.toMatchObject({
         statusCode: 400
       });
       expect(deps.personLocationRepository.upsertByPersonId).not.toHaveBeenCalled();
@@ -84,7 +83,7 @@ describe('ProfileHelper', () => {
       deps.cityRepository.findById.mockResolvedValue({ cityId: 'c-1', departmentId: 'd-1' });
       deps.personLocationRepository.upsertByPersonId.mockResolvedValue({});
 
-      await helper.updateLocation('p-1', fixture({ departmentId: 'd-1', cityId: 'c-1' }), fixture(TX)).catch(() => undefined);
+      await helper.updateLocation('p-1', fixture({ departmentId: 'd-1', cityId: 'c-1' })).catch(() => undefined);
 
       expect(deps.personLocationRepository.upsertByPersonId).toHaveBeenCalled();
     });
@@ -93,26 +92,25 @@ describe('ProfileHelper', () => {
   describe('updatePhoneLogic', () => {
     it('actualiza el contacto vía repositorio (no con la instancia ORM) y registra el cambio', async () => {
       const { helper, deps } = makeHelper();
-      deps.personContactRepository.findByPersonId.mockResolvedValue({ person_contact_id: 'pc-1', phone_primary: '900000000' });
+      deps.personContactRepository.findByPersonId.mockResolvedValue({ personContactId: 'pc-1', phonePrimary: '900000000' });
 
-      const result = await helper.updatePhoneLogic(fixture({
-        personId: 'p-1',
-        phone: '911112222',
-        phonePrefixId: 'pp-1',
-        phoneType: 'primary',
-        transaction: TX,
-        userId: 'u-1',
-        auditContext: AUDIT
-      }));
+      const result = await helper.updatePhoneLogic(
+        fixture({
+          personId: 'p-1',
+          phone: '911112222',
+          phonePrefixId: 'pp-1',
+          phoneType: 'primary',
+          userId: 'u-1',
+          auditContext: AUDIT
+        })
+      );
 
       expect(deps.personContactRepository.update).toHaveBeenCalledWith(
         'pc-1',
-        expect.objectContaining({ phone_primary: '911112222', phone_primary_prefix_id: 'pp-1' }),
-        { transaction: TX }
+        expect.objectContaining({ phonePrimary: '911112222', phonePrimaryPrefixId: 'pp-1' })
       );
       expect(deps.kycSharedUtil.logChange).toHaveBeenCalledWith(
-        expect.objectContaining({ changeType: 'phone', previousValue: '900000000', newValue: '911112222' }),
-        { transaction: TX }
+        expect.objectContaining({ changeType: 'phone', previousValue: '900000000', newValue: '911112222' })
       );
       expect(result).toEqual({ phone: '911112222', phonePrefixId: 'pp-1', phoneType: 'primary' });
     });
@@ -122,7 +120,7 @@ describe('ProfileHelper', () => {
       deps.verificationCodeRepository.findVerifiedByContact.mockResolvedValue(null);
 
       await expect(
-        helper.updatePhoneLogic(fixture({ personId: 'p-1', phone: '911112222', phoneType: 'primary', transaction: TX }))
+        helper.updatePhoneLogic(fixture({ personId: 'p-1', phone: '911112222', phoneType: 'primary' }))
       ).rejects.toMatchObject({ statusCode: 403 });
       expect(deps.personContactRepository.update).not.toHaveBeenCalled();
     });
@@ -131,7 +129,7 @@ describe('ProfileHelper', () => {
   describe('updateNationalIdLogic', () => {
     it('es idempotente: mismo valor no actualiza ni audita', async () => {
       const { helper, deps } = makeHelper();
-      deps.personRepository.findById.mockResolvedValue({ national_id: '123' });
+      deps.personRepository.findById.mockResolvedValue({ nationalId: '123' });
 
       const result = await helper.updateNationalIdLogic(fixture({ personId: 'p-1', newNationalId: '123', auditContext: AUDIT }));
 
@@ -144,30 +142,29 @@ describe('ProfileHelper', () => {
   describe('deleteAccountLogic', () => {
     it('ofusca datos, anonimiza la dirección vía repositorio y revoca consentimientos en la misma transacción', async () => {
       const { helper, deps } = makeHelper();
-      deps.personContactRepository.findByPersonId.mockResolvedValue({ person_contact_id: 'pc-1', phone_primary: '911112222' });
+      deps.personContactRepository.findByPersonId.mockResolvedValue({ personContactId: 'pc-1', phonePrimary: '911112222' });
 
-      const result = await helper.deleteAccountLogic(fixture({
-        userId: 'u-1',
-        personId: 'p-1',
-        nationalId: '123',
-        email: 'ana@b.cl',
-        username: 'ana',
-        firstName: 'Ana',
-        auditContext: AUDIT,
-        transaction: TX
-      }));
+      const result = await helper.deleteAccountLogic(
+        fixture({
+          userId: 'u-1',
+          personId: 'p-1',
+          nationalId: '123',
+          email: 'ana@b.cl',
+          username: 'ana',
+          firstName: 'Ana',
+          auditContext: AUDIT
+        })
+      );
 
       expect(deps.personRepository.update).toHaveBeenCalledWith(
         'p-1',
-        expect.objectContaining({ first_name: 'ELIMINADO', last_name: 'ELIMINADO' }),
-        { transaction: TX }
+        expect.objectContaining({ firstName: 'ELIMINADO', lastName: 'ELIMINADO' })
       );
       expect(deps.userRepository.update).toHaveBeenCalledWith(
         'u-1',
-        expect.objectContaining({ is_active: false, deleted_at: expect.any(Date) }),
-        { transaction: TX }
+        expect.objectContaining({ isActive: false, deletedAt: expect.any(Date) })
       );
-      expect(deps.personLocationRepository.anonymizeAddressByPersonId).toHaveBeenCalledWith('p-1', { transaction: TX });
+      expect(deps.personLocationRepository.anonymizeAddressByPersonId).toHaveBeenCalledWith('p-1');
       expect(deps.userConsentRepository.revokeAll).toHaveBeenCalledWith('u-1');
       expect(result).toMatchObject({ deletedEmail: 'ana@b.cl', firstName: 'Ana' });
     });

@@ -33,7 +33,7 @@ jest.mock('modules/schemas/kyc/iam/repositories/auth-trusted-device.repository',
 jest.mock('shared/dtos/audit/components-audit.dto', () => ({
   UserConsentComponent: { build: jest.fn(r => ({ built: 'consent', id: r.userConsentId })) },
   NotificationPreferenceComponent: { build: jest.fn(r => ({ built: 'pref', id: r.id })) },
-  TrustedDeviceComponent: { build: jest.fn(r => ({ built: 'device', id: r.user_trusted_device_id })) }
+  TrustedDeviceComponent: { build: jest.fn(r => ({ built: 'device', id: r.userTrustedDeviceId })) }
 }));
 
 jest.mock('shared/utils/logger.util', () => ({
@@ -79,7 +79,7 @@ describe('AdminSessionTraceService', () => {
   describe('listSessions', () => {
     it('lista sesiones y arma el countMap de acciones por sesión', async () => {
       userSessionRepository.findPaginatedWithDeviceAndUser.mockResolvedValue({
-        rows: [{ user_session_id: 's1' }, { user_session_id: 's2' }],
+        rows: [{ userSessionId: 's1' }, { userSessionId: 's2' }],
         count: 2
       });
       auditLogRepository.countBySessionIds.mockResolvedValue([
@@ -91,7 +91,7 @@ describe('AdminSessionTraceService', () => {
 
       expect(auditLogRepository.countBySessionIds).toHaveBeenCalledWith(['s1', 's2']);
       expect(SessionTraceListDTO).toHaveBeenCalledWith(
-        [{ user_session_id: 's1' }, { user_session_id: 's2' }],
+        [{ userSessionId: 's1' }, { userSessionId: 's2' }],
         new Map([
           ['s1', 3],
           ['s2', 0]
@@ -116,7 +116,7 @@ describe('AdminSessionTraceService', () => {
     });
 
     it('devuelve el timeline y marca hasDetail solo para tablas registradas con id', async () => {
-      userSessionRepository.findByIdWithDeviceAndUser.mockResolvedValue({ user_session_id: 's1' });
+      userSessionRepository.findByIdWithDeviceAndUser.mockResolvedValue({ userSessionId: 's1' });
       auditLogRepository.findPaginatedWithExecutor.mockResolvedValue({
         rows: [
           { entityTable: 'user_consents', entityId: 'c1' },
@@ -151,7 +151,7 @@ describe('AdminSessionTraceService', () => {
     });
 
     it('hidrata por lote, agrupa ids únicos por tabla y reporta tablas no registradas en skipped', async () => {
-      userSessionRepository.findById.mockResolvedValue({ user_session_id: 's1' });
+      userSessionRepository.findById.mockResolvedValue({ userSessionId: 's1' });
       auditLogRepository.findEntityRefsBySession.mockResolvedValue([
         { entityTable: 'user_consents', entityId: 'c1' },
         { entityTable: 'user_consents', entityId: 'c1' }, // duplicado → un solo id
@@ -159,7 +159,7 @@ describe('AdminSessionTraceService', () => {
         { entityTable: 'foo_table', entityId: 'z1' }
       ]);
       userConsentRepository.findByIds.mockResolvedValue([{ userConsentId: 'c1' }]);
-      trustedDeviceRepo.findByIds.mockResolvedValue([{ user_trusted_device_id: 'd1' }]);
+      trustedDeviceRepo.findByIds.mockResolvedValue([{ userTrustedDeviceId: 'd1' }]);
 
       await service.getSessionEntities('s1', {}, ADMIN_ID);
 
@@ -182,7 +182,7 @@ describe('AdminSessionTraceService', () => {
     });
 
     it('acota la hidratación a una sola tabla con ?entityTable', async () => {
-      userSessionRepository.findById.mockResolvedValue({ user_session_id: 's1' });
+      userSessionRepository.findById.mockResolvedValue({ userSessionId: 's1' });
       auditLogRepository.findEntityRefsBySession.mockResolvedValue([
         { entityTable: 'user_consents', entityId: 'c1' },
         { entityTable: 'user_trusted_devices', entityId: 'd1' }

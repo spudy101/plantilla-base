@@ -1,14 +1,14 @@
 // tests/integration/legal-consents.test.ts
 //
 // Grupo 2 de la fase 5 (docs/prisma-migration.md) contra Postgres real: consentimientos y política de
-// privacidad sobre Prisma. Cubre las escrituras de varios pasos (otorgar/revocar/publicar versión) y el
-// motivo por el que el registro graba los consentimientos después del commit del alta mientras `users`
-// siga en Sequelize.
+// privacidad sobre Prisma. Cubre las escrituras de varios pasos (otorgar/revocar/publicar versión) y que,
+// con `users` en Prisma (grupo 6), el registro graba los consentimientos en la misma unidad del alta.
 
 import { randomUUID } from 'node:crypto';
 import prisma from '../../shared/database/prisma';
 import db from '../../shared/models';
 import unitOfWork from '../../shared/database/unit-of-work';
+import userRepository from '../../modules/schemas/kyc/iam/repositories/user.repository';
 import userConsentRepository from '../../modules/schemas/records/legal/repositories/user-consent.repository';
 import privacyPolicyAdminRepository from '../../modules/schemas/records/legal/repositories/privacy-policy-admin.repository';
 import privacyPolicyRepository from '../../modules/schemas/records/legal/repositories/privacy-policy.repository';
@@ -88,15 +88,28 @@ describe('Legal (consentimientos y política) · Prisma contra Postgres', () => 
     }
   });
 
-  // Por qué auth-register graba los consentimientos después del commit: dentro de la misma unidad, el
-  // INSERT de Prisma va por otra conexión y la FK a users no ve el usuario que Sequelize aún no confirmó.
-  it('dentro de una unidad, un consentimiento de un usuario creado por Sequelize sin confirmar falla por FK', async () => {
+  // Mientras users estaba en Sequelize, este INSERT iba por otra conexión y la FK no veía el usuario sin
+  // confirmar (grupo 2). Ahora los dos van por la transacción de Prisma de la unidad (grupo 6).
+  it('dentro de una unidad, el consentimiento de un usuario recién creado se confirma con él', async () => {
     const personId = await newPerson();
+    const userIdInUnit = await unitOfWork.run(async () => {
+      const user = await userRepository.createWithPassword({ username: `${TAG}-uow`, personId, roleId, password: 'Secret123!' });
+      await userConsentRepository.grant({ userId: user.userId, consentTypeId });
+      return user.userId;
+    });
+    await expect(prisma.userConsent.count({ where: { userId: userIdInUnit, consentTypeId } })).resolves.toBe(1);
+  });
+
+  it('si la unidad falla, no quedan ni el usuario ni su consentimiento', async () => {
+    const personId = await newPerson();
+    const username = `${TAG}-rb`;
     await expect(
-      unitOfWork.run(async transaction => {
-        const user = await db.User.create({ username: `${TAG}-sq`, person_id: personId, role_id: roleId, password_hash: 'x' }, { transaction });
-        await userConsentRepository.grant({ userId: user.user_id, consentTypeId });
+      unitOfWork.run(async () => {
+        const user = await userRepository.createWithPassword({ username, personId, roleId, password: 'Secret123!' });
+        await userConsentRepository.grant({ userId: user.userId, consentTypeId });
+        throw new Error('falla del alta');
       })
-    ).rejects.toThrow(/foreign key/i);
+    ).rejects.toThrow('falla del alta');
+    await expect(prisma.user.count({ where: { username } })).resolves.toBe(0);
   });
 });

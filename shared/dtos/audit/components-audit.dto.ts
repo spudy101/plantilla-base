@@ -118,14 +118,14 @@ interface NotificationPreferenceRow {
 }
 
 interface TrustedDeviceTraceRow {
-  user_trusted_device_id: string;
-  user_id: string;
-  device_name?: Maybe<string>;
-  device_type?: Maybe<string>;
+  userTrustedDeviceId: string;
+  userId: string;
+  deviceName?: Maybe<string>;
+  deviceType?: Maybe<string>;
   browser?: Maybe<string>;
   os?: Maybe<string>;
   status?: Maybe<string>;
-  origin_session_id?: Maybe<string>;
+  originSessionId?: Maybe<string>;
   createdAt?: Maybe<DbDate>;
 }
 
@@ -407,14 +407,14 @@ class TrustedDeviceComponent {
       return null;
     }
     return {
-      userTrustedDeviceId: record.user_trusted_device_id,
-      userId: record.user_id,
-      deviceName: record.device_name ?? null,
-      deviceType: record.device_type ?? null,
+      userTrustedDeviceId: record.userTrustedDeviceId,
+      userId: record.userId,
+      deviceName: record.deviceName ?? null,
+      deviceType: record.deviceType ?? null,
       browser: record.browser ?? null,
       os: record.os ?? null,
       status: record.status,
-      originSessionId: record.origin_session_id ?? null,
+      originSessionId: record.originSessionId ?? null,
       createdAt: record.createdAt
     };
   }

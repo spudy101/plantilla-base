@@ -98,8 +98,8 @@ class TokenRefreshService {
     }
 
     // 5. Cargar usuario de BD (con rol para que generateAccessToken incluya roleId/roleName)
-    const user = await this.userRepository.findById(decoded.userId, { include: [{ association: 'role' }] });
-    if (!user || !user.is_active) {
+    const user = await this.userRepository.findByIdWithRole(decoded.userId);
+    if (!user || !user.isActive) {
       throw AppError.unauthorized('Usuario no encontrado o inactivo', { code: AUTH_ERROR_CODES.SESSION_CLOSED });
     }
 
@@ -219,7 +219,7 @@ class TokenRefreshService {
         logger.info('Refresh sobre sesión ya cerrada — no es reuse attack', {
           userId: decoded.userId,
           sessionId: decoded.sessionId,
-          closeReason: session.close_reason
+          closeReason: session.closeReason
         });
         throw AppError.unauthorized('La sesión ha sido cerrada. Por favor inicia sesión nuevamente.', {
           code: AUTH_ERROR_CODES.SESSION_CLOSED
@@ -259,7 +259,7 @@ class TokenRefreshService {
       return;
     }
     const lifetimeMs = SECURITY.ABSOLUTE_SESSION_LIFETIME_HOURS * 60 * 60 * 1000;
-    const expiresAt = new Date(session.started_at).getTime() + lifetimeMs;
+    const expiresAt = new Date(session.startedAt).getTime() + lifetimeMs;
     if (Date.now() < expiresAt) {
       return;
     }
@@ -274,7 +274,7 @@ class TokenRefreshService {
     logAudit(
       'SESSION_ABSOLUTE_EXPIRED',
       userId,
-      { startedAt: session.started_at, limitHours: SECURITY.ABSOLUTE_SESSION_LIFETIME_HOURS },
+      { startedAt: session.startedAt, limitHours: SECURITY.ABSOLUTE_SESSION_LIFETIME_HOURS },
       { entityId: sessionId, entityType: 'UserSession', entityTable: 'user_sessions' }
     );
     throw AppError.unauthorized('La sesión alcanzó su duración máxima (8 horas). Por favor inicia sesión nuevamente.', {

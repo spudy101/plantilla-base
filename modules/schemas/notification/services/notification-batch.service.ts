@@ -1,7 +1,7 @@
 import { interopDefault } from '../../../../shared/utils/interop.util';
 import type { KeyValueCache } from '../../../../shared/types/cache';
 import type { UserRepositoryPort } from '../../repository-ports';
-import type defineUser from '../../kyc/iam/models/user.model';
+import type { UserProfileRow } from '../../kyc/iam/repositories/user.repository';
 import type { NotificationTypeWithCategory } from '../repositories/notification-type.repository';
 import globalNotificationRepo from '../repositories/global-notification.repository';
 import userNotificationPreferenceRepo from '../../kyc/person/repositories/user-notification-preference.repository';
@@ -89,9 +89,7 @@ class NotificationBatchService {
 
       // Las notificaciones globales solo se envían a clientes finales (CLIENTE /
       // CLIENTE_VERIFICADO), nunca a usuarios internos ni entidades externas.
-      const allUsers = await UserRepository.findActiveUsersByRoleNamesDetailed(CLIENT_ROLE_NAMES, {
-        attributes: ['user_id']
-      });
+      const allUsers = await UserRepository.findActiveUsersByRoleNamesDetailed(CLIENT_ROLE_NAMES);
       const totalUsers = allUsers.length;
 
       await this.globalNotificationRepo.update(globalNotificationId, {
@@ -135,7 +133,7 @@ class NotificationBatchService {
    */
   async enviarPushGlobalPorLotes(
     globalNotificationId: string,
-    users: defineUser.Instance[],
+    users: UserProfileRow[],
     title: string,
     body: string,
     metadata: Record<string, unknown>,
@@ -150,7 +148,7 @@ class NotificationBatchService {
         allowing: usersAllowingPush.length
       });
 
-      const userIds = usersAllowingPush.map(u => u.user_id);
+      const userIds = usersAllowingPush.map(u => u.userId);
       const allTokens = await this.userPushTokenRepo.findActiveByUsers(userIds);
 
       if (allTokens.length === 0) {
@@ -206,8 +204,15 @@ class NotificationBatchService {
     }
   }
 
-  async _procesarLoteEmail(batch: defineUser.Instance[], notificationType: NotificationTypeWithCategory, metadata: Record<string, unknown>, globalNotificationId: string) {
-    const EncryptionUtil = interopDefault(require('../../../../shared/utils/encryption.util') as typeof import('../../../../shared/utils/encryption.util'));
+  async _procesarLoteEmail(
+    batch: UserProfileRow[],
+    notificationType: NotificationTypeWithCategory,
+    metadata: Record<string, unknown>,
+    globalNotificationId: string
+  ) {
+    const EncryptionUtil = interopDefault(
+      require('../../../../shared/utils/encryption.util') as typeof import('../../../../shared/utils/encryption.util')
+    );
     const GCM_PARTS_COUNT = 3;
 
     const promises = batch.map(user => {
@@ -242,7 +247,7 @@ class NotificationBatchService {
    */
   async enviarEmailGlobalPorLotes(
     globalNotificationId: string,
-    users: defineUser.Instance[],
+    users: UserProfileRow[],
     notificationType: NotificationTypeWithCategory,
     metadata: Record<string, unknown>,
     notificationTypeCode: string | null,
@@ -312,10 +317,10 @@ class NotificationBatchService {
   }
 
   /** @private */
-  async _filtrarUsuariosPush(users: defineUser.Instance[], notificationTypeCode: string | null) {
-    const allowed: defineUser.Instance[] = [];
+  async _filtrarUsuariosPush(users: UserProfileRow[], notificationTypeCode: string | null) {
+    const allowed: UserProfileRow[] = [];
     for (const user of users) {
-      const allowsPush = await this.userNotificationPreferenceRepo.userAllowsPush(user.user_id, notificationTypeCode);
+      const allowsPush = await this.userNotificationPreferenceRepo.userAllowsPush(user.userId, notificationTypeCode);
       if (allowsPush) {
         allowed.push(user);
       }
@@ -324,10 +329,10 @@ class NotificationBatchService {
   }
 
   /** @private */
-  async _filtrarUsuariosEmail(users: defineUser.Instance[], notificationTypeCode: string | null) {
-    const allowed: defineUser.Instance[] = [];
+  async _filtrarUsuariosEmail(users: UserProfileRow[], notificationTypeCode: string | null) {
+    const allowed: UserProfileRow[] = [];
     for (const user of users) {
-      const allowsEmail = await this.userNotificationPreferenceRepo.userAllowsEmail(user.user_id, notificationTypeCode);
+      const allowsEmail = await this.userNotificationPreferenceRepo.userAllowsEmail(user.userId, notificationTypeCode);
       if (allowsEmail && user.person?.contact?.email) {
         allowed.push(user);
       }

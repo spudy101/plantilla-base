@@ -92,7 +92,7 @@ jest.mock('shared/models', () => ({
   sequelize: { transaction: jest.fn() }
 }));
 jest.mock('modules/client/kyc/iam/dtos/auth-register.dto', () => ({
-  RegisterResponseDTO: jest.fn(x => ({ dto: true, userId: x.user?.user_id, tokens: x.tokens }))
+  RegisterResponseDTO: jest.fn(x => ({ dto: true, userId: x.user?.userId, tokens: x.tokens }))
 }));
 
 jest.mock('shared/utils/logger.util', () => ({
@@ -183,19 +183,21 @@ function armHappyRegister() {
   personContactRepository.findByEmail.mockResolvedValue(null);
   personRepository.findByNationalId.mockResolvedValue(null);
 
-  sequelize.transaction.mockImplementation(managedTransaction({
-    commit: jest.fn().mockResolvedValue(undefined),
-    rollback: jest.fn().mockResolvedValue(undefined)
-  }));
-  roleRepository.findByName.mockResolvedValue({ role_id: 'role-cliente' });
-  personRepository.create.mockResolvedValue({ person_id: 'p-1' });
-  personContactRepository.create.mockResolvedValue({ person_contact_id: 'pc-1' });
-  userRepository.createWithPassword.mockResolvedValue({ user_id: 'u-1' });
+  sequelize.transaction.mockImplementation(
+    managedTransaction({
+      commit: jest.fn().mockResolvedValue(undefined),
+      rollback: jest.fn().mockResolvedValue(undefined)
+    })
+  );
+  roleRepository.findByName.mockResolvedValue({ roleId: 'role-cliente' });
+  personRepository.create.mockResolvedValue({ personId: 'p-1' });
+  personContactRepository.create.mockResolvedValue({ personContactId: 'pc-1' });
+  userRepository.createWithPassword.mockResolvedValue({ userId: 'u-1' });
   userNotificationPreferenceRepository.createGlobal.mockResolvedValue({});
   consentTypeRepository.findByCode.mockResolvedValue({ consentTypeId: 'ct-1' });
   userConsentRepository.grant.mockResolvedValue({ userConsentId: 'uc-1' });
 
-  userRepository.findByUserId.mockResolvedValue({ user_id: 'u-1', role: {}, person: {} });
+  userRepository.findByUserId.mockResolvedValue({ userId: 'u-1', role: {}, person: {} });
   JwtUtil.generateAccessToken.mockResolvedValue('access-tok');
   JwtUtil.generateRefreshToken.mockResolvedValue('refresh-tok');
   RefreshTokenStore.save.mockResolvedValue(true);
@@ -217,8 +219,7 @@ describe('AuthRegisterService', () => {
 
       expect(personRepository.create).toHaveBeenCalled();
       expect(userRepository.createWithPassword).toHaveBeenCalledWith(
-        expect.objectContaining({ auth_username: 'user_uuid-fijo', person_id: 'p-1', role_id: 'role-cliente' }),
-        expect.any(Object)
+        expect.objectContaining({ authUsername: 'user_uuid-fijo', personId: 'p-1', roleId: 'role-cliente' })
       );
       expect(userConsentRepository.grant).toHaveBeenCalledTimes(1); // solo privacy policy (comunicaciones=false)
       expect(JwtUtil.generateAccessToken).toHaveBeenCalled();
@@ -238,9 +239,9 @@ describe('AuthRegisterService', () => {
       expect(userConsentRepository.grant).toHaveBeenCalledTimes(2);
     });
 
-    // user_consents (Prisma) no puede escribirse en la transacción del alta mientras users siga en
-    // Sequelize: su FK no vería al usuario sin confirmar (docs/prisma-migration.md, grupo 2).
-    it('registra los consentimientos DESPUÉS del commit del alta, con la política activa', async () => {
+    // Con users en Prisma (grupo 6), consentimientos y preferencia vuelven a la transacción del alta:
+    // se confirman con la cuenta o no queda nada (docs/prisma-migration.md, grupos 2, 3 y 6).
+    it('registra los consentimientos DENTRO de la transacción del alta, con la política activa', async () => {
       armHappyRegister();
       const tx = { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn() };
       sequelize.transaction.mockImplementation(managedTransaction(tx));
@@ -250,11 +251,10 @@ describe('AuthRegisterService', () => {
       expect(userConsentRepository.grant).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'u-1', consentTypeId: 'ct-1', privacyPolicyId: 'pp-1', ip: '9.9.9.9' })
       );
-      expect(tx.commit.mock.invocationCallOrder[0]).toBeLessThan(userConsentRepository.grant.mock.invocationCallOrder[0]!);
+      expect(userConsentRepository.grant.mock.invocationCallOrder[0]).toBeLessThan(tx.commit.mock.invocationCallOrder[0]!);
     });
 
-    // Mismo motivo para user_notification_preferences (grupo 3).
-    it('crea la preferencia de notificación por defecto DESPUÉS del commit del alta', async () => {
+    it('crea la preferencia de notificación por defecto DENTRO de la transacción del alta', async () => {
       armHappyRegister();
       const tx = { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn() };
       sequelize.transaction.mockImplementation(managedTransaction(tx));
@@ -268,30 +268,31 @@ describe('AuthRegisterService', () => {
         quietHoursStart: null,
         quietHoursEnd: null
       });
-      expect(tx.commit.mock.invocationCallOrder[0]).toBeLessThan(userNotificationPreferenceRepository.createGlobal.mock.invocationCallOrder[0]!);
+      expect(userNotificationPreferenceRepository.createGlobal.mock.invocationCallOrder[0]).toBeLessThan(
+        tx.commit.mock.invocationCallOrder[0]!
+      );
     });
 
-    it('si falla la preferencia por defecto, el alta sigue (sin la fila rige "todo permitido")', async () => {
+    it('si falla la preferencia por defecto, el alta se revierte', async () => {
       armHappyRegister();
+      const tx = { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn() };
+      sequelize.transaction.mockImplementation(managedTransaction(tx));
       userNotificationPreferenceRepository.createGlobal.mockRejectedValue(new Error('db down'));
 
-      await expect(service.register(VALID_USER_DATA, {})).resolves.toMatchObject({ userId: 'u-1' });
-      expect(userConsentRepository.grant).toHaveBeenCalled();
+      await expect(service.register(VALID_USER_DATA, {})).rejects.toMatchObject({ statusCode: 500 });
+      expect(tx.commit).not.toHaveBeenCalled();
+      expect(JwtUtil.generateAccessToken).not.toHaveBeenCalled();
     });
 
-    it('si falla el registro del consentimiento, el alta sigue y se emite la alerta CONSENT_RECORD_FAILED', async () => {
+    it('si falla el registro del consentimiento, el alta se revierte (sin constancia no hay cuenta)', async () => {
       armHappyRegister();
+      const tx = { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn() };
+      sequelize.transaction.mockImplementation(managedTransaction(tx));
       userConsentRepository.grant.mockRejectedValue(new Error('db down'));
 
-      const result = await service.register(VALID_USER_DATA, {});
-
-      expect(result).toMatchObject({ userId: 'u-1' });
-      expect(logAudit).toHaveBeenCalledWith(
-        'CONSENT_RECORD_FAILED',
-        'u-1',
-        expect.objectContaining({ consentType: 'PRIVACY_POLICY' }),
-        expect.objectContaining({ outcome: 'failure' })
-      );
+      await expect(service.register(VALID_USER_DATA, {})).rejects.toMatchObject({ statusCode: 500 });
+      expect(tx.commit).not.toHaveBeenCalled();
+      expect(logAudit).not.toHaveBeenCalledWith('USER_REGISTERED', expect.anything(), expect.anything(), expect.anything());
     });
 
     it('valida el género cuando se envía genderId', async () => {
@@ -337,13 +338,13 @@ describe('AuthRegisterService', () => {
   describe('register — validación de unicidad', () => {
     it('lanza conflict si el email ya está registrado', async () => {
       armHappyRegister();
-      personContactRepository.findByEmail.mockResolvedValue({ person_contact_id: 'x' });
+      personContactRepository.findByEmail.mockResolvedValue({ personContactId: 'x' });
       await expect(service.register(VALID_USER_DATA, {})).rejects.toMatchObject({ statusCode: 409 });
     });
 
     it('lanza conflict si el documento ya está registrado', async () => {
       armHappyRegister();
-      personRepository.findByNationalId.mockResolvedValue({ person_id: 'x' });
+      personRepository.findByNationalId.mockResolvedValue({ personId: 'x' });
       await expect(service.register(VALID_USER_DATA, {})).rejects.toMatchObject({ statusCode: 409 });
     });
 
@@ -359,7 +360,7 @@ describe('AuthRegisterService', () => {
       armHappyRegister();
       const tx = { commit: jest.fn(), rollback: jest.fn().mockResolvedValue(undefined) };
       sequelize.transaction.mockImplementation(managedTransaction(tx));
-      roleRepository.findByName.mockResolvedValue({ role_id: 'r' });
+      roleRepository.findByName.mockResolvedValue({ roleId: 'r' });
       personRepository.create.mockRejectedValue(new Error('db boom')); // error crudo, no operativo
 
       await expect(service.register(VALID_USER_DATA, {})).rejects.toMatchObject({ statusCode: 500 });
@@ -381,14 +382,16 @@ describe('AuthRegisterService', () => {
     });
 
     it('devuelve false si el usuario está inactivo', async () => {
-      personContactRepository.findByEmailWithUser.mockResolvedValue({ person: { first_name: 'Ada', user: { user_id: 'u-1', is_active: false } } });
+      personContactRepository.findByEmailWithUser.mockResolvedValue({
+        person: { firstName: 'Ada', user: { userId: 'u-1', isActive: false } }
+      });
       await expect(service.requestResetCredentials({ email: 'x@x.com', type: 'password' })).resolves.toBe(false);
       expect(resetCredentialsRepository.createResetToken).not.toHaveBeenCalled();
     });
 
     it('genera y persiste el token, audita, notifica y devuelve true (password)', async () => {
       personContactRepository.findByEmailWithUser.mockResolvedValue({
-        person: { first_name: 'Ada', user: { user_id: 'u-1', is_active: true } }
+        person: { firstName: 'Ada', user: { userId: 'u-1', isActive: true } }
       });
       resetCredentialsRepository.invalidateUserTokens.mockResolvedValue(1);
       resetCredentialsRepository.createResetToken.mockResolvedValue({});
@@ -398,7 +401,7 @@ describe('AuthRegisterService', () => {
 
       expect(result).toBe(true);
       expect(resetCredentialsRepository.createResetToken).toHaveBeenCalledWith(
-        expect.objectContaining({ user_id: 'u-1', email: 'x@x.com', type: 'password' })
+        expect.objectContaining({ userId: 'u-1', email: 'x@x.com', type: 'password' })
       );
       expect(logAudit).toHaveBeenCalledWith('CREDENTIALS_RESET_REQUESTED', 'u-1', expect.any(Object), expect.any(Object));
 
@@ -410,7 +413,7 @@ describe('AuthRegisterService', () => {
 
     it('usa la plantilla de MFA cuando el tipo es mfa', async () => {
       personContactRepository.findByEmailWithUser.mockResolvedValue({
-        person: { first_name: 'Ada', user: { user_id: 'u-1', is_active: true } }
+        person: { firstName: 'Ada', user: { userId: 'u-1', isActive: true } }
       });
       resetCredentialsRepository.invalidateUserTokens.mockResolvedValue(0);
       resetCredentialsRepository.createResetToken.mockResolvedValue({});
@@ -439,7 +442,7 @@ describe('AuthRegisterService', () => {
     });
 
     it('lanza badRequest si el tipo del registro no coincide con el solicitado', async () => {
-      resetCredentialsRepository.findValidTokenWithUser.mockResolvedValue({ type: 'mfa', user: { user_id: 'u-1' } });
+      resetCredentialsRepository.findValidTokenWithUser.mockResolvedValue({ type: 'mfa', user: { userId: 'u-1' } });
       await expect(service.confirmResetCredentials({ token: 't', type: 'password', newPassword: 'x' })).rejects.toMatchObject({
         statusCode: 400
       });
@@ -448,19 +451,19 @@ describe('AuthRegisterService', () => {
     it('resetea la contraseña, commitea, audita e invalida sesiones', async () => {
       const tx = txOk();
       resetCredentialsRepository.findValidTokenWithUser.mockResolvedValue({
-        reset_credentials_id: 'rc-1',
+        resetCredentialsId: 'rc-1',
         type: 'password',
-        user: { user_id: 'u-1', person: { first_name: 'Ada', contact: { email: 'x@x.com' } } }
+        user: { userId: 'u-1', person: { firstName: 'Ada', contact: { email: 'x@x.com' } } }
       });
       userRepository.updatePassword.mockResolvedValue(undefined);
-      resetCredentialsRepository.markAsUsed.mockResolvedValue(undefined);
+      resetCredentialsRepository.markAsUsed.mockResolvedValue(true);
       TokenBlacklistUtil.invalidateUserSessions.mockResolvedValue(undefined);
       userSessionRepository.closeAllByUser.mockResolvedValue(undefined);
       NotificationUtil.crearNotificacion.mockResolvedValue(undefined);
 
       const result = await service.confirmResetCredentials({ token: 't', type: 'password', newPassword: 'Nueva123!' });
 
-      expect(userRepository.updatePassword).toHaveBeenCalledWith('u-1', 'Nueva123!', { transaction: tx });
+      expect(userRepository.updatePassword).toHaveBeenCalledWith('u-1', 'Nueva123!');
       expect(tx.commit).toHaveBeenCalled();
       expect(logAudit).toHaveBeenCalledWith('PASSWORD_RESET_CONFIRMED', 'u-1', expect.any(Object), expect.any(Object));
       expect(TokenBlacklistUtil.invalidateUserSessions).toHaveBeenCalledWith('u-1');
@@ -470,32 +473,31 @@ describe('AuthRegisterService', () => {
     it('lanza badRequest si es reset de password sin newPassword y hace rollback', async () => {
       const tx = txOk();
       resetCredentialsRepository.findValidTokenWithUser.mockResolvedValue({
-        reset_credentials_id: 'rc-1',
+        resetCredentialsId: 'rc-1',
         type: 'password',
-        user: { user_id: 'u-1' }
+        user: { userId: 'u-1' }
       });
       await expect(service.confirmResetCredentials({ token: 't', type: 'password' })).rejects.toMatchObject({ statusCode: 400 });
       expect(tx.rollback).toHaveBeenCalled();
     });
 
     it('resetea el MFA (baja TOTP/SMS) y registra los cambios', async () => {
-      const tx = txOk();
+      txOk();
       resetCredentialsRepository.findValidTokenWithUser.mockResolvedValue({
-        reset_credentials_id: 'rc-1',
+        resetCredentialsId: 'rc-1',
         type: 'mfa',
-        user: { user_id: 'u-1', person: { first_name: 'Ada', contact: { email: 'x@x.com' } } }
+        user: { userId: 'u-1', person: { firstName: 'Ada', contact: { email: 'x@x.com' } } }
       });
       userRepository.update.mockResolvedValue(undefined);
       KycSharedUtil.logChange.mockResolvedValue(undefined);
-      resetCredentialsRepository.markAsUsed.mockResolvedValue(undefined);
+      resetCredentialsRepository.markAsUsed.mockResolvedValue(true);
       NotificationUtil.crearNotificacion.mockResolvedValue(undefined);
 
       const result = await service.confirmResetCredentials({ token: 't', type: 'mfa' });
 
       expect(userRepository.update).toHaveBeenCalledWith(
         'u-1',
-        expect.objectContaining({ totp_enabled: false, totp_secret: null, sms_mfa_enabled: false, preferred_mfa_method: 'none' }),
-        { transaction: tx }
+        expect.objectContaining({ totpEnabled: false, totpSecret: null, smsMfaEnabled: false, preferredMfaMethod: 'none' })
       );
       expect(KycSharedUtil.logChange).toHaveBeenCalledTimes(2);
       expect(logAudit).toHaveBeenCalledWith('MFA_RESET_CONFIRMED', 'u-1', expect.any(Object), expect.any(Object));
@@ -507,9 +509,9 @@ describe('AuthRegisterService', () => {
     it('hace rollback y propaga si falla la aplicación del reset', async () => {
       const tx = txOk();
       resetCredentialsRepository.findValidTokenWithUser.mockResolvedValue({
-        reset_credentials_id: 'rc-1',
+        resetCredentialsId: 'rc-1',
         type: 'password',
-        user: { user_id: 'u-1' }
+        user: { userId: 'u-1' }
       });
       userRepository.updatePassword.mockRejectedValue(new Error('update fail'));
       await expect(service.confirmResetCredentials({ token: 't', type: 'password', newPassword: 'x' })).rejects.toThrow('update fail');

@@ -1,23 +1,23 @@
-import type defineUserSession from '../../../../schemas/kyc/iam/models/user-session.model';
+import type { SessionWithDeviceAndUser } from '../../../../schemas/kyc/iam/repositories/user-session.repository';
 import type { AuditLogWithExecutor } from '../../../../schemas/records/audit/repositories/audit-log.repository';
 import kycModule from '../../../../../shared/dtos/kyc';
 const { UserSessionComponent } = kycModule;
 import componentsCatalogDtoModule from '../../../../../shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
 
-type SessionRow = defineUserSession.Instance;
+type SessionRow = SessionWithDeviceAndUser;
 type AttemptRow = AuditLogWithExecutor;
 
 function SessionDTO(session: SessionRow) {
   const device = session.device || null;
   return {
     ...UserSessionComponent.build(session),
-    userId: session.user_id,
+    userId: session.userId,
     device: device
       ? {
-          deviceId: device.user_trusted_device_id,
-          deviceName: device.device_name,
-          deviceType: device.device_type,
+          deviceId: device.userTrustedDeviceId,
+          deviceName: device.deviceName,
+          deviceType: device.deviceType,
           browser: device.browser || null,
           os: device.os || null,
           status: device.status

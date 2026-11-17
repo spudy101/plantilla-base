@@ -10,7 +10,7 @@
  * const { before, after } = buildAuditDiff(role, data, {
  *   name: 'name',
  *   description: 'description',
- *   isActive: 'is_active'
+ *   isActive: 'isActive'   // campo de la fila (camelCase en las filas de Prisma)
  * });
  */
 type Bag = Record<string, unknown>;

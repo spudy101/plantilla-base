@@ -1,7 +1,6 @@
+import type { Person } from '../../../../../shared/database/generated/prisma/client';
 import { interopDefault } from '../../../../../shared/utils/interop.util';
-import type { Transaction } from 'sequelize';
 import type * as ProfileTypes from '../../../../schemas/kyc/person/helpers/profile.types';
-import type definePerson from '../../../../schemas/kyc/person/models/person.model';
 import type { RequestAuditContext } from '../../../../../shared/types/audit-context';
 import unitOfWork from '../../../../../shared/database/unit-of-work';
 import userRepository from '../../../../schemas/kyc/iam/repositories/user.repository';
@@ -111,24 +110,24 @@ class ProfileService {
   ) {
     const snapshot = await this.profileHelper.fetchPersonSnapshot(personId);
 
-    await this.unitOfWork.run(async transaction => {
+    await this.unitOfWork.run(async () => {
       if (data.username && data.username !== username) {
-        await this.profileHelper.updateUsername(userId, data.username, transaction);
+        await this.profileHelper.updateUsername(userId, data.username);
       }
       if (data.avatarId) {
-        await this.profileHelper.updateAvatar(userId, data.avatarId, transaction);
+        await this.profileHelper.updateAvatar(userId, data.avatarId);
       }
       if (data.genderId) {
-        await this.profileHelper.updateGender(personId, data.genderId, transaction);
+        await this.profileHelper.updateGender(personId, data.genderId);
       }
       if (data.location) {
-        await this.profileHelper.updateLocation(personId, data.location, transaction);
+        await this.profileHelper.updateLocation(personId, data.location);
       }
       if (data.birthDate) {
-        await this.profileHelper.updateBirthDate(personId, data.birthDate, transaction);
+        await this.profileHelper.updateBirthDate(personId, data.birthDate);
       }
 
-      await _logProfileFieldChanges({ data, snapshot, userId, auditContext, transaction });
+      await _logProfileFieldChanges({ data, snapshot, userId, auditContext });
     });
 
     logAudit(
@@ -165,9 +164,9 @@ class ProfileService {
     const { email, currentPassword } = data;
 
     const user = await this._getUserSecure(userId);
-    await this.profileHelper.validateCurrentPassword(user.password_hash, currentPassword);
+    await this.profileHelper.validateCurrentPassword(user.passwordHash, currentPassword);
 
-    const newEmail = await this.unitOfWork.run(async transaction => {
+    const newEmail = await this.unitOfWork.run(async () => {
       const { newEmail } = await this.profileHelper.updateEmailLogic({
         userId,
         personId,
@@ -176,7 +175,6 @@ class ProfileService {
         changedByRole: 'user',
         changeReason: 'Email actualizado por cliente',
         auditContext,
-        transaction,
         skipVerificationCheck: false
       });
       return newEmail;
@@ -205,13 +203,12 @@ class ProfileService {
     auditContext: ProfileTypes.AuditInfo = {}
   ) {
     const { newPhone, phonePrefixId, phoneType } = data;
-    const result = await this.unitOfWork.run(async transaction => {
+    const result = await this.unitOfWork.run(async () => {
       const result = await this.profileHelper.updatePhoneLogic({
         personId,
         phone: newPhone,
         phonePrefixId,
         phoneType,
-        transaction,
         userId,
         changedByUserId: userId,
         changedByRole: 'user',
@@ -238,17 +235,16 @@ class ProfileService {
     const { currentPassword, newPassword } = data;
 
     const user = await this._getUserSecure(userId);
-    await this.profileHelper.validateCurrentPassword(user.password_hash, currentPassword);
+    await this.profileHelper.validateCurrentPassword(user.passwordHash, currentPassword);
 
-    await this.unitOfWork.run(async transaction => {
+    await this.unitOfWork.run(async () => {
       await this.profileHelper.updatePasswordLogic({
         userId,
         newPassword,
         changedByUserId: userId,
         changedByRole: 'user',
         changeReason: 'Contrasena actualizada por cliente',
-        auditContext,
-        transaction
+        auditContext
       });
     });
 
@@ -276,47 +272,46 @@ class ProfileService {
    * Actualiza los nombres del cliente (primer/segundo nombre, primer/segundo apellido).
    * En la plantilla no hay validación de identidad, así que los nombres son libremente editables.
    */
-  async updateNames(data: ProfileTypes.NamesInput, userId: string, personId: string, firstName: string | null, auditContext: RequestAuditContext) {
-    await this.unitOfWork.run(async transaction => {
+  async updateNames(
+    data: ProfileTypes.NamesInput,
+    userId: string,
+    personId: string,
+    firstName: string | null,
+    auditContext: RequestAuditContext
+  ) {
+    await this.unitOfWork.run(async () => {
       const before = await this.personRepository.findById(personId);
       if (!before) {
         throw AppError.notFound('Persona no encontrada');
       }
       const previousName = _composeFullName(before);
 
-      await this.profileHelper.updateNames(
-        personId,
-        {
-          firstName: data.firstName,
-          middleName: data.middleName,
-          lastName: data.lastName,
-          secondLastName: data.secondLastName
-        },
-        transaction
-      );
+      await this.profileHelper.updateNames(personId, {
+        firstName: data.firstName,
+        middleName: data.middleName,
+        lastName: data.lastName,
+        secondLastName: data.secondLastName
+      });
 
       const newName = _composeFullName({
-        first_name: data.firstName !== undefined ? data.firstName : before.first_name,
-        middle_name: data.middleName !== undefined ? (data.middleName === '' ? null : data.middleName) : before.middle_name,
-        last_name: data.lastName !== undefined ? data.lastName : before.last_name,
-        second_last_name:
-          data.secondLastName !== undefined ? (data.secondLastName === '' ? null : data.secondLastName) : before.second_last_name
+        firstName: data.firstName !== undefined ? data.firstName : before.firstName,
+        middleName: data.middleName !== undefined ? (data.middleName === '' ? null : data.middleName) : before.middleName,
+        lastName: data.lastName !== undefined ? data.lastName : before.lastName,
+        secondLastName:
+          data.secondLastName !== undefined ? (data.secondLastName === '' ? null : data.secondLastName) : before.secondLastName
       });
 
       if (previousName !== newName) {
-        await KycSharedUtil.logChange(
-          {
-            userId,
-            changedByUserId: userId,
-            changedByRole: 'user',
-            changeType: 'name',
-            previousValue: previousName,
-            newValue: newName,
-            ipAddress: auditContext?.ip || auditContext?.ipAddress || null,
-            userAgent: auditContext?.userAgent || null
-          },
-          { transaction }
-        );
+        await KycSharedUtil.logChange({
+          userId,
+          changedByUserId: userId,
+          changedByRole: 'user',
+          changeType: 'name',
+          previousValue: previousName,
+          newValue: newName,
+          ipAddress: auditContext?.ip || auditContext?.ipAddress || null,
+          userAgent: auditContext?.userAgent || null
+        });
       }
     });
 
@@ -347,21 +342,20 @@ class ProfileService {
     const { currentPassword } = data;
 
     const user = await this._getUserSecure(userId);
-    await this.profileHelper.validateCurrentPassword(user.password_hash, currentPassword);
+    await this.profileHelper.validateCurrentPassword(user.passwordHash, currentPassword);
 
-    const result = await this.unitOfWork.run(async transaction => {
+    const result = await this.unitOfWork.run(async () => {
       const result = await this.profileHelper.deleteAccountLogic({
         userId,
         personId,
         nationalId,
         email,
         username: user.username,
-        firstName: firstName || user.person?.first_name || 'Usuario',
+        firstName: firstName || user.person?.firstName || 'Usuario',
         changedByUserId: userId,
         changedByRole: 'user',
         changeReason: 'Cuenta eliminada por el usuario',
-        auditContext,
-        transaction
+        auditContext
       });
       return result;
     });
@@ -406,9 +400,9 @@ class ProfileService {
 // ============================================================
 
 function _composeFullName(
-  person: Partial<Pick<definePerson.Attributes, 'first_name' | 'middle_name' | 'last_name' | 'second_last_name'>> | null | undefined
+  person: Partial<Pick<Person, 'firstName' | 'middleName' | 'lastName' | 'secondLastName'>> | null | undefined
 ) {
-  return [person?.first_name, person?.middle_name, person?.last_name, person?.second_last_name].filter(Boolean).join(' ');
+  return [person?.firstName, person?.middleName, person?.lastName, person?.secondLastName].filter(Boolean).join(' ');
 }
 
 // ============================================================
@@ -419,14 +413,12 @@ async function _logProfileFieldChanges({
   data,
   snapshot,
   userId,
-  auditContext,
-  transaction
+  auditContext
 }: {
   data: ProfileService.UpdateProfileInput;
   snapshot: Awaited<ReturnType<(typeof ProfileHelper)['fetchPersonSnapshot']>>;
   userId: string;
   auditContext: ProfileTypes.AuditInfo;
-  transaction: Transaction;
 }) {
   const ip = auditContext?.ip || auditContext?.ipAddress || null;
   const ua = auditContext?.userAgent || null;
@@ -439,44 +431,35 @@ async function _logProfileFieldChanges({
   };
 
   if (data.genderId && data.genderId !== snapshot.genderId) {
-    await KycSharedUtil.logChange(
-      {
-        ...base,
-        changeType: 'gender',
-        previousValue: snapshot.genderId ?? null,
-        newValue: data.genderId
-      },
-      { transaction }
-    );
+    await KycSharedUtil.logChange({
+      ...base,
+      changeType: 'gender',
+      previousValue: snapshot.genderId ?? null,
+      newValue: data.genderId
+    });
   }
 
   if (data.birthDate) {
     const prev = snapshot.birthDate ? new Date(snapshot.birthDate).toISOString().slice(0, 10) : null;
     const next = new Date(data.birthDate).toISOString().slice(0, 10);
     if (prev !== next) {
-      await KycSharedUtil.logChange(
-        {
-          ...base,
-          changeType: 'birth_date',
-          previousValue: prev,
-          newValue: next
-        },
-        { transaction }
-      );
+      await KycSharedUtil.logChange({
+        ...base,
+        changeType: 'birth_date',
+        previousValue: prev,
+        newValue: next
+      });
     }
   }
 
   if (data.location) {
-    await KycSharedUtil.logChange(
-      {
-        ...base,
-        changeType: 'location',
-        previousValue: snapshot.location ? JSON.stringify(snapshot.location) : null,
-        newValue: JSON.stringify(data.location),
-        changeReason: 'Ubicación de residencia'
-      },
-      { transaction }
-    );
+    await KycSharedUtil.logChange({
+      ...base,
+      changeType: 'location',
+      previousValue: snapshot.location ? JSON.stringify(snapshot.location) : null,
+      newValue: JSON.stringify(data.location),
+      changeReason: 'Ubicación de residencia'
+    });
   }
 }
 

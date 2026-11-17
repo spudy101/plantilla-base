@@ -4,15 +4,11 @@
 // mockeando el repositorio, los DTOs, el logger de auditoría y el contexto de request. Probamos:
 // list() mapea y audita; create() respeta el tope de 5 y persiste origen del contexto; update()
 // lanza 404 si no existe y audita el antes/después; remove() lanza 404 si no existe y hace baja
-// lógica (is_active:false). Los errores de negocio se verifican con .rejects (AppError real).
+// lógica (isActive:false). Los errores de negocio se verifican con .rejects (AppError real).
 
 jest.mock('shared/utils/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }
-}));
-
-jest.mock('shared/utils/request-context.util', () => ({
-  originFromContext: jest.fn(() => ({ origin_session_id: 'sess-1', origin_correlation_id: 'corr-1' }))
 }));
 
 jest.mock('modules/schemas/kyc/person/repositories/person-reference.repository', () => ({
@@ -31,8 +27,6 @@ jest.mock('modules/client/kyc/person/dtos/person-reference.dto', () => ({
 import { mocked, fixture } from 'tests/helpers/mock';
 import referenceRepoModule from 'modules/schemas/kyc/person/repositories/person-reference.repository';
 const referenceRepo = mocked(referenceRepoModule);
-import requestContextModule from 'shared/utils/request-context.util';
-const requestContext = mocked(requestContextModule);
 import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
 import service from 'modules/client/kyc/person/services/person-reference.service';
@@ -47,16 +41,13 @@ describe('PersonReferenceService', () => {
 
   describe('list', () => {
     it('devuelve las referencias mapeadas y audita con el conteo', async () => {
-      referenceRepo.findAllByPersonId.mockResolvedValue([
-        { person_reference_id: 'r-1' },
-        { person_reference_id: 'r-2' }
-      ]);
+      referenceRepo.findAllByPersonId.mockResolvedValue([{ personReferenceId: 'r-1' }, { personReferenceId: 'r-2' }]);
 
       const result = await service.list(PERSON_ID, USER_ID);
 
       expect(referenceRepo.findAllByPersonId).toHaveBeenCalledWith(PERSON_ID);
       expect(result).toHaveLength(2);
-      expect(result[0]).toMatchObject({ dto: 'list', person_reference_id: 'r-1' });
+      expect(result[0]).toMatchObject({ dto: 'list', personReferenceId: 'r-1' });
       expect(logAudit).toHaveBeenCalledWith(
         'PROFILE_REFERENCES_VIEWED',
         USER_ID,
@@ -67,25 +58,23 @@ describe('PersonReferenceService', () => {
   });
 
   describe('create', () => {
-    it('crea la referencia con el origen del contexto y audita', async () => {
+    // El origen (originSessionId/originCorrelationId) lo estampa la extensión de Prisma, no el service
+    it('crea la referencia y audita', async () => {
       referenceRepo.findAllByPersonId.mockResolvedValue([]);
-      referenceRepo.create.mockResolvedValue({ person_reference_id: 'r-9', reference_name: 'Ana' });
+      referenceRepo.create.mockResolvedValue({ personReferenceId: 'r-9', referenceName: 'Ana' });
 
       const data = { referenceName: 'Ana', referencePhone: '+56911112222', referenceType: 'family' };
       const result = await service.create(fixture(data), PERSON_ID, USER_ID);
 
-      expect(requestContext.originFromContext).toHaveBeenCalled();
       expect(referenceRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          person_id: PERSON_ID,
-          reference_name: 'Ana',
-          reference_phone: '+56911112222',
-          reference_type: 'family',
-          origin_session_id: 'sess-1',
-          origin_correlation_id: 'corr-1'
+          personId: PERSON_ID,
+          referenceName: 'Ana',
+          referencePhone: '+56911112222',
+          referenceType: 'family'
         })
       );
-      expect(result).toMatchObject({ dto: 'item', person_reference_id: 'r-9' });
+      expect(result).toMatchObject({ dto: 'item', personReferenceId: 'r-9' });
       expect(logAudit).toHaveBeenCalledWith(
         'PROFILE_REFERENCE_CREATED',
         USER_ID,
@@ -95,7 +84,7 @@ describe('PersonReferenceService', () => {
     });
 
     it('lanza 400 si ya hay 5 referencias (tope alcanzado)', async () => {
-      referenceRepo.findAllByPersonId.mockResolvedValue(Array.from({ length: 5 }, (_, i) => ({ person_reference_id: `r-${i}` })));
+      referenceRepo.findAllByPersonId.mockResolvedValue(Array.from({ length: 5 }, (_, i) => ({ personReferenceId: `r-${i}` })));
 
       await expect(service.create(fixture({}), PERSON_ID, USER_ID)).rejects.toMatchObject({ statusCode: 400 });
       expect(referenceRepo.create).not.toHaveBeenCalled();
@@ -113,21 +102,21 @@ describe('PersonReferenceService', () => {
 
     it('actualiza y audita el antes/después', async () => {
       referenceRepo.findActiveById.mockResolvedValue({
-        reference_name: 'Ana',
-        reference_phone: '+56911112222',
-        reference_type: 'family'
+        referenceName: 'Ana',
+        referencePhone: '+56911112222',
+        referenceType: 'family'
       });
-      referenceRepo.update.mockResolvedValue({ person_reference_id: 'r-1', reference_name: 'Ana María' });
+      referenceRepo.update.mockResolvedValue({ personReferenceId: 'r-1', referenceName: 'Ana María' });
 
       const data = { referenceName: 'Ana María' };
       const result = await service.update('r-1', data, PERSON_ID, USER_ID);
 
       expect(referenceRepo.update).toHaveBeenCalledWith('r-1', {
-        reference_name: 'Ana María',
-        reference_phone: undefined,
-        reference_type: undefined
+        referenceName: 'Ana María',
+        referencePhone: undefined,
+        referenceType: undefined
       });
-      expect(result).toMatchObject({ dto: 'item', person_reference_id: 'r-1' });
+      expect(result).toMatchObject({ dto: 'item', personReferenceId: 'r-1' });
       expect(logAudit).toHaveBeenCalledWith(
         'PROFILE_REFERENCE_UPDATED',
         USER_ID,
@@ -148,13 +137,13 @@ describe('PersonReferenceService', () => {
       expect(referenceRepo.update).not.toHaveBeenCalled();
     });
 
-    it('hace baja lógica (is_active:false) y audita', async () => {
-      referenceRepo.findActiveById.mockResolvedValue({ person_reference_id: 'r-1' });
+    it('hace baja lógica (isActive:false) y audita', async () => {
+      referenceRepo.findActiveById.mockResolvedValue({ personReferenceId: 'r-1' });
       referenceRepo.update.mockResolvedValue({});
 
       await service.remove('r-1', PERSON_ID, USER_ID);
 
-      expect(referenceRepo.update).toHaveBeenCalledWith('r-1', { is_active: false });
+      expect(referenceRepo.update).toHaveBeenCalledWith('r-1', { isActive: false });
       expect(logAudit).toHaveBeenCalledWith(
         'PROFILE_REFERENCE_DELETED',
         USER_ID,

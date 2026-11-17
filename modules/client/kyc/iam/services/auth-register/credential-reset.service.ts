@@ -1,11 +1,13 @@
-import type defineUser from '../../../../../schemas/kyc/iam/models/user.model';
-import type defineResetCredentials from '../../../../../schemas/kyc/iam/models/reset-credentials.model';
+import type { ResetCredentials } from '../../../../../../shared/database/generated/prisma/client';
+import type { ResetTokenWithUser } from '../../../../../schemas/kyc/iam/repositories/reset-credentials.repository';
+
+/** Titular del token: id, authUsername, nombre y email. */
+type ResetUser = ResetTokenWithUser['user'];
 // modules/client/kyc/iam/services/auth-register/credential-reset.service.ts
 //
 // Reset de credenciales (contraseña o MFA) por enlace de un solo uso enviado al email.
 // Extraído de AuthRegisterService (SOLID: S): el registro y el reset cambian por razones distintas.
 
-import type { Transaction } from 'sequelize';
 import crypto from 'node:crypto';
 import userRepository from '../../../../../schemas/kyc/iam/repositories/user.repository';
 import personContactRepository from '../../../../../schemas/kyc/person/repositories/person-contact.repository';
@@ -60,15 +62,15 @@ class CredentialResetService {
 
     const { user } = personContact.person;
 
-    if (!user.is_active) {
+    if (!user.isActive) {
       logger.info('Reset requested for inactive user', { type });
       return false;
     }
 
-    const invalidated = await this.resetCredentialsRepository.invalidateUserTokens(user.user_id);
+    const invalidated = await this.resetCredentialsRepository.invalidateUserTokens(user.userId);
     if (invalidated > 0) {
       logger.info('Previous reset tokens invalidated', {
-        userId: user.user_id,
+        userId: user.userId,
         count: invalidated,
         type
       });
@@ -78,21 +80,21 @@ class CredentialResetService {
     const expiresAt = new Date(Date.now() + SECURITY.RESET_TOKEN_EXPIRATION_MINUTES * MS_PER_MINUTE);
 
     await this.resetCredentialsRepository.createResetToken({
-      user_id: user.user_id,
+      userId: user.userId,
       email,
       token,
       type,
-      expires_at: expiresAt
+      expiresAt: expiresAt
     });
 
     logAudit(
       'CREDENTIALS_RESET_REQUESTED',
-      user.user_id,
+      user.userId,
       { type },
-      { entityId: user.user_id, entityType: 'User', entityTable: 'users' }
+      { entityId: user.userId, entityType: 'User', entityTable: 'users' }
     );
 
-    const firstName = personContact.person.first_name || 'Usuario';
+    const firstName = personContact.person.firstName || 'Usuario';
     const resetUrl = `${frontend.resetCredentialUrl}-${type === 'password' ? 'password' : 'totp'}?token=${token}&type=${type}`;
 
     setImmediate(() => {
@@ -109,7 +111,7 @@ class CredentialResetService {
       }).catch(err => logger.warn('Error sending reset notification', { error: err.message }));
     });
 
-    logger.info('Reset credentials requested', { userId: user.user_id, type });
+    logger.info('Reset credentials requested', { userId: user.userId, type });
     return true;
   }
 
@@ -128,22 +130,23 @@ class CredentialResetService {
       throw AppError.notFound('Usuario no encontrado');
     }
 
-    const tipoNotif = await this.unitOfWork.run(async transaction => {
-      const tipoNotif = await this._applyCredentialReset(type, user, newPassword, transaction);
-      await this.resetCredentialsRepository.markAsUsed(resetRecord.reset_credentials_id, {
-        transaction
-      });
-      return tipoNotif;
+    const tipoNotif = await this.unitOfWork.run(async () => {
+      // Se consume primero y solo si sigue sin usar: dos requests simultáneos con el mismo token ya no
+      // aplican el reset dos veces (el segundo revierte).
+      if (!(await this.resetCredentialsRepository.markAsUsed(resetRecord.resetCredentialsId))) {
+        throw AppError.badRequest('Token inválido o expirado');
+      }
+      return this._applyCredentialReset(type, user, newPassword);
     });
     logAudit(
       type === 'password' ? 'PASSWORD_RESET_CONFIRMED' : 'MFA_RESET_CONFIRMED',
-      user.user_id,
+      user.userId,
       { type },
-      { entityId: user.user_id, entityType: 'User', entityTable: 'users' }
+      { entityId: user.userId, entityType: 'User', entityTable: 'users' }
     );
     this._sendResetConfirmationNotification(user, tipoNotif);
     if (type === 'password') {
-      this._invalidateSessionsAfterPasswordReset(user.user_id);
+      this._invalidateSessionsAfterPasswordReset(user.userId);
     }
     return null;
   }
@@ -162,48 +165,36 @@ class CredentialResetService {
   }
 
   /** @private */
-  async _applyCredentialReset(
-    type: CredentialResetService.ResetType,
-    user: defineUser.Instance,
-    newPassword: string | undefined,
-    transaction: Transaction
-  ) {
+  async _applyCredentialReset(type: CredentialResetService.ResetType, user: ResetUser, newPassword: string | undefined) {
     if (type === 'password') {
       if (!newPassword) {
         throw AppError.badRequest('La nueva contraseña es requerida');
       }
-      await this.userRepository.updatePassword(user.user_id, newPassword, { transaction });
+      await this.userRepository.updatePassword(user.userId, newPassword);
       return 'RESET_PASSWORD';
     }
 
     if (type === 'mfa') {
       // Reset total del MFA: baja TOTP (y borra su secreto) y SMS, todo en BD propia.
-      await this.userRepository.update(
-        user.user_id,
-        {
-          totp_enabled: false,
-          totp_secret: null,
-          sms_mfa_enabled: false,
-          preferred_mfa_method: 'none'
-        },
-        { transaction }
-      );
+      await this.userRepository.update(user.userId, {
+        totpEnabled: false,
+        totpSecret: null,
+        smsMfaEnabled: false,
+        preferredMfaMethod: 'none'
+      });
 
       for (const changeType of ['mfa_status', 'sms_mfa_status'] as const) {
-        await this.kycSharedUtil.logChange(
-          {
-            userId: user.user_id,
-            changedByUserId: null,
-            changedByRole: 'system',
-            changeType,
-            previousValue: 'enabled',
-            newValue: 'disabled',
-            changeReason: 'Reset de MFA por pérdida de dispositivo',
-            ipAddress: null,
-            userAgent: null
-          },
-          { transaction }
-        );
+        await this.kycSharedUtil.logChange({
+          userId: user.userId,
+          changedByUserId: null,
+          changedByRole: 'system',
+          changeType,
+          previousValue: 'enabled',
+          newValue: 'disabled',
+          changeReason: 'Reset de MFA por pérdida de dispositivo',
+          ipAddress: null,
+          userAgent: null
+        });
       }
 
       return 'RESET_MFA';
@@ -229,19 +220,19 @@ class CredentialResetService {
   }
 
   /** @private */
-  _sendResetConfirmationNotification(user: defineUser.Instance, tipoNotificacion: string) {
-    const firstName = user.person?.first_name || 'Usuario';
+  _sendResetConfirmationNotification(user: ResetUser, tipoNotificacion: string) {
+    const firstName = user.person?.firstName || 'Usuario';
     const email = user.person?.contact?.email;
     setImmediate(() => {
       this.NotificationUtil.crearNotificacion({
         tipoNotificacion,
-        userId: user.user_id,
+        userId: user.userId,
         relatedEntity: null,
         metadata: { nombre: firstName, email, logoUrl: notifications.ses.logoUrl }
       }).catch(err =>
         logger.warn('Error sending reset confirmation notification', {
           error: err.message,
-          userId: user.user_id
+          userId: user.userId
         })
       );
     });
@@ -251,7 +242,7 @@ class CredentialResetService {
 // eslint-disable-next-line @typescript-eslint/no-namespace
 namespace CredentialResetService {
   /** password → nueva contraseña; mfa → baja total del MFA (pérdida de dispositivo) */
-  export type ResetType = defineResetCredentials.Attributes['type'];
+  export type ResetType = ResetCredentials['type'];
 
   /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
   export interface Deps {

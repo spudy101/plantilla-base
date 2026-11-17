@@ -1,4 +1,4 @@
-import type defineRolePermissionOverride from '../../../../schemas/kyc/iam/models/role-permission-override.model';
+import type { RolePermissionOverrideWithGrantor } from '../../../../schemas/kyc/iam/repositories/role-permission-override.repository';
 // modules/admin/rbac/dtos/admin-rbac.dto.ts
 
 // Construye el árbol de grupos para el front a partir del array plano de RBAC_MODULE_GROUPS.
@@ -75,23 +75,23 @@ function RolePermissionsListDTO(roleName: string, overrides: OverrideRow[]) {
 }
 
 /** Override con quien lo otorgó (include grantedBy → person). */
-type OverrideRow = defineRolePermissionOverride.Instance & {
-  grantedBy?: { user_id: string; username: string; person?: { first_name?: string | null; last_name?: string | null } | null } | null;
+type OverrideRow = Omit<RolePermissionOverrideWithGrantor, 'grantedBy'> & {
+  grantedBy?: RolePermissionOverrideWithGrantor['grantedBy'] | null;
 };
 
 function RolePermissionOverrideDTO(override: OverrideRow) {
   const gb = override.grantedBy ?? null;
   return {
-    rolePermissionId: override.role_permission_id,
-    roleName: override.role_name,
-    moduleName: override.module_name,
+    rolePermissionId: override.rolePermissionId,
+    roleName: override.roleName,
+    moduleName: override.moduleName,
     action: override.action,
-    grantedByUserId: override.granted_by_user_id,
+    grantedByUserId: override.grantedByUserId,
     grantedBy: gb
       ? {
-          userId: gb.user_id,
+          userId: gb.userId,
           username: gb.username,
-          fullName: [gb.person?.first_name, gb.person?.last_name].filter(Boolean).join(' ') || null
+          fullName: [gb.person?.firstName, gb.person?.lastName].filter(Boolean).join(' ') || null
         }
       : null,
     createdAt: override.createdAt

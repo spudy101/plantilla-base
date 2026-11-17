@@ -144,7 +144,7 @@ class NotificationTypeService {
     if (!user) {
       throw AppError.notFound('Usuario no encontrado');
     }
-    if (!user.is_active) {
+    if (!user.isActive) {
       throw AppError.badRequest('No se puede notificar a un usuario inactivo');
     }
 

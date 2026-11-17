@@ -47,15 +47,16 @@ const ALGORITHM = 'RS256';
 const MFA_CHALLENGE_EXPIRY_SECONDS = 300; // 5 min
 const MFA_CHALLENGE_TYPE = 'mfa_challenge';
 
-/** Lo que necesita el access token del usuario (instancia de User con rol y persona cargados). */
+/** Lo que necesita el access token del usuario (fila de User con rol y persona cargados). */
 interface TokenUser {
-  user_id: string;
-  person_id?: string | null;
-  role_id?: string | null;
-  national_id?: string | null;
-  auth_username?: string | null;
+  userId: string;
+  personId?: string | null;
+  roleId?: string | null;
+  /** User no tiene esta columna: el claim sale null salvo que el llamador lo pase (el documento va en person). */
+  nationalId?: string | null;
+  authUsername?: string | null;
   role?: { name?: string | null } | null;
-  person?: { first_name?: string | null; last_name?: string | null; contact?: { email?: string | null } | null } | null;
+  person?: { firstName?: string | null; lastName?: string | null; contact?: { email?: string | null } | null } | null;
 }
 
 /** Claims que emite generateAccessToken (+ las estándar de JWT: iat, exp, sub…). */
@@ -128,20 +129,20 @@ class JwtUtil {
 
     const payload = {
       sessionId: sessionId || null,
-      userId: user.user_id,
-      personId: user.person_id || null,
-      roleId: user.role_id || null,
+      userId: user.userId,
+      personId: user.personId || null,
+      roleId: user.roleId || null,
       roleName: user.role?.name || null,
-      firstName: user.person?.first_name || null,
-      lastName: user.person?.last_name || null,
-      nationalId: user.national_id || null,
-      authUsername: user.auth_username || null,
+      firstName: user.person?.firstName || null,
+      lastName: user.person?.lastName || null,
+      nationalId: user.nationalId || null,
+      authUsername: user.authUsername || null,
       email: user.person?.contact?.email || null
     };
 
     return new SignJWT(payload)
       .setProtectedHeader({ alg: ALGORITHM })
-      .setSubject(user.user_id)
+      .setSubject(user.userId)
       .setIssuedAt(nowSecs)
       .setExpirationTime(nowSecs + jwtConfig.accessTokenExpiry)
       .sign(JwtUtil._privateKey);

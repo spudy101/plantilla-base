@@ -1,4 +1,4 @@
-import type defineRole from '../../../../schemas/kyc/iam/models/role.model';
+import type { Role } from '../../../../../shared/database/generated/prisma/client';
 // modules/admin/users/dtos/admin-user.dto.ts
 
 import kycModule from '../../../../../shared/dtos/kyc';
@@ -87,9 +87,9 @@ function UserChangeLogDTO(log: Parameters<typeof UserChangeLogComponent.build>[0
 
 // ─── Opción de rol (para poblar el filtro por rol del listado de internos) ─────
 
-function RoleOptionDTO(role: Pick<defineRole.Attributes, 'role_id' | 'name' | 'description'>) {
+function RoleOptionDTO(role: Pick<Role, 'roleId' | 'name' | 'description'>) {
   return {
-    roleId: role.role_id,
+    roleId: role.roleId,
     name: role.name,
     description: role.description ?? null
   };

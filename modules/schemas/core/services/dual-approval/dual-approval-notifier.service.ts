@@ -16,7 +16,6 @@ const { errorMessage } = errorMessageModule;
 import type { AdminAuditContext } from '../../../../../shared/types/audit-context';
 import type DualApprovalConstants from '../../../../../shared/constants/dual-approval';
 import type { ApprovalRequest } from '../../../../../shared/database/generated/prisma/client';
-import type defineUser from '../../../kyc/iam/models/user.model';
 
 
 const NOTIF_DUAL_APPROVAL_RESOLVED = 'DUAL_APPROVAL_RESOLVED';
@@ -33,12 +32,9 @@ class DualApprovalNotifierService {
 
   /** Avisa a todos los usuarios activos con un rol aprobador de la operación (fire-and-forget). */
   async notifyApprovers(op: DualApprovalConstants.Op, request: ApprovalRequest, ctx: AdminAuditContext) {
-    let approvers: defineUser.Instance[] = [];
+    let approvers: Array<{ userId: string }> = [];
     try {
-      approvers = await this.userRepository.findActiveUsersByRoleNames(op.approverRoles, {
-        attributes: ['user_id'],
-        includePerson: false
-      });
+      approvers = await this.userRepository.findActiveUsersByRoleNames(op.approverRoles);
     } catch (err) {
       logger.warn('[DualApproval] Error buscando aprobadores', { error: errorMessage(err), operationKey: request.operationKey });
       return;
@@ -48,7 +44,7 @@ class DualApprovalNotifierService {
       setImmediate(() => {
         this.NotificationCreationService.crearNotificacion({
           tipoNotificacion: op.notificationType,
-          userId: approver.user_id,
+          userId: approver.userId,
           relatedEntity: { type: 'ApprovalRequest', id: request.approvalRequestId },
           metadata: {
             approvalRequestId: request.approvalRequestId,

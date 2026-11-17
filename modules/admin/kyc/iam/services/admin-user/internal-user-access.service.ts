@@ -1,5 +1,5 @@
-import type defineUser from '../../../../../schemas/kyc/iam/models/user.model';
-import type defineRole from '../../../../../schemas/kyc/iam/models/role.model';
+import type { Role } from '../../../../../../shared/database/generated/prisma/client';
+import type { UserProfileRow } from '../../../../../schemas/kyc/iam/repositories/user.repository';
 // modules/admin/kyc/iam/services/admin-user/internal-user-access.service.ts
 //
 // Control de acceso de usuarios internos: cambio de rol (doble aprobación), activar/desactivar
@@ -52,7 +52,7 @@ class InternalUserAccessService {
     }
 
     const newRole = await this.guards.getInternalRoleOrFail(newRoleId);
-    if (user.role_id === newRoleId) {
+    if (user.roleId === newRoleId) {
       throw AppError.badRequest('El usuario ya tiene este rol');
     }
 
@@ -82,14 +82,14 @@ class InternalUserAccessService {
     userId: string,
     newRoleId: string,
     auditCtx: AdminAuditContext,
-    prefetched: { user?: defineUser.Instance; newRole?: defineRole.Instance } = {}
+    prefetched: { user?: UserProfileRow; newRole?: Role } = {}
   ) {
     const user = prefetched.user ?? (await this.guards.getInternalUserOrFail(userId));
     const newRole = prefetched.newRole ?? (await this.guards.getInternalRoleOrFail(newRoleId));
 
     const oldRoleName = user.role?.name || null;
 
-    await this.userRepository.update(userId, { role_id: newRoleId });
+    await this.userRepository.update(userId, { roleId: newRoleId });
 
     await this.kycSharedUtil.logChange({
       userId,
@@ -148,7 +148,7 @@ class InternalUserAccessService {
       throw AppError.forbidden('No se puede desactivar a un super administrador');
     }
 
-    if (user.is_active === isActive) {
+    if (user.isActive === isActive) {
       throw AppError.badRequest(`El usuario ya está ${isActive ? 'activo' : 'inactivo'}`);
     }
 
@@ -159,7 +159,7 @@ class InternalUserAccessService {
       changedByUserId: auditCtx.adminUserId,
       changedByRole: 'admin',
       changeType: 'account_status',
-      previousValue: user.is_active ? 'active' : 'inactive',
+      previousValue: user.isActive ? 'active' : 'inactive',
       newValue: isActive ? 'active' : 'inactive',
       changeReason: 'Estado de cuenta actualizado por administrador',
       ipAddress: auditCtx.ipAddress,

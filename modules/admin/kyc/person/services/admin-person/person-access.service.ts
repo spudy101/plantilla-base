@@ -51,43 +51,31 @@ class PersonAccessService {
 
   async _toggleStatus(userId: string, action: 'activate' | 'deactivate', auditContext: AdminAuditContext) {
     const isActivating = action === 'activate';
-    const user = await this.unitOfWork.run(async transaction => {
-      const user = await this.userRepository.findById(userId, {
-        include: [
-          {
-            association: 'person',
-            attributes: ['first_name'],
-            include: [{ association: 'contact', attributes: ['email'] }]
-          }
-        ],
-        attributes: ['user_id', 'is_active', 'deleted_at']
-      });
+    const user = await this.unitOfWork.run(async () => {
+      const user = await this.userRepository.findAdminTarget(userId);
 
       if (!user) {
         throw AppError.notFound('Usuario no encontrado');
       }
       assertNotDeleted(user);
 
-      if (user.is_active === isActivating) {
+      if (user.isActive === isActivating) {
         throw AppError.badRequest(`El usuario ya está ${isActivating ? 'activo' : 'inactivo'}`);
       }
 
-      await this.userRepository.setActiveStatus(userId, isActivating, { transaction });
+      await this.userRepository.setActiveStatus(userId, isActivating);
 
-      await KycSharedUtil.logChange(
-        {
-          userId: user.user_id,
-          changedByUserId: auditContext.adminUserId,
-          changedByRole: 'admin',
-          changeType: 'account_status',
-          previousValue: isActivating ? 'inactive' : 'active',
-          newValue: isActivating ? 'active' : 'inactive',
-          changeReason: `Usuario ${isActivating ? 'activado' : 'desactivado'} por administrador`,
-          ipAddress: auditContext.ipAddress,
-          userAgent: auditContext.userAgent
-        },
-        { transaction }
-      );
+      await KycSharedUtil.logChange({
+        userId: user.userId,
+        changedByUserId: auditContext.adminUserId,
+        changedByRole: 'admin',
+        changeType: 'account_status',
+        previousValue: isActivating ? 'inactive' : 'active',
+        newValue: isActivating ? 'active' : 'inactive',
+        changeReason: `Usuario ${isActivating ? 'activado' : 'desactivado'} por administrador`,
+        ipAddress: auditContext.ipAddress,
+        userAgent: auditContext.userAgent
+      });
       return user;
     });
 
@@ -98,7 +86,7 @@ class PersonAccessService {
       { entityId: userId, entityType: 'User', entityTable: 'users' }
     );
 
-    const affectedNombre = user.person?.first_name || 'Usuario';
+    const affectedNombre = user.person?.firstName || 'Usuario';
     const affectedEmail = user.person?.contact?.email;
 
     setImmediate(() => {
@@ -126,7 +114,7 @@ class PersonAccessService {
       }).catch(err => logger.warn('Error sending admin action notification', { error: err.message }));
     });
 
-    user.is_active = isActivating;
+    user.isActive = isActivating;
     return ToggleUserStatusDTO(user, action);
   }
 
@@ -135,18 +123,8 @@ class PersonAccessService {
   // ============================================================
 
   async changeRole(userId: string, newRoleId: string, auditContext: AdminAuditContext) {
-    const { user, newRole, oldRole } = await this.unitOfWork.run(async transaction => {
-      const user = await this.userRepository.findById(userId, {
-        include: [
-          {
-            association: 'person',
-            attributes: ['first_name'],
-            include: [{ association: 'contact', attributes: ['email'] }]
-          },
-          { association: 'role', attributes: ['role_id', 'name', 'description'] }
-        ],
-        attributes: ['user_id', 'role_id', 'deleted_at']
-      });
+    const { user, newRole, oldRole } = await this.unitOfWork.run(async () => {
+      const user = await this.userRepository.findAdminTarget(userId);
 
       if (!user) {
         throw AppError.notFound('Usuario no encontrado');
@@ -168,28 +146,25 @@ class PersonAccessService {
         throw AppError.badRequest('El rol indicado no es un rol de cliente');
       }
 
-      if (user.role_id === newRoleId) {
+      if (user.roleId === newRoleId) {
         throw AppError.badRequest('El usuario ya tiene este rol');
       }
 
       const oldRole = user.role ?? null;
 
-      await this.userRepository.update(userId, { role_id: newRoleId }, { transaction });
+      await this.userRepository.update(userId, { roleId: newRoleId });
 
-      await KycSharedUtil.logChange(
-        {
-          userId: user.user_id,
-          changedByUserId: auditContext.adminUserId,
-          changedByRole: 'admin',
-          changeType: 'role',
-          previousValue: oldRole?.name ?? null,
-          newValue: newRole.name,
-          changeReason: 'Rol actualizado por administrador',
-          ipAddress: auditContext.ipAddress,
-          userAgent: auditContext.userAgent
-        },
-        { transaction }
-      );
+      await KycSharedUtil.logChange({
+        userId: user.userId,
+        changedByUserId: auditContext.adminUserId,
+        changedByRole: 'admin',
+        changeType: 'role',
+        previousValue: oldRole?.name ?? null,
+        newValue: newRole.name,
+        changeReason: 'Rol actualizado por administrador',
+        ipAddress: auditContext.ipAddress,
+        userAgent: auditContext.userAgent
+      });
       return { user, newRole, oldRole };
     });
 
@@ -203,13 +178,13 @@ class PersonAccessService {
       { entityId: userId, entityType: 'User', entityTable: 'users' }
     );
 
-    const affectedNombre = user.person?.first_name || 'Usuario';
+    const affectedNombre = user.person?.firstName || 'Usuario';
     const affectedEmail = user.person?.contact?.email;
 
     setImmediate(() => {
       this.NotificationUtil.crearNotificacion({
         tipoNotificacion: 'ROL_CHANGE',
-        userId: user.user_id,
+        userId: user.userId,
         relatedEntity: null,
         metadata: {
           nombre: affectedNombre,
@@ -232,8 +207,6 @@ class PersonAccessService {
         }
       }).catch(err => logger.warn('Error sending admin action notification', { error: err.message }));
     });
-
-    user.role = newRole;
     return ChangeRoleDTO(user, oldRole, newRole);
   }
 }

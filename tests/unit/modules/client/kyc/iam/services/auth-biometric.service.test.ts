@@ -53,7 +53,7 @@ jest.mock('modules/schemas/kyc/iam/repositories/biometric.repository', () => ({
     findByUserAndDevice: jest.fn(),
     findByCredentialId: jest.fn(),
     findAllByUser: jest.fn(),
-    findOne: jest.fn(),
+    findByIdAndUser: jest.fn(),
     create: jest.fn(),
     deactivate: jest.fn().mockResolvedValue(undefined),
     updateAfterLogin: jest.fn().mockResolvedValue(undefined)
@@ -61,7 +61,7 @@ jest.mock('modules/schemas/kyc/iam/repositories/biometric.repository', () => ({
   biometricChallengeRepository: {
     create: jest.fn().mockResolvedValue(undefined),
     findValid: jest.fn(),
-    markAsUsed: jest.fn().mockResolvedValue(undefined)
+    markAsUsed: jest.fn().mockResolvedValue(true)
   }
 }));
 
@@ -156,10 +156,10 @@ const DEVICE_ID = 'device-1';
 const flush = () => new Promise(resolve => { setImmediate(resolve); });
 
 const trustedDevice = (overrides = {}) => ({
-  user_trusted_device_id: DEVICE_ID,
+  userTrustedDeviceId: DEVICE_ID,
   status: 'trusted',
-  fingerprint_hash: FP_HASH,
-  hmac_secret: 'hmac-1',
+  fingerprintHash: FP_HASH,
+  hmacSecret: 'hmac-1',
   ...overrides
 });
 
@@ -183,7 +183,7 @@ describe('AuthBiometricService', () => {
 
     it('lanza 409 si el dispositivo ya tiene una credencial', async () => {
       trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice());
-      biometricCredentialRepository.findByUserAndDevice.mockResolvedValue({ biometric_credential_id: 'c-1' });
+      biometricCredentialRepository.findByUserAndDevice.mockResolvedValue({ biometricCredentialId: 'c-1' });
 
       await expect(service.registerStart(USER_ID, FP_HASH)).rejects.toMatchObject({ statusCode: 409 });
     });
@@ -195,7 +195,7 @@ describe('AuthBiometricService', () => {
       const result = await service.registerStart(USER_ID, FP_HASH);
 
       expect(biometricChallengeRepository.create).toHaveBeenCalledWith(
-        expect.objectContaining({ user_id: USER_ID, type: 'registration', challenge: expect.any(String) })
+        expect.objectContaining({ userId: USER_ID, type: 'registration', challenge: expect.any(String) })
       );
       expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_REGISTER_START', USER_ID, {}, expect.any(Object));
       expect(result).toMatchObject({ dto: 'registerStart', deviceId: DEVICE_ID, algorithm: -7 });
@@ -223,21 +223,32 @@ describe('AuthBiometricService', () => {
 
     it('lanza 403 si el challenge pertenece a otro usuario', async () => {
       trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice());
-      biometricChallengeRepository.findValid.mockResolvedValue({ challenge_id: 'chid', user_id: 'otro', type: 'registration' });
+      biometricChallengeRepository.findValid.mockResolvedValue({ challengeId: 'chid', userId: 'otro', type: 'registration' });
 
       await expect(service.registerFinish(payload, USER_ID, FP_HASH)).rejects.toMatchObject({ statusCode: 403 });
     });
 
     it('lanza 400 si el tipo de challenge es incorrecto', async () => {
       trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice());
-      biometricChallengeRepository.findValid.mockResolvedValue({ challenge_id: 'chid', user_id: USER_ID, type: 'authentication' });
+      biometricChallengeRepository.findValid.mockResolvedValue({ challengeId: 'chid', userId: USER_ID, type: 'authentication' });
 
       await expect(service.registerFinish(payload, USER_ID, FP_HASH)).rejects.toMatchObject({ statusCode: 400 });
     });
 
+    it('lanza 400 sin verificar la firma si otro request ya consumió el challenge (replay)', async () => {
+      trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice());
+      biometricChallengeRepository.findValid.mockResolvedValue({ challengeId: 'chid', userId: USER_ID, type: 'registration' });
+      biometricChallengeRepository.markAsUsed.mockResolvedValueOnce(false);
+      const spy = jest.spyOn(service, '_verifySignature');
+
+      await expect(service.registerFinish(payload, USER_ID, FP_HASH)).rejects.toMatchObject({ statusCode: 400 });
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
+
     it('lanza 401 y audita si la firma es inválida (tras marcar el challenge usado)', async () => {
       trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice());
-      biometricChallengeRepository.findValid.mockResolvedValue({ challenge_id: 'chid', user_id: USER_ID, type: 'registration' });
+      biometricChallengeRepository.findValid.mockResolvedValue({ challengeId: 'chid', userId: USER_ID, type: 'registration' });
       const spy = jest.spyOn(service, '_verifySignature').mockReturnValue(false);
 
       await expect(service.registerFinish(payload, USER_ID, FP_HASH)).rejects.toMatchObject({ statusCode: 401 });
@@ -253,9 +264,9 @@ describe('AuthBiometricService', () => {
 
     it('lanza 409 si el credentialId ya está registrado', async () => {
       trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice());
-      biometricChallengeRepository.findValid.mockResolvedValue({ challenge_id: 'chid', user_id: USER_ID, type: 'registration' });
+      biometricChallengeRepository.findValid.mockResolvedValue({ challengeId: 'chid', userId: USER_ID, type: 'registration' });
       const spy = jest.spyOn(service, '_verifySignature').mockReturnValue(true);
-      biometricCredentialRepository.findByCredentialId.mockResolvedValue({ biometric_credential_id: 'dup' });
+      biometricCredentialRepository.findByCredentialId.mockResolvedValue({ biometricCredentialId: 'dup' });
 
       await expect(service.registerFinish(payload, USER_ID, FP_HASH)).rejects.toMatchObject({ statusCode: 409 });
       spy.mockRestore();
@@ -263,19 +274,19 @@ describe('AuthBiometricService', () => {
 
     it('camino feliz: guarda credencial, audita, dispara notificación y devuelve DTO', async () => {
       trustedDeviceRepository.findByFingerprint.mockResolvedValue(trustedDevice());
-      biometricChallengeRepository.findValid.mockResolvedValue({ challenge_id: 'chid', user_id: USER_ID, type: 'registration' });
+      biometricChallengeRepository.findValid.mockResolvedValue({ challengeId: 'chid', userId: USER_ID, type: 'registration' });
       const spy = jest.spyOn(service, '_verifySignature').mockReturnValue(true);
       biometricCredentialRepository.findByCredentialId.mockResolvedValue(null);
-      biometricCredentialRepository.create.mockResolvedValue({ biometric_credential_id: 'newcred', credential_id: 'cred-1' });
-      userRepository.findByUserId.mockResolvedValue({ person: { first_name: 'Ana' } });
+      biometricCredentialRepository.create.mockResolvedValue({ biometricCredentialId: 'newcred', credentialId: 'cred-1' });
+      userRepository.findByUserId.mockResolvedValue({ person: { firstName: 'Ana' } });
 
       const result = await service.registerFinish(payload, USER_ID, FP_HASH);
 
       expect(biometricCredentialRepository.create).toHaveBeenCalledWith(
-        expect.objectContaining({ user_id: USER_ID, credential_id: 'cred-1', sign_count: 0 })
+        expect.objectContaining({ userId: USER_ID, credentialId: 'cred-1', signCount: 0 })
       );
       expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_REGISTER_SUCCESS', USER_ID, expect.any(Object), expect.any(Object));
-      expect(result).toMatchObject({ dto: 'registerFinish', biometric_credential_id: 'newcred' });
+      expect(result).toMatchObject({ dto: 'registerFinish', biometricCredentialId: 'newcred' });
 
       await flush();
       expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(
@@ -301,18 +312,18 @@ describe('AuthBiometricService', () => {
     });
 
     it('lanza 403 si la cuenta está inactiva', async () => {
-      userRepository.findByUsernameAndNationalId.mockResolvedValue({ user_id: USER_ID, is_active: false });
+      userRepository.findByUsernameAndNationalId.mockResolvedValue({ userId: USER_ID, isActive: false });
 
       await expect(service.loginStart({ nationalId: '111' })).rejects.toMatchObject({ statusCode: 403 });
     });
 
     it('camino feliz: crea challenge de authentication, audita y devuelve DTO', async () => {
-      userRepository.findByUsernameAndNationalId.mockResolvedValue({ user_id: USER_ID, is_active: true });
+      userRepository.findByUsernameAndNationalId.mockResolvedValue({ userId: USER_ID, isActive: true });
 
       const result = await service.loginStart({ nationalId: '111' });
 
       expect(biometricChallengeRepository.create).toHaveBeenCalledWith(
-        expect.objectContaining({ user_id: USER_ID, type: 'authentication' })
+        expect.objectContaining({ userId: USER_ID, type: 'authentication' })
       );
       expect(result).toMatchObject({ dto: 'loginStart', userId: USER_ID });
     });
@@ -323,7 +334,7 @@ describe('AuthBiometricService', () => {
   // ============================================================
   describe('_verifyLoginChallenge', () => {
     const base = {
-      credential: { public_key: 'pk', sign_count: 5 },
+      credential: { publicKey: 'pk', signCount: 5 },
       challenge: 'ch',
       signature: 'sig',
       signCount: 6,
@@ -337,24 +348,24 @@ describe('AuthBiometricService', () => {
     });
 
     it('lanza 403 si el challenge es de otro usuario', async () => {
-      biometricChallengeRepository.findValid.mockResolvedValue({ challenge_id: 'x', user_id: 'otro', type: 'authentication' });
+      biometricChallengeRepository.findValid.mockResolvedValue({ challengeId: 'x', userId: 'otro', type: 'authentication' });
       await expect(service._verifyLoginChallenge(fixture(base))).rejects.toMatchObject({ statusCode: 403 });
     });
 
     it('lanza 400 si el tipo de challenge es incorrecto', async () => {
-      biometricChallengeRepository.findValid.mockResolvedValue({ challenge_id: 'x', user_id: USER_ID, type: 'registration' });
+      biometricChallengeRepository.findValid.mockResolvedValue({ challengeId: 'x', userId: USER_ID, type: 'registration' });
       await expect(service._verifyLoginChallenge(fixture(base))).rejects.toMatchObject({ statusCode: 400 });
     });
 
     it('lanza 401 (replay) si signCount no supera el guardado y audita', async () => {
-      biometricChallengeRepository.findValid.mockResolvedValue({ challenge_id: 'x', user_id: USER_ID, type: 'authentication' });
+      biometricChallengeRepository.findValid.mockResolvedValue({ challengeId: 'x', userId: USER_ID, type: 'authentication' });
 
       await expect(service._verifyLoginChallenge(fixture({ ...base, signCount: 5 }))).rejects.toMatchObject({ statusCode: 401 });
       expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_LOGIN_REPLAY_ATTACK', USER_ID, expect.any(Object), expect.objectContaining({ outcome: 'failure' }));
     });
 
     it('lanza 401 si la firma es inválida y audita', async () => {
-      biometricChallengeRepository.findValid.mockResolvedValue({ challenge_id: 'x', user_id: USER_ID, type: 'authentication' });
+      biometricChallengeRepository.findValid.mockResolvedValue({ challengeId: 'x', userId: USER_ID, type: 'authentication' });
       const spy = jest.spyOn(service, '_verifySignature').mockReturnValue(false);
 
       await expect(service._verifyLoginChallenge(fixture(base))).rejects.toMatchObject({ statusCode: 401 });
@@ -363,7 +374,7 @@ describe('AuthBiometricService', () => {
     });
 
     it('resuelve sin error cuando todo es válido', async () => {
-      biometricChallengeRepository.findValid.mockResolvedValue({ challenge_id: 'x', user_id: USER_ID, type: 'authentication' });
+      biometricChallengeRepository.findValid.mockResolvedValue({ challengeId: 'x', userId: USER_ID, type: 'authentication' });
       const spy = jest.spyOn(service, '_verifySignature').mockReturnValue(true);
 
       await expect(service._verifyLoginChallenge(fixture(base))).resolves.toBeUndefined();
@@ -387,7 +398,7 @@ describe('AuthBiometricService', () => {
     });
 
     it('lanza 401 si el usuario no existe tras validar el challenge', async () => {
-      biometricCredentialRepository.findByCredentialId.mockResolvedValue({ user_id: USER_ID, user_trusted_device_id: DEVICE_ID });
+      biometricCredentialRepository.findByCredentialId.mockResolvedValue({ userId: USER_ID, userTrustedDeviceId: DEVICE_ID });
       const vspy = jest.spyOn(service, '_verifyLoginChallenge').mockResolvedValue(undefined);
       userRepository.findByUserId.mockResolvedValue(null);
 
@@ -398,9 +409,9 @@ describe('AuthBiometricService', () => {
     });
 
     it('lanza 403 si el usuario está inactivo', async () => {
-      biometricCredentialRepository.findByCredentialId.mockResolvedValue({ user_id: USER_ID, user_trusted_device_id: DEVICE_ID });
+      biometricCredentialRepository.findByCredentialId.mockResolvedValue({ userId: USER_ID, userTrustedDeviceId: DEVICE_ID });
       const vspy = jest.spyOn(service, '_verifyLoginChallenge').mockResolvedValue(undefined);
-      userRepository.findByUserId.mockResolvedValue({ user_id: USER_ID, is_active: false });
+      userRepository.findByUserId.mockResolvedValue({ userId: USER_ID, isActive: false });
 
       await expect(
         service.loginFinish({ credentialId: 'cred-1', challenge: 'c', signature: 's', signCount: 1 }, auditContext)
@@ -409,9 +420,9 @@ describe('AuthBiometricService', () => {
     });
 
     it('devuelve el DTO de política cuando _checkPrivacyPolicy la exige', async () => {
-      biometricCredentialRepository.findByCredentialId.mockResolvedValue({ user_id: USER_ID, user_trusted_device_id: DEVICE_ID });
+      biometricCredentialRepository.findByCredentialId.mockResolvedValue({ userId: USER_ID, userTrustedDeviceId: DEVICE_ID });
       const vspy = jest.spyOn(service, '_verifyLoginChallenge').mockResolvedValue(undefined);
-      userRepository.findByUserId.mockResolvedValue({ user_id: USER_ID, is_active: true });
+      userRepository.findByUserId.mockResolvedValue({ userId: USER_ID, isActive: true });
       const pspy = jest.spyOn(service, '_checkPrivacyPolicy').mockResolvedValue(fixture({ dto: 'policyUpdate' }));
 
       const result = await service.loginFinish(
@@ -426,9 +437,9 @@ describe('AuthBiometricService', () => {
     });
 
     it('lanza 403 si el dispositivo de la credencial ya no es de confianza', async () => {
-      biometricCredentialRepository.findByCredentialId.mockResolvedValue({ user_id: USER_ID, user_trusted_device_id: DEVICE_ID });
+      biometricCredentialRepository.findByCredentialId.mockResolvedValue({ userId: USER_ID, userTrustedDeviceId: DEVICE_ID });
       const vspy = jest.spyOn(service, '_verifyLoginChallenge').mockResolvedValue(undefined);
-      userRepository.findByUserId.mockResolvedValue({ user_id: USER_ID, is_active: true });
+      userRepository.findByUserId.mockResolvedValue({ userId: USER_ID, isActive: true });
       const pspy = jest.spyOn(service, '_checkPrivacyPolicy').mockResolvedValue(null);
       trustedDeviceRepository.findById.mockResolvedValue(null);
 
@@ -440,9 +451,9 @@ describe('AuthBiometricService', () => {
     });
 
     it('camino feliz: emite tokens, actualiza sign_count/last_seen, registra intento y devuelve LoginResponseDTO', async () => {
-      biometricCredentialRepository.findByCredentialId.mockResolvedValue({ user_id: USER_ID, user_trusted_device_id: DEVICE_ID });
+      biometricCredentialRepository.findByCredentialId.mockResolvedValue({ userId: USER_ID, userTrustedDeviceId: DEVICE_ID });
       const vspy = jest.spyOn(service, '_verifyLoginChallenge').mockResolvedValue(undefined);
-      userRepository.findByUserId.mockResolvedValue({ user_id: USER_ID, is_active: true, auth_username: 'ana', username: '111' });
+      userRepository.findByUserId.mockResolvedValue({ userId: USER_ID, isActive: true, authUsername: 'ana', username: '111' });
       const pspy = jest.spyOn(service, '_checkPrivacyPolicy').mockResolvedValue(null);
       trustedDeviceRepository.findById.mockResolvedValue(trustedDevice());
 
@@ -468,10 +479,10 @@ describe('AuthBiometricService', () => {
     // La política de sesiones vive en SessionControlService (compartida con el login por contraseña)
     describe('política de sesiones', () => {
       const arrangeHappyPath = (svc: Loose) => {
-        biometricCredentialRepository.findByCredentialId.mockResolvedValue({ user_id: USER_ID, user_trusted_device_id: DEVICE_ID });
+        biometricCredentialRepository.findByCredentialId.mockResolvedValue({ userId: USER_ID, userTrustedDeviceId: DEVICE_ID });
         jest.spyOn(svc, '_verifyLoginChallenge').mockResolvedValue(undefined);
         jest.spyOn(svc, '_checkPrivacyPolicy').mockResolvedValue(null);
-        userRepository.findByUserId.mockResolvedValue({ user_id: USER_ID, is_active: true, auth_username: 'ana', username: '111' });
+        userRepository.findByUserId.mockResolvedValue({ userId: USER_ID, isActive: true, authUsername: 'ana', username: '111' });
         trustedDeviceRepository.findById.mockResolvedValue(trustedDevice());
       };
 
@@ -497,7 +508,7 @@ describe('AuthBiometricService', () => {
       it('con el SessionControlService real cierra la sesión más antigua al alcanzar el límite', async () => {
         arrangeHappyPath(service);
         userSessionRepository.countActive.mockResolvedValue(3); // SECURITY.MAX_ACTIVE_SESSIONS = 3 en el mock
-        userSessionRepository.findOldestActive.mockResolvedValue({ user_session_id: 'old-1', jti: 'jti-old' });
+        userSessionRepository.findOldestActive.mockResolvedValue({ userSessionId: 'old-1', jti: 'jti-old' });
 
         await service.loginFinish({ credentialId: 'cred-1', challenge: 'c', signature: 's', signCount: 7 }, auditContext);
 
@@ -514,7 +525,7 @@ describe('AuthBiometricService', () => {
   describe('_checkPrivacyPolicy', () => {
     it('devuelve null para usuarios internos (no sujetos a la política de clientes)', async () => {
       privacyPolicyRepository.findActive.mockResolvedValue({ version: 2 });
-      const user = { user_id: USER_ID, role: { name: 'admin' }, privacy_policy_version: 1 };
+      const user = { userId: USER_ID, role: { name: 'admin' }, privacyPolicyVersion: 1 };
 
       await expect(service._checkPrivacyPolicy(fixture(user), false, '1.2.3.4')).resolves.toBeNull();
       expect(userRepository.updatePrivacyPolicy).not.toHaveBeenCalled();
@@ -522,14 +533,14 @@ describe('AuthBiometricService', () => {
 
     it('devuelve null si no hay política activa', async () => {
       privacyPolicyRepository.findActive.mockResolvedValue(null);
-      const user = { user_id: USER_ID, role: { name: 'client' }, privacy_policy_version: 1 };
+      const user = { userId: USER_ID, role: { name: 'client' }, privacyPolicyVersion: 1 };
 
       await expect(service._checkPrivacyPolicy(fixture(user), false, null)).resolves.toBeNull();
     });
 
     it('devuelve null si el usuario ya está en la versión activa', async () => {
       privacyPolicyRepository.findActive.mockResolvedValue({ version: 3 });
-      const user = { user_id: USER_ID, role: { name: 'client' }, privacy_policy_version: 3 };
+      const user = { userId: USER_ID, role: { name: 'client' }, privacyPolicyVersion: 3 };
 
       await expect(service._checkPrivacyPolicy(fixture(user), false, null)).resolves.toBeNull();
     });
@@ -537,7 +548,7 @@ describe('AuthBiometricService', () => {
     it('con acceptPolicy=true actualiza la versión, registra consent y audita (devuelve null)', async () => {
       privacyPolicyRepository.findActive.mockResolvedValue({ version: 3, privacyPolicyId: 'pp-3' });
       consentTypeRepository.findByCode.mockResolvedValue({ consentTypeId: 'ct-1' });
-      const user = { user_id: USER_ID, role: { name: 'client' }, privacy_policy_version: 2 };
+      const user = { userId: USER_ID, role: { name: 'client' }, privacyPolicyVersion: 2 };
 
       const result = await service._checkPrivacyPolicy(fixture(user), true, '1.2.3.4');
 
@@ -552,8 +563,13 @@ describe('AuthBiometricService', () => {
     });
 
     it('con versión desactualizada y sin aceptar bloquea y devuelve PolicyUpdateRequiredDTO', async () => {
-      privacyPolicyRepository.findActive.mockResolvedValue({ version: 4, documentUrl: 'http://x', summary: 's', effectiveDate: '2026-01-01' });
-      const user = { user_id: USER_ID, role: { name: 'client' }, privacy_policy_version: 2 };
+      privacyPolicyRepository.findActive.mockResolvedValue({
+        version: 4,
+        documentUrl: 'http://x',
+        summary: 's',
+        effectiveDate: '2026-01-01'
+      });
+      const user = { userId: USER_ID, role: { name: 'client' }, privacyPolicyVersion: 2 };
 
       const result = await service._checkPrivacyPolicy(fixture(user), false, null);
 
@@ -583,14 +599,14 @@ describe('AuthBiometricService', () => {
 
   describe('deleteCredential', () => {
     it('lanza 404 si la credencial no pertenece al usuario', async () => {
-      biometricCredentialRepository.findOne.mockResolvedValue(null);
+      biometricCredentialRepository.findByIdAndUser.mockResolvedValue(null);
 
       await expect(service.deleteCredential(USER_ID, 'c-1')).rejects.toMatchObject({ statusCode: 404 });
       expect(biometricCredentialRepository.deactivate).not.toHaveBeenCalled();
     });
 
     it('desactiva la credencial y audita', async () => {
-      biometricCredentialRepository.findOne.mockResolvedValue({ biometric_credential_id: 'c-1' });
+      biometricCredentialRepository.findByIdAndUser.mockResolvedValue({ biometricCredentialId: 'c-1' });
 
       const result = await service.deleteCredential(USER_ID, 'c-1');
 

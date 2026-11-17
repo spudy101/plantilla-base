@@ -1,23 +1,27 @@
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../../shared/models';
-const { Person } = modelsModule;
-import HashUtil from '../../../../../shared/utils/hash.util';
-import type definePerson from '../models/person.model';
+// modules/schemas/kyc/person/repositories/person.repository.ts
+//
+// Personas. national_id va cifrado (piiExtension): se lee y escribe en claro y se busca por su hash.
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import type { Person, Prisma } from '../../../../../shared/database/generated/prisma/client';
+import { hashValue } from '../../../../../shared/database/pii-fields';
 
-class PersonRepository extends BaseRepository<definePerson.Instance> {
-  constructor() {
-    super(Person);
+class PersonRepository extends PrismaRepository {
+  async findById(personId: string): Promise<Person | null> {
+    return (await this.db()).person.findUnique({ where: { personId } });
   }
 
-  findByNationalId(nationalId: string) {
-    // Buscar por hash — determinístico y seguro
-    const hash = HashUtil.hashForSearch(nationalId);
-    return this.findOne({ national_id_hash: hash });
+  async findByNationalId(nationalId: string): Promise<Person | null> {
+    return (await this.db()).person.findFirst({ where: { nationalIdHash: hashValue(nationalId) } });
   }
 
-  // Misma firma que BaseRepository.delete(id, options) — SOLID: L (no se pierde la transacción)
-  override delete(personId: string, options = {}) {
-    return this.model.destroy({ where: { person_id: personId }, ...options });
+  async create(data: Prisma.PersonUncheckedCreateInput): Promise<Person> {
+    return (await this.db()).person.create({ data });
+  }
+
+  /** Actualiza por id; null si la fila no existe. */
+  async update(personId: string, data: Prisma.PersonUncheckedUpdateManyInput): Promise<Person | null> {
+    const [row] = await (await this.db()).person.updateManyAndReturn({ where: { personId }, data });
+    return row ?? null;
   }
 }
 

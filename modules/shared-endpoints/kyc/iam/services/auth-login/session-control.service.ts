@@ -36,7 +36,7 @@ class SessionControlService {
     }
 
     const session = await this.userSessionRepository.findById(sessionId);
-    if (!session || session.user_id !== userId) {
+    if (!session || session.userId !== userId) {
       throw AppError.notFound('Sesión no encontrada');
     }
     if (session.status !== 'active') {
@@ -87,16 +87,16 @@ class SessionControlService {
       RefreshTokenStore.revoke(session.jti).catch(err =>
         logger.warn('Error revocando JTI en logout-others', {
           error: err.message,
-          sessionId: session.user_session_id,
+          sessionId: session.userSessionId,
           jti: session.jti
         })
       );
 
       // Invalida el access token activo de cada sesión cerrada de inmediato
-      TokenBlacklistUtil.blacklistSession(session.user_session_id).catch(err =>
+      TokenBlacklistUtil.blacklistSession(session.userSessionId).catch(err =>
         logger.warn('Error invalidando sesión en blacklist en logout-others', {
           error: err.message,
-          sessionId: session.user_session_id
+          sessionId: session.userSessionId
         })
       );
     }
@@ -134,25 +134,25 @@ class SessionControlService {
     }
 
     for (const session of previous) {
-      this.userSessionRepository.closeSession(session.user_session_id, 'reauth_same_device').catch(err =>
+      this.userSessionRepository.closeSession(session.userSessionId, 'reauth_same_device').catch(err =>
         logger.warn('Error cerrando sesión previa del mismo dispositivo', {
           error: err.message,
-          sessionId: session.user_session_id
+          sessionId: session.userSessionId
         })
       );
 
       RefreshTokenStore.revoke(session.jti).catch(err =>
         logger.warn('Error revocando JTI de sesión previa del mismo dispositivo', {
           error: err.message,
-          sessionId: session.user_session_id,
+          sessionId: session.userSessionId,
           jti: session.jti
         })
       );
 
-      TokenBlacklistUtil.blacklistSession(session.user_session_id).catch(err =>
+      TokenBlacklistUtil.blacklistSession(session.userSessionId).catch(err =>
         logger.warn('Error invalidando sesión previa del mismo dispositivo', {
           error: err.message,
-          sessionId: session.user_session_id
+          sessionId: session.userSessionId
         })
       );
     }
@@ -181,21 +181,21 @@ class SessionControlService {
       return;
     }
 
-    await this.userSessionRepository.closeSession(oldest.user_session_id, 'session_limit');
+    await this.userSessionRepository.closeSession(oldest.userSessionId, 'session_limit');
 
     RefreshTokenStore.revoke(oldest.jti).catch(err =>
       logger.warn('Error revocando JTI al aplicar límite de sesiones', {
         error: err.message,
-        sessionId: oldest.user_session_id,
+        sessionId: oldest.userSessionId,
         jti: oldest.jti
       })
     );
 
     // Invalida el access token activo de la sesión más antigua de inmediato
-    TokenBlacklistUtil.blacklistSession(oldest.user_session_id).catch(err =>
+    TokenBlacklistUtil.blacklistSession(oldest.userSessionId).catch(err =>
       logger.warn('Error invalidando sesión en blacklist al aplicar límite de sesiones', {
         error: err.message,
-        sessionId: oldest.user_session_id
+        sessionId: oldest.userSessionId
       })
     );
 
@@ -205,7 +205,7 @@ class SessionControlService {
       {
         activeCount
       },
-      { entityId: oldest.user_session_id, entityType: 'UserSession', entityTable: 'user_sessions' }
+      { entityId: oldest.userSessionId, entityType: 'UserSession', entityTable: 'user_sessions' }
     );
   }
 }

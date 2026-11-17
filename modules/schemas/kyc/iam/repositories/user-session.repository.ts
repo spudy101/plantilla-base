@@ -1,210 +1,182 @@
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../../shared/models';
-const { UserSession } = modelsModule;
-import { Op } from 'sequelize';
-import type { Includeable } from 'sequelize';
-import type defineUserSession from '../models/user-session.model';
-import * as queryModule from '../../../../../shared/repositories/query';
-const { dateRange, toWhere } = queryModule;
-import type { WhereClause } from '../../../../../shared/repositories/query';
+// modules/schemas/kyc/iam/repositories/user-session.repository.ts
+//
+// Sesiones de usuario. user_sessions no declara relación con users en el schema, así que el usuario de
+// las vistas admin (`sessionUser`) se adjunta con una consulta por lote (loadUserRefs).
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import { UserSessionStatus } from '../../../../../shared/database/generated/prisma/client';
+import type { Prisma, UserSession } from '../../../../../shared/database/generated/prisma/client';
+import { loadUserRefs } from '../../../records/audit/repositories/user-ref';
+import type { UserRef } from '../../../records/audit/repositories/user-ref';
 
-// Cabecera de sesión para vistas admin: dispositivo + usuario (sessionUser es el alias que consume
-// UserSessionComponent). Declarada por nombre de asociación (SOLID: D).
-const DEVICE_AND_USER_INCLUDE: Includeable[] = [
-  {
-    association: 'device',
-    required: false,
-    attributes: ['user_trusted_device_id', 'device_name', 'device_type', 'browser', 'os', 'status']
-  },
-  {
-    association: 'sessionUser',
-    required: false,
-    attributes: ['user_id', 'username'],
-    include: [{ association: 'person', attributes: ['first_name', 'last_name'] }]
-  }
-];
+const DEVICE_REF = {
+  device: { select: { userTrustedDeviceId: true, deviceName: true, deviceType: true, browser: true, os: true, status: true } }
+} satisfies Prisma.UserSessionInclude;
 
-class UserSessionRepository extends BaseRepository<defineUserSession.Instance> {
-  constructor() {
-    super(UserSession);
+type SessionWithDevice = Prisma.UserSessionGetPayload<{ include: typeof DEVICE_REF }>;
+/** Cabecera de sesión para vistas admin: dispositivo + usuario. */
+export type SessionWithDeviceAndUser = SessionWithDevice & { sessionUser: UserRef | null };
+
+const SESSION_KEY = { userSessionId: true, jti: true } satisfies Prisma.UserSessionSelect;
+const ACTIVE = UserSessionStatus.active;
+const closeData = (reason: string) => ({ status: UserSessionStatus.closed, closedAt: new Date(), closeReason: reason });
+const isStatus = (v: unknown): v is UserSessionStatus => Object.values(UserSessionStatus).includes(v as UserSessionStatus);
+
+class UserSessionRepository extends PrismaRepository {
+  async create(data: Prisma.UserSessionUncheckedCreateInput): Promise<UserSession> {
+    return (await this.db()).userSession.create({ data });
   }
 
-  findByJti(jti: string) {
-    return this.model.findOne({ where: { jti } });
+  async findById(userSessionId: string): Promise<UserSession | null> {
+    return (await this.db()).userSession.findUnique({ where: { userSessionId } });
   }
 
   /**
-   * Lote de sesiones con su dispositivo de confianza — para resolver qué dispositivo ejecutó cada
-   * acción del feed de actividad del cliente. Filtra por `user_id` a propósito: solo se resuelven
-   * sesiones DEL PROPIO usuario (una sesión ajena —p. ej. la del admin que hizo un cambio sobre la
-   * cuenta— jamás expone su dispositivo al cliente).
+   * Lote de sesiones con su dispositivo de confianza (feed de actividad del cliente). Filtra por
+   * `userId` a propósito: solo se resuelven sesiones DEL PROPIO usuario (una sesión ajena —p. ej. la del
+   * admin que hizo un cambio sobre la cuenta— jamás expone su dispositivo al cliente).
    */
-  findByIdsWithDeviceForUser(sessionIds: string[], userId: string) {
-    return this.model.findAll({
-      where: { user_session_id: { [Op.in]: sessionIds }, user_id: userId },
-      attributes: ['user_session_id', 'device_id'],
-      include: [{ association: 'device', attributes: ['user_trusted_device_id', 'device_name'] }]
+  async findByIdsWithDeviceForUser(sessionIds: string[], userId: string) {
+    if (sessionIds.length === 0) {
+      return [];
+    }
+    return (await this.db()).userSession.findMany({
+      where: { userSessionId: { in: sessionIds }, userId },
+      select: { userSessionId: true, deviceId: true, device: { select: { userTrustedDeviceId: true, deviceName: true } } }
     });
   }
 
-  findActiveByUser(userId: string) {
-    return this.model.findAll({
-      where: { user_id: userId, status: 'active' },
-      order: [['started_at', 'DESC']]
-    });
+  async findActiveByUser(userId: string): Promise<UserSession[]> {
+    return (await this.db()).userSession.findMany({ where: { userId, status: ACTIVE }, orderBy: { startedAt: 'desc' } });
   }
 
   /** Sesión por id solo si sigue activa (null si no existe o ya se cerró). */
-  findActiveById(sessionId: string) {
-    return this.model.findOne({ where: { user_session_id: sessionId, status: 'active' } });
+  async findActiveById(userSessionId: string): Promise<UserSession | null> {
+    return (await this.db()).userSession.findFirst({ where: { userSessionId, status: ACTIVE } });
   }
 
-  /** Renueva last_access_at (ventana deslizante de inactividad). */
-  touchLastAccess(sessionId: string) {
-    return this.model.update({ last_access_at: new Date() }, { where: { user_session_id: sessionId } });
+  /** Renueva last_access_at (ventana deslizante de inactividad). Devuelve cuántas filas tocó. */
+  async touchLastAccess(userSessionId: string): Promise<number> {
+    return (await (await this.db()).userSession.updateMany({ where: { userSessionId }, data: { lastAccessAt: new Date() } }))
+      .count;
   }
 
-  updateJtiAndLastAccess(sessionId: string, newJti: string) {
-    return this.model.update({ jti: newJti, last_access_at: new Date() }, { where: { user_session_id: sessionId } });
+  async updateJtiAndLastAccess(userSessionId: string, jti: string): Promise<number> {
+    return (await (await this.db()).userSession.updateMany({ where: { userSessionId }, data: { jti, lastAccessAt: new Date() } }))
+      .count;
   }
 
-  closeSession(sessionId: string, reason: string) {
-    return this.model.update(
-      { status: 'closed', closed_at: new Date(), close_reason: reason },
-      { where: { user_session_id: sessionId, status: 'active' } }
-    );
+  /** Cierra la sesión si sigue activa. Devuelve cuántas cerró (0 o 1). */
+  async closeSession(userSessionId: string, reason: string): Promise<number> {
+    return (await (await this.db()).userSession.updateMany({ where: { userSessionId, status: ACTIVE }, data: closeData(reason) }))
+      .count;
   }
 
-  closeByJti(jti: string, reason: string) {
-    return this.model.update(
-      { status: 'closed', closed_at: new Date(), close_reason: reason },
-      { where: { jti, status: 'active' } }
-    );
+  async closeAllByUser(userId: string, reason: string): Promise<number> {
+    return (await (await this.db()).userSession.updateMany({ where: { userId, status: ACTIVE }, data: closeData(reason) })).count;
   }
 
-  closeAllByUser(userId: string, reason: string) {
-    return this.model.update(
-      { status: 'closed', closed_at: new Date(), close_reason: reason },
-      { where: { user_id: userId, status: 'active' } }
-    );
+  /** Cierra las activas del usuario salvo `exceptSessionId` (sin sesión actual, token viejo: todas). */
+  async closeAllByUserExcept(userId: string, exceptSessionId: string | null, reason: string): Promise<number> {
+    return (
+      await (await this.db()).userSession.updateMany({ where: activeExcept(userId, exceptSessionId), data: closeData(reason) })
+    ).count;
   }
 
-  closeAllByUserExcept(userId: string, exceptSessionId: string | null, reason: string) {
-    return this.model.update(
-      { status: 'closed', closed_at: new Date(), close_reason: reason },
-      {
-        // Sin sesión actual (token viejo) no se excluye ninguna — igual que antes ({ [Op.ne]: null } → IS NOT NULL)
-        where: { user_id: userId, status: 'active', ...(exceptSessionId ? { user_session_id: { [Op.ne]: exceptSessionId } } : {}) }
-      }
-    );
+  async findActiveByUserExcept(userId: string, exceptSessionId: string | null) {
+    return (await this.db()).userSession.findMany({ where: activeExcept(userId, exceptSessionId), select: SESSION_KEY });
   }
 
-  findActiveByUserExcept(userId: string, exceptSessionId: string | null) {
-    return this.model.findAll({
-      where: { user_id: userId, status: 'active', ...(exceptSessionId ? { user_session_id: { [Op.ne]: exceptSessionId } } : {}) },
-      attributes: ['user_session_id', 'jti']
-    });
-  }
-
-  findActiveByUserAndDevice(userId: string, deviceId: string) {
-    return this.model.findAll({
-      where: { user_id: userId, device_id: deviceId, status: 'active' },
-      attributes: ['user_session_id', 'jti']
-    });
+  async findActiveByUserAndDevice(userId: string, deviceId: string) {
+    return (await this.db()).userSession.findMany({ where: { userId, deviceId, status: ACTIVE }, select: SESSION_KEY });
   }
 
   // [RF-AUTH-03] | CA-04 | Conteo de sesiones activas y selección de la más antigua;
   // usado por _enforceSessionLimit para aplicar el límite de 5 sesiones
-  findOldestActive(userId: string) {
-    return this.model.findOne({
-      where: { user_id: userId, status: 'active' },
-      order: [['started_at', 'ASC']]
-    });
+  async findOldestActive(userId: string): Promise<UserSession | null> {
+    return (await this.db()).userSession.findFirst({ where: { userId, status: ACTIVE }, orderBy: { startedAt: 'asc' } });
   }
 
-  countActive(userId: string) {
-    return this.model.count({ where: { user_id: userId, status: 'active' } });
-  }
-
-  // Sesiones activas cuya última actividad superó el umbral de inactividad
-  // (last_access_at < cutoff). Usado por session-expiration.worker para cerrarlas.
-  findExpirableActive(inactivityCutoff: Date) {
-    return this.model.findAll({
-      where: {
-        status: 'active',
-        last_access_at: { [Op.lt]: inactivityCutoff }
-      },
-      attributes: ['user_session_id', 'user_id', 'jti', 'last_access_at']
-    });
+  async countActive(userId: string): Promise<number> {
+    return (await this.db()).userSession.count({ where: { userId, status: ACTIVE } });
   }
 
   // [RF-AUTH-02] | CA-01/CA-04 | Sesiones activas que el worker debe cerrar: por inactividad
   // (last_access_at < inactivityCutoff) O por tope absoluto de vida (started_at < absoluteCutoff).
-  findClosableActive(inactivityCutoff: Date, absoluteCutoff: Date) {
-    return this.model.findAll({
-      where: {
-        status: 'active',
-        [Op.or]: [{ last_access_at: { [Op.lt]: inactivityCutoff } }, { started_at: { [Op.lt]: absoluteCutoff } }]
-      },
-      attributes: ['user_session_id', 'user_id', 'jti', 'last_access_at', 'started_at']
+  async findClosableActive(inactivityCutoff: Date, absoluteCutoff: Date) {
+    return (await this.db()).userSession.findMany({
+      where: { status: ACTIVE, OR: [{ lastAccessAt: { lt: inactivityCutoff } }, { startedAt: { lt: absoluteCutoff } }] },
+      select: { userSessionId: true, userId: true, jti: true, lastAccessAt: true, startedAt: true }
     });
   }
 
-  /** Listado paginado admin con dispositivo y usuario de cada sesión. */
-  findPaginatedWithDeviceAndUser(where: WhereClause, pagination: { limit?: number; offset?: number }) {
-    return this.findPaginated(where, pagination, DEVICE_AND_USER_INCLUDE);
+  /** Listado paginado admin con dispositivo y usuario de cada sesión (más recientes primero). */
+  async findPaginatedWithDeviceAndUser(
+    where: Prisma.UserSessionWhereInput,
+    { limit = 20, offset = 0 }: { limit?: number; offset?: number } = {}
+  ): Promise<PrismaRepository.Page<SessionWithDeviceAndUser>> {
+    const db = await this.db();
+    const [rows, count] = await Promise.all([
+      db.userSession.findMany({ where, include: DEVICE_REF, orderBy: { startedAt: 'desc' }, take: limit, skip: offset }),
+      db.userSession.count({ where })
+    ]);
+    return { rows: await this.attachUsers(rows), count };
   }
 
   /** Detalle de una sesión con dispositivo y usuario. */
-  findByIdWithDeviceAndUser(sessionId: string) {
-    return this.findById(sessionId, { include: DEVICE_AND_USER_INCLUDE });
+  async findByIdWithDeviceAndUser(userSessionId: string): Promise<SessionWithDeviceAndUser | null> {
+    const row = await (await this.db()).userSession.findUnique({ where: { userSessionId }, include: DEVICE_REF });
+    return row ? (await this.attachUsers([row]))[0]! : null;
   }
 
-  findPaginated(
-    where: WhereClause = {},
-    { limit = 20, offset = 0 }: { limit?: number; offset?: number } = {},
-    include: Includeable[] = []
-  ) {
-    return this.model.findAndCountAll({
-      where: toWhere(where),
-      include,
-      order: [['started_at', 'DESC']],
-      limit,
-      offset,
-      distinct: true
-    });
-  }
-
-  buildWhere({ sessionId, userId, status, ip, dateFrom, dateTo }: UserSessionRepository.Filters = {}) {
-    const where: WhereClause = {};
+  /** `where` del listado admin a partir de los filtros de la query. Un estado desconocido no devuelve filas. */
+  buildWhere({
+    sessionId,
+    userId,
+    status,
+    ip,
+    dateFrom,
+    dateTo
+  }: UserSessionRepository.Filters = {}): Prisma.UserSessionWhereInput {
+    const where: Prisma.UserSessionWhereInput = {};
     if (sessionId) {
-      where.user_session_id = sessionId;
+      where.userSessionId = sessionId;
     }
     if (userId) {
-      where.user_id = userId;
+      where.userId = userId;
     }
     if (status) {
-      where.status = status;
+      // Postgres rechazaría un valor fuera del enum: se responde vacío
+      where.status = isStatus(status) ? status : { in: [] };
     }
     if (ip) {
-      where.ip_address = ip;
+      where.ipAddress = ip;
     }
-
-    const startedAtRange = dateRange(dateFrom, dateTo);
-    if (startedAtRange) {
-      where.started_at = startedAtRange;
+    if (dateFrom || dateTo) {
+      where.startedAt = { ...(dateFrom ? { gte: new Date(dateFrom) } : {}), ...(dateTo ? { lte: new Date(dateTo) } : {}) };
     }
-
     return where;
   }
+
+  private async attachUsers(rows: SessionWithDevice[]): Promise<SessionWithDeviceAndUser[]> {
+    const users = await loadUserRefs(
+      await this.db(),
+      rows.map(r => r.userId)
+    );
+    return rows.map(r => ({ ...r, sessionUser: users.get(r.userId) ?? null }));
+  }
+}
+
+function activeExcept(userId: string, exceptSessionId: string | null): Prisma.UserSessionWhereInput {
+  return { userId, status: ACTIVE, ...(exceptSessionId ? { userSessionId: { not: exceptSessionId } } : {}) };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 namespace UserSessionRepository {
+  /** Filtros del listado admin (llegan de la query string). */
   export interface Filters {
     sessionId?: string;
     userId?: string;
-    status?: defineUserSession.Attributes['status'];
+    status?: unknown;
     ip?: string;
     dateFrom?: string | Date;
     dateTo?: string | Date;

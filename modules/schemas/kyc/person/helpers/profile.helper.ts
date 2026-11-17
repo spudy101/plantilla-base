@@ -1,5 +1,5 @@
+import type { Person, PersonContact } from '../../../../../shared/database/generated/prisma/client';
 import type * as Types from './profile.types';
-import type { Transaction } from 'sequelize';
 import userRepository from '../../iam/repositories/user.repository';
 import personRepository from '../repositories/person.repository';
 import personContactRepository from '../repositories/person-contact.repository';
@@ -12,8 +12,6 @@ import verificationCodeRepository from '../../../notification/repositories/verif
 import departmentRepository from '../../maintainers/repositories/department.repository';
 import cityRepository from '../../maintainers/repositories/city.repository';
 import KycSharedUtil from '../utils/kyc-shared.util';
-import type definePerson from '../models/person.model';
-import type definePersonContact from '../models/person-contact.model';
 import AppError from '../../../../../shared/utils/app-error.util';
 import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger } = loggerUtilModule;
@@ -67,7 +65,7 @@ class ProfileHelper {
    * Valida la contraseña actual del usuario.
    * @throws {AppError} Si no coincide
    */
-  async validateCurrentPassword(passwordHash: string, currentPassword: string) {
+  async validateCurrentPassword(passwordHash: string | null, currentPassword: string) {
     const isValid = await this.userRepository.verifyPassword(currentPassword, passwordHash);
     if (!isValid) {
       throw AppError.badRequest('Contraseña actual incorrecta');
@@ -107,7 +105,7 @@ class ProfileHelper {
    */
   async validateEmailUnique(email: string, excludePersonId: string | null = null) {
     const existingContact = await this.personContactRepository.findByEmail(email);
-    if (existingContact && existingContact.person_id !== excludePersonId) {
+    if (existingContact && existingContact.personId !== excludePersonId) {
       throw AppError.conflict('El email ya está en uso por otro usuario');
     }
     return true;
@@ -120,12 +118,12 @@ class ProfileHelper {
    */
   async validatePhoneNotInUse(phone: string, excludePersonId: string, _phoneType?: ProfileHelper.PhoneType) {
     const existingPrimary = await this.personContactRepository.findByPrimaryPhone(phone);
-    if (existingPrimary && existingPrimary.person_id !== excludePersonId) {
+    if (existingPrimary && existingPrimary.personId !== excludePersonId) {
       throw AppError.conflict('El teléfono ya está en uso por otro usuario');
     }
 
     const existingSecondary = await this.personContactRepository.findBySecondaryPhone(phone);
-    if (existingSecondary && existingSecondary.person_id !== excludePersonId) {
+    if (existingSecondary && existingSecondary.personId !== excludePersonId) {
       throw AppError.conflict('El teléfono ya está en uso por otro usuario');
     }
 
@@ -138,7 +136,7 @@ class ProfileHelper {
    */
   async validateNationalIdUnique(nationalId: string, excludePersonId: string | null = null) {
     const existingPerson = await this.personRepository.findByNationalId(nationalId);
-    if (existingPerson && existingPerson.person_id !== excludePersonId) {
+    if (existingPerson && existingPerson.personId !== excludePersonId) {
       throw AppError.conflict('El National ID ya está registrado');
     }
     return true;
@@ -150,7 +148,7 @@ class ProfileHelper {
    */
   async validateUsernameUnique(username: string, excludeUserId: string | null = null) {
     const existingUser = await this.userRepository.findByUsername(username);
-    if (existingUser && existingUser.user_id !== excludeUserId) {
+    if (existingUser && existingUser.userId !== excludeUserId) {
       throw AppError.conflict('El username ya está en uso');
     }
     return true;
@@ -212,13 +210,13 @@ class ProfileHelper {
     ]);
 
     return {
-      genderId: person?.gender_id ?? null,
-      birthDate: person?.birth_date ?? null,
+      genderId: person?.genderId ?? null,
+      birthDate: person?.birthDate ?? null,
       location: location
         ? {
-            departmentId: location.department_id,
-            cityId: location.city_id,
-            postalCode: location.postal_code,
+            departmentId: location.departmentId,
+            cityId: location.cityId,
+            postalCode: location.postalCode,
             type: location.type,
             address: location.address ?? null
           }
@@ -233,25 +231,25 @@ class ProfileHelper {
   /**
    * Actualiza el username del usuario, validando unicidad.
    */
-  async updateUsername(userId: string, newUsername: string, transaction: Transaction) {
+  async updateUsername(userId: string, newUsername: string) {
     await this.validateUsernameUnique(newUsername, userId);
-    await this.userRepository.update(userId, { username: newUsername }, { transaction });
+    await this.userRepository.update(userId, { username: newUsername });
   }
 
   /**
    * Actualiza el avatar del usuario, validando que exista.
    */
-  async updateAvatar(userId: string, avatarId: string, transaction: Transaction) {
+  async updateAvatar(userId: string, avatarId: string) {
     await this.validateAvatarExists(avatarId);
-    await this.userRepository.update(userId, { avatar_id: avatarId }, { transaction });
+    await this.userRepository.update(userId, { avatarId: avatarId });
   }
 
   /**
    * Actualiza el género de la persona, validando que exista.
    */
-  async updateGender(personId: string, genderId: string, transaction: Transaction) {
+  async updateGender(personId: string, genderId: string) {
     await this.validateGenderExists(genderId);
-    await this.personRepository.update(personId, { gender_id: genderId }, { transaction });
+    await this.personRepository.update(personId, { genderId: genderId });
   }
 
   /**
@@ -276,26 +274,26 @@ class ProfileHelper {
   /**
    * Upsert de la ubicación de una persona.
    */
-  async updateLocation(personId: string, locationData: ProfileHelper.LocationInput, transaction: Transaction) {
+  async updateLocation(personId: string, locationData: ProfileHelper.LocationInput) {
     await this.validateLocationHierarchy(locationData); // 👈 validar antes de tocar la BD
 
     const mappedData = {
-      department_id: locationData.departmentId,
-      city_id: locationData.cityId,
-      postal_code: locationData.postalCode,
+      departmentId: locationData.departmentId,
+      cityId: locationData.cityId,
+      postalCode: locationData.postalCode,
       type: locationData.type,
       // address es NOT NULL y el validator la exige
       address: locationData.address
     };
 
-    await this.personLocationRepository.upsertByPersonId(personId, mappedData, { transaction });
+    await this.personLocationRepository.upsertByPersonId(personId, mappedData);
   }
 
   /**
    * Actualiza la fecha de nacimiento de la persona.
    */
-  async updateBirthDate(personId: string, birthDate: string, transaction: Transaction) {
-    await this.personRepository.update(personId, { birth_date: birthDate }, { transaction });
+  async updateBirthDate(personId: string, birthDate: string) {
+    await this.personRepository.update(personId, { birthDate: birthDate });
   }
 
   /**
@@ -303,24 +301,24 @@ class ProfileHelper {
    * `firstName` y `lastName` son obligatorios; `middleName` y `secondLastName` aceptan null para limpiarse.
    * Solo incluye en el update las claves presentes en `fields`.
    */
-  async updateNames(personId: string, fields: ProfileHelper.NamesInput, transaction: Transaction) {
+  async updateNames(personId: string, fields: ProfileHelper.NamesInput) {
     const { firstName, middleName, lastName, secondLastName } = fields;
-    const update: Partial<definePerson.Attributes> = {};
+    const update: Partial<Person> = {};
 
     if (firstName !== undefined) {
-      update.first_name = firstName;
+      update.firstName = firstName;
     }
     if (lastName !== undefined) {
-      update.last_name = lastName;
+      update.lastName = lastName;
     }
     if (middleName !== undefined) {
-      update.middle_name = middleName === '' ? null : middleName;
+      update.middleName = middleName === '' ? null : middleName;
     }
     if (secondLastName !== undefined) {
-      update.second_last_name = secondLastName === '' ? null : secondLastName;
+      update.secondLastName = secondLastName === '' ? null : secondLastName;
     }
 
-    await this.personRepository.update(personId, update, { transaction });
+    await this.personRepository.update(personId, update);
     return update;
   }
 
@@ -328,18 +326,18 @@ class ProfileHelper {
    * Prepara el objeto de campos para actualizar el teléfono en personContact.
    * @param {'primary'|'secondary'} phoneType
    */
-  preparePhoneUpdateData(phone: string, phonePrefixId: string, phoneType: ProfileHelper.PhoneType): Partial<definePersonContact.Attributes> {
+  preparePhoneUpdateData(phone: string, phonePrefixId: string, phoneType: ProfileHelper.PhoneType): Partial<PersonContact> {
     if (phoneType === 'primary') {
       return {
-        phone_primary: phone,
-        phone_primary_prefix_id: phonePrefixId,
-        phone_primary_verified_at: new Date()
+        phonePrimary: phone,
+        phonePrimaryPrefixId: phonePrefixId,
+        phonePrimaryVerifiedAt: new Date()
       };
     }
     return {
-      phone_secondary: phone,
-      phone_secondary_prefix_id: phonePrefixId,
-      phone_secondary_verified_at: new Date()
+      phoneSecondary: phone,
+      phoneSecondaryPrefixId: phonePrefixId,
+      phoneSecondaryVerifiedAt: new Date()
     };
   }
 
@@ -359,7 +357,6 @@ class ProfileHelper {
    * @param {string}  params.changedByRole
    * @param {string}  params.changeReason
    * @param {Object}  params.auditContext
-   * @param {Object}  params.transaction
    * @param {boolean} params.skipVerificationCheck - true cuando lo hace un admin
    * @returns {Promise<{ oldEmail, newEmail }>}
    */
@@ -372,7 +369,6 @@ class ProfileHelper {
       changedByRole,
       changeReason,
       auditContext,
-      transaction,
       skipVerificationCheck = false
     } = params;
 
@@ -389,26 +385,19 @@ class ProfileHelper {
       throw AppError.badRequest('El nuevo email es igual al actual');
     }
 
-    await this.personContactRepository.update(
-      personContact.person_contact_id,
-      { email: newEmail, email_verified_at: new Date() },
-      { transaction }
-    );
+    await this.personContactRepository.update(personContact.personContactId, { email: newEmail, emailVerifiedAt: new Date() });
 
-    await this.kycSharedUtil.logChange(
-      {
-        userId,
-        changedByUserId,
-        changedByRole,
-        changeType: 'email',
-        previousValue: oldEmail,
-        newValue: newEmail,
-        changeReason,
-        ipAddress: auditContext.ip || auditContext.ipAddress,
-        userAgent: auditContext.userAgent
-      },
-      { transaction }
-    );
+    await this.kycSharedUtil.logChange({
+      userId,
+      changedByUserId,
+      changedByRole,
+      changeType: 'email',
+      previousValue: oldEmail,
+      newValue: newEmail,
+      changeReason,
+      ipAddress: auditContext.ip || auditContext.ipAddress,
+      userAgent: auditContext.userAgent
+    });
 
     // Limpiar el código verificado — ya fue consumido
     if (!skipVerificationCheck) {
@@ -431,33 +420,30 @@ class ProfileHelper {
    * @returns {Promise<{ phone, phonePrefixId, phoneType }>}
    */
   async updatePhoneLogic(params: ProfileHelper.UpdatePhoneParams) {
-    const { personId, phone, phonePrefixId, phoneType, transaction } = params;
+    const { personId, phone, phonePrefixId, phoneType } = params;
     const { userId, changedByUserId, changedByRole, auditContext } = params;
 
     await this.checkPhoneVerified(phone);
     await this.validatePhoneNotInUse(phone, personId, phoneType);
 
     const personContact = await this._requireContact(personId);
-    const oldPhone = phoneType === 'primary' ? personContact.phone_primary : personContact.phone_secondary;
+    const oldPhone = phoneType === 'primary' ? personContact.phonePrimary : personContact.phoneSecondary;
 
     const updateData = this.preparePhoneUpdateData(phone, phonePrefixId, phoneType);
-    await this.personContactRepository.update(personContact.person_contact_id, updateData, { transaction });
+    await this.personContactRepository.update(personContact.personContactId, updateData);
 
     if (userId) {
-      await this.kycSharedUtil.logChange(
-        {
-          userId,
-          changedByUserId: changedByUserId ?? userId,
-          changedByRole: changedByRole ?? 'user',
-          changeType: 'phone',
-          previousValue: oldPhone ?? null,
-          newValue: phone,
-          changeReason: `Teléfono ${phoneType} actualizado`,
-          ipAddress: auditContext?.ip || auditContext?.ipAddress || null,
-          userAgent: auditContext?.userAgent || null
-        },
-        { transaction }
-      );
+      await this.kycSharedUtil.logChange({
+        userId,
+        changedByUserId: changedByUserId ?? userId,
+        changedByRole: changedByRole ?? 'user',
+        changeType: 'phone',
+        previousValue: oldPhone ?? null,
+        newValue: phone,
+        changeReason: `Teléfono ${phoneType} actualizado`,
+        ipAddress: auditContext?.ip || auditContext?.ipAddress || null,
+        userAgent: auditContext?.userAgent || null
+      });
     }
 
     // Limpiar el código verificado — ya fue consumido
@@ -478,24 +464,21 @@ class ProfileHelper {
    * Persiste la nueva contraseña (bcrypt) en BD y registra el cambio.
    */
   async updatePasswordLogic(params: ProfileHelper.UpdatePasswordParams) {
-    const { userId, newPassword, changedByUserId, changedByRole, changeReason, auditContext, transaction } = params;
+    const { userId, newPassword, changedByUserId, changedByRole, changeReason, auditContext } = params;
 
-    await this.userRepository.updatePassword(userId, newPassword, { transaction });
+    await this.userRepository.updatePassword(userId, newPassword);
 
-    await this.kycSharedUtil.logChange(
-      {
-        userId,
-        changedByUserId,
-        changedByRole,
-        changeType: 'password',
-        previousValue: 'hidden',
-        newValue: 'hidden',
-        changeReason,
-        ipAddress: auditContext.ip || auditContext.ipAddress,
-        userAgent: auditContext.userAgent
-      },
-      { transaction }
-    );
+    await this.kycSharedUtil.logChange({
+      userId,
+      changedByUserId,
+      changedByRole,
+      changeType: 'password',
+      previousValue: 'hidden',
+      newValue: 'hidden',
+      changeReason,
+      ipAddress: auditContext.ip || auditContext.ipAddress,
+      userAgent: auditContext.userAgent
+    });
   }
 
   /**
@@ -505,24 +488,14 @@ class ProfileHelper {
    * @returns {Promise<{ oldNationalId, newNationalId }>}
    */
   async updateNationalIdLogic(params: ProfileHelper.UpdateNationalIdParams) {
-    const {
-      userId,
-      personId,
-      newNationalId,
-      documentTypeId,
-      role,
-      changedByUserId,
-      changedByRole,
-      changeReason,
-      auditContext,
-      transaction
-    } = params;
+    const { userId, personId, newNationalId, documentTypeId, role, changedByUserId, changedByRole, changeReason, auditContext } =
+      params;
 
     const person = await this.personRepository.findById(personId);
     if (!person) {
       throw AppError.notFound('Persona no encontrada');
     }
-    const oldNationalId = person.national_id;
+    const oldNationalId = person.nationalId;
 
     // Idempotente: si el valor no cambió, no se toca la BD ni se audita el cambio.
     if (oldNationalId === newNationalId) {
@@ -533,28 +506,25 @@ class ProfileHelper {
     await this.validateNationalIdUnique(newNationalId, personId);
 
     // Si se envía el tipo de documento, validar que exista y esté activo antes de persistir.
-    const personUpdate: Partial<definePerson.Attributes> = { national_id: newNationalId };
+    const personUpdate: Partial<Person> = { nationalId: newNationalId };
     if (documentTypeId) {
       await this.validateDocumentTypeExists(documentTypeId);
-      personUpdate.document_type_id = documentTypeId;
+      personUpdate.documentTypeId = documentTypeId;
     }
 
-    await this.personRepository.update(personId, personUpdate, { transaction });
+    await this.personRepository.update(personId, personUpdate);
 
-    await this.kycSharedUtil.logChange(
-      {
-        userId,
-        changedByUserId,
-        changedByRole,
-        changeType: 'national_id',
-        previousValue: oldNationalId,
-        newValue: newNationalId,
-        changeReason,
-        ipAddress: auditContext.ip || auditContext.ipAddress,
-        userAgent: auditContext.userAgent
-      },
-      { transaction }
-    );
+    await this.kycSharedUtil.logChange({
+      userId,
+      changedByUserId,
+      changedByRole,
+      changeType: 'national_id',
+      previousValue: oldNationalId,
+      newValue: newNationalId,
+      changeReason,
+      ipAddress: auditContext.ip || auditContext.ipAddress,
+      userAgent: auditContext.userAgent
+    });
 
     return { oldNationalId, newNationalId, unchanged: false };
   }
@@ -576,8 +546,7 @@ class ProfileHelper {
       changedByUserId,
       changedByRole,
       changeReason,
-      auditContext,
-      transaction
+      auditContext
     } = params;
 
     const personContact = await this._requireContact(personId);
@@ -586,60 +555,47 @@ class ProfileHelper {
     const newUsername = this.kycSharedUtil.formatDeletedUsername(username);
     const newEmail = this.kycSharedUtil.formatDeletedEmail(email);
 
-    const contactUpdates: Partial<definePersonContact.Attributes> = { email: newEmail };
-    if (personContact.phone_primary) {
-      contactUpdates.phone_primary = this.kycSharedUtil.formatDeletedPhone(personContact.phone_primary);
+    const contactUpdates: Partial<PersonContact> = { email: newEmail };
+    if (personContact.phonePrimary) {
+      contactUpdates.phonePrimary = this.kycSharedUtil.formatDeletedPhone(personContact.phonePrimary);
     }
-    if (personContact.phone_secondary) {
-      contactUpdates.phone_secondary = this.kycSharedUtil.formatDeletedPhone(personContact.phone_secondary);
+    if (personContact.phoneSecondary) {
+      contactUpdates.phoneSecondary = this.kycSharedUtil.formatDeletedPhone(personContact.phoneSecondary);
     }
 
-    await this.personRepository.update(
-      personId,
-      {
-        national_id: newNationalId,
-        national_id_hash: '0'.repeat(64),
-        first_name: 'ELIMINADO',
-        last_name: 'ELIMINADO',
-        middle_name: null,
-        second_last_name: null,
-        birth_date: null
-      },
-      { transaction }
-    );
+    await this.personRepository.update(personId, {
+      nationalId: newNationalId,
+      nationalIdHash: '0'.repeat(64),
+      firstName: 'ELIMINADO',
+      lastName: 'ELIMINADO',
+      middleName: null,
+      secondLastName: null,
+      birthDate: null
+    });
 
     // Marca la cuenta como eliminada: ofusca el username, la desactiva y sella deleted_at
     // (marcador irreversible que distingue "eliminado" de "desactivado" y la vuelve intocable).
-    await this.userRepository.update(
-      userId,
-      { username: newUsername, is_active: false, deleted_at: new Date() },
-      { transaction }
-    );
+    await this.userRepository.update(userId, { username: newUsername, isActive: false, deletedAt: new Date() });
 
-    await this.personContactRepository.update(personContact.person_contact_id, contactUpdates, {
-      transaction
-    });
+    await this.personContactRepository.update(personContact.personContactId, contactUpdates);
 
     // Anonimizar dirección física (Ley 1581/2012)
-    await this.personLocationRepository.anonymizeAddressByPersonId(personId, { transaction });
+    await this.personLocationRepository.anonymizeAddressByPersonId(personId);
 
     // Revocar todos los consentimientos vigentes
     await this.userConsentRepository.revokeAll(userId);
 
-    await this.kycSharedUtil.logChange(
-      {
-        userId,
-        changedByUserId,
-        changedByRole,
-        changeType: 'account_status',
-        previousValue: 'active',
-        newValue: 'eliminated',
-        changeReason,
-        ipAddress: auditContext.ip || auditContext.ipAddress,
-        userAgent: auditContext.userAgent
-      },
-      { transaction }
-    );
+    await this.kycSharedUtil.logChange({
+      userId,
+      changedByUserId,
+      changedByRole,
+      changeType: 'account_status',
+      previousValue: 'active',
+      newValue: 'eliminated',
+      changeReason,
+      ipAddress: auditContext.ip || auditContext.ipAddress,
+      userAgent: auditContext.userAgent
+    });
 
     return {
       deletedEmail: email,

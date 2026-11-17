@@ -87,7 +87,7 @@ class TrustedDeviceManagementService {
     }
 
     // No puedes bloquearte a ti mismo
-    if (currentDevice.user_trusted_device_id === deviceId) {
+    if (currentDevice.userTrustedDeviceId === deviceId) {
       throw AppError.badRequest('No puedes bloquear tu propio dispositivo. Usa el endpoint de logout');
     }
 
@@ -109,7 +109,7 @@ class TrustedDeviceManagementService {
     }
 
     // Se registra desde qué dispositivo de confianza se bloqueó (antes quedaba vacío)
-    const updated = await this.trustedDeviceRepository.block(deviceId, currentDevice.user_trusted_device_id);
+    const updated = await this.trustedDeviceRepository.block(deviceId, currentDevice.userTrustedDeviceId);
 
     // ── Invalidación inmediata del access token en Redis ─────────────────────
     // Los access tokens no se pueden revocar por sí mismos, así que escribimos el
@@ -117,12 +117,12 @@ class TrustedDeviceManagementService {
     // en el próximo request, sin esperar a que el token expire (~1h).
     // El TTL de la clave es DEFAULT_TTL (1h) ya que no conocemos el exp del
     // token activo del dispositivo bloqueado en este momento.
-    DeviceBlocklistUtil.block(userId, targetDevice.fingerprint_hash).catch(err =>
+    DeviceBlocklistUtil.block(userId, targetDevice.fingerprintHash).catch(err =>
       logger.warn('Error escribiendo blocklist en Redis tras blockDevice', {
         error: err.message,
         userId,
         deviceId,
-        fingerprintHash: targetDevice.fingerprint_hash
+        fingerprintHash: targetDevice.fingerprintHash
       })
     );
 
@@ -130,7 +130,7 @@ class TrustedDeviceManagementService {
       'TRUSTED_DEVICE_BLOCKED',
       userId,
       {
-        blockedByDeviceId: currentDevice.user_trusted_device_id
+        blockedByDeviceId: currentDevice.userTrustedDeviceId
       },
       { entityId: deviceId, entityType: 'UserTrustedDevice', entityTable: 'user_trusted_devices' }
     );
@@ -164,12 +164,12 @@ class TrustedDeviceManagementService {
     // ── Limpiar la entrada de Redis ──────────────────────────────────────────
     // Si la clave aún existe (el token original no expiró), la eliminamos
     // para que el dispositivo pueda operar de inmediato una vez lo aprueben.
-    DeviceBlocklistUtil.unblock(userId, targetDevice.fingerprint_hash).catch(err =>
+    DeviceBlocklistUtil.unblock(userId, targetDevice.fingerprintHash).catch(err =>
       logger.warn('Error eliminando blocklist en Redis tras unblockDevice', {
         error: err.message,
         userId,
         deviceId,
-        fingerprintHash: targetDevice.fingerprint_hash
+        fingerprintHash: targetDevice.fingerprintHash
       })
     );
 
@@ -177,7 +177,7 @@ class TrustedDeviceManagementService {
       'TRUSTED_DEVICE_UNBLOCKED',
       userId,
       {
-        unblockedByDeviceId: currentDevice.user_trusted_device_id
+        unblockedByDeviceId: currentDevice.userTrustedDeviceId
       },
       { entityId: deviceId, entityType: 'UserTrustedDevice', entityTable: 'user_trusted_devices' }
     );
@@ -206,13 +206,13 @@ class TrustedDeviceManagementService {
       throw AppError.badRequest('El dispositivo no está pendiente de aprobación');
     }
 
-    const approved = await this.trustedDeviceRepository.approve(deviceId, currentDevice.user_trusted_device_id);
+    const approved = await this.trustedDeviceRepository.approve(deviceId, currentDevice.userTrustedDeviceId);
 
     logAudit(
       'TRUSTED_DEVICE_APPROVED',
       userId,
       {
-        approvedByDeviceId: currentDevice.user_trusted_device_id
+        approvedByDeviceId: currentDevice.userTrustedDeviceId
       },
       { entityId: deviceId, entityType: 'UserTrustedDevice', entityTable: 'user_trusted_devices' }
     );

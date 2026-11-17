@@ -20,10 +20,10 @@ import TrustedDeviceManagementService from 'modules/shared-endpoints/kyc/iam/ser
 describe('TrustedDeviceManagementService.blockDevice', () => {
   it('registra el dispositivo de confianza que hizo el bloqueo', async () => {
     const trustedDeviceRepository = {
-      findByFingerprint: jest.fn().mockResolvedValue({ user_trusted_device_id: 'dev-actual', status: 'trusted' }),
-      findByIdAndUser: jest.fn().mockResolvedValue({ user_trusted_device_id: 'dev-x', status: 'pending', fingerprint_hash: 'fp-x' }),
+      findByFingerprint: jest.fn().mockResolvedValue({ userTrustedDeviceId: 'dev-actual', status: 'trusted' }),
+      findByIdAndUser: jest.fn().mockResolvedValue({ userTrustedDeviceId: 'dev-x', status: 'pending', fingerprintHash: 'fp-x' }),
       countTrusted: jest.fn().mockResolvedValue(2),
-      block: jest.fn().mockResolvedValue({ user_trusted_device_id: 'dev-x', status: 'blocked' })
+      block: jest.fn().mockResolvedValue({ userTrustedDeviceId: 'dev-x', status: 'blocked' })
     };
     const service = new TrustedDeviceManagementService(fixture({ trustedDeviceRepository }));
 

@@ -30,81 +30,82 @@ interface UserLoginAttemptRow {
   createdAt?: Maybe<DbDate>;
 }
 
+// Filas de Prisma (camelCase): reset_credentials, user_change_logs, user_sessions, user_trusted_devices
+// y user_biometric_credentials migraron en la fase 5, grupo 6.
 interface ResetCredentialsRow {
-  reset_credentials_id: string;
-  user_id: string;
+  resetCredentialsId: string;
+  userId: string;
   email?: Maybe<string>;
   type: string;
   token?: Maybe<string>;
-  expires_at: DbDate;
+  expiresAt: DbDate;
   used?: Maybe<boolean>;
-  used_at?: Maybe<DbDate>;
+  usedAt?: Maybe<DbDate>;
   createdAt?: Maybe<DbDate>;
 }
 
 interface UserChangeLogRow {
-  log_id: string;
-  user_id: string;
+  logId: string;
+  userId: string;
   user?: Maybe<UserRefRow>;
-  changed_by_user_id?: Maybe<string>;
-  changed_by_role?: Maybe<string>;
+  changedByUserId?: Maybe<string>;
+  changedByRole?: Maybe<string>;
   changedBy?: Maybe<UserRefRow>;
-  change_type: string;
-  previous_value?: unknown;
-  new_value?: unknown;
-  change_reason?: Maybe<string>;
-  ip_address?: Maybe<string>;
-  user_agent?: Maybe<string>;
-  origin_session_id?: Maybe<string>;
+  changeType: string;
+  previousValue?: unknown;
+  newValue?: unknown;
+  changeReason?: Maybe<string>;
+  ipAddress?: Maybe<string>;
+  userAgent?: Maybe<string>;
+  originSessionId?: Maybe<string>;
   createdAt?: Maybe<DbDate>;
-  created_at?: Maybe<DbDate>;
 }
 
 interface UserSessionRow {
-  user_session_id: string;
+  userSessionId: string;
   status: string;
-  ip_address?: Maybe<string>;
-  user_agent?: Maybe<string>;
-  started_at?: Maybe<DbDate>;
-  last_access_at?: Maybe<DbDate>;
-  closed_at?: Maybe<DbDate>;
-  close_reason?: Maybe<string>;
+  ipAddress?: Maybe<string>;
+  userAgent?: Maybe<string>;
+  startedAt?: Maybe<DbDate>;
+  lastAccessAt?: Maybe<DbDate>;
+  closedAt?: Maybe<DbDate>;
+  closeReason?: Maybe<string>;
   createdAt?: Maybe<DbDate>;
   sessionUser?: Maybe<UserRefRow>;
 }
 
 interface TrustedDeviceRow {
-  user_trusted_device_id: string;
-  user_id: string;
-  device_name?: Maybe<string>;
-  fingerprint_hash?: Maybe<string>;
+  userTrustedDeviceId: string;
+  userId: string;
+  deviceName?: Maybe<string>;
+  fingerprintHash?: Maybe<string>;
   status: string;
-  ip_address?: Maybe<string>;
+  ipAddress?: Maybe<string>;
   city?: Maybe<string>;
   country?: Maybe<string>;
-  country_code?: Maybe<string>;
+  countryCode?: Maybe<string>;
   browser?: Maybe<string>;
   os?: Maybe<string>;
-  device_type?: Maybe<string>;
-  approved_by_device_id?: Maybe<string>;
-  approved_at?: Maybe<DbDate>;
-  blocked_by_device_id?: Maybe<string>;
-  blocked_at?: Maybe<DbDate>;
-  trusted_at?: Maybe<DbDate>;
-  last_seen_at?: Maybe<DbDate>;
+  deviceType?: Maybe<string>;
+  approvedByDeviceId?: Maybe<string>;
+  approvedAt?: Maybe<DbDate>;
+  blockedByDeviceId?: Maybe<string>;
+  blockedAt?: Maybe<DbDate>;
+  trustedAt?: Maybe<DbDate>;
+  lastSeenAt?: Maybe<DbDate>;
   createdAt?: Maybe<DbDate>;
   updatedAt?: Maybe<DbDate>;
-  /** Sesión activa del dispositivo (include con limit 1) */
+  /** Última sesión del dispositivo (include con take 1) */
   sessions?: Maybe<UserSessionRow[]>;
 }
 
 interface BiometricCredentialRow {
-  biometric_credential_id: string;
-  user_trusted_device_id: string;
-  credential_id: string;
-  sign_count: number;
-  is_active: boolean;
-  last_used_at?: Maybe<DbDate>;
+  biometricCredentialId: string;
+  userTrustedDeviceId: string;
+  credentialId: string;
+  signCount: number;
+  isActive: boolean;
+  lastUsedAt?: Maybe<DbDate>;
   createdAt?: Maybe<DbDate>;
 }
 
@@ -113,9 +114,9 @@ function _buildUserRef(user: Maybe<UserRefRow>) {
     return null;
   }
   return {
-    userId: user.user_id,
+    userId: user.userId,
     username: user.username,
-    fullName: [user.person?.first_name, user.person?.last_name].filter(Boolean).join(' ') || null
+    fullName: [user.person?.firstName, user.person?.lastName].filter(Boolean).join(' ') || null
   };
 }
 
@@ -191,15 +192,15 @@ class ResetCredentialsComponent {
     }
 
     const dto: Record<string, unknown> & { token?: Maybe<string> } = {
-      resetCredentialsId: resetCredential.reset_credentials_id,
-      userId: resetCredential.user_id,
+      resetCredentialsId: resetCredential.resetCredentialsId,
+      userId: resetCredential.userId,
       // [RF-USR-01] | CA-06
       email: MaskingUtil.maskEmail(resetCredential.email) || null,
       type: resetCredential.type,
-      expiresAt: resetCredential.expires_at,
+      expiresAt: resetCredential.expiresAt,
       used: resetCredential.used,
-      usedAt: resetCredential.used_at || null,
-      isExpired: new Date() > new Date(resetCredential.expires_at),
+      usedAt: resetCredential.usedAt || null,
+      isExpired: new Date() > new Date(resetCredential.expiresAt),
       createdAt: resetCredential.createdAt
     };
 
@@ -238,22 +239,21 @@ class UserChangeLogComponent {
       return null;
     }
     return {
-      logId: log.log_id,
-      userId: log.user_id,
+      logId: log.logId,
+      userId: log.userId,
       user: _buildUserRef(log.user),
-      changedByUserId: log.changed_by_user_id || null,
-      changedByRole: log.changed_by_role,
+      changedByUserId: log.changedByUserId || null,
+      changedByRole: log.changedByRole,
       changedBy: _buildUserRef(log.changedBy),
-      changeType: log.change_type,
-      previousValue: _maskLogValue(log.previous_value, log.change_type),
-      newValue: _maskLogValue(log.new_value, log.change_type),
-      changeReason: log.change_reason || null,
-      ipAddress: log.ip_address || null,
-      userAgent: log.user_agent || null,
+      changeType: log.changeType,
+      previousValue: _maskLogValue(log.previousValue, log.changeType),
+      newValue: _maskLogValue(log.newValue, log.changeType),
+      changeReason: log.changeReason || null,
+      ipAddress: log.ipAddress || null,
+      userAgent: log.userAgent || null,
       // Alinea esta tabla de auditoría con audit_logs.session_id (consistencia pedida en §3 Fase 3).
-      originSessionId: log.origin_session_id || null,
-      // created_at existe cuando el repo lo selecciona por columna; si no, el atributo createdAt
-      createdAt: log.createdAt ?? log.created_at
+      originSessionId: log.originSessionId || null,
+      createdAt: log.createdAt
     };
   }
 
@@ -275,14 +275,14 @@ class UserSessionComponent {
       return null;
     }
     return {
-      sessionId: session.user_session_id,
+      sessionId: session.userSessionId,
       status: session.status,
-      ipAddress: session.ip_address || null,
-      userAgent: session.user_agent || null,
-      startedAt: session.started_at,
-      lastAccessAt: session.last_access_at,
-      closedAt: session.closed_at || null,
-      closeReason: session.close_reason || null,
+      ipAddress: session.ipAddress || null,
+      userAgent: session.userAgent || null,
+      startedAt: session.startedAt,
+      lastAccessAt: session.lastAccessAt,
+      closedAt: session.closedAt || null,
+      closeReason: session.closeReason || null,
       createdAt: session.createdAt,
       user: _buildUserRef(session.sessionUser)
     };
@@ -311,31 +311,31 @@ class TrustedDeviceComponent {
     const isCurrent = currentSessionId
       ? activeSession?.sessionId === currentSessionId
       : currentFingerprintHash
-        ? device.fingerprint_hash === currentFingerprintHash
+        ? device.fingerprintHash === currentFingerprintHash
         : false;
 
     return {
-      userTrustedDeviceId: device.user_trusted_device_id,
-      userId: device.user_id,
-      deviceName: device.device_name,
-      fingerprintHash: device.fingerprint_hash,
+      userTrustedDeviceId: device.userTrustedDeviceId,
+      userId: device.userId,
+      deviceName: device.deviceName,
+      fingerprintHash: device.fingerprintHash,
       isCurrent,
       status: device.status,
       isPending: device.status === 'pending',
-      ipAddress: device.ip_address || null,
+      ipAddress: device.ipAddress || null,
       city: device.city || null,
       country: device.country || null,
-      countryCode: device.country_code || null,
+      countryCode: device.countryCode || null,
       browser: device.browser || null,
       os: device.os || null,
-      deviceType: device.device_type || 'desktop',
-      approvedByDeviceId: device.approved_by_device_id || null,
-      approvedAt: device.approved_at || null,
-      blockedByDeviceId: device.blocked_by_device_id || null,
-      blockedAt: device.blocked_at || null,
+      deviceType: device.deviceType || 'desktop',
+      approvedByDeviceId: device.approvedByDeviceId || null,
+      approvedAt: device.approvedAt || null,
+      blockedByDeviceId: device.blockedByDeviceId || null,
+      blockedAt: device.blockedAt || null,
       activeSession,
-      trustedAt: device.trusted_at,
-      lastSeenAt: device.last_seen_at,
+      trustedAt: device.trustedAt,
+      lastSeenAt: device.lastSeenAt,
       createdAt: device.createdAt,
       updatedAt: device.updatedAt
     };
@@ -363,12 +363,12 @@ class BiometricCredentialComponent {
       return null;
     }
     return {
-      biometricCredentialId: credential.biometric_credential_id,
-      deviceId: credential.user_trusted_device_id,
-      credentialId: credential.credential_id,
-      signCount: credential.sign_count,
-      isActive: credential.is_active,
-      lastUsedAt: credential.last_used_at || null,
+      biometricCredentialId: credential.biometricCredentialId,
+      deviceId: credential.userTrustedDeviceId,
+      credentialId: credential.credentialId,
+      signCount: credential.signCount,
+      isActive: credential.isActive,
+      lastUsedAt: credential.lastUsedAt || null,
       createdAt: credential.createdAt
     };
   }

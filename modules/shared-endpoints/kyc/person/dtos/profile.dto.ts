@@ -1,5 +1,5 @@
-import type defineUser from '../../../../schemas/kyc/iam/models/user.model';
-import type definePerson from '../../../../schemas/kyc/person/models/person.model';
+import type { Person } from '../../../../../shared/database/generated/prisma/client';
+import type { UserProfileRow } from '../../../../schemas/kyc/iam/repositories/user.repository';
 import kycModule from '../../../../../shared/dtos/kyc';
 const {
   UserComponent,
@@ -17,34 +17,6 @@ import MaskingUtil from '../../../../../shared/utils/masking.util';
  * PROFILE DTOs — CLIENT
  * ============================================================
  */
-
-function _normalizePersonAliases(person: definePerson.Instance | null | undefined) {
-  if (!person) {
-    return null;
-  }
-
-  return {
-    person_id: person.person_id,
-    first_name: person.first_name,
-    last_name: person.last_name,
-    middle_name: person.middle_name ?? null,
-    second_last_name: person.second_last_name ?? null,
-    national_id: person.national_id ?? null,
-    birth_date: person.birth_date ?? null,
-    gender_id: person.gender_id ?? null,
-    country_id: person.country_id ?? null,
-    document_type_id: person.document_type_id ?? null,
-    createdAt: person.createdAt,
-    updatedAt: person.updatedAt,
-
-    gender: person.gender ?? null,
-    document_type: person.document_type ?? null,
-    contact: person.contact ?? null,
-    location: person.location ?? null,
-
-    nationality: person.country ?? null
-  };
-}
 
 // ============================================================
 // HELPER — catálogo completo de consentimientos del usuario
@@ -76,7 +48,7 @@ interface ProfileResponse {
 
 // Antes devolvía `dto` o `{ dto, person }` según el caso (y los llamadores hacían `result.dto || result`):
 // ahora siempre el dto.
-function _buildBasicFields(user: defineUser.Instance): ProfileResponse {
+function _buildBasicFields(user: UserProfileRow): ProfileResponse {
   const dto: ProfileResponse = {
     user: UserComponent.build(user, {
       includeRole: true,
@@ -84,11 +56,7 @@ function _buildBasicFields(user: defineUser.Instance): ProfileResponse {
     })
   };
 
-  if (!user.person) {
-    return dto;
-  }
-
-  const person = _normalizePersonAliases(user.person);
+  const { person } = user;
   if (!person) {
     return dto;
   }
@@ -114,7 +82,11 @@ function _buildBasicFields(user: defineUser.Instance): ProfileResponse {
 // PERFIL BÁSICO
 // ============================================================
 
-function BasicProfileDTO(user: defineUser.Instance, consentTypes: readonly ConsentTypeRow[] = [], consents: readonly ConsentRow[] = []) {
+function BasicProfileDTO(
+  user: UserProfileRow,
+  consentTypes: readonly ConsentTypeRow[] = [],
+  consents: readonly ConsentRow[] = []
+) {
   const dto = _buildBasicFields(user);
   dto.consents = _buildConsentCatalog(consentTypes, consents);
   return dto;
@@ -125,7 +97,11 @@ function BasicProfileDTO(user: defineUser.Instance, consentTypes: readonly Conse
 // ============================================================
 
 // Hoy idéntico al básico (mismo contrato); se mantiene el nombre para los endpoints que lo usan.
-function ExtendedProfileDTO(user: defineUser.Instance, consentTypes: readonly ConsentTypeRow[] = [], consents: readonly ConsentRow[] = []) {
+function ExtendedProfileDTO(
+  user: UserProfileRow,
+  consentTypes: readonly ConsentTypeRow[] = [],
+  consents: readonly ConsentRow[] = []
+) {
   return BasicProfileDTO(user, consentTypes, consents);
 }
 
@@ -144,14 +120,14 @@ function UpdatePhoneResponseDTO(phone: string, phonePrefixId: string, phoneType:
 }
 
 function UpdateNamesResponseDTO(
-  person: Pick<definePerson.Attributes, 'person_id' | 'first_name' | 'middle_name' | 'last_name' | 'second_last_name'> & { updatedAt?: Date }
+  person: Pick<Person, 'personId' | 'firstName' | 'middleName' | 'lastName' | 'secondLastName'> & { updatedAt?: Date }
 ) {
   return {
-    personId: person.person_id,
-    firstName: person.first_name,
-    middleName: person.middle_name ?? null,
-    lastName: person.last_name,
-    secondLastName: person.second_last_name ?? null,
+    personId: person.personId,
+    firstName: person.firstName,
+    middleName: person.middleName ?? null,
+    lastName: person.lastName,
+    secondLastName: person.secondLastName ?? null,
     updatedAt: person.updatedAt
   };
 }
