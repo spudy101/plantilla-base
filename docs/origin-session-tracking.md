@@ -52,14 +52,16 @@ Reglas que respeta el hook:
 
 1. **Modelo** (`...model.js`): spread los campos.
    ```js
-   const { originSessionModelFields } = require('<ruta>/shared/models/mixins/origin-session.mixin');
+   import originSessionMixinModule from '<ruta>/shared/models/mixins/origin-session.mixin';
+   const { originSessionModelFields } = originSessionMixinModule;
    // dentro del objeto de atributos de sequelize.define:
    ...originSessionModelFields()
    ```
 2. **Migración** (el `create-*.ts` **original** — en este repo se editan las migraciones originales y se
    corre `db:reset`, no se crean `ALTER` nuevos):
    ```js
-   const { originSessionMigrationColumns } = require('../shared/models/mixins/origin-session.mixin');
+   import originSessionMixinModule from '../shared/models/mixins/origin-session.mixin';
+   const { originSessionMigrationColumns } = originSessionMixinModule;
    // dentro del objeto de columnas del createTable:
    ...originSessionMigrationColumns(Sequelize),
    // y un índice:

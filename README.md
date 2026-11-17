@@ -95,7 +95,7 @@ Todo lo transversal que un proyecto necesita el día 1, ya construido y probado:
 
 | Área            | Tecnologías                                                                      |
 | --------------- | -------------------------------------------------------------------------------- |
-| **Runtime/Web** | Node.js 24+, TypeScript (migración gradual), Express 4                           |
+| **Runtime/Web** | Node.js 24+, TypeScript (estricto), Express 4                                     |
 | **Datos**       | PostgreSQL 14+, Sequelize 6, `pg`                                                 |
 | **Cache/estado**| Redis (`ioredis`) — **opcional**, con fallback a memoria/BD                       |
 | **Auth**        | `jose` (JWT RS256), `bcryptjs`, `otplib` (TOTP)                                   |

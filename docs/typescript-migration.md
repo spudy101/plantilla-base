@@ -1,40 +1,46 @@
 # Migración a TypeScript
 
-> La plantilla pasa de JavaScript a TypeScript **por fases, en la rama `feat/typescript`**.
-> Mientras dura la migración, `.ts` y `.js` conviven: la app arranca y los tests pasan al final de
-> cada fase. Decisiones tomadas: base en la rama SOLID, Sequelize se mantiene (los repositorios
-> aíslan el ORM, ver [`solid.md`](solid.md)), Node 24 LTS.
+> La plantilla pasó de JavaScript a TypeScript **por fases, en la rama `feat/typescript`** (ver
+> [Fases](#fases)): **la migración está completa** — no queda código `.js` en la app, los tests, las
+> migraciones ni los scripts (`allowJs: false`). Decisiones tomadas: base en la rama SOLID, Sequelize se
+> mantiene (los repositorios aíslan el ORM, ver [`solid.md`](solid.md)), Node 24 LTS.
 
 ## Cómo funciona hoy
 
 | Necesidad | Herramienta | Comando |
 |---|---|---|
-| Desarrollo con hot-reload | `nodemon` + `tsx` (ejecuta `.ts` y `.js` sin compilar) | `npm run dev` |
-| Revisar tipos | `tsc --noEmit` (incluye tests) | `npm run typecheck` |
+| Desarrollo con hot-reload | `nodemon` + `tsx` (ejecuta los `.ts` sin compilar) | `npm run dev` |
+| Revisar tipos | `tsc --noEmit` sobre app + tests + migraciones/seeders + scripts (`tsconfig.test.json`) | `npm run typecheck` |
 | Build de producción | `tsc` → `dist/` (CommonJS) | `npm run build` |
 | Producción | `node` sobre el build | `npm start` (después de `npm run build`) |
-| Tests | Jest: `.ts` con `ts-jest` (solo transpila), `.js` con `babel-jest` | `npm test` |
-| Migraciones / seeders | `sequelize-cli` a través de `tsx` | `npm run db:migrate`, `npm run db:seed` |
-| Lint | ESLint + `typescript-eslint` sobre `.js` y `.ts` | `npm run lint` |
+| Tests | Jest + `ts-jest` (solo transpila; `jose`, ESM puro, también pasa por ts-jest) | `npm test` |
+| Migraciones / seeders | `sequelize-cli` a través de `tsx` (antes, `db:tracking`: ver abajo) | `npm run db:migrate`, `npm run db:seed` |
+| Claves locales | `scripts/generate-keys.util.ts` vía `tsx` | `npm run keys:generate` |
+| Lint | ESLint + `typescript-eslint` | `npm run lint` |
 | Docker | `node:24-alpine`, `npm run build` en la etapa builder, arranque desde `dist/` | — |
 
-`tsconfig.json`: modo **estricto completo** para los `.ts` (`strict`, `noUncheckedIndexedAccess`,
-`noImplicitOverride`…). Los `.js` se compilan tal cual (`allowJs`) pero **no** se revisan
-(`checkJs: false`): activarlo de golpe marcaría miles de líneas que todavía no son TypeScript.
+`tsconfig.json` (build): modo **estricto completo** (`strict`, `noUncheckedIndexedAccess`,
+`noImplicitOverride`…), `allowJs: false`, imports/exports nativos de ES compilados a CommonJS con
+`esModuleInterop`. `tsconfig.test.json` extiende el anterior y agrega lo que no entra al build (tests,
+`migrations/`, `seeders/`, `scripts/*.ts`), que corre con Jest o `tsx` desde las fuentes.
 
-> ⚠️ `node servers/monolith.js` (Node puro sobre las fuentes) ya **no** funciona: Node 20 no carga
-> `.ts`. Usa `npm run dev` (tsx) o `npm run build && npm start`.
+> ⚠️ `node servers/monolith.ts` no funciona (Node no ejecuta TypeScript del proyecto así). Usa
+> `npm run dev` (tsx) o `npm run build && npm start`.
 
-## Reglas para migrar un archivo
+## Reglas del código
 
-1. **Renombrar** `x.js` → `x.ts` (`git mv` para conservar historial) y tiparlo. Sin `any` salvo que
-   esté justificado en un comentario.
-2. **Mismo contrato de exportación.** Mientras queden `.js` que hagan `require()` del archivo, el `.ts`
-   exporta con `export =` (compila a `module.exports =`), así los consumidores no cambian:
+1. **Imports/exports nativos.** Cada módulo del proyecto exporta por defecto y se importa con
+   `import X from './x'`; los paquetes, con `import { a } from 'pkg'` o `import pkg from 'pkg'`
+   (`esModuleInterop`); los tipos, con `import type`. ESLint rechaza `export =` e `import x = require()`
+   (puente CommonJS de las fases 1–5). Única excepción: `config/database.ts`, que sequelize-cli carga
+   con `import()` y necesita `module.exports`.
 
    ```ts
    class MiService {
-     constructor(deps: MiService.Deps = {}) { /* ... */ }
+     miRepository: typeof miRepository;
+     constructor(deps: MiService.Deps = {}) {
+       this.miRepository = deps.miRepository ?? miRepository;
+     }
    }
 
    // Tipos asociados: fusión de declaraciones (namespace con el mismo nombre que la clase)
@@ -43,20 +49,29 @@
      export interface Deps { miRepository?: MiRepositoryPort }
    }
 
-   // Instancia por defecto + la clase para tests/composición (equivale al patrón JS
-   // module.exports = new X(); module.exports.X = X)
-   export = Object.assign(new MiService(), { MiService });
+   // Instancia por defecto + la clase para tests/composición
+   export default Object.assign(new MiService(), { MiService });
    ```
 
-3. **Importar** desde `.ts`: `import X = require('./x')` para módulos CommonJS del proyecto,
-   `import type { … } from 'sequelize'` para tipos. `import type` no genera código.
-4. **Tests**: el test del archivo puede quedarse en `.js`; si se migra, `*.test.ts`.
+2. **Cargas diferidas** (para cortar un ciclo de imports o no cargar `shared/models` al importar un
+   puerto): `interopDefault(require('./x') as typeof import('./x'))` (`shared/utils/interop.util`).
+   Un `require('./x').default` a secas se rompe cuando `./x` está reemplazado por un `jest.mock` con
+   factory (el objeto del mock no tiene `.default`); `interopDefault` hace lo mismo que `import x from`.
+3. Sin `any` salvo que esté justificado en un comentario. En tests, la laxitud vive en
+   `tests/helpers/mock.ts`: `mocked(mod)` (módulo pasado a `jest.mock`), `fixture(x)` (entrada parcial
+   donde el código bajo prueba espera el tipo completo) y `Loose` (parámetros de implementaciones de
+   mocks, resultados con la forma de un DTO mockeado). El módulo bajo prueba se importa sin envolver.
+4. **Migraciones y seeders**: `export default { up, down } satisfies Migration`
+   (`shared/types/migration.ts`), que tipa `queryInterface` y `Sequelize` por contexto.
 5. `npm run typecheck && npm run lint && npm test` en verde antes de commitear. La guarda
-   `tests/unit/guards/solid-architecture.test.js` ya entiende `.ts` (imports, `export =`,
-   `constructor(deps: T = {})`).
+   `tests/unit/guards/solid-architecture.test.ts` revisa imports, `export default Object.assign(new X(), { X })`
+   y `constructor(deps: T = {})`.
 
-> Babel no soporta `export =`: por eso Jest usa `ts-jest` (modo `isolatedModules`, solo transpila)
-> para los `.ts`. Los tipos los revisa `npm run typecheck`, no Jest.
+> **`db:tracking`** (`scripts/db-tracking-ts.ts`, corre antes de cada `db:*`): sequelize-cli registra lo
+> ejecutado por nombre de archivo exacto en `SequelizeMeta`/`SequelizeData`. Al pasar las migraciones de
+> `.js` a `.ts`, una BD existente las vería como nuevas y `db:migrate` intentaría correrlas todas otra
+> vez; el script renombra los registros `*.js` → `*.ts` (idempotente). Se puede quitar cuando todos los
+> entornos hayan corrido una vez una versión con migraciones `.ts`.
 
 ## Fases
 
@@ -119,8 +134,10 @@ Tipos y helpers compartidos:
 - **Contexto admin**: `shared/utils/admin-audit-context.util` → `adminAuditContext(req, res)` (antes 6 copias
   locales con variaciones).
 - **Tipos que cruzan archivos** van en un `*.types.ts` del dominio (`notification.types`,
-  `notification-feed.types`, `profile.types`): un módulo que exporta una instancia (`export =
+  `notification-feed.types`, `profile.types`): un módulo que exporta una instancia (`export default
   new X()`) no deja alcanzar los tipos de su namespace desde otro archivo.
+- **Tests**: `tests/helpers/mock.ts` (`mocked`, `fixture`, `Loose`; ver [Reglas](#reglas-del-código)).
+- **Migraciones**: `shared/types/migration.ts` (`Migration`, `SequelizeStatic`).
 - Campos de clase opcionales que no siempre se asignan: `declare campo?: T`. Con target ES2023
   (`useDefineForClassFields`) un campo sin `declare` se crea como `undefined` en cada instancia.
 
@@ -142,6 +159,29 @@ Tipos y helpers compartidos:
 - **Filtros perdidos en `UserChangeLogRepository`**: `findByChangeType` y `findByAdminUser` pasaban claves
   snake_case que `findAllPaginated` no lee, y devolvían los logs de todos (sin llamadores hoy). Corregido
   (se agregó el filtro `changedByUserId`) y con test.
+
+#### Fase 6 (cierre)
+
+Al tipar los `require()` diferidos (antes `any`) aparecieron:
+
+- **Push token con endpoint indefinido**: si SNS no devolvía `EndpointArn`, `_registrarPushToken` hacía el
+  upsert con `undefined`. Ahora corta antes (cae en su `catch` de best-effort).
+- **Conteo de SMS fallidos en el fallback** (`circuit-breaker.bootstrap`): el `where` usaba `created_at`;
+  en modelos `underscored` el atributo es `createdAt`.
+- **`logAudit` a BD**: los campos del contexto de la petición (ip, userAgent, correlationId…) llegan como
+  `unknown` y se escribían sin verificar; ahora solo van si son string.
+
+Además:
+
+- **Constraint de `system_global_config`**: la migración pedía "una sola config activa" con
+  `addConstraint({ type: 'unique', where: { is_active: true } })`, pero Sequelize ignora `where` en las
+  UNIQUE: la constraint real es `UNIQUE(is_active)` simple. Se dejó igual (la migración ya corrió en las
+  BD existentes y la config global es una sola fila que se actualiza en el lugar) y se documentó en la
+  migración. Si algún día hay versiones históricas, hará falta un índice parcial (`addIndex` con
+  `unique: true, where`) en una migración nueva.
+- **Loadability**: las exclusiones de arranque (`app`, `.server`, `.app`) seguían escritas para `.js` y
+  desde la fase 4 no excluían nada; vuelven a excluir.
+- **`gen-model-types.js` no era idempotente**: cada corrida sumaba una línea en blanco a cada modelo.
 
 #### Fase 5 (arranque y config)
 
@@ -209,5 +249,8 @@ Falsos positivos descartados al revisar: `acknowledged`/`onlyCritical`/`isActive
 
 - **ORM**: Sequelize se mantiene. Cambiar a Prisma/Drizzle es una decisión aparte; gracias a los
   repositorios afectaría solo a `repositories/` y `models/`.
-- **Migraciones y seeders** siguen en `.js` hasta la fase 6 (corren vía `tsx`, así que ya pueden
-  importar módulos `.ts`).
+- **Exports con nombre**: la fase 6 hizo la conversión mecánica `export =` → `export default` (mismo
+  valor, cero cambio de comportamiento). Pasar los módulos-objeto (`export default { a, b }`) a
+  `export { a, b }` con nombre es un refactor aparte y opcional.
+- **Codemods de `scripts/ts-migration/`**: salvo `gen-model-types.js` y `gen-repository-ports.js`, generan
+  la sintaxis puente de las fases 1–5; quedan como referencia histórica.

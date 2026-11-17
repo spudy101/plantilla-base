@@ -110,9 +110,10 @@ Preferencias por usuario: tabla `user_notification_preferences` (modelo en `sche
 
 ### `crearNotificacion(data, transaction = null)`
 
-```js
-const NotificationCreationService = require('../../../schemas/notification/services/notification-creation.service');
-const { notifications } = require('../../../../shared/constants');
+```ts
+import NotificationCreationService from '../../../schemas/notification/services/notification-creation.service';
+import constantsModule from '../../../../shared/constants';
+const { notifications } = constantsModule;
 
 setImmediate(() => {
   NotificationCreationService.crearNotificacion({
@@ -286,9 +287,11 @@ Las **categorías** se siembran en `seeders/<ts>-notification-categories.ts` (in
 por categoría) y la asignación tipo→categoría en `seeders/<ts>-assign-notification-types-to-categories.ts`
 (mapeo por `code`, editable después desde el admin con `PATCH /notification-types/:id { notificationCategoryId }`).
 
-```js
-const { database } = require('../shared/constants');
-const { v4: uuidv4 } = require('uuid');
+```ts
+import type { Migration } from '../shared/types/migration';
+import constantsModule from '../shared/constants';
+const { database } = constantsModule;
+import { v4 as uuidv4 } from 'uuid';
 const SCHEMA = database.schema;
 const TABLE = { tableName: 'notification_types', schema: SCHEMA };
 const ALL_CODES = ['EVENTO_A', 'EVENTO_B'];
@@ -297,7 +300,7 @@ const allTypes = [
                         email_subject_template, email_body_template, created_at, updated_at } */
 ];
 
-module.exports = {
+export default {
   async up(queryInterface) {
     await queryInterface.sequelize.query(
       `DELETE FROM "${SCHEMA}"."notification_types" WHERE code IN (${ALL_CODES.map(c => `'${c}'`).join(',')})`
@@ -307,7 +310,7 @@ module.exports = {
   async down(queryInterface) {
     await queryInterface.bulkDelete(TABLE, { code: ALL_CODES });
   }
-};
+} satisfies Migration;
 ```
 
 ## Reglas
