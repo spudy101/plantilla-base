@@ -1,28 +1,26 @@
-// modules/schemas/kyc/repositories/person-reference.repository.ts
+// modules/schemas/kyc/person/repositories/person-reference.repository.ts
+//
+// Referencias personales (borrado lógico con is_active).
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import type { PersonReference, Prisma } from '../../../../../shared/database/generated/prisma/client';
 
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../../shared/models';
-const { PersonReference } = modelsModule;
-import type definePersonReference from '../models/person-reference.model';
-
-class PersonReferenceRepository extends BaseRepository<definePersonReference.Instance> {
-  constructor() {
-    super(PersonReference, {
-      searchFields: ['reference_name']
-    });
+class PersonReferenceRepository extends PrismaRepository {
+  async findAllByPersonId(personId: string): Promise<PersonReference[]> {
+    return (await this.db()).personReference.findMany({ where: { personId, isActive: true }, orderBy: { createdAt: 'asc' } });
   }
 
-  findAllByPersonId(personId: string) {
-    return this.model.findAll({
-      where: { person_id: personId, is_active: true },
-      order: [['created_at', 'ASC']]
-    });
+  async findActiveById(personReferenceId: string, personId: string): Promise<PersonReference | null> {
+    return (await this.db()).personReference.findFirst({ where: { personReferenceId, personId, isActive: true } });
   }
 
-  findActiveById(referenceId: string, personId: string) {
-    return this.model.findOne({
-      where: { person_reference_id: referenceId, person_id: personId, is_active: true }
-    });
+  async create(data: Prisma.PersonReferenceUncheckedCreateInput): Promise<PersonReference> {
+    return (await this.db()).personReference.create({ data });
+  }
+
+  /** Actualiza por id; null si la fila no existe. */
+  async update(personReferenceId: string, data: Prisma.PersonReferenceUncheckedUpdateManyInput): Promise<PersonReference | null> {
+    const [row] = await (await this.db()).personReference.updateManyAndReturn({ where: { personReferenceId }, data });
+    return row ?? null;
   }
 }
 

@@ -26,120 +26,120 @@ import type { DbDate, Maybe } from '../../types/db-rows';
 type Dto = Record<string, unknown>;
 
 interface NotificationCategoryRow {
-  notification_category_id: string;
+  notificationCategoryId: string;
   code: string;
   name?: Maybe<string>;
   description?: Maybe<string>;
-  supports_push?: Maybe<boolean>;
-  supports_email?: Maybe<boolean>;
-  supports_sms?: Maybe<boolean>;
-  allow_dnd?: Maybe<boolean>;
-  is_critical?: Maybe<boolean>;
-  default_quiet_hours_start?: Maybe<string>;
-  default_quiet_hours_end?: Maybe<string>;
+  supportsPush?: Maybe<boolean>;
+  supportsEmail?: Maybe<boolean>;
+  supportsSms?: Maybe<boolean>;
+  allowDnd?: Maybe<boolean>;
+  isCritical?: Maybe<boolean>;
+  defaultQuietHoursStart?: Maybe<string>;
+  defaultQuietHoursEnd?: Maybe<string>;
   priority?: Maybe<string | number>;
-  sort_order?: Maybe<number>;
-  is_active?: Maybe<boolean>;
-  email_layout_template?: Maybe<string>;
+  sortOrder?: Maybe<number>;
+  isActive?: Maybe<boolean>;
+  emailLayoutTemplate?: Maybe<string>;
 }
 
 interface NotificationTypeRow {
-  notification_type_id: string;
+  notificationTypeId: string;
   code: string;
   name?: Maybe<string>;
   description?: Maybe<string>;
-  notification_category_id?: Maybe<string>;
+  notificationCategoryId?: Maybe<string>;
   priority?: Maybe<string | number>;
-  is_active?: Maybe<boolean>;
+  isActive?: Maybe<boolean>;
   category?: Maybe<NotificationCategoryRow>;
-  title_template?: Maybe<string>;
-  body_template?: Maybe<string>;
-  email_subject_template?: Maybe<string>;
-  email_body_template?: Maybe<string>;
+  titleTemplate?: Maybe<string>;
+  bodyTemplate?: Maybe<string>;
+  emailSubjectTemplate?: Maybe<string>;
+  emailBodyTemplate?: Maybe<string>;
 }
 
 interface NotificationRow {
-  notification_id: string;
-  user_id: string;
-  notification_type_id?: Maybe<string>;
+  notificationId: string;
+  userId: string;
+  notificationTypeId?: Maybe<string>;
   title?: Maybe<string>;
   body?: Maybe<string>;
-  related_entity_type?: Maybe<string>;
-  related_entity_id?: Maybe<string>;
+  relatedEntityType?: Maybe<string>;
+  relatedEntityId?: Maybe<string>;
   metadata?: unknown;
-  is_read?: Maybe<boolean>;
-  read_at?: Maybe<DbDate>;
-  processing_status?: Maybe<string>;
-  scheduled_for?: Maybe<DbDate>;
+  isRead?: Maybe<boolean>;
+  readAt?: Maybe<DbDate>;
+  processingStatus?: Maybe<string>;
+  scheduledFor?: Maybe<DbDate>;
   priority?: Maybe<string | number>;
   createdAt?: Maybe<DbDate>;
-  notification_type?: Maybe<NotificationTypeRow>;
-  push_sent?: Maybe<boolean>;
-  push_sent_at?: Maybe<DbDate>;
-  push_error?: Maybe<string>;
-  push_retry_count?: Maybe<number>;
-  push_next_retry_at?: Maybe<DbDate>;
-  email_sent?: Maybe<boolean>;
-  email_sent_at?: Maybe<DbDate>;
-  email_error?: Maybe<string>;
-  email_retry_count?: Maybe<number>;
-  email_next_retry_at?: Maybe<DbDate>;
+  notificationType?: Maybe<NotificationTypeRow>;
+  pushSent?: Maybe<boolean>;
+  pushSentAt?: Maybe<DbDate>;
+  pushError?: Maybe<string>;
+  pushRetryCount?: Maybe<number>;
+  pushNextRetryAt?: Maybe<DbDate>;
+  emailSent?: Maybe<boolean>;
+  emailSentAt?: Maybe<DbDate>;
+  emailError?: Maybe<string>;
+  emailRetryCount?: Maybe<number>;
+  emailNextRetryAt?: Maybe<DbDate>;
 }
 
 interface GlobalNotificationRow {
-  global_notification_id: string;
-  notification_type_id?: Maybe<string>;
+  globalNotificationId: string;
+  notificationTypeId?: Maybe<string>;
   title?: Maybe<string>;
   body?: Maybe<string>;
   metadata?: unknown;
-  send_push?: Maybe<boolean>;
-  send_email?: Maybe<boolean>;
-  send_in_app?: Maybe<boolean>;
-  is_active?: Maybe<boolean>;
-  starts_at?: Maybe<DbDate>;
-  ends_at?: Maybe<DbDate>;
+  sendPush?: Maybe<boolean>;
+  sendEmail?: Maybe<boolean>;
+  sendInApp?: Maybe<boolean>;
+  isActive?: Maybe<boolean>;
+  startsAt?: Maybe<DbDate>;
+  endsAt?: Maybe<DbDate>;
   createdAt?: Maybe<DbDate>;
-  notification_type?: Maybe<NotificationTypeRow>;
-  total_target_users?: Maybe<number>;
-  push_sent_count?: Maybe<number>;
-  email_sent_count?: Maybe<number>;
-  push_processing_status?: Maybe<string>;
-  email_processing_status?: Maybe<string>;
-  processing_started_at?: Maybe<DbDate>;
-  processing_completed_at?: Maybe<DbDate>;
-  batch_size?: Maybe<number>;
-  target_user_role?: Maybe<string>;
-  target_conditions?: unknown;
-  created_by?: Maybe<string>;
+  notificationType?: Maybe<NotificationTypeRow>;
+  totalTargetUsers?: Maybe<number>;
+  pushSentCount?: Maybe<number>;
+  emailSentCount?: Maybe<number>;
+  pushProcessingStatus?: Maybe<string>;
+  emailProcessingStatus?: Maybe<string>;
+  processingStartedAt?: Maybe<DbDate>;
+  processingCompletedAt?: Maybe<DbDate>;
+  batchSize?: Maybe<number>;
+  targetUserRole?: Maybe<string>;
+  targetConditions?: unknown;
+  createdBy?: Maybe<string>;
 }
 
 interface GlobalNotificationReadRow {
-  global_notification_id: string;
-  user_id: string;
-  read_at?: Maybe<DbDate>;
+  globalNotificationId: string;
+  userId: string;
+  readAt?: Maybe<DbDate>;
 }
 
 interface UserPushTokenRow {
-  user_push_token_id: string;
-  user_id: string;
+  userPushTokenId: string;
+  userId: string;
   token: string;
   platform?: Maybe<string>;
-  device_id?: Maybe<string>;
-  is_active?: Maybe<boolean>;
-  last_used_at?: Maybe<DbDate>;
+  deviceId?: Maybe<string>;
+  isActive?: Maybe<boolean>;
+  lastUsedAt?: Maybe<DbDate>;
   createdAt?: Maybe<DbDate>;
 }
 
 interface UserNotificationPreferenceRow {
-  user_notification_preference_id: string;
-  user_id: string;
-  notification_category_code?: Maybe<string>;
-  allow_push?: Maybe<boolean>;
-  allow_email?: Maybe<boolean>;
-  allow_sms?: Maybe<boolean>;
-  quiet_hours_start?: Maybe<string>;
-  quiet_hours_end?: Maybe<string>;
-  notification_category?: Maybe<NotificationCategoryRow>;
+  userNotificationPreferenceId: string;
+  userId: string;
+  notificationCategoryCode?: Maybe<string>;
+  allowPush?: Maybe<boolean>;
+  allowEmail?: Maybe<boolean>;
+  allowSms?: Maybe<boolean>;
+  quietHoursStart?: Maybe<string>;
+  quietHoursEnd?: Maybe<string>;
+  notificationCategory?: Maybe<NotificationCategoryRow>;
   createdAt?: Maybe<DbDate>;
   updatedAt?: Maybe<DbDate>;
 }
@@ -172,24 +172,24 @@ class NotificationCategoryComponent {
     }
 
     const dto: Dto = {
-      notificationCategoryId: category.notification_category_id,
+      notificationCategoryId: category.notificationCategoryId,
       code: category.code,
       name: category.name,
       description: category.description || null,
-      supportsPush: category.supports_push,
-      supportsEmail: category.supports_email,
-      supportsSms: category.supports_sms,
-      allowDnd: category.allow_dnd,
-      isCritical: category.is_critical,
-      defaultQuietHoursStart: category.default_quiet_hours_start || null,
-      defaultQuietHoursEnd: category.default_quiet_hours_end || null,
+      supportsPush: category.supportsPush,
+      supportsEmail: category.supportsEmail,
+      supportsSms: category.supportsSms,
+      allowDnd: category.allowDnd,
+      isCritical: category.isCritical,
+      defaultQuietHoursStart: category.defaultQuietHoursStart || null,
+      defaultQuietHoursEnd: category.defaultQuietHoursEnd || null,
       priority: category.priority,
-      sortOrder: category.sort_order,
-      isActive: category.is_active
+      sortOrder: category.sortOrder,
+      isActive: category.isActive
     };
 
     if (includeLayout) {
-      dto.emailLayoutTemplate = category.email_layout_template || null;
+      dto.emailLayoutTemplate = category.emailLayoutTemplate || null;
     }
 
     return dto;
@@ -218,13 +218,13 @@ class NotificationTypeComponent {
     }
 
     const dto: Dto = {
-      notificationTypeId: notificationType.notification_type_id,
+      notificationTypeId: notificationType.notificationTypeId,
       code: notificationType.code,
       name: notificationType.name,
       description: notificationType.description || null,
-      notificationCategoryId: notificationType.notification_category_id || null,
+      notificationCategoryId: notificationType.notificationCategoryId || null,
       priority: notificationType.priority,
-      isActive: notificationType.is_active
+      isActive: notificationType.isActive
     };
 
     // La categoría (canales/DND/criticidad) se expone si viene incluida en la asociación.
@@ -233,10 +233,10 @@ class NotificationTypeComponent {
     }
 
     if (includeTemplates) {
-      dto.titleTemplate = notificationType.title_template;
-      dto.bodyTemplate = notificationType.body_template;
-      dto.emailSubjectTemplate = notificationType.email_subject_template || null;
-      dto.emailBodyTemplate = notificationType.email_body_template || null;
+      dto.titleTemplate = notificationType.titleTemplate;
+      dto.bodyTemplate = notificationType.bodyTemplate;
+      dto.emailSubjectTemplate = notificationType.emailSubjectTemplate || null;
+      dto.emailBodyTemplate = notificationType.emailBodyTemplate || null;
     }
 
     return dto;
@@ -265,42 +265,42 @@ class NotificationComponent {
     const { includeType = false, includeDelivery = false } = options;
 
     const dto: Dto = {
-      notificationId: notification.notification_id,
-      userId: notification.user_id,
-      notificationTypeId: notification.notification_type_id || null,
+      notificationId: notification.notificationId,
+      userId: notification.userId,
+      notificationTypeId: notification.notificationTypeId || null,
       title: notification.title,
       body: notification.body,
-      relatedEntityType: notification.related_entity_type || null,
-      relatedEntityId: notification.related_entity_id || null,
+      relatedEntityType: notification.relatedEntityType || null,
+      relatedEntityId: notification.relatedEntityId || null,
       // [RF-USR-01] | CA-06 | El metadata suele traer el correo/celular del titular → redactor profundo.
       metadata: MaskingUtil.redactPayload(notification.metadata) || null,
-      isRead: notification.is_read,
-      readAt: notification.read_at || null,
-      processingStatus: notification.processing_status,
-      scheduledFor: notification.scheduled_for || null,
+      isRead: notification.isRead,
+      readAt: notification.readAt || null,
+      processingStatus: notification.processingStatus,
+      scheduledFor: notification.scheduledFor || null,
       priority: notification.priority,
       createdAt: notification.createdAt
     };
 
-    if (includeType && notification.notification_type) {
-      dto.notificationType = NotificationTypeComponent.build(notification.notification_type);
+    if (includeType && notification.notificationType) {
+      dto.notificationType = NotificationTypeComponent.build(notification.notificationType);
     }
 
     if (includeDelivery) {
       dto.delivery = {
         push: {
-          sent: notification.push_sent,
-          sentAt: notification.push_sent_at || null,
-          error: notification.push_error || null,
-          retryCount: notification.push_retry_count,
-          nextRetryAt: notification.push_next_retry_at || null
+          sent: notification.pushSent,
+          sentAt: notification.pushSentAt || null,
+          error: notification.pushError || null,
+          retryCount: notification.pushRetryCount,
+          nextRetryAt: notification.pushNextRetryAt || null
         },
         email: {
-          sent: notification.email_sent,
-          sentAt: notification.email_sent_at || null,
-          error: notification.email_error || null,
-          retryCount: notification.email_retry_count,
-          nextRetryAt: notification.email_next_retry_at || null
+          sent: notification.emailSent,
+          sentAt: notification.emailSentAt || null,
+          error: notification.emailError || null,
+          retryCount: notification.emailRetryCount,
+          nextRetryAt: notification.emailNextRetryAt || null
         }
       };
     }
@@ -341,17 +341,17 @@ class GlobalNotificationComponent {
     const { includeType = false, includeStats = false, includeTargeting = false, isRead = null } = options;
 
     const dto: Dto = {
-      globalNotificationId: globalNotification.global_notification_id,
-      notificationTypeId: globalNotification.notification_type_id || null,
+      globalNotificationId: globalNotification.globalNotificationId,
+      notificationTypeId: globalNotification.notificationTypeId || null,
       title: globalNotification.title,
       body: globalNotification.body,
       metadata: MaskingUtil.redactPayload(globalNotification.metadata) || null,
-      sendPush: globalNotification.send_push,
-      sendEmail: globalNotification.send_email,
-      sendInApp: globalNotification.send_in_app,
-      isActive: globalNotification.is_active,
-      startsAt: globalNotification.starts_at,
-      endsAt: globalNotification.ends_at || null,
+      sendPush: globalNotification.sendPush,
+      sendEmail: globalNotification.sendEmail,
+      sendInApp: globalNotification.sendInApp,
+      isActive: globalNotification.isActive,
+      startsAt: globalNotification.startsAt,
+      endsAt: globalNotification.endsAt || null,
       createdAt: globalNotification.createdAt
     };
 
@@ -359,28 +359,28 @@ class GlobalNotificationComponent {
       dto.isRead = isRead;
     }
 
-    if (includeType && globalNotification.notification_type) {
-      dto.notificationType = NotificationTypeComponent.build(globalNotification.notification_type);
+    if (includeType && globalNotification.notificationType) {
+      dto.notificationType = NotificationTypeComponent.build(globalNotification.notificationType);
     }
 
     if (includeStats) {
       dto.stats = {
-        totalTargetUsers: globalNotification.total_target_users,
-        pushSentCount: globalNotification.push_sent_count,
-        emailSentCount: globalNotification.email_sent_count,
-        pushProcessingStatus: globalNotification.push_processing_status,
-        emailProcessingStatus: globalNotification.email_processing_status,
-        processingStartedAt: globalNotification.processing_started_at || null,
-        processingCompletedAt: globalNotification.processing_completed_at || null,
-        batchSize: globalNotification.batch_size
+        totalTargetUsers: globalNotification.totalTargetUsers,
+        pushSentCount: globalNotification.pushSentCount,
+        emailSentCount: globalNotification.emailSentCount,
+        pushProcessingStatus: globalNotification.pushProcessingStatus,
+        emailProcessingStatus: globalNotification.emailProcessingStatus,
+        processingStartedAt: globalNotification.processingStartedAt || null,
+        processingCompletedAt: globalNotification.processingCompletedAt || null,
+        batchSize: globalNotification.batchSize
       };
     }
 
     if (includeTargeting) {
       dto.targeting = {
-        targetUserRole: globalNotification.target_user_role || null,
-        targetConditions: globalNotification.target_conditions || null,
-        createdByUserId: globalNotification.created_by || null
+        targetUserRole: globalNotification.targetUserRole || null,
+        targetConditions: globalNotification.targetConditions || null,
+        createdByUserId: globalNotification.createdBy || null
       };
     }
 
@@ -408,9 +408,9 @@ class GlobalNotificationReadComponent {
       return null;
     }
     return {
-      globalNotificationId: read.global_notification_id,
-      userId: read.user_id,
-      readAt: read.read_at
+      globalNotificationId: read.globalNotificationId,
+      userId: read.userId,
+      readAt: read.readAt
     };
   }
 }
@@ -428,13 +428,13 @@ class UserPushTokenComponent {
       return null;
     }
     return {
-      userPushTokenId: pushToken.user_push_token_id,
-      userId: pushToken.user_id,
+      userPushTokenId: pushToken.userPushTokenId,
+      userId: pushToken.userId,
       token: pushToken.token,
       platform: pushToken.platform,
-      deviceId: pushToken.device_id || null,
-      isActive: pushToken.is_active,
-      lastUsedAt: pushToken.last_used_at,
+      deviceId: pushToken.deviceId || null,
+      isActive: pushToken.isActive,
+      lastUsedAt: pushToken.lastUsedAt,
       createdAt: pushToken.createdAt
     };
   }
@@ -460,17 +460,17 @@ class UserNotificationPreferenceComponent {
       return null;
     }
     return {
-      userNotificationPreferenceId: preference.user_notification_preference_id,
-      userId: preference.user_id,
+      userNotificationPreferenceId: preference.userNotificationPreferenceId,
+      userId: preference.userId,
       // null = preferencia global (afecta a todas las categorías)
-      notificationCategoryCode: preference.notification_category_code || null,
-      allowPush: preference.allow_push,
-      allowEmail: preference.allow_email,
-      allowSms: preference.allow_sms,
-      quietHoursStart: preference.quiet_hours_start || null,
-      quietHoursEnd: preference.quiet_hours_end || null,
-      category: preference.notification_category
-        ? NotificationCategoryComponent.build(preference.notification_category)
+      notificationCategoryCode: preference.notificationCategoryCode || null,
+      allowPush: preference.allowPush,
+      allowEmail: preference.allowEmail,
+      allowSms: preference.allowSms,
+      quietHoursStart: preference.quietHoursStart || null,
+      quietHoursEnd: preference.quietHoursEnd || null,
+      category: preference.notificationCategory
+        ? NotificationCategoryComponent.build(preference.notificationCategory)
         : null,
       createdAt: preference.createdAt,
       updatedAt: preference.updatedAt

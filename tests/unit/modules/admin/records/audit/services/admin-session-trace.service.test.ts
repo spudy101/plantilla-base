@@ -31,9 +31,9 @@ jest.mock('modules/schemas/kyc/iam/repositories/auth-trusted-device.repository',
 }));
 
 jest.mock('shared/dtos/audit/components-audit.dto', () => ({
-  UserConsentComponent: { build: jest.fn(r => ({ built: 'consent', id: r.user_consent_id })) },
+  UserConsentComponent: { build: jest.fn(r => ({ built: 'consent', id: r.userConsentId })) },
   NotificationPreferenceComponent: { build: jest.fn(r => ({ built: 'pref', id: r.id })) },
-  TrustedDeviceComponent: { build: jest.fn(r => ({ built: 'device', id: r.user_trusted_device_id })) }
+  TrustedDeviceComponent: { build: jest.fn(r => ({ built: 'device', id: r.userTrustedDeviceId })) }
 }));
 
 jest.mock('shared/utils/logger.util', () => ({
@@ -79,19 +79,19 @@ describe('AdminSessionTraceService', () => {
   describe('listSessions', () => {
     it('lista sesiones y arma el countMap de acciones por sesión', async () => {
       userSessionRepository.findPaginatedWithDeviceAndUser.mockResolvedValue({
-        rows: [{ user_session_id: 's1' }, { user_session_id: 's2' }],
+        rows: [{ userSessionId: 's1' }, { userSessionId: 's2' }],
         count: 2
       });
       auditLogRepository.countBySessionIds.mockResolvedValue([
-        { session_id: 's1', count: '3' },
-        { session_id: 's2', count: '0' }
+        { sessionId: 's1', count: 3 },
+        { sessionId: 's2', count: 0 }
       ]);
 
       const result = await service.listSessions({ userId: 'u-1' }, ADMIN_ID);
 
       expect(auditLogRepository.countBySessionIds).toHaveBeenCalledWith(['s1', 's2']);
       expect(SessionTraceListDTO).toHaveBeenCalledWith(
-        [{ user_session_id: 's1' }, { user_session_id: 's2' }],
+        [{ userSessionId: 's1' }, { userSessionId: 's2' }],
         new Map([
           ['s1', 3],
           ['s2', 0]
@@ -116,12 +116,12 @@ describe('AdminSessionTraceService', () => {
     });
 
     it('devuelve el timeline y marca hasDetail solo para tablas registradas con id', async () => {
-      userSessionRepository.findByIdWithDeviceAndUser.mockResolvedValue({ user_session_id: 's1' });
+      userSessionRepository.findByIdWithDeviceAndUser.mockResolvedValue({ userSessionId: 's1' });
       auditLogRepository.findPaginatedWithExecutor.mockResolvedValue({
         rows: [
-          { entity_table: 'user_consents', entity_id: 'c1' },
-          { entity_table: 'tabla_no_registrada', entity_id: 'x1' },
-          { entity_table: 'user_consents', entity_id: null }
+          { entityTable: 'user_consents', entityId: 'c1' },
+          { entityTable: 'tabla_no_registrada', entityId: 'x1' },
+          { entityTable: 'user_consents', entityId: null }
         ],
         count: 3
       });
@@ -137,9 +137,9 @@ describe('AdminSessionTraceService', () => {
 
       // La función hasDetailFn se pasa como último argumento del DTO: la ejercitamos directamente.
       const hasDetailFn = SessionTimelineDTO.mock.calls[0][4];
-      expect(hasDetailFn({ entity_table: 'user_consents', entity_id: 'c1' })).toBe(true);
-      expect(hasDetailFn({ entity_table: 'tabla_no_registrada', entity_id: 'x1' })).toBe(false);
-      expect(hasDetailFn({ entity_table: 'user_consents', entity_id: null })).toBe(false);
+      expect(hasDetailFn({ entityTable: 'user_consents', entityId: 'c1' })).toBe(true);
+      expect(hasDetailFn({ entityTable: 'tabla_no_registrada', entityId: 'x1' })).toBe(false);
+      expect(hasDetailFn({ entityTable: 'user_consents', entityId: null })).toBe(false);
     });
   });
 
@@ -151,20 +151,20 @@ describe('AdminSessionTraceService', () => {
     });
 
     it('hidrata por lote, agrupa ids únicos por tabla y reporta tablas no registradas en skipped', async () => {
-      userSessionRepository.findById.mockResolvedValue({ user_session_id: 's1' });
+      userSessionRepository.findById.mockResolvedValue({ userSessionId: 's1' });
       auditLogRepository.findEntityRefsBySession.mockResolvedValue([
-        { entity_table: 'user_consents', entity_id: 'c1' },
-        { entity_table: 'user_consents', entity_id: 'c1' }, // duplicado → un solo id
-        { entity_table: 'user_trusted_devices', entity_id: 'd1' },
-        { entity_table: 'foo_table', entity_id: 'z1' }
+        { entityTable: 'user_consents', entityId: 'c1' },
+        { entityTable: 'user_consents', entityId: 'c1' }, // duplicado → un solo id
+        { entityTable: 'user_trusted_devices', entityId: 'd1' },
+        { entityTable: 'foo_table', entityId: 'z1' }
       ]);
-      userConsentRepository.findByIds.mockResolvedValue([{ user_consent_id: 'c1' }]);
-      trustedDeviceRepo.findByIds.mockResolvedValue([{ user_trusted_device_id: 'd1' }]);
+      userConsentRepository.findByIds.mockResolvedValue([{ userConsentId: 'c1' }]);
+      trustedDeviceRepo.findByIds.mockResolvedValue([{ userTrustedDeviceId: 'd1' }]);
 
       await service.getSessionEntities('s1', {}, ADMIN_ID);
 
       // ids únicos por tabla
-      expect(userConsentRepository.findByIds).toHaveBeenCalledWith(['c1'], 'user_consent_id');
+      expect(userConsentRepository.findByIds).toHaveBeenCalledWith(['c1'], 'userConsentId');
 
       const [sessionIdArg, entities, skipped] = SessionEntitiesDTO.mock.calls[0];
       expect(sessionIdArg).toBe('s1');
@@ -182,12 +182,12 @@ describe('AdminSessionTraceService', () => {
     });
 
     it('acota la hidratación a una sola tabla con ?entityTable', async () => {
-      userSessionRepository.findById.mockResolvedValue({ user_session_id: 's1' });
+      userSessionRepository.findById.mockResolvedValue({ userSessionId: 's1' });
       auditLogRepository.findEntityRefsBySession.mockResolvedValue([
-        { entity_table: 'user_consents', entity_id: 'c1' },
-        { entity_table: 'user_trusted_devices', entity_id: 'd1' }
+        { entityTable: 'user_consents', entityId: 'c1' },
+        { entityTable: 'user_trusted_devices', entityId: 'd1' }
       ]);
-      userConsentRepository.findByIds.mockResolvedValue([{ user_consent_id: 'c1' }]);
+      userConsentRepository.findByIds.mockResolvedValue([{ userConsentId: 'c1' }]);
 
       await service.getSessionEntities('s1', { entityTable: 'user_consents' }, ADMIN_ID);
 

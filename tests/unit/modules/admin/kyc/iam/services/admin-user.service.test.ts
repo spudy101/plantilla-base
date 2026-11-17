@@ -104,7 +104,7 @@ jest.mock('modules/schemas/core/services/dual-approval.service', () => ({
 }));
 
 jest.mock('shared/utils/audit-diff.util', () => ({
-  buildAuditDiff: jest.fn().mockReturnValue({ before: { first_name: 'A' }, after: { first_name: 'B' } })
+  buildAuditDiff: jest.fn().mockReturnValue({ before: { firstName: 'A' }, after: { firstName: 'B' } })
 }));
 
 jest.mock('modules/admin/kyc/iam/dtos/admin-user.dto', () => ({
@@ -116,6 +116,7 @@ jest.mock('modules/admin/kyc/iam/dtos/admin-user.dto', () => ({
   RoleOptionDTO: (r: Loose) => ({ dto: 'role', ...r })
 }));
 
+import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked, Loose } from 'tests/helpers/mock';
 import userRepositoryModule from 'modules/schemas/kyc/iam/repositories/user.repository';
 const userRepository = mocked(userRepositoryModule);
@@ -154,19 +155,19 @@ const AUDIT_CTX = { adminUserId: 'admin-1', ipAddress: '1.2.3.4', userAgent: 'je
 
 // Fábrica de usuario interno (rol auditor por defecto).
 const makeUser = (over = {}) => ({
-  user_id: 'u-1',
-  role_id: 'role-auditor',
-  is_active: true,
-  deleted_at: null,
+  userId: 'u-1',
+  roleId: 'role-auditor',
+  isActive: true,
+  deletedAt: null,
   role: { name: 'auditor' },
-  person: { person_id: 'p-1', first_name: 'Juan', last_name: 'Perez' },
+  person: { personId: 'p-1', firstName: 'Juan', lastName: 'Perez' },
   ...over
 });
 
 describe('AdminUserService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    roleRepository.findByNames.mockResolvedValue([{ role_id: 'role-auditor' }, { role_id: 'role-admin' }]);
+    roleRepository.findByNames.mockResolvedValue([{ roleId: 'role-auditor' }, { roleId: 'role-admin' }]);
     userRepository.findByUserId.mockResolvedValue(makeUser());
     DualApprovalService.gate.mockResolvedValue({ pending: false });
     DualApprovalService.annotatePending.mockResolvedValue(undefined);
@@ -211,7 +212,7 @@ describe('AdminUserService', () => {
 
   describe('listDeleted', () => {
     it('lista solo eliminados (onlyDeleted) y audita', async () => {
-      userRepository.findAllPaginated.mockResolvedValue({ rows: [makeUser({ deleted_at: new Date() })], count: 1 });
+      userRepository.findAllPaginated.mockResolvedValue({ rows: [makeUser({ deletedAt: new Date() })], count: 1 });
 
       const result = await service.listDeleted({}, 'admin-1');
 
@@ -227,14 +228,19 @@ describe('AdminUserService', () => {
 
   describe('listRoleOptions', () => {
     it('devuelve los roles internos mapeados y audita', async () => {
-      roleRepository.findByNames.mockResolvedValue([{ role_id: 'r1', name: 'auditor' }]);
+      roleRepository.findByNames.mockResolvedValue([{ roleId: 'r1', name: 'auditor' }]);
 
       const result = await service.listRoleOptions('admin-1');
 
       // el service pide roles por nombre de negocio; el repositorio arma el IN / NOT IN
       expect(roleRepository.findByNames).toHaveBeenCalledWith(expect.any(Array), { exclude: expect.any(Array) });
-      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_ROLE_OPTIONS_VIEWED', 'admin-1', { totalItems: 1 }, expect.any(Object));
-      expect(result).toEqual([{ dto: 'role', role_id: 'r1', name: 'auditor' }]);
+      expect(logAudit).toHaveBeenCalledWith(
+        'INTERNAL_USER_ROLE_OPTIONS_VIEWED',
+        'admin-1',
+        { totalItems: 1 },
+        expect.any(Object)
+      );
+      expect(result).toEqual([{ dto: 'role', roleId: 'r1', name: 'auditor' }]);
     });
   });
 
@@ -243,7 +249,7 @@ describe('AdminUserService', () => {
       const result = await service.getById('u-1', 'admin-1');
 
       expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_VIEWED', 'admin-1', { targetUserId: 'u-1' }, expect.any(Object));
-      expect(result).toMatchObject({ dto: 'user', user_id: 'u-1' });
+      expect(result).toMatchObject({ dto: 'user', userId: 'u-1' });
     });
 
     it('lanza 404 si el usuario no existe', async () => {
@@ -265,10 +271,10 @@ describe('AdminUserService', () => {
     const data = { email: 'nuevo@x.com', firstName: 'Ana', lastName: 'Diaz', nationalId: 'SYS-1' };
 
     beforeEach(() => {
-      roleRepository.findByName.mockResolvedValue({ role_id: 'role-auditor', name: 'auditor' });
-      documentTypeRepository.findByCode.mockResolvedValue({ document_type_id: 'dt-system' });
-      InternalUserHelper.createInternalUser.mockResolvedValue({ user: { user_id: 'u-new' } });
-      userRepository.findByUserId.mockResolvedValue(makeUser({ user_id: 'u-new' }));
+      roleRepository.findByName.mockResolvedValue({ roleId: 'role-auditor', name: 'auditor' });
+      documentTypeRepository.findByCode.mockResolvedValue({ documentTypeId: 'dt-system' });
+      InternalUserHelper.createInternalUser.mockResolvedValue({ user: { userId: 'u-new' } });
+      userRepository.findByUserId.mockResolvedValue(makeUser({ userId: 'u-new' }));
     });
 
     it('crea el interno como AUDITOR, valida unicidad, audita, notifica y devuelve la contraseña temporal', async () => {
@@ -277,7 +283,17 @@ describe('AdminUserService', () => {
       expect(ProfileHelper.validateNationalIdUnique).toHaveBeenCalledWith('SYS-1');
       expect(ProfileHelper.validateEmailUnique).toHaveBeenCalledWith('nuevo@x.com');
       expect(InternalUserHelper.createInternalUser).toHaveBeenCalledWith(
-        expect.objectContaining({ email: 'nuevo@x.com', documentTypeId: 'dt-system', role: { role_id: 'role-auditor', name: 'auditor' } })
+        expect.objectContaining({
+          email: 'nuevo@x.com',
+          documentTypeId: 'dt-system',
+          role: { roleId: 'role-auditor', name: 'auditor' }
+        })
+      );
+      expect(logAudit).toHaveBeenCalledWith(
+        'INTERNAL_USER_CREATED',
+        'admin-1',
+        expect.objectContaining({ roleName: 'auditor' }),
+        expect.any(Object)
       );
       expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_CREATED', 'admin-1', expect.objectContaining({ roleName: 'auditor' }), expect.any(Object));
       expect(result).toMatchObject({ dto: 'created', temporaryPassword: 'TempPass123!' });
@@ -309,18 +325,23 @@ describe('AdminUserService', () => {
   describe('update', () => {
     it('actualiza datos básicos de la persona, audita el diff y devuelve el DTO fresco', async () => {
       const user = makeUser();
-      userRepository.findByUserId.mockResolvedValueOnce(user).mockResolvedValueOnce(makeUser({ user_id: 'u-1' }));
+      userRepository.findByUserId.mockResolvedValueOnce(user).mockResolvedValueOnce(makeUser({ userId: 'u-1' }));
 
       const result = await service.update('u-1', { firstName: 'Nuevo' }, AUDIT_CTX);
 
       // Se persiste vía repositorio (no con la instancia ORM)
-      expect(personRepository.update).toHaveBeenCalledWith('p-1', expect.objectContaining({ first_name: 'Nuevo' }));
-      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_UPDATED', 'admin-1', { before: { first_name: 'A' }, after: { first_name: 'B' } }, expect.any(Object));
+      expect(personRepository.update).toHaveBeenCalledWith('p-1', expect.objectContaining({ firstName: 'Nuevo' }));
+      expect(logAudit).toHaveBeenCalledWith(
+        'INTERNAL_USER_UPDATED',
+        'admin-1',
+        { before: { firstName: 'A' }, after: { firstName: 'B' } },
+        expect.any(Object)
+      );
       expect(result).toMatchObject({ dto: 'user' });
     });
 
     it('rechaza (409) modificar una cuenta eliminada', async () => {
-      userRepository.findByUserId.mockResolvedValue(makeUser({ deleted_at: new Date() }));
+      userRepository.findByUserId.mockResolvedValue(makeUser({ deletedAt: new Date() }));
       await expect(service.update('u-1', { firstName: 'X' }, AUDIT_CTX)).rejects.toThrow(/eliminado/);
     });
   });
@@ -331,7 +352,7 @@ describe('AdminUserService', () => {
 
   describe('changeRole', () => {
     beforeEach(() => {
-      roleRepository.findById.mockResolvedValue({ role_id: 'role-admin', name: 'admin' });
+      roleRepository.findById.mockResolvedValue({ roleId: 'role-admin', name: 'admin' });
     });
 
     it('prohíbe cambiar el rol de un superadministrador', async () => {
@@ -340,7 +361,7 @@ describe('AdminUserService', () => {
     });
 
     it('rechaza si el usuario ya tiene ese rol', async () => {
-      userRepository.findByUserId.mockResolvedValue(makeUser({ role_id: 'role-admin' }));
+      userRepository.findByUserId.mockResolvedValue(makeUser({ roleId: 'role-admin' }));
       await expect(service.changeRole('u-1', 'role-admin', AUDIT_CTX)).rejects.toThrow(/ya tiene este rol/);
     });
 
@@ -350,7 +371,7 @@ describe('AdminUserService', () => {
     });
 
     it('rechaza (400) si el rol destino no es interno', async () => {
-      roleRepository.findById.mockResolvedValue({ role_id: 'role-cli', name: 'cliente' });
+      roleRepository.findById.mockResolvedValue({ roleId: 'role-cli', name: 'cliente' });
       await expect(service.changeRole('u-1', 'role-cli', AUDIT_CTX)).rejects.toThrow(/no es un rol interno/);
     });
 
@@ -365,7 +386,7 @@ describe('AdminUserService', () => {
     it('camino inline: ejecuta el cambio (update + bitácora + invalidación + notif)', async () => {
       const result = await service.changeRole('u-1', 'role-admin', AUDIT_CTX);
 
-      expect(userRepository.update).toHaveBeenCalledWith('u-1', { role_id: 'role-admin' });
+      expect(userRepository.update).toHaveBeenCalledWith('u-1', { roleId: 'role-admin' });
       expect(KycSharedUtil.logChange).toHaveBeenCalledWith(expect.objectContaining({ changeType: 'role', newValue: 'admin' }));
       expect(userSessionRepository.closeAllByUser).toHaveBeenCalledWith('u-1', 'role_changed');
       expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_ROLE_CHANGED', 'admin-1', expect.any(Object), expect.any(Object));
@@ -387,12 +408,12 @@ describe('AdminUserService', () => {
     });
 
     it('rechaza si el usuario ya está en el estado pedido', async () => {
-      userRepository.findByUserId.mockResolvedValue(makeUser({ is_active: true }));
+      userRepository.findByUserId.mockResolvedValue(makeUser({ isActive: true }));
       await expect(service.setStatus('u-1', true, AUDIT_CTX)).rejects.toThrow(/ya está activo/);
     });
 
     it('al desactivar cierra sesiones, registra bitácora, audita y notifica', async () => {
-      userRepository.findByUserId.mockResolvedValue(makeUser({ is_active: true }));
+      userRepository.findByUserId.mockResolvedValue(makeUser({ isActive: true }));
 
       const result = await service.setStatus('u-1', false, AUDIT_CTX);
 
@@ -406,7 +427,7 @@ describe('AdminUserService', () => {
     });
 
     it('al activar NO cierra sesiones y audita el alta', async () => {
-      userRepository.findByUserId.mockResolvedValue(makeUser({ is_active: false }));
+      userRepository.findByUserId.mockResolvedValue(makeUser({ isActive: false }));
 
       await service.setStatus('u-1', true, AUDIT_CTX);
 
@@ -423,19 +444,17 @@ describe('AdminUserService', () => {
     beforeEach(() => {
       // 1ª llamada: adminUser (maker); 2ª: el target interno.
       userRepository.findByUserId.mockReset();
-      userRepository.findByUserId
-        .mockResolvedValueOnce({ password_hash: 'hash' })
-        .mockResolvedValueOnce(makeUser());
+      userRepository.findByUserId.mockResolvedValueOnce({ passwordHash: 'hash' }).mockResolvedValueOnce(makeUser());
       // executeDeleteUser usa una transacción propia.
-      sequelize.transaction.mockResolvedValue({
+      sequelize.transaction.mockImplementation(managedTransaction({
         commit: jest.fn().mockResolvedValue(undefined),
         rollback: jest.fn().mockResolvedValue(undefined),
         finished: false
-      });
+      }));
       userRepository.findForAccountDeletion.mockResolvedValue({
-        user_id: 'u-1',
+        userId: 'u-1',
         username: 'jperez',
-        person: { person_id: 'p-1', national_id: 'SYS-1', first_name: 'Juan', contact: { email: 'j@x.com' } }
+        person: { personId: 'p-1', nationalId: 'SYS-1', firstName: 'Juan', contact: { email: 'j@x.com' } }
       });
     });
 
@@ -448,7 +467,7 @@ describe('AdminUserService', () => {
     it('prohíbe eliminar a un superadministrador', async () => {
       userRepository.findByUserId.mockReset();
       userRepository.findByUserId
-        .mockResolvedValueOnce({ password_hash: 'hash' })
+        .mockResolvedValueOnce({ passwordHash: 'hash' })
         .mockResolvedValueOnce(makeUser({ role: { name: 'super_admin' } }));
       await expect(service.deleteUser('u-1', 'pwd', AUDIT_CTX)).rejects.toThrow(/super administrador/);
     });
@@ -475,7 +494,7 @@ describe('AdminUserService', () => {
   describe('executeDeleteUser', () => {
     it('hace rollback y propaga si el usuario no existe dentro de la transacción', async () => {
       const tx = { commit: jest.fn(), rollback: jest.fn().mockResolvedValue(undefined), finished: false };
-      sequelize.transaction.mockResolvedValue(tx);
+      sequelize.transaction.mockImplementation(managedTransaction(tx));
       userRepository.findForAccountDeletion.mockResolvedValue(null);
 
       await expect(service.executeDeleteUser('u-1', AUDIT_CTX)).rejects.toThrow('Usuario no encontrado');
@@ -490,12 +509,17 @@ describe('AdminUserService', () => {
 
   describe('listSessions', () => {
     it('devuelve las sesiones activas mapeadas y audita', async () => {
-      userSessionRepository.findActiveByUser.mockResolvedValue([{ user_session_id: 's-1' }]);
+      userSessionRepository.findActiveByUser.mockResolvedValue([{ userSessionId: 's-1' }]);
 
       const result = await service.listSessions('u-1', 'admin-1');
 
-      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_SESSIONS_VIEWED', 'admin-1', { targetUserId: 'u-1' }, expect.any(Object));
-      expect(result).toEqual([{ dto: 'session', user_session_id: 's-1' }]);
+      expect(logAudit).toHaveBeenCalledWith(
+        'INTERNAL_USER_SESSIONS_VIEWED',
+        'admin-1',
+        { targetUserId: 'u-1' },
+        expect.any(Object)
+      );
+      expect(result).toEqual([{ dto: 'session', userSessionId: 's-1' }]);
     });
   });
 

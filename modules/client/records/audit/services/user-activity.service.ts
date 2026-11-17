@@ -82,8 +82,7 @@ class UserActivityService {
 
     const merged = [
       ...audit.rows.map((r): UserActivityDto.Item => ({ __source: 'audit', row: r, at: r.createdAt })),
-      // created_at: el repo lo selecciona por nombre de columna (ver UserActivityDto)
-      ...changes.rows.map((r): UserActivityDto.Item => ({ __source: 'change', row: r, at: (r as { created_at?: Date }).created_at }))
+      ...changes.rows.map((r): UserActivityDto.Item => ({ __source: 'change', row: r, at: r.createdAt }))
     ]
       .sort((a, b) => new Date(b.at ?? 0).getTime() - new Date(a.at ?? 0).getTime())
       .slice(offset, offset + limit);
@@ -116,7 +115,7 @@ class UserActivityService {
     const sessionIds = [
       ...new Set(
         pageItems
-          .map(item => (item.__source === 'audit' ? item.row.session_id : item.row.origin_session_id))
+          .map(item => (item.__source === 'audit' ? item.row.sessionId : item.row.originSessionId))
           .filter((id): id is string => Boolean(id))
       )
     ];
@@ -127,8 +126,8 @@ class UserActivityService {
     const sessions = await this.userSessionRepository.findByIdsWithDeviceForUser(sessionIds, userId);
     return new Map(
       sessions.map((s): [string, { deviceId: string; name: string | null } | null] => [
-        s.user_session_id,
-        s.device ? { deviceId: s.device.user_trusted_device_id, name: s.device.device_name ?? null } : null
+        s.userSessionId,
+        s.device ? { deviceId: s.device.userTrustedDeviceId, name: s.device.deviceName ?? null } : null
       ])
     );
   }

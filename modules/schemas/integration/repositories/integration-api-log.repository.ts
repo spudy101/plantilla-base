@@ -1,102 +1,85 @@
-import { fn, col } from 'sequelize';
-import BaseRepository from '../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../shared/models';
-const { IntegrationApiLog } = modelsModule;
-import type { FindOptions } from 'sequelize';
-import ReadRepository from '../../../../shared/repositories/read.repository';
-import type defineIntegrationApiLog from '../models/integration-api-log.model';
-import * as queryModule from '../../../../shared/repositories/query';
-const { dateRange, toWhere } = queryModule;
-import type { WhereClause } from '../../../../shared/repositories/query';
+// modules/schemas/integration/repositories/integration-api-log.repository.ts
+//
+// Bitácora de llamadas a proveedores externos (AWS). El usuario y la sesión que originaron cada
+// llamada se adjuntan con una consulta por tabla: el schema no declara esas relaciones (son columnas
+// de trazabilidad sin FK).
+import PrismaRepository from '../../../../shared/repositories/prisma.repository';
+import { IntegrationApiLogProduct } from '../../../../shared/database/generated/prisma/client';
+import type { IntegrationApiLog, IntegrationApiLogResult, Prisma } from '../../../../shared/database/generated/prisma/client';
 
-type Product = defineIntegrationApiLog.Attributes['product'];
+type Product = IntegrationApiLogProduct;
 
-// Derivado del ENUM del modelo (única fuente de verdad de los productos monitoreados).
-const PRODUCTS = (IntegrationApiLog.rawAttributes.product?.values ?? []) as readonly Product[];
+// Derivado del enum de la base (única fuente de verdad de los productos monitoreados).
+const PRODUCTS = Object.values(IntegrationApiLogProduct) as readonly Product[];
 
 const PERCENT_SCALE = 10000;
 const PCT_DIVISOR = 100;
 const FULL_PERCENT = 100;
 
-class IntegrationApiLogRepository extends BaseRepository<defineIntegrationApiLog.Instance> {
-  constructor() {
-    super(IntegrationApiLog, {});
-  }
+const USER_SELECT = { userId: true, username: true } satisfies Prisma.UserSelect;
+const SESSION_SELECT = { userSessionId: true, ipAddress: true, userAgent: true, startedAt: true, status: true } satisfies Prisma.UserSessionSelect;
 
+export type IntegrationLogUser = Prisma.UserGetPayload<{ select: typeof USER_SELECT }>;
+export type IntegrationLogSession = Prisma.UserSessionGetPayload<{ select: typeof SESSION_SELECT }>;
+/** Llamada con quién la hizo y en qué sesión. */
+export type IntegrationLogRow = IntegrationApiLog & { user: IntegrationLogUser | null; session: IntegrationLogSession | null };
+
+class IntegrationApiLogRepository extends PrismaRepository {
   get products() {
     return PRODUCTS;
   }
 
-  /**
-   * Lista paginada (drill-down por llamada) con filtros opcionales. Incluye el usuario y la
-   * sesión que originaron cada llamada, para responder "quién llamó y en qué sesión".
-   */
-  override findAllPaginated(
-    { product, result, userId, sessionId, from, to }: IntegrationApiLogRepository.Filters = {},
-    paginationParams: ReadRepository.PaginationParams = {}
-  ) {
-    const where: WhereClause = {};
+  async create(data: Prisma.IntegrationApiLogUncheckedCreateInput): Promise<IntegrationApiLog> {
+    return (await this.db()).integrationApiLog.create({ data });
+  }
 
+  /** Lista paginada (drill-down por llamada) con filtros opcionales, con usuario y sesión. */
+  async findAllPaginated(
+    { product, result, userId, sessionId, from, to }: IntegrationApiLogRepository.Filters = {},
+    { limit, offset }: PrismaRepository.PaginationParams = {}
+  ): Promise<PrismaRepository.Page<IntegrationLogRow>> {
+    const where: Prisma.IntegrationApiLogWhereInput = {};
+    // Llegan del query string: un valor fuera del enum no coincide con nada (como con Sequelize)
     if (product) {
-      where.product = product;
+      if (!PRODUCTS.includes(product as Product)) {
+        return { rows: [], count: 0 };
+      }
+      where.product = product as Product;
     }
     if (result) {
-      where.result = result;
+      if (!['success', 'failed', 'circuit_open'].includes(result)) {
+        return { rows: [], count: 0 };
+      }
+      where.result = result as IntegrationApiLogResult;
     }
     if (userId) {
-      where.user_id = userId;
+      where.userId = userId;
     }
     if (sessionId) {
-      where.session_id = sessionId;
+      where.sessionId = sessionId;
     }
-    const createdAtRange = dateRange(from, to);
-    if (createdAtRange) {
-      where.created_at = createdAtRange;
-    }
+    Object.assign(where, createdAtRange(from, to));
 
-    return IntegrationApiLog.findAndCountAll({
-      where: toWhere(where),
-      include: [
-        { association: 'user', attributes: ['user_id', 'username'], required: false },
-        {
-          association: 'session',
-          attributes: ['user_session_id', 'ip_address', 'user_agent', 'started_at', 'status'],
-          required: false
-        }
-      ],
-      limit: paginationParams.limit,
-      offset: paginationParams.offset,
-      order: [['created_at', 'DESC']],
-      distinct: true
-    });
+    const db = await this.db();
+    const [rows, count] = await Promise.all([
+      db.integrationApiLog.findMany({ where, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
+      db.integrationApiLog.count({ where })
+    ]);
+    return { rows: await this.attachOrigin(rows), count };
   }
 
-  /**
-   * Detalle forense de una llamada: incluye request/response payload + usuario + sesión.
-   */
-  override findById(id: string, options: FindOptions<defineIntegrationApiLog.Attributes> = {}) {
-    return IntegrationApiLog.findByPk(id, {
-      ...options,
-      include: [
-        { association: 'user', attributes: ['user_id', 'username'], required: false },
-        {
-          association: 'session',
-          attributes: ['user_session_id', 'ip_address', 'user_agent', 'started_at', 'status'],
-          required: false
-        }
-      ]
-    });
+  /** Detalle forense de una llamada (payloads + usuario + sesión). */
+  async findById(apiLogId: string): Promise<IntegrationLogRow | null> {
+    const row = await (await this.db()).integrationApiLog.findUnique({ where: { apiLogId } });
+    return row ? (await this.attachOrigin([row]))[0]! : null;
   }
 
-  /**
-   * Último intento registrado para una notificación + producto (ses/sns). Lo usa el worker de
-   * reintentos para leer el error_code del último envío.
-   */
-  findLatestByNotification(notificationId: string, product: Product) {
-    return IntegrationApiLog.findOne({
-      where: { notification_id: notificationId, product },
-      order: [['created_at', 'DESC']],
-      attributes: ['api_log_id', 'result', 'error_code', 'created_at']
+  /** Último intento registrado para una notificación + producto (ses/sns): lo usa el worker de reintentos. */
+  async findLatestByNotification(notificationId: string, product: Product) {
+    return (await this.db()).integrationApiLog.findFirst({
+      where: { notificationId, product },
+      orderBy: { createdAt: 'desc' },
+      select: { apiLogId: true, result: true, errorCode: true, createdAt: true }
     });
   }
 
@@ -105,28 +88,11 @@ class IntegrationApiLogRepository extends BaseRepository<defineIntegrationApiLog
    * % de éxito (solo llamadas reales success+failed, excluye system_error) y tiempo promedio.
    */
   async getStats({ from, to }: Pick<IntegrationApiLogRepository.Filters, 'from' | 'to'> = {}) {
-    const where: WhereClause = {};
-    const createdAtRange = dateRange(from, to);
-    if (createdAtRange) {
-      where.created_at = createdAtRange;
-    }
-
-    const rows = await this.aggregate<{
-      product: Product;
-      result: defineIntegrationApiLog.Attributes['result'];
-      is_system_error: boolean;
-      count: string;
-      avg_response_ms: string | null;
-    }>({
-      where: toWhere(where),
-      attributes: [
-        'product',
-        'result',
-        'is_system_error',
-        [fn('COUNT', col('api_log_id')), 'count'],
-        [fn('AVG', col('response_time_ms')), 'avg_response_ms']
-      ],
-      group: ['product', 'result', 'is_system_error']
+    const groups = await (await this.db()).integrationApiLog.groupBy({
+      by: ['product', 'result', 'isSystemError'],
+      where: createdAtRange(from, to),
+      _count: { _all: true },
+      _avg: { responseTimeMs: true }
     });
 
     const byProduct = {} as Record<Product, IntegrationApiLogRepository.ProductStats>;
@@ -144,25 +110,25 @@ class IntegrationApiLogRepository extends BaseRepository<defineIntegrationApiLog
     }
 
     const respAcc: Partial<Record<Product, { weighted: number; count: number }>> = {};
-    for (const row of rows) {
-      const p = byProduct[row.product];
+    for (const g of groups) {
+      const p = byProduct[g.product];
       if (!p) {
         continue;
       }
-      const count = Number.parseInt(row.count, 10);
+      const count = g._count._all;
       p.total += count;
-      if (row.is_system_error) {
+      if (g.isSystemError) {
         p.systemError += count;
-      } else if (row.result === 'success') {
+      } else if (g.result === 'success') {
         p.success += count;
-      } else if (row.result === 'failed') {
+      } else if (g.result === 'failed') {
         p.failed += count;
-      } else if (row.result === 'circuit_open') {
+      } else if (g.result === 'circuit_open') {
         p.circuitOpen += count;
       }
-      if (row.avg_response_ms) {
-        const acc = (respAcc[row.product] ??= { weighted: 0, count: 0 });
-        acc.weighted += Number.parseFloat(row.avg_response_ms) * count;
+      if (g._avg.responseTimeMs != null) {
+        const acc = (respAcc[g.product] ??= { weighted: 0, count: 0 });
+        acc.weighted += g._avg.responseTimeMs * count;
         acc.count += count;
       }
     }
@@ -175,9 +141,33 @@ class IntegrationApiLogRepository extends BaseRepository<defineIntegrationApiLog
       p.avgResponseMs = acc && acc.count > 0 ? Math.round(acc.weighted / acc.count) : null;
     }
 
-    const summary = _summarize(byProduct);
-    return { summary, byProduct };
+    return { summary: _summarize(byProduct), byProduct };
   }
+
+  /** Adjunta usuario y sesión de origen con una consulta por tabla. */
+  private async attachOrigin(rows: IntegrationApiLog[]): Promise<IntegrationLogRow[]> {
+    const userIds = [...new Set(rows.map(r => r.userId).filter((id): id is string => Boolean(id)))];
+    const sessionIds = [...new Set(rows.map(r => r.sessionId).filter((id): id is string => Boolean(id)))];
+    const db = await this.db();
+    const [users, sessions] = await Promise.all([
+      userIds.length ? db.user.findMany({ where: { userId: { in: userIds } }, select: USER_SELECT }) : [],
+      sessionIds.length ? db.userSession.findMany({ where: { userSessionId: { in: sessionIds } }, select: SESSION_SELECT }) : []
+    ]);
+    const userById = new Map(users.map(u => [u.userId, u]));
+    const sessionById = new Map(sessions.map(s => [s.userSessionId, s]));
+    return rows.map(r => ({
+      ...r,
+      user: (r.userId && userById.get(r.userId)) || null,
+      session: (r.sessionId && sessionById.get(r.sessionId)) || null
+    }));
+  }
+}
+
+function createdAtRange(from?: string | Date | null, to?: string | Date | null): Prisma.IntegrationApiLogWhereInput {
+  if (!from && !to) {
+    return {};
+  }
+  return { createdAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } };
 }
 
 function _summarize(byProduct: Record<string, IntegrationApiLogRepository.ProductStats>) {

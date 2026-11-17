@@ -14,8 +14,9 @@ const flush = () =>
 jest.mock('modules/schemas/records/legal/repositories/consent-type.repository', () => ({
   findAllPaginated: jest.fn(),
   findById: jest.fn(),
-  findOne: jest.fn(),
-  create: jest.fn()
+  findAnyByCode: jest.fn(),
+  create: jest.fn(),
+  update: jest.fn()
 }));
 
 jest.mock('modules/schemas/notification/services/notification-creation.service', () => ({
@@ -96,7 +97,7 @@ describe('ConsentTypeService', () => {
     });
 
     it('devuelve el DTO de detalle y audita cuando existe', async () => {
-      consentTypeRepository.findById.mockResolvedValue({ code: 'PP', consent_type_id: 'ct-1' });
+      consentTypeRepository.findById.mockResolvedValue({ code: 'PP', consentTypeId: 'ct-1' });
       const result = await service.getById('ct-1', ADMIN_ID);
       expect(result).toEqual({ detail: 'PP' });
       expect(logAudit).toHaveBeenCalledWith(
@@ -110,19 +111,25 @@ describe('ConsentTypeService', () => {
 
   describe('create', () => {
     it('lanza conflict si ya existe un tipo con el mismo código', async () => {
-      consentTypeRepository.findOne.mockResolvedValue({ code: 'PP' });
+      consentTypeRepository.findAnyByCode.mockResolvedValue({ code: 'PP' });
       await expect(service.create({ code: 'PP', name: 'x' }, AUDIT_CTX)).rejects.toMatchObject({ statusCode: 409 });
       expect(consentTypeRepository.create).not.toHaveBeenCalled();
     });
 
+    it('verifica la unicidad con el código ya en mayúsculas (el que se guarda)', async () => {
+      consentTypeRepository.findAnyByCode.mockResolvedValue({ code: 'PP' });
+      await expect(service.create({ code: 'pp', name: 'x' }, AUDIT_CTX)).rejects.toMatchObject({ statusCode: 409 });
+      expect(consentTypeRepository.findAnyByCode).toHaveBeenCalledWith('PP');
+    });
+
     it('crea con el código en mayúsculas, audita, loguea y notifica al admin', async () => {
-      consentTypeRepository.findOne.mockResolvedValue(null);
-      consentTypeRepository.create.mockResolvedValue({ consent_type_id: 'ct-9', code: 'PRIVACY', name: 'Política' });
+      consentTypeRepository.findAnyByCode.mockResolvedValue(null);
+      consentTypeRepository.create.mockResolvedValue({ consentTypeId: 'ct-9', code: 'PRIVACY', name: 'Política' });
 
       const result = await service.create({ code: 'privacy', name: 'Política' }, AUDIT_CTX);
 
       expect(consentTypeRepository.create).toHaveBeenCalledWith(
-        expect.objectContaining({ code: 'PRIVACY', name: 'Política', is_mandatory: true, is_revocable: false, is_active: true })
+        expect.objectContaining({ code: 'PRIVACY', name: 'Política', isMandatory: true, isRevocable: false, isActive: true })
       );
       expect(result).toEqual({ detail: 'PRIVACY' });
       expect(logAudit).toHaveBeenCalledWith('CONSENT_TYPE_CREATED', ADMIN_ID, expect.any(Object), expect.any(Object));
@@ -134,19 +141,19 @@ describe('ConsentTypeService', () => {
     });
 
     it('respeta isMandatory:false e isRevocable:true del body', async () => {
-      consentTypeRepository.findOne.mockResolvedValue(null);
-      consentTypeRepository.create.mockResolvedValue({ consent_type_id: 'ct-9', code: 'CC' });
+      consentTypeRepository.findAnyByCode.mockResolvedValue(null);
+      consentTypeRepository.create.mockResolvedValue({ consentTypeId: 'ct-9', code: 'CC' });
 
       await service.create({ code: 'cc', name: 'x', isMandatory: false, isRevocable: true }, AUDIT_CTX);
 
       expect(consentTypeRepository.create).toHaveBeenCalledWith(
-        expect.objectContaining({ is_mandatory: false, is_revocable: true })
+        expect.objectContaining({ isMandatory: false, isRevocable: true })
       );
     });
 
     it('no tumba la operación si la notificación al admin falla', async () => {
-      consentTypeRepository.findOne.mockResolvedValue(null);
-      consentTypeRepository.create.mockResolvedValue({ consent_type_id: 'ct-9', code: 'CC' });
+      consentTypeRepository.findAnyByCode.mockResolvedValue(null);
+      consentTypeRepository.create.mockResolvedValue({ consentTypeId: 'ct-9', code: 'CC' });
       NotificationUtil.crearNotificacion.mockRejectedValueOnce(new Error('push down'));
 
       await service.create({ code: 'cc', name: 'x' }, AUDIT_CTX);
@@ -167,19 +174,15 @@ describe('ConsentTypeService', () => {
 
     it('actualiza aplicando defaults del registro, audita, notifica y devuelve DTO', async () => {
       const updated = { code: 'PP', name: 'Nuevo' };
-      const record = {
-        code: 'PP',
-        name: 'Viejo',
-        description: 'desc',
-        is_active: true,
-        update: jest.fn().mockResolvedValue(updated)
-      };
+      const record = { code: 'PP', name: 'Viejo', description: 'desc', isActive: true };
       consentTypeRepository.findById.mockResolvedValue(record);
+      consentTypeRepository.update.mockResolvedValue(updated);
 
       const result = await service.update('ct-1', { name: 'Nuevo' }, AUDIT_CTX);
 
-      expect(record.update).toHaveBeenCalledWith(
-        expect.objectContaining({ name: 'Nuevo', description: 'desc', is_active: true })
+      expect(consentTypeRepository.update).toHaveBeenCalledWith(
+        'ct-1',
+        expect.objectContaining({ name: 'Nuevo', description: 'desc', isActive: true })
       );
       expect(result).toEqual({ detail: 'PP' });
       expect(logAudit).toHaveBeenCalledWith('CONSENT_TYPE_UPDATED', ADMIN_ID, expect.any(Object), expect.any(Object));

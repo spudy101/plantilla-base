@@ -34,7 +34,7 @@ class TotpMfaService {
 
   async setupTOTP(userId: string, username: string | null) {
     const user = await this.account.getUserSecure(userId);
-    if (user.totp_enabled) {
+    if (user.totpEnabled) {
       throw AppError.conflict('TOTP ya esta activado para este usuario');
     }
 
@@ -45,7 +45,7 @@ class TotpMfaService {
     // Etiqueta en la app autenticadora: sin username (token viejo) quedaba literalmente 'null'
     const otpauthUrl = TotpUtil.keyuri(username ?? userId, secretCode);
 
-    await this.userRepository.update(userId, { totp_secret: EncryptionUtil.encrypt(secretCode) });
+    await this.userRepository.update(userId, { totpSecret: EncryptionUtil.encrypt(secretCode) });
 
     logAudit('MFA_TOTP_SETUP', userId, { username }, { entityId: userId, ...ENTITY });
 
@@ -54,61 +54,51 @@ class TotpMfaService {
 
   async verifyAndActivateTOTP(totpCode: string, userId: string, username: string | null, firstName: string | null, auditContext: RequestAuditContext) {
     const user = await this.account.getUserSecure(userId);
-    if (user.totp_enabled) {
+    if (user.totpEnabled) {
       throw AppError.conflict('TOTP ya esta activado');
     }
-    if (!user.totp_secret) {
+    if (!user.totpSecret) {
       throw AppError.badRequest('Primero debes configurar TOTP');
     }
 
     // Verificar el código ANTES de abrir la transacción — no hay side effects externos que revertir.
-    const secret = EncryptionUtil.decrypt(user.totp_secret);
+    const secret = EncryptionUtil.decrypt(user.totpSecret);
     if (!TotpUtil.verify(totpCode, secret)) {
       throw AppError.badRequest('Codigo TOTP invalido');
     }
 
-    const transaction = await this.unitOfWork.begin();
-
-    try {
-      await this.userRepository.updateTOTPStatus(userId, true, { transaction });
+    await this.unitOfWork.run(async () => {
+      await this.userRepository.updateTOTPStatus(userId, true);
 
       // Primer MFA activado → queda como método preferido para que el login lo aplique
-      if (user.preferred_mfa_method === 'none') {
-        await this.userRepository.update(userId, { preferred_mfa_method: 'totp' }, { transaction });
+      if (user.preferredMfaMethod === 'none') {
+        await this.userRepository.update(userId, { preferredMfaMethod: 'totp' });
       }
 
-      await this.account.recordChange(
-        {
-          userId,
-          changeType: 'mfa_status',
-          previousValue: 'disabled',
-          newValue: 'enabled',
-          changeReason: 'MFA activado por cliente',
-          auditContext
-        },
-        transaction
-      );
+      await this.account.recordChange({
+        userId,
+        changeType: 'mfa_status',
+        previousValue: 'disabled',
+        newValue: 'enabled',
+        changeReason: 'MFA activado por cliente',
+        auditContext
+      });
+    });
 
-      await transaction.commit();
+    // TOTP activado — crítico, modifica seguridad de la cuenta
+    logAudit('MFA_TOTP_ACTIVATED', userId, { username }, { entityId: userId, ...ENTITY });
+    this._notify('TOTP_ACTIVADO', userId, firstName);
 
-      // TOTP activado — crítico, modifica seguridad de la cuenta
-      logAudit('MFA_TOTP_ACTIVATED', userId, { username }, { entityId: userId, ...ENTITY });
-      this._notify('TOTP_ACTIVADO', userId, firstName);
-
-      return TOTPActivationResponseDTO({ userId, username, totpEnabled: true });
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    return TOTPActivationResponseDTO({ userId, username, totpEnabled: true });
   }
 
   async verifyTOTP(totpCode: string, userId: string, username: string | null) {
     const user = await this.account.getUserSecure(userId);
-    if (!user.totp_enabled) {
+    if (!user.totpEnabled) {
       throw AppError.badRequest('TOTP no esta activado para este usuario');
     }
 
-    const secret = EncryptionUtil.decrypt(user.totp_secret);
+    const secret = EncryptionUtil.decrypt(user.totpSecret);
     const isValid = TotpUtil.verify(totpCode, secret);
 
     // Registrar verificación — exitosa o fallida
@@ -124,54 +114,40 @@ class TotpMfaService {
 
   async deactivateTOTP(password: string, userId: string, username: string | null, firstName: string | null, auditContext: RequestAuditContext) {
     const user = await this.account.getUserSecure(userId);
-    if (!user.totp_enabled) {
+    if (!user.totpEnabled) {
       throw AppError.badRequest('TOTP no esta activado');
     }
 
-    const isPasswordValid = await this.userRepository.verifyPassword(password, user.password_hash);
+    const isPasswordValid = await this.userRepository.verifyPassword(password, user.passwordHash);
     if (!isPasswordValid) {
       throw AppError.unauthorized('Contrasena incorrecta');
     }
 
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    await this.unitOfWork.run(async () => {
       // Limpia el flag y BORRA el secreto en un solo update.
-      await this.userRepository.setTOTPStatus(userId, false, null, { transaction });
+      await this.userRepository.setTOTPStatus(userId, false, null);
 
       // Si TOTP era el método preferido, degradar para no dejar al login pidiendo
       // un factor que ya no existe: cae a SMS si está activo, si no a 'none'.
-      if (user.preferred_mfa_method === 'totp') {
-        await this.userRepository.update(
-          userId,
-          { preferred_mfa_method: user.sms_mfa_enabled ? 'sms' : 'none' },
-          { transaction }
-        );
+      if (user.preferredMfaMethod === 'totp') {
+        await this.userRepository.update(userId, { preferredMfaMethod: user.smsMfaEnabled ? 'sms' : 'none' });
       }
 
-      await this.account.recordChange(
-        {
-          userId,
-          changeType: 'mfa_status',
-          previousValue: 'enabled',
-          newValue: 'disabled',
-          changeReason: 'MFA desactivado por cliente',
-          auditContext
-        },
-        transaction
-      );
+      await this.account.recordChange({
+        userId,
+        changeType: 'mfa_status',
+        previousValue: 'enabled',
+        newValue: 'disabled',
+        changeReason: 'MFA desactivado por cliente',
+        auditContext
+      });
+    });
 
-      await transaction.commit();
+    // TOTP desactivado — crítico, reduce seguridad de la cuenta
+    logAudit('MFA_TOTP_DEACTIVATED', userId, { username }, { entityId: userId, ...ENTITY });
+    this._notify('TOTP_ELIMINADO', userId, firstName);
 
-      // TOTP desactivado — crítico, reduce seguridad de la cuenta
-      logAudit('MFA_TOTP_DEACTIVATED', userId, { username }, { entityId: userId, ...ENTITY });
-      this._notify('TOTP_ELIMINADO', userId, firstName);
-
-      return TOTPActivationResponseDTO({ userId, username, totpEnabled: false });
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    return TOTPActivationResponseDTO({ userId, username, totpEnabled: false });
   }
 
   /** @private — notificación fire-and-forget al usuario */

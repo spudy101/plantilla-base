@@ -9,6 +9,7 @@
 jest.mock('modules/schemas/core/repositories/approval-request.repository', () => ({
   create: jest.fn(),
   findByIdWithUsers: jest.fn(),
+  resolve: jest.fn(),
   findPendingByEntityOperation: jest.fn(),
   findPendingByEntityIds: jest.fn()
 }));
@@ -43,15 +44,13 @@ const OP = 'RBAC_ROLE_CHANGE'; // condición ALWAYS, approverRoles: ['ADMIN']
 
 function pendingRequest(overrides = {}) {
   return {
-    approval_request_id: 'req-1',
-    operation_key: OP,
-    entity_type: 'User',
-    entity_id: 'user-9',
+    approvalRequestId: 'req-1',
+    operationKey: OP,
+    entityType: 'User',
+    entityId: 'user-9',
     payload: { roleName: 'ADMIN' },
-    requested_by: 'maker-1',
+    requestedBy: 'maker-1',
     status: ApprovalRequest.STATUS.PENDING,
-    update: jest.fn().mockResolvedValue(undefined),
-    reload: jest.fn().mockResolvedValue(undefined),
     ...overrides
   };
 }
@@ -125,7 +124,7 @@ describe('DualApprovalService', () => {
     });
 
     it('lanza forbidden si el aprobador es el mismo maker (segregación de funciones)', async () => {
-      approvalRepo.findByIdWithUsers.mockResolvedValue(pendingRequest({ requested_by: 'maker-1' }));
+      approvalRepo.findByIdWithUsers.mockResolvedValue(pendingRequest({ requestedBy: 'maker-1' }));
       await expect(
         dualApproval.resolve('req-1', { decision: 'approve' }, { adminUserId: 'maker-1', adminRoleName: 'ADMIN' })
       ).rejects.toMatchObject({ statusCode: 403, details: { code: 'DUAL_APPROVAL_SAME_AS_MAKER' } });
@@ -146,21 +145,23 @@ describe('DualApprovalService', () => {
 
       const request = pendingRequest();
       approvalRepo.findByIdWithUsers.mockResolvedValue(request);
+      approvalRepo.resolve.mockResolvedValue({ ...request, status: ApprovalRequest.STATUS.APPROVED });
 
       await dualApproval.resolve('req-1', { decision: 'approve', notes: 'ok' }, { adminUserId: 'approver-2', adminRoleName: 'ADMIN' });
 
       expect(onApprove).toHaveBeenCalledWith(request.payload, expect.objectContaining({ adminUserId: 'approver-2' }));
-      expect(request.update).toHaveBeenCalledWith(
+      expect(approvalRepo.resolve).toHaveBeenCalledWith(
+        'req-1',
         expect.objectContaining({
           status: ApprovalRequest.STATUS.APPROVED,
-          second_approver_id: 'approver-2'
+          secondApproverId: 'approver-2'
         })
       );
     });
 
     it('lanza si no hay handler registrado para la operación', async () => {
       // CLIENT_ACCOUNT_DELETE nunca se registra en esta suite.
-      const request = pendingRequest({ operation_key: 'CLIENT_ACCOUNT_DELETE' });
+      const request = pendingRequest({ operationKey: 'CLIENT_ACCOUNT_DELETE' });
       approvalRepo.findByIdWithUsers.mockResolvedValue(request);
 
       await expect(
@@ -173,13 +174,15 @@ describe('DualApprovalService', () => {
     it('marca la solicitud como REJECTED', async () => {
       const request = pendingRequest();
       approvalRepo.findByIdWithUsers.mockResolvedValue(request);
+      approvalRepo.resolve.mockResolvedValue({ ...request, status: ApprovalRequest.STATUS.REJECTED });
 
       await dualApproval.resolve('req-1', { decision: 'reject', notes: 'no' }, { adminUserId: 'approver-2', adminRoleName: 'ADMIN' });
 
-      expect(request.update).toHaveBeenCalledWith(
+      expect(approvalRepo.resolve).toHaveBeenCalledWith(
+        'req-1',
         expect.objectContaining({
           status: ApprovalRequest.STATUS.REJECTED,
-          second_approver_id: 'approver-2'
+          secondApproverId: 'approver-2'
         })
       );
     });

@@ -1,4 +1,4 @@
-import type defineUser from '../../../../../schemas/kyc/iam/models/user.model';
+import type { Prisma } from '../../../../../../shared/database/generated/prisma/client';
 // modules/shared-endpoints/kyc/iam/services/mfa/sms-mfa.service.ts
 //
 // Segundo factor por SMS: solicitud de código de activación, confirmación y baja.
@@ -53,7 +53,7 @@ class SmsMfaService {
 
   async requestSMSActivation(password: string, userId: string, username: string | null) {
     const user = await this.account.getUserWithPhone(userId);
-    if (user.sms_mfa_enabled) {
+    if (user.smsMfaEnabled) {
       throw AppError.conflict('SMS MFA ya está activado para este usuario');
     }
 
@@ -71,18 +71,18 @@ class SmsMfaService {
 
     const verificationCode = await this.verificationCodeRepository.create({
       type: 'phone',
-      contact_value: phone,
+      contactValue: phone,
       code,
-      expires_at: expiresAt
+      expiresAt
     });
 
-    this._sendActivationSms(userId, phone, user.person?.contact?.phone_primary_prefix_id ?? null, code);
+    this._sendActivationSms(userId, phone, user.person?.contact?.phonePrimaryPrefixId ?? null, code);
 
     logAudit('MFA_SMS_SETUP', userId, { username }, { entityId: userId, ...ENTITY });
 
     const truncatedCode = `****${code.slice(-MASKED_CODE_VISIBLE_DIGITS)}`;
     return SMSActivationRequestResponseDTO({
-      verificationCodeId: verificationCode.verification_code_id,
+      verificationCodeId: verificationCode.verificationCodeId,
       expiresAt,
       truncatedCode
     });
@@ -90,89 +90,69 @@ class SmsMfaService {
 
   async confirmSMSActivation(code: string, userId: string, username: string | null, firstName: string | null, auditContext: RequestAuditContext) {
     const user = await this.account.getUserWithPhone(userId);
-    if (user.sms_mfa_enabled) {
+    if (user.smsMfaEnabled) {
       throw AppError.conflict('SMS MFA ya está activado');
     }
 
     const phone = this._requirePhone(user);
     const verificationCode = await this._assertValidCode(phone, code);
 
-    const transaction = await this.unitOfWork.begin();
-
-    try {
-      await this.verificationCodeRepository.markAsVerified(verificationCode.verification_code_id, { transaction });
+    await this.unitOfWork.run(async () => {
+      await this.verificationCodeRepository.markAsVerified(verificationCode.verificationCodeId);
       // SMS MFA gestionado íntegramente en nuestra BD
-      const updates: Partial<defineUser.Attributes> = { sms_mfa_enabled: true };
+      const updates: Prisma.UserUncheckedUpdateManyInput = { smsMfaEnabled: true };
       // Primer MFA activado → queda como método preferido para que el login dispare el SMS
-      if (user.preferred_mfa_method === 'none') {
-        updates.preferred_mfa_method = 'sms';
+      if (user.preferredMfaMethod === 'none') {
+        updates.preferredMfaMethod = 'sms';
       }
-      await this.userRepository.update(userId, updates, { transaction });
+      await this.userRepository.update(userId, updates);
 
-      await this.account.recordChange(
-        {
-          userId,
-          changeType: 'sms_mfa_status',
-          previousValue: 'disabled',
-          newValue: 'enabled',
-          changeReason: 'SMS MFA activado por cliente',
-          auditContext
-        },
-        transaction
-      );
+      await this.account.recordChange({
+        userId,
+        changeType: 'sms_mfa_status',
+        previousValue: 'disabled',
+        newValue: 'enabled',
+        changeReason: 'SMS MFA activado por cliente',
+        auditContext
+      });
+    });
 
-      await transaction.commit();
+    logAudit('MFA_SMS_ACTIVATED', userId, { username }, { entityId: userId, ...ENTITY });
+    this._notify('SMS_MFA_ACTIVADO', userId, firstName);
 
-      logAudit('MFA_SMS_ACTIVATED', userId, { username }, { entityId: userId, ...ENTITY });
-      this._notify('SMS_MFA_ACTIVADO', userId, firstName);
-
-      return SMSMFAActivationResponseDTO({ userId, username, smsMfaEnabled: true });
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    return SMSMFAActivationResponseDTO({ userId, username, smsMfaEnabled: true });
   }
 
   async deactivateSMSMFA(password: string, userId: string, username: string | null, firstName: string | null, auditContext: RequestAuditContext) {
     const user = await this.account.getUserSecure(userId);
-    if (!user.sms_mfa_enabled) {
+    if (!user.smsMfaEnabled) {
       throw AppError.badRequest('SMS MFA no está activado');
     }
 
     await this.account.assertPassword(user, password);
 
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    await this.unitOfWork.run(async () => {
       // SMS MFA gestionado íntegramente en nuestra BD
-      const updates: Partial<defineUser.Attributes> = { sms_mfa_enabled: false };
-      if (user.preferred_mfa_method === 'sms') {
-        updates.preferred_mfa_method = user.totp_enabled ? 'totp' : 'none';
+      const updates: Prisma.UserUncheckedUpdateManyInput = { smsMfaEnabled: false };
+      if (user.preferredMfaMethod === 'sms') {
+        updates.preferredMfaMethod = user.totpEnabled ? 'totp' : 'none';
       }
-      await this.userRepository.update(userId, updates, { transaction });
+      await this.userRepository.update(userId, updates);
 
-      await this.account.recordChange(
-        {
-          userId,
-          changeType: 'sms_mfa_status',
-          previousValue: 'enabled',
-          newValue: 'disabled',
-          changeReason: 'SMS MFA desactivado por cliente',
-          auditContext
-        },
-        transaction
-      );
+      await this.account.recordChange({
+        userId,
+        changeType: 'sms_mfa_status',
+        previousValue: 'enabled',
+        newValue: 'disabled',
+        changeReason: 'SMS MFA desactivado por cliente',
+        auditContext
+      });
+    });
 
-      await transaction.commit();
+    logAudit('MFA_SMS_DEACTIVATED', userId, { username }, { entityId: userId, ...ENTITY });
+    this._notify('SMS_MFA_DESACTIVADO', userId, firstName);
 
-      logAudit('MFA_SMS_DEACTIVATED', userId, { username }, { entityId: userId, ...ENTITY });
-      this._notify('SMS_MFA_DESACTIVADO', userId, firstName);
-
-      return SMSMFAActivationResponseDTO({ userId, username, smsMfaEnabled: false });
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    return SMSMFAActivationResponseDTO({ userId, username, smsMfaEnabled: false });
   }
 
   // ============================================================
@@ -180,8 +160,8 @@ class SmsMfaService {
   // ============================================================
 
   /** @private */
-  _requirePhone(user: defineUser.Instance) {
-    const phone = user.person?.contact?.phone_primary;
+  _requirePhone(user: { person?: { contact?: { phonePrimary?: string | null } | null } | null }) {
+    const phone = user.person?.contact?.phonePrimary;
     if (!phone) {
       throw AppError.badRequest('Debes registrar un número de teléfono antes de activar SMS MFA');
     }
@@ -194,7 +174,7 @@ class SmsMfaService {
     if (!verificationCode) {
       throw AppError.notFound('Código de verificación no encontrado o expirado');
     }
-    if (verificationCode.verified_at) {
+    if (verificationCode.verifiedAt) {
       throw AppError.badRequest('Este código ya fue utilizado');
     }
     const attempts = verificationCode.attempts ?? 0;
@@ -202,7 +182,7 @@ class SmsMfaService {
       throw AppError.forbidden('Excediste el número máximo de intentos. Solicita un nuevo código');
     }
     if (verificationCode.code !== code) {
-      await this.verificationCodeRepository.incrementAttempts(verificationCode.verification_code_id);
+      await this.verificationCodeRepository.incrementAttempts(verificationCode.verificationCodeId);
       const remaining = MAX_OTP_ATTEMPTS - (attempts + 1);
       throw AppError.badRequest(`Código inválido. Te quedan ${remaining} intento${remaining !== 1 ? 's' : ''}`);
     }

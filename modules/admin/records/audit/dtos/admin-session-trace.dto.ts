@@ -1,9 +1,9 @@
-import type defineUserSession from '../../../../schemas/kyc/iam/models/user-session.model';
-import type defineUserTrustedDevice from '../../../../schemas/kyc/iam/models/user-trusted-device.model';
-import type defineAuditLog from '../../../../schemas/records/audit/models/audit-log.model';
+import type { UserTrustedDevice } from '../../../../../shared/database/generated/prisma/client';
+import type { SessionWithDeviceAndUser } from '../../../../schemas/kyc/iam/repositories/user-session.repository';
+import type { AuditLogWithExecutor } from '../../../../schemas/records/audit/repositories/audit-log.repository';
 // Fase 5 — API admin de sesiones (traza forense). DTOs de salida.
 // El timeline sale de audit_logs (fuente única); la hidratación reusa DTOs admin ya existentes.
-// Mapeo campo a campo; nunca spread sobre instancias Sequelize.
+// Mapeo campo a campo.
 
 import componentsAuditDtoModule from '../../../../../shared/dtos/audit/components-audit.dto';
 const { AuditLogComponent } = componentsAuditDtoModule;
@@ -13,15 +13,18 @@ import componentsCatalogDtoModule from '../../../../../shared/dtos/kyc/component
 const { MetadataDTO } = componentsCatalogDtoModule;
 
 function _deviceRef(
-  device: Pick<defineUserTrustedDevice.Instance, 'user_trusted_device_id' | 'device_name' | 'device_type' | 'browser' | 'os' | 'status'> | null | undefined
+  device:
+    | Pick<UserTrustedDevice, 'userTrustedDeviceId' | 'deviceName' | 'deviceType' | 'browser' | 'os' | 'status'>
+    | null
+    | undefined
 ) {
   if (!device) {
     return null;
   }
   return {
-    deviceId: device.user_trusted_device_id,
-    deviceName: device.device_name,
-    deviceType: device.device_type,
+    deviceId: device.userTrustedDeviceId,
+    deviceName: device.deviceName,
+    deviceType: device.deviceType,
     browser: device.browser || null,
     os: device.os || null,
     status: device.status
@@ -29,27 +32,31 @@ function _deviceRef(
 }
 
 // Cabecera de una sesión: identidad + dispositivo + IP + ventana temporal + estado + conteo de acciones.
-function SessionHeaderDTO(session: defineUserSession.Instance, actionCount = 0) {
+function SessionHeaderDTO(session: SessionWithDeviceAndUser, actionCount = 0) {
   return {
     ...UserSessionComponent.build(session),
-    userId: session.user_id,
+    userId: session.userId,
     device: _deviceRef(session.device),
     actionCount
   };
 }
 
 // Listado paginado de sesiones. countMap: { [sessionId]: number } con el conteo de acciones por sesión.
-function SessionTraceListDTO(rows: defineUserSession.Instance[], countMap: Map<string, number>, metadata: Parameters<typeof MetadataDTO.build>[0]) {
+function SessionTraceListDTO(
+  rows: SessionWithDeviceAndUser[],
+  countMap: Map<string, number>,
+  metadata: Parameters<typeof MetadataDTO.build>[0]
+) {
   const list = Array.isArray(rows) ? rows : [];
   return {
-    data: list.map(s => SessionHeaderDTO(s, countMap.get(s.user_session_id) ?? 0)),
+    data: list.map(s => SessionHeaderDTO(s, countMap.get(s.userSessionId) ?? 0)),
     metadata: MetadataDTO.build(metadata)
   };
 }
 
 // Evento del timeline: el log plano + un flag hasDetail que indica si su fila de dominio es hidratable
 // (tabla registrada en el registry y entity_id presente). El front pide el detalle solo al expandir.
-function TimelineEventDTO(log: defineAuditLog.Instance, hasDetail: boolean) {
+function TimelineEventDTO(log: AuditLogWithExecutor, hasDetail: boolean) {
   return {
     ...AuditLogComponent.buildList(log),
     hasDetail: Boolean(hasDetail)
@@ -58,11 +65,11 @@ function TimelineEventDTO(log: defineAuditLog.Instance, hasDetail: boolean) {
 
 // Detalle de sesión: cabecera + timeline paginado de audit_logs ordenado por created_at.
 function SessionTimelineDTO(
-  session: defineUserSession.Instance,
+  session: SessionWithDeviceAndUser,
   actionCount: number,
-  timelineRows: defineAuditLog.Instance[],
+  timelineRows: AuditLogWithExecutor[],
   metadata: Parameters<typeof MetadataDTO.build>[0],
-  hasDetailFn: (log: defineAuditLog.Instance) => boolean
+  hasDetailFn: (log: AuditLogWithExecutor) => boolean
 ) {
   const rows = Array.isArray(timelineRows) ? timelineRows : [];
   return {

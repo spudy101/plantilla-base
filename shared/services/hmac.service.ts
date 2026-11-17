@@ -8,7 +8,7 @@
 // El middleware no llama al repository directamente — lo hace a través
 // de este service, respetando la separación de capas.
 //
-// El hmac_secret está cifrado en BD con AES-256-GCM (hooks del modelo).
+// El hmac_secret está cifrado en BD con AES-256-GCM (piiExtension de Prisma).
 // Al leerlo, el hook lo descifra automáticamente — el service recibe
 // el valor en texto plano sin hacer nada especial.
 
@@ -24,7 +24,7 @@ const TIMESTAMP_TOLERANCE_SECONDS = 10;
 
 /** Lo que HmacService necesita del repositorio de dispositivos de confianza. */
 interface TrustedDeviceLookup {
-  findOne(criteria: { fingerprint_hash: string }): Promise<{ hmac_secret?: string | null } | null>;
+  findAnyByFingerprint(fingerprintHash: string): Promise<{ hmacSecret?: string | null } | null>;
 }
 
 /** Un header de Express puede venir repetido (string[]): se toma el primer valor. */
@@ -93,18 +93,18 @@ class HmacService {
     }
 
     // ── 2. Obtener secret del dispositivo desde BD ────────────
-    // El hmac_secret está cifrado en BD — el hook afterFind lo descifra
+    // El hmac_secret está cifrado en BD — la extensión de Prisma lo descifra
     // automáticamente antes de llegar aquí.
-    const device = await this.trustedDeviceRepository.findOne({ fingerprint_hash: fingerprintHash });
+    const device = await this.trustedDeviceRepository.findAnyByFingerprint(fingerprintHash);
 
-    if (!device?.hmac_secret) {
+    if (!device?.hmacSecret) {
       logger.warn('HMAC — dispositivo sin secret registrado', { fingerprintHash });
       throw AppError.unauthorized('Dispositivo no reconocido. Inicia sesión nuevamente.');
     }
 
     // ── 3. Verificar firma ─────────────────────────────────────
     const path = req.path || req.originalUrl?.split('?')[0] || '/';
-    const expected = EncryptionUtil.generateRequestHmac(timestamp, req.method, path, device.hmac_secret);
+    const expected = EncryptionUtil.generateRequestHmac(timestamp, req.method, path, device.hmacSecret);
 
     if (!EncryptionUtil.verifyRequestHmac(signature, expected)) {
       logger.warn('HMAC — firma inválida', {

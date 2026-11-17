@@ -9,7 +9,8 @@
 
 jest.mock('modules/schemas/notification/repositories/notification-type.repository', () => ({
   findAllPaginated: jest.fn(),
-  findById: jest.fn()
+  findById: jest.fn(),
+  update: jest.fn()
 }));
 
 jest.mock('modules/schemas/notification/repositories/notification-category.repository', () => ({
@@ -40,10 +41,6 @@ jest.mock('shared/constants', () => ({
   notifications: { ses: { logoUrl: 'https://logo.test/x.png' } }
 }));
 
-jest.mock('shared/models', () => ({
-  sequelize: { transaction: jest.fn() }
-}));
-
 jest.mock('modules/admin/notification/dtos/admin-notification-type.dto', () => ({
   ListNotificationTypesResponseDTO: (rows: Loose, metadata: Loose) => ({ data: rows, metadata }),
   UpdateNotificationTypeResponseDTO: (nt: Loose) => ({ dto: 'type', code: nt.code }),
@@ -62,24 +59,18 @@ import notificationCreationModule from 'modules/schemas/notification/services/no
 const notificationCreation = mocked(notificationCreationModule);
 import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import modelsModule from 'shared/models';
-const { sequelize } = mocked(modelsModule);
 import service from 'modules/admin/notification/services/admin-notification-type.service';
 
 const ADMIN = 'admin-1';
 
 describe('NotificationTypeService', () => {
-  let transaction: Loose;
-
   beforeEach(() => {
     jest.clearAllMocks();
-    transaction = { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn().mockResolvedValue(undefined) };
-    sequelize.transaction.mockResolvedValue(transaction);
   });
 
   describe('list', () => {
     it('pagina, audita y responde vía DTO de lista', async () => {
-      typeRepo.findAllPaginated.mockResolvedValue({ rows: [{ notification_type_id: 't-1' }], count: 1 });
+      typeRepo.findAllPaginated.mockResolvedValue({ rows: [{ notificationTypeId: 't-1' }], count: 1 });
 
       const result = await service.list({ search: 'foo' }, ADMIN);
 
@@ -95,60 +86,54 @@ describe('NotificationTypeService', () => {
   });
 
   describe('update', () => {
-    it('lanza 404 (con rollback) si el tipo no existe', async () => {
+    it('lanza 404 si el tipo no existe, sin escribir', async () => {
       typeRepo.findById.mockResolvedValue(null);
 
       await expect(service.update('t-x', { name: 'X' }, ADMIN)).rejects.toMatchObject({ statusCode: 404 });
-      expect(transaction.rollback).toHaveBeenCalled();
+      expect(typeRepo.update).not.toHaveBeenCalled();
     });
 
-    it('lanza badRequest si la categoría reasignada no existe', async () => {
-      typeRepo.findById.mockResolvedValue({ code: 'X', update: jest.fn() });
+    it('lanza badRequest si la categoría reasignada no existe, sin escribir', async () => {
+      typeRepo.findById.mockResolvedValue({ code: 'X' });
       categoryRepo.findById.mockResolvedValue(null);
 
       await expect(service.update('t-1', { notificationCategoryId: 'c-x' }, ADMIN)).rejects.toMatchObject({ statusCode: 400 });
-      expect(transaction.rollback).toHaveBeenCalled();
+      expect(typeRepo.update).not.toHaveBeenCalled();
     });
 
-    it('sin campos mapeables hace rollback y devuelve el DTO actual', async () => {
-      const nt = { code: 'X', update: jest.fn() };
-      typeRepo.findById.mockResolvedValue(nt);
+    it('sin campos editables devuelve el DTO actual sin escribir', async () => {
+      typeRepo.findById.mockResolvedValue({ code: 'X' });
 
       const result = await service.update('t-1', { campoNoMapeado: 1 }, ADMIN);
 
-      expect(nt.update).not.toHaveBeenCalled();
-      expect(transaction.rollback).toHaveBeenCalled();
+      expect(typeRepo.update).not.toHaveBeenCalled();
       expect(result).toMatchObject({ dto: 'type', code: 'X' });
     });
 
-    it('actualiza campos mapeados, commitea y audita', async () => {
+    it('actualiza solo los campos editables y audita', async () => {
       const updated = { code: 'X' };
-      const nt = { code: 'X', update: jest.fn().mockResolvedValue(updated) };
-      typeRepo.findById.mockResolvedValue(nt);
-      categoryRepo.findById.mockResolvedValue({ notification_category_id: 'c-1' });
+      typeRepo.findById.mockResolvedValue({ code: 'X' });
+      typeRepo.update.mockResolvedValue(updated);
+      categoryRepo.findById.mockResolvedValue({ notificationCategoryId: 'c-1' });
 
       const result = await service.update('t-1', { name: 'Nuevo', priority: 5, notificationCategoryId: 'c-1' }, ADMIN);
 
-      expect(nt.update).toHaveBeenCalledWith(
-        { name: 'Nuevo', priority: 5, notification_category_id: 'c-1' },
-        { transaction }
-      );
-      expect(transaction.commit).toHaveBeenCalled();
+      expect(typeRepo.update).toHaveBeenCalledWith('t-1', { name: 'Nuevo', priority: 5, notificationCategoryId: 'c-1' });
       expect(result).toMatchObject({ dto: 'type' });
       expect(logAudit).toHaveBeenCalledWith(
         'NOTIFICATION_TYPE_UPDATED',
         ADMIN,
-        expect.objectContaining({ updatedFields: ['name', 'priority', 'notification_category_id'] }),
+        expect.objectContaining({ updatedFields: ['name', 'priority', 'notificationCategoryId'] }),
         expect.objectContaining({ entityId: 't-1' })
       );
     });
 
-    it('hace rollback y re-lanza si el update falla', async () => {
-      const nt = { code: 'X', update: jest.fn().mockRejectedValue(new Error('db error')) };
-      typeRepo.findById.mockResolvedValue(nt);
+    it('re-lanza si el update falla y no audita', async () => {
+      typeRepo.findById.mockResolvedValue({ code: 'X' });
+      typeRepo.update.mockRejectedValue(new Error('db error'));
 
       await expect(service.update('t-1', { name: 'Nuevo' }, ADMIN)).rejects.toThrow('db error');
-      expect(transaction.rollback).toHaveBeenCalled();
+      expect(logAudit).not.toHaveBeenCalled();
     });
   });
 
@@ -180,13 +165,13 @@ describe('NotificationTypeService', () => {
     });
 
     it('lanza badRequest si el usuario está inactivo', async () => {
-      userRepo.findByUserId.mockResolvedValue({ user_id: 'u-1', is_active: false });
+      userRepo.findByUserId.mockResolvedValue({ userId: 'u-1', isActive: false });
 
       await expect(service.createDirectNotification(fixture({ userId: 'u-1', titulo: 'T' }), ADMIN)).rejects.toMatchObject({ statusCode: 400 });
     });
 
     it('crea la notificación directa, audita y responde vía DTO', async () => {
-      userRepo.findByUserId.mockResolvedValue({ user_id: 'u-1', is_active: true });
+      userRepo.findByUserId.mockResolvedValue({ userId: 'u-1', isActive: true });
       notificationCreation.crearNotificacion.mockResolvedValue({ notification_id: 'n-1' });
 
       const result = await service.createDirectNotification({ userId: 'u-1', titulo: 'T', contenido: 'C', asunto: 'A' }, ADMIN);

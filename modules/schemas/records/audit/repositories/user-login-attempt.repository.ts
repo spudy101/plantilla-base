@@ -1,64 +1,50 @@
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../../shared/models';
-const { UserLoginAttempt } = modelsModule;
-import { Op } from 'sequelize';
+// modules/schemas/records/audit/repositories/user-login-attempt.repository.ts
+//
+// Intentos de login. El documento se guarda cifrado (lo cifra este repositorio: no está en la extensión
+// de PII) con su hash de búsqueda, y el bloqueo de la cuenta se consulta por ese hash.
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import type { UserLoginAttempt } from '../../../../../shared/database/generated/prisma/client';
 import EncryptionUtil from '../../../../../shared/utils/encryption.util';
 import HashUtil from '../../../../../shared/utils/hash.util';
-import requestContext from '../../../../../shared/utils/request-context.util';
-import type { CreateOptions } from 'sequelize';
-import type defineUserLoginAttempt from '../models/user-login-attempt.model';
 
 const MS_PER_MINUTE = 60 * 1000;
 
-class UserLoginAttemptRepository extends BaseRepository<defineUserLoginAttempt.Instance> {
-  constructor() {
-    super(UserLoginAttempt);
-  }
-
+class UserLoginAttemptRepository extends PrismaRepository {
   static TIMEFRAMES = {
     BLOCK_WINDOW: 15, // minutos
     CLEANUP_DAYS: 90
   };
 
-  recordAttempt(
-    attemptData: Omit<defineUserLoginAttempt.CreationAttributes, 'national_id_hash' | 'attempted_at'>,
-    options: CreateOptions<defineUserLoginAttempt.Attributes> = {}
-  ) {
-    const nationalId = attemptData.national_id;
-    // Origen de la sesión: en los intentos FALLIDOS la sesión nunca llegó a existir y queda null.
-    // En los EXITOSOS el llamador lo pasa explícito dentro de attemptData (el spread de abajo pisa
-    // al de arriba): `POST /auth/login` es ruta pública, no pasa por AuthMiddleware.authenticate, así
-    // que el AsyncLocalStorage no tiene el sessionId aunque la sesión ya se haya creado en memoria.
-    return this.create(
-      {
-        ...requestContext.originFromContext(),
-        ...attemptData,
-        // Cifrar para almacenamiento seguro
-        national_id: nationalId ? EncryptionUtil.encrypt(nationalId) : nationalId,
-        // Hash para búsquedas futuras
-        national_id_hash: nationalId ? HashUtil.hashForSearch(nationalId) : null,
-        attempted_at: new Date()
-      },
-      options
-    );
+  /**
+   * Registra un intento. Origen de la sesión: en los FALLIDOS la sesión nunca llegó a existir y queda null;
+   * en los EXITOSOS el llamador lo pasa explícito (`originSessionId`): `POST /auth/login` es ruta pública,
+   * el contexto de la request no tiene el sessionId aunque la sesión ya se haya creado. Uno explícito gana
+   * sobre el que completa la extensión de Prisma.
+   */
+  async recordAttempt(attempt: UserLoginAttemptRepository.AttemptInput): Promise<UserLoginAttempt> {
+    const { nationalId, ...rest } = attempt;
+    return (await this.db()).userLoginAttempt.create({
+      data: {
+        ...rest,
+        nationalId: nationalId ? EncryptionUtil.encrypt(nationalId) : nationalId,
+        nationalIdHash: nationalId ? HashUtil.hashForSearch(nationalId) : null,
+        attemptedAt: new Date()
+      }
+    });
   }
 
-  /**
-   * Verifica si cuenta está bloqueada por national_id
-   * Retorna null si no está bloqueada, o { blocked, blockedUntil, remainingMinutes }
-   */
+  /** null si la cuenta no está bloqueada; si lo está, hasta cuándo y cuántos minutos faltan. */
   async checkIfBlocked(nationalId: string) {
-    const hash = HashUtil.hashForSearch(nationalId);
-
-    const lastAttempt = await this.findOne({ national_id_hash: hash }, { order: [['attempted_at', 'DESC']] });
-
-    if (!lastAttempt?.blocked_until) {
+    const lastAttempt = await (await this.db()).userLoginAttempt.findFirst({
+      where: { nationalIdHash: HashUtil.hashForSearch(nationalId) },
+      orderBy: { attemptedAt: 'desc' },
+      select: { blockedUntil: true }
+    });
+    if (!lastAttempt?.blockedUntil) {
       return null;
     }
-
     const now = new Date();
-    const blockedUntil = new Date(lastAttempt.blocked_until);
-
+    const blockedUntil = new Date(lastAttempt.blockedUntil);
     if (blockedUntil > now) {
       return {
         blocked: true,
@@ -66,60 +52,24 @@ class UserLoginAttemptRepository extends BaseRepository<defineUserLoginAttempt.I
         remainingMinutes: Math.ceil((blockedUntil.getTime() - now.getTime()) / MS_PER_MINUTE)
       };
     }
-
     return null;
   }
+}
 
-  /**
-   * Cuenta intentos fallidos por national_id desde el último login exitoso
-   */
-  async countFailedAttempts(nationalId: string, minutes = UserLoginAttemptRepository.TIMEFRAMES.BLOCK_WINDOW) {
-    const hash = HashUtil.hashForSearch(nationalId);
-    const timeThreshold = new Date(Date.now() - minutes * MS_PER_MINUTE);
-
-    const lastSuccess = await this.findOne(
-      {
-        national_id_hash: hash,
-        success: true,
-        attempted_at: { [Op.gte]: timeThreshold }
-      },
-      { order: [['attempted_at', 'DESC']] }
-    );
-
-    const countFrom = lastSuccess ? lastSuccess.attempted_at : timeThreshold;
-
-    return this.count({
-      national_id_hash: hash,
-      success: false,
-      attempted_at: { [Op.gt]: countFrom }
-    });
-  }
-
-  /**
-   * Obtiene último login exitoso
-   */
-  getLastSuccessfulLogin(userId: string) {
-    return this.findOne({ user_id: userId, success: true }, { order: [['attempted_at', 'DESC']] });
-  }
-
-  /**
-   * Cleanup job: elimina intentos antiguos
-   */
-  deleteOldAttempts(days = UserLoginAttemptRepository.TIMEFRAMES.CLEANUP_DAYS) {
-    const threshold = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-    return this.bulkDelete({ attempted_at: { [Op.lt]: threshold } });
-  }
-
-  /**
-   * Cuenta logins exitosos de un usuario (sin límite de tiempo).
-   * Se usa para detectar si es el primer acceso del usuario.
-   * Nota: si el login actual ya fue insertado, un resultado <= 1 indica primer login.
-   */
-  countSuccessfulLogins(userId: string) {
-    return this.count({
-      user_id: userId,
-      success: true
-    });
+// eslint-disable-next-line @typescript-eslint/no-namespace
+namespace UserLoginAttemptRepository {
+  export interface AttemptInput {
+    userId?: string | null;
+    usernameAttempt: string;
+    /** En claro: el repositorio lo cifra y calcula su hash. */
+    nationalId: string;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+    deviceFingerprint?: string | null;
+    success: boolean;
+    failureReason?: string | null;
+    blockedUntil?: Date | null;
+    originSessionId?: string | null;
   }
 }
 

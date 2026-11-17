@@ -97,13 +97,10 @@ class PersonService {
     if (!adminUser) {
       throw AppError.notFound('Administrador no encontrado');
     }
-    await this.profileHelper.validateCurrentPassword(adminUser.password_hash, currentPassword);
+    await this.profileHelper.validateCurrentPassword(adminUser.passwordHash, currentPassword);
 
     // La cuenta objetivo debe existir y no estar ya eliminada (no se re-elimina).
-    const target = await this.userRepository.findById(userId, {
-      attributes: ['user_id', 'deleted_at'],
-      include: [{ association: 'person', attributes: ['person_id'] }]
-    });
+    const target = await this.userRepository.findAdminTarget(userId);
     if (!target) {
       throw AppError.notFound('Usuario no encontrado');
     }
@@ -130,20 +127,8 @@ class PersonService {
    * Punto de entrada del handler de doble aprobación y de la ejecución directa.
    */
   async executeDeleteAccount(userId: string, auditContext: AdminAuditContext) {
-    const transaction = await this.unitOfWork.begin();
-
-    try {
-      const user = await this.userRepository.findById(userId, {
-        include: [
-          {
-            association: 'person',
-            attributes: ['person_id', 'national_id', 'first_name'],
-            include: [{ association: 'contact', attributes: ['person_contact_id', 'email'] }]
-          }
-        ],
-        attributes: ['user_id', 'username'],
-        transaction
-      });
+    const result = await this.unitOfWork.run(async () => {
+      const user = await this.userRepository.findAdminTarget(userId);
 
       if (!user) {
         throw AppError.notFound('Usuario no encontrado');
@@ -152,67 +137,59 @@ class PersonService {
       const person = requirePerson(user);
       const result = await this.profileHelper.deleteAccountLogic({
         userId,
-        personId: person.person_id,
-        nationalId: person.national_id,
+        personId: person.personId,
+        nationalId: person.nationalId,
         email: person.contact?.email,
         username: user.username,
-        firstName: person.first_name,
+        firstName: person.firstName,
         changedByUserId: auditContext.adminUserId,
         changedByRole: 'admin',
         changeReason: 'Cuenta eliminada por administrador',
-        auditContext: { ipAddress: auditContext.ipAddress, userAgent: auditContext.userAgent },
-        transaction
+        auditContext: { ipAddress: auditContext.ipAddress, userAgent: auditContext.userAgent }
       });
+      return result;
+    });
 
-      await transaction.commit();
+    logAudit(
+      'PERSON_ACCOUNT_DELETED',
+      auditContext.adminUserId,
+      {},
+      { entityId: userId, entityType: 'User', entityTable: 'users' }
+    );
 
-      logAudit(
-        'PERSON_ACCOUNT_DELETED',
-        auditContext.adminUserId,
-        {},
-        { entityId: userId, entityType: 'User', entityTable: 'users' }
-      );
-
-      const { deletedEmail } = result;
-      if (deletedEmail) {
-        setImmediate(() => {
-          this.NotificationUtil.crearNotificacionDirecta({
-            tipoNotificacion: 'CUENTA_ELIMINADA',
+    const { deletedEmail } = result;
+    if (deletedEmail) {
+      setImmediate(() => {
+        this.NotificationUtil.crearNotificacionDirecta({
+          tipoNotificacion: 'CUENTA_ELIMINADA',
+          email: deletedEmail,
+          metadata: {
+            nombre: result.firstName,
             email: deletedEmail,
-            metadata: {
-              nombre: result.firstName,
-              email: deletedEmail,
-              logoUrl: notifications.ses.logoUrl
-            }
-          }).catch(err =>
-            logger.warn('Error sending account deletion notification', {
-              userId,
-              error: err.message
-            })
-          );
+            logoUrl: notifications.ses.logoUrl
+          }
+        }).catch(err =>
+          logger.warn('Error sending account deletion notification', {
+            userId,
+            error: err.message
+          })
+        );
 
-          this.NotificationUtil.crearNotificacion({
-            tipoNotificacion: 'PERSON_ADMIN_ACTION',
-            userId: auditContext.adminUserId,
-            relatedEntity: null,
-            metadata: {
-              nombre: auditContext.adminFirstName,
-              accion: 'eliminar_cuenta',
-              userId: userId,
-              logoUrl: notifications.ses.logoUrl
-            }
-          }).catch(err => logger.warn('Error sending admin action notification', { error: err.message }));
-        });
-      }
-
-      return null;
-    } catch (error) {
-      if (!transaction.finished) {
-        await transaction.rollback();
-        logger.info('Transaction rolled back', { userId, adminId: auditContext.adminUserId });
-      }
-      throw error;
+        this.NotificationUtil.crearNotificacion({
+          tipoNotificacion: 'PERSON_ADMIN_ACTION',
+          userId: auditContext.adminUserId,
+          relatedEntity: null,
+          metadata: {
+            nombre: auditContext.adminFirstName,
+            accion: 'eliminar_cuenta',
+            userId: userId,
+            logoUrl: notifications.ses.logoUrl
+          }
+        }).catch(err => logger.warn('Error sending admin action notification', { error: err.message }));
+      });
     }
+
+    return null;
   }
 
   // ============================================================

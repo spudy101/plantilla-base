@@ -1,53 +1,46 @@
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../../shared/models';
-const { RolePermissionOverride } = modelsModule;
-import type defineRolePermissionOverride from '../models/role-permission-override.model';
+// modules/schemas/kyc/iam/repositories/role-permission-override.repository.ts
+//
+// Permisos extra por rol (RBAC). origin_session_id lo completa la extensión de Prisma al crear.
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import type { Prisma, RolePermissionOverride } from '../../../../../shared/database/generated/prisma/client';
 
-// Hereda findById / create / delete de BaseRepository (SOLID: L — misma firma que el padre).
-class RolePermissionOverrideRepository extends BaseRepository<defineRolePermissionOverride.Instance> {
-  constructor() {
-    super(RolePermissionOverride);
+const WITH_GRANTED_BY = {
+  grantedBy: { select: { userId: true, username: true, person: { select: { firstName: true, lastName: true } } } }
+} satisfies Prisma.RolePermissionOverrideInclude;
+
+export type RolePermissionOverrideWithGrantor = Prisma.RolePermissionOverrideGetPayload<{ include: typeof WITH_GRANTED_BY }>;
+
+class RolePermissionOverrideRepository extends PrismaRepository {
+  async findById(rolePermissionId: string): Promise<RolePermissionOverride | null> {
+    return (await this.db()).rolePermissionOverride.findUnique({ where: { rolePermissionId } });
   }
 
-  /** Todos los overrides de un rol, ordenados por módulo + acción. */
-  findByRole(roleName: string) {
-    return this.model.findAll({
-      where: { role_name: roleName },
-      include: [
-        {
-          association: 'grantedBy',
-          attributes: ['user_id', 'username'],
-          include: [{ association: 'person', attributes: ['first_name', 'last_name'] }]
-        }
-      ],
-      order: [
-        ['module_name', 'ASC'],
-        ['action', 'ASC']
-      ]
+  async create(data: Prisma.RolePermissionOverrideUncheckedCreateInput): Promise<RolePermissionOverride> {
+    return (await this.db()).rolePermissionOverride.create({ data });
+  }
+
+  /** Todos los overrides de un rol con quién los otorgó, ordenados por módulo + acción. */
+  async findByRole(roleName: string): Promise<RolePermissionOverrideWithGrantor[]> {
+    return (await this.db()).rolePermissionOverride.findMany({
+      where: { roleName },
+      include: WITH_GRANTED_BY,
+      orderBy: [{ moduleName: 'asc' }, { action: 'asc' }]
     });
   }
 
-  /** @returns {Promise<boolean>} true si se eliminó un registro */
-  async deleteById(rolePermissionId: string, options = {}) {
-    const deleted = await this.delete(rolePermissionId, options);
-    return deleted > 0;
+  /** true si se eliminó un registro. */
+  async deleteById(rolePermissionId: string): Promise<boolean> {
+    return (await (await this.db()).rolePermissionOverride.deleteMany({ where: { rolePermissionId } })).count > 0;
   }
 
-  /**
-   * ¿Ya existe el override exacto? (detección de duplicados).
-   * Nombre propio: no sobrescribe ReadRepository.exists(criteria), que tiene otra firma.
-   */
-  existsOverride(roleName: string, moduleName: string, action: defineRolePermissionOverride.Attributes['action']) {
-    return this.exists({ role_name: roleName, module_name: moduleName, action });
+  /** ¿Ya existe el override exacto? (detección de duplicados). */
+  async existsOverride(roleName: string, moduleName: string, action: string): Promise<boolean> {
+    return (await (await this.db()).rolePermissionOverride.count({ where: { roleName, moduleName, action } })) > 0;
   }
 
-  /** Carga solo module_name + action para usar en RbacService (lookup ligero). */
-  async findLookupByRole(roleName: string) {
-    const rows = await this.model.findAll({
-      where: { role_name: roleName },
-      attributes: ['module_name', 'action']
-    });
-    return rows.map(r => ({ module_name: r.module_name, action: r.action }));
+  /** Solo módulo + acción de un rol (lookup ligero de RbacService). */
+  async findLookupByRole(roleName: string): Promise<Array<{ moduleName: string; action: string }>> {
+    return (await this.db()).rolePermissionOverride.findMany({ where: { roleName }, select: { moduleName: true, action: true } });
   }
 }
 

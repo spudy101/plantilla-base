@@ -75,33 +75,33 @@ class InternalUserProfileService {
       lastName: data.lastName,
       secondLastName: data.secondLastName,
       nationalId: data.nationalId,
-      documentTypeId: systemDocumentType.document_type_id,
+      documentTypeId: systemDocumentType.documentTypeId,
       role
     });
 
     logAudit(
       'INTERNAL_USER_CREATED',
       auditCtx.adminUserId,
-      { roleId: role.role_id, roleName: role.name },
-      { entityId: user.user_id, entityType: 'InternalUser', entityTable: 'users' }
+      { roleId: role.roleId, roleName: role.name },
+      { entityId: user.userId, entityType: 'InternalUser', entityTable: 'users' }
     );
 
     setImmediate(() => {
       const { logoUrl } = notifications.ses;
       this.NotificationCreationService.crearNotificacion({
         tipoNotificacion: 'IAM_INTERNAL_USER_CREATED',
-        userId: user.user_id,
+        userId: user.userId,
         metadata: { nombre: data.firstName, email: data.email, passwordTemporal: temporaryPassword, logoUrl }
       }).catch(err => logger.warn('Error enviando IAM_INTERNAL_USER_CREATED', { error: err.message }));
       this.NotificationCreationService.crearNotificacion({
         tipoNotificacion: 'IAM_ADMIN_USER_CREATED',
         userId: auditCtx.adminUserId,
-        relatedEntity: { type: 'User', id: user.user_id },
+        relatedEntity: { type: 'User', id: user.userId },
         metadata: { nombreUsuario: `${data.firstName} ${data.lastName || ''}`.trim(), email: data.email, logoUrl }
       }).catch(err => logger.warn('Error enviando IAM_ADMIN_USER_CREATED', { error: err.message }));
     });
 
-    const fullUser = await this.userRepository.findByUserId(user.user_id, 'basic');
+    const fullUser = await this.userRepository.findByUserId(user.userId, 'basic');
     if (!fullUser) {
       throw AppError.internal('Usuario recién creado no encontrado');
     }
@@ -120,17 +120,17 @@ class InternalUserProfileService {
     const person = this.guards.requirePerson(user);
 
     const { before, after } = buildAuditDiff(person, data, {
-      firstName: 'first_name',
-      middleName: 'middle_name',
-      lastName: 'last_name',
-      secondLastName: 'second_last_name'
+      firstName: 'firstName',
+      middleName: 'middleName',
+      lastName: 'lastName',
+      secondLastName: 'secondLastName'
     });
 
-    await this.personRepository.update(person.person_id, {
-      first_name: data.firstName ?? person.first_name,
-      middle_name: data.middleName ?? person.middle_name,
-      last_name: data.lastName ?? person.last_name,
-      second_last_name: data.secondLastName ?? person.second_last_name
+    await this.personRepository.update(person.personId, {
+      firstName: data.firstName ?? person.firstName,
+      middleName: data.middleName ?? person.middleName,
+      lastName: data.lastName ?? person.lastName,
+      secondLastName: data.secondLastName ?? person.secondLastName
     });
 
     logAudit(

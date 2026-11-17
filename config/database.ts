@@ -3,8 +3,9 @@
 //
 // seederStorage: 'sequelize' registra cada seeder ejecutado en la tabla SequelizeData
 // (equivalente a SequelizeMeta para migraciones), de modo que `db:seed:all` saltea los
-// seeders ya corridos. Solo se aplica a los perfiles PostgreSQL (development/production);
-// el perfil test usa SQLite en memoria y se reconstruye en cada corrida.
+// seeders ya corridos. Los tres perfiles son PostgreSQL: el de test apunta al esquema aislado
+// que fija tests/test-env.ts (TEST_DB_SCHEMA, por defecto `test`) y se prepara con
+// `npm run db:test:prepare`.
 //
 // Comandos:
 //   npm run db:migrate       → aplica migraciones pendientes (tracking en SequelizeMeta)
@@ -80,18 +81,28 @@ const baseConfig: Record<'development' | 'test' | 'production', DbProfile> = {
     }
   },
 
-  // 🎯 Tests: SQLite en memoria (como Flask)
+  // Tests: Postgres local o el service container de CI, sin TLS, en un esquema propio (tests/test-env.ts).
+  // No hay perfil SQLite: Prisma fija el proveedor en el schema y los tests usan la misma base que la app.
   test: {
-    dialect: 'sqlite',
-    storage: ':memory:',
+    username: database.user,
+    password: database.password,
+    database: database.name,
+    host: database.host,
+    port: database.port,
+    dialect,
+    dialectOptions: { prependSearchPath: true },
     logging: false,
     define: {
       timestamps: true,
       underscored: true,
       freezeTableName: true
     },
+    seederStorage: 'sequelize',
+    seederStorageTableName: 'SequelizeData',
+    seederStorageTableSchema: database.schema,
+    migrationStorageTableSchema: database.schema,
     pool: {
-      max: 1,
+      max: 2,
       min: 0,
       acquire: 30000,
       idle: 10000

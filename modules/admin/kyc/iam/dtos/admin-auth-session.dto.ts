@@ -1,25 +1,23 @@
-import type defineUserSession from '../../../../schemas/kyc/iam/models/user-session.model';
-import type defineAuditLog from '../../../../schemas/records/audit/models/audit-log.model';
+import type { SessionWithDeviceAndUser } from '../../../../schemas/kyc/iam/repositories/user-session.repository';
+import type { AuditLogWithExecutor } from '../../../../schemas/records/audit/repositories/audit-log.repository';
 import kycModule from '../../../../../shared/dtos/kyc';
 const { UserSessionComponent } = kycModule;
 import componentsCatalogDtoModule from '../../../../../shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
 
-type SessionRow = defineUserSession.Instance;
-type AttemptRow = defineAuditLog.Instance & {
-  executor?: { user_id: string; username: string; person?: { first_name?: string | null; last_name?: string | null } | null } | null;
-};
+type SessionRow = SessionWithDeviceAndUser;
+type AttemptRow = AuditLogWithExecutor;
 
 function SessionDTO(session: SessionRow) {
   const device = session.device || null;
   return {
     ...UserSessionComponent.build(session),
-    userId: session.user_id,
+    userId: session.userId,
     device: device
       ? {
-          deviceId: device.user_trusted_device_id,
-          deviceName: device.device_name,
-          deviceType: device.device_type,
+          deviceId: device.userTrustedDeviceId,
+          deviceName: device.deviceName,
+          deviceType: device.deviceType,
           browser: device.browser || null,
           os: device.os || null,
           status: device.status
@@ -40,25 +38,25 @@ function _buildExecutorRef(executor: AttemptRow['executor']) {
     return null;
   }
   return {
-    userId: executor.user_id,
+    userId: executor.userId,
     username: executor.username,
-    fullName: [executor.person?.first_name, executor.person?.last_name].filter(Boolean).join(' ') || null
+    fullName: [executor.person?.firstName, executor.person?.lastName].filter(Boolean).join(' ') || null
   };
 }
 
 function AuthAttemptDTO(log: AttemptRow) {
   return {
-    auditLogId: log.audit_log_id,
+    auditLogId: log.auditLogId,
     action: log.action,
     description: log.description || null,
     outcome: log.outcome,
     risk: log.risk,
-    userId: log.user_id || null,
+    userId: log.userId || null,
     user: _buildExecutorRef(log.executor),
     ipAddress: log.ip || null,
-    userAgent: log.user_agent || null,
+    userAgent: log.userAgent || null,
     timestamp: log.createdAt,
-    errorMessage: log.error_message || null
+    errorMessage: log.errorMessage || null
   };
 }
 

@@ -1,5 +1,5 @@
-import type defineUser from '../../../../../schemas/kyc/iam/models/user.model';
-import type definePrivacyPolicy from '../../../../../schemas/records/legal/models/privacy-policy.model';
+import type { UserWith } from '../../../../../schemas/kyc/iam/repositories/user.repository';
+import type { PrivacyPolicy } from '../../../../../../shared/database/generated/prisma/client';
 // modules/shared-endpoints/kyc/iam/services/auth-login/login-policy-gate.service.ts
 //
 // Compuerta de política de privacidad en el login. La comparten el login por contraseña y el
@@ -43,7 +43,7 @@ class LoginPolicyGateService {
    * @returns {Promise<null|Object>} null → el login continúa; PolicyUpdateRequiredDTO → bloqueado
    */
   async check(
-    user: defineUser.Instance,
+    user: UserWith<'login'>,
     acceptPolicy: boolean | undefined,
     ip: string | null,
     { blockedAuditAction, source }: { blockedAuditAction: string; source: string }
@@ -59,7 +59,7 @@ class LoginPolicyGateService {
       return null;
     }
     // Ya tiene la versión activa → OK
-    if (user.privacy_policy_version === activePolicy.version) {
+    if (user.privacyPolicyVersion === activePolicy.version) {
       return null;
     }
 
@@ -70,26 +70,26 @@ class LoginPolicyGateService {
 
     logAudit(
       blockedAuditAction,
-      user.user_id,
+      user.userId,
       {
-        userVersion: user.privacy_policy_version || 'ninguna',
+        userVersion: user.privacyPolicyVersion || 'ninguna',
         activeVersion: activePolicy.version
       },
       { entityType: 'PrivacyPolicy', entityTable: 'privacy_policies', outcome: 'failure' }
     );
 
     return PolicyUpdateRequiredDTO({
-      currentVersion: user.privacy_policy_version || null,
+      currentVersion: user.privacyPolicyVersion || null,
       newVersion: activePolicy.version,
-      documentUrl: activePolicy.document_url,
+      documentUrl: activePolicy.documentUrl,
       summary: activePolicy.summary,
-      effectiveDate: activePolicy.effective_date
+      effectiveDate: activePolicy.effectiveDate
     });
   }
 
   /** @private — el cliente aceptó en este mismo request: registrar y dejar pasar */
-  async _accept(user: defineUser.Instance, activePolicy: definePrivacyPolicy.Instance, ip: string | null, source: string) {
-    await this.userRepository.updatePrivacyPolicy(user.user_id, {
+  async _accept(user: UserWith<'login'>, activePolicy: PrivacyPolicy, ip: string | null, source: string) {
+    await this.userRepository.updatePrivacyPolicy(user.userId, {
       version: activePolicy.version,
       acceptedAt: new Date(),
       acceptedIp: ip || null
@@ -97,17 +97,17 @@ class LoginPolicyGateService {
 
     // RF-ADM-04: trazabilidad granular en user_consents (best-effort)
     await this.consentRecorder
-      .grantPrivacyPolicy({ userId: user.user_id, privacyPolicyId: activePolicy.privacy_policy_id, ip })
+      .grantPrivacyPolicy({ userId: user.userId, privacyPolicyId: activePolicy.privacyPolicyId, ip })
       .catch(err =>
         logger.warn(`${source}: no se pudo registrar user_consent de privacy policy`, {
-          userId: user.user_id,
+          userId: user.userId,
           error: err.message
         })
       );
 
     logAudit(
       'PRIVACY_POLICY_ACCEPTED',
-      user.user_id,
+      user.userId,
       { version: activePolicy.version, ip: ip || null },
       { entityType: 'PrivacyPolicy', entityTable: 'privacy_policies' }
     );

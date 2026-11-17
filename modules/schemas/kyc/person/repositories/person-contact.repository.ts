@@ -1,103 +1,60 @@
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../../shared/models';
-const { PersonContact } = modelsModule;
-import HashUtil from '../../../../../shared/utils/hash.util';
-import type { InstanceUpdateOptions } from 'sequelize';
-import type definePersonContact from '../models/person-contact.model';
+// modules/schemas/kyc/person/repositories/person-contact.repository.ts
+//
+// Contacto de la persona. email y teléfonos van cifrados (piiExtension): se leen y escriben en claro y
+// se buscan por su hash.
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import type { PersonContact, Prisma } from '../../../../../shared/database/generated/prisma/client';
+import { hashValue } from '../../../../../shared/database/pii-fields';
 
-class PersonContactRepository extends BaseRepository<definePersonContact.Instance> {
-  constructor() {
-    super(PersonContact);
+const PREFIX_REF = { select: { phonePrefixId: true, prefix: true } } satisfies Prisma.PhonePrefixDefaultArgs;
+
+class PersonContactRepository extends PrismaRepository {
+  async findById(personContactId: string): Promise<PersonContact | null> {
+    return (await this.db()).personContact.findUnique({ where: { personContactId } });
   }
 
-  findByEmail(email: string, options = {}) {
-    // Buscar por hash — el cifrado AES-GCM es no determinístico
-    const hash = HashUtil.hashForSearch(email);
-    return this.findOne({ email_hash: hash }, options);
+  async findByEmail(email: string): Promise<PersonContact | null> {
+    return (await this.db()).personContact.findFirst({ where: { emailHash: hashValue(email) } });
   }
 
-  /**
-   * Contacto por email con la persona (nombre) y su usuario (id, estado).
-   * Usado por el reset de credenciales para resolver al titular del email.
-   */
-  findByEmailWithUser(email: string) {
-    return this.findByEmail(email, {
-      include: [
-        {
-          association: 'person',
-          attributes: ['person_id', 'first_name'],
-          include: [{ association: 'user', attributes: ['user_id', 'is_active'] }]
-        }
-      ]
+  /** Contacto por email con la persona (nombre) y su usuario (id, estado): reset de credenciales. */
+  async findByEmailWithUser(email: string) {
+    return (await this.db()).personContact.findFirst({
+      where: { emailHash: hashValue(email) },
+      include: {
+        person: { select: { personId: true, firstName: true, user: { select: { userId: true, isActive: true } } } }
+      }
     });
   }
 
-  findByPhone(phone: string) {
-    const hash = HashUtil.hashForSearch(phone);
-    return this.findOne({ phone_primary_hash: hash });
+  async findByPersonId(personId: string): Promise<PersonContact | null> {
+    return (await this.db()).personContact.findUnique({ where: { personId } });
   }
 
-  findByPersonId(personId: string) {
-    return this.findOne({ person_id: personId });
+  async findByPrimaryPhone(phone: string): Promise<PersonContact | null> {
+    return (await this.db()).personContact.findFirst({ where: { phonePrimaryHash: hashValue(phone) } });
   }
 
-  markEmailVerified(personContactId: string, verifiedAt = new Date(), options = {}) {
-    return this._markVerified(personContactId, 'email_verified_at', verifiedAt, options);
+  async findBySecondaryPhone(phone: string): Promise<PersonContact | null> {
+    return (await this.db()).personContact.findFirst({ where: { phoneSecondaryHash: hashValue(phone) } });
   }
 
-  markPhoneVerified(personContactId: string, verifiedAt = new Date(), options = {}) {
-    return this._markVerified(personContactId, 'phone_primary_verified_at', verifiedAt, options);
+  /** Contacto de la persona con los prefijos de sus teléfonos. */
+  async findByPersonIdWithPrefixes(personId: string) {
+    return (await this.db()).personContact.findUnique({
+      where: { personId },
+      include: { phonePrimaryPrefix: PREFIX_REF, phoneSecondaryPrefix: PREFIX_REF }
+    });
   }
 
-  // Misma firma que BaseRepository.delete(id, options) — SOLID: L (no se pierde la transacción)
-  override delete(personContactId: string, options = {}) {
-    return this.model.destroy({ where: { person_contact_id: personContactId }, ...options });
+  async create(data: Prisma.PersonContactUncheckedCreateInput): Promise<PersonContact> {
+    return (await this.db()).personContact.create({ data });
   }
 
-  override findById(personContactId: string, options = {}) {
-    return this.model.findByPk(personContactId, options);
-  }
-
-  _markVerified(
-    personContactId: string,
-    field: 'email_verified_at' | 'phone_primary_verified_at' | 'phone_secondary_verified_at',
-    verifiedAt: Date,
-    options?: InstanceUpdateOptions<definePersonContact.Attributes>
-  ) {
-    return this.update(personContactId, { [field]: verifiedAt }, options);
-  }
-
-  findByPrimaryPhone(phone: string) {
-    const hash = HashUtil.hashForSearch(phone);
-    return this.findOne({ phone_primary_hash: hash });
-  }
-
-  findBySecondaryPhone(phone: string) {
-    const hash = HashUtil.hashForSearch(phone);
-    return this.findOne({ phone_secondary_hash: hash });
-  }
-
-  /**
-   * Busca contacto por person_id con todas las relaciones de prefijos telefónicos
-   */
-  findByPersonIdWithPrefixes(personId: string) {
-    return this.findOne(
-      {
-        person_id: personId
-      },
-      {
-        include: [
-          {
-            association: 'phone_primary_prefix',
-            attributes: ['phone_prefix_id', 'prefix']
-          },
-          {
-            association: 'phone_secondary_prefix',
-            attributes: ['phone_prefix_id', 'prefix']
-          }
-        ]
-      }
-    );
+  /** Actualiza por id; null si la fila no existe. */
+  async update(personContactId: string, data: Prisma.PersonContactUncheckedUpdateManyInput): Promise<PersonContact | null> {
+    const [row] = await (await this.db()).personContact.updateManyAndReturn({ where: { personContactId }, data });
+    return row ?? null;
   }
 }
 

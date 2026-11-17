@@ -1,21 +1,14 @@
-import { Op } from 'sequelize';
-import BaseRepository from '../../../../shared/repositories/base.repository';
-import ReadRepository from '../../../../shared/repositories/read.repository';
-import modelsModule from '../../../../shared/models';
-const { ProviderFallbackEvent } = modelsModule;
-import type defineProviderFallbackEvent from '../models/provider-fallback-event.model';
-import * as queryModule from '../../../../shared/repositories/query';
-const { dateRange, toWhere } = queryModule;
-import type { WhereClause } from '../../../../shared/repositories/query';
+// modules/schemas/integration/repositories/provider-fallback-event.repository.ts
+//
+// Ventanas de caída de un proveedor (circuito abierto → cerrado) para el monitoreo de integraciones.
+import PrismaRepository from '../../../../shared/repositories/prisma.repository';
+import type { Prisma, ProviderFallbackEvent } from '../../../../shared/database/generated/prisma/client';
 
+// Tolerancia al emparejar el cierre con su apertura (relojes de distintos procesos)
 const MATCH_WINDOW_MS = 5000;
 
-class ProviderFallbackEventRepository extends BaseRepository<defineProviderFallbackEvent.Instance> {
-  constructor() {
-    super(ProviderFallbackEvent, {});
-  }
-
-  openFallback({
+class ProviderFallbackEventRepository extends PrismaRepository {
+  async openFallback({
     provider,
     circuitProduct,
     startedAt,
@@ -25,17 +18,20 @@ class ProviderFallbackEventRepository extends BaseRepository<defineProviderFallb
     circuitProduct: string;
     startedAt: Date;
     metadata?: unknown;
-  }) {
-    return this.model.create({
-      provider,
-      circuit_product: circuitProduct,
-      started_at: startedAt,
-      ended_at: null,
-      metadata
+  }): Promise<ProviderFallbackEvent> {
+    return (await this.db()).providerFallbackEvent.create({
+      data: {
+        provider,
+        circuitProduct,
+        startedAt,
+        endedAt: null,
+        ...(metadata != null ? { metadata: metadata as Prisma.InputJsonValue } : {})
+      }
     });
   }
 
-  async closeFallback({
+  /** Cierra la ventana abierta más reciente del proveedor (desde `startedAt` − tolerancia). Null si no hay. */
+  closeFallback({
     provider,
     startedAt,
     endedAt,
@@ -45,71 +41,59 @@ class ProviderFallbackEventRepository extends BaseRepository<defineProviderFallb
     startedAt?: Date | number | null;
     endedAt: Date;
     affectedCount: number | null;
-  }) {
-    const where: WhereClause = {
-      provider,
-      started_at: startedAt ? { [Op.gte]: new Date(Number(startedAt) - MATCH_WINDOW_MS) } : { [Op.ne]: null },
-      ended_at: null
-    };
-    const event = await this.model.findOne({
-      where: toWhere(where),
-      order: [['started_at', 'DESC']]
-    });
-
-    if (!event) {
-      return null;
-    }
-
-    return event.update({
-      ended_at: endedAt,
-      affected_processes_count: affectedCount
-    });
-  }
-
-  findOpenByProvider(provider: string) {
-    return this.model.findOne({
-      where: { provider, ended_at: null },
-      order: [['started_at', 'DESC']]
+  }): Promise<ProviderFallbackEvent | null> {
+    return this.atomic(async db => {
+      const event = await db.providerFallbackEvent.findFirst({
+        where: {
+          provider,
+          endedAt: null,
+          ...(startedAt ? { startedAt: { gte: new Date(Number(startedAt) - MATCH_WINDOW_MS) } } : {})
+        },
+        orderBy: { startedAt: 'desc' }
+      });
+      if (!event) {
+        return null;
+      }
+      return db.providerFallbackEvent.update({
+        where: { fallbackEventId: event.fallbackEventId },
+        data: { endedAt, affectedProcessesCount: affectedCount }
+      });
     });
   }
 
-  countActive() {
-    return this.model.count({ where: { ended_at: null } });
+  async countActive(): Promise<number> {
+    return (await this.db()).providerFallbackEvent.count({ where: { endedAt: null } });
   }
 
-  findRecent(limit = 20) {
-    return this.model.findAll({ order: [['started_at', 'DESC']], limit });
+  async findRecent(limit = 20): Promise<ProviderFallbackEvent[]> {
+    return (await this.db()).providerFallbackEvent.findMany({ orderBy: { startedAt: 'desc' }, take: limit });
   }
 
-  override findAllPaginated(
+  async findAllPaginated(
     {
       provider = null,
       activeOnly = false,
       from = null,
       to = null
     }: { provider?: string | null; activeOnly?: boolean; from?: string | Date | null; to?: string | Date | null } = {},
-    paginationParams: ReadRepository.PaginationParams = {}
-  ) {
-    const where: WhereClause = {};
-
+    { limit, offset }: PrismaRepository.PaginationParams = {}
+  ): Promise<PrismaRepository.Page<ProviderFallbackEvent>> {
+    const where: Prisma.ProviderFallbackEventWhereInput = {};
     if (provider) {
       where.provider = provider;
     }
     if (activeOnly) {
-      where.ended_at = null;
+      where.endedAt = null;
     }
-    const startedAtRange = dateRange(from, to);
-    if (startedAtRange) {
-      where.started_at = startedAtRange;
+    if (from || to) {
+      where.startedAt = { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) };
     }
-
-    return this.model.findAndCountAll({
-      where: toWhere(where),
-      limit: paginationParams.limit,
-      offset: paginationParams.offset,
-      order: [['started_at', 'DESC']],
-      distinct: true
-    });
+    const db = await this.db();
+    const [rows, count] = await Promise.all([
+      db.providerFallbackEvent.findMany({ where, orderBy: { startedAt: 'desc' }, take: limit, skip: offset }),
+      db.providerFallbackEvent.count({ where })
+    ]);
+    return { rows, count };
   }
 }
 

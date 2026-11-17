@@ -1,6 +1,6 @@
 import { interopDefault } from '../../../../shared/utils/interop.util';
-import type defineNotificationType from '../models/notification-type.model';
-import type { Transaction } from 'sequelize';
+import type { NotificationTypeWithCategory } from '../repositories/notification-type.repository';
+import type { Prisma } from '../../../../shared/database/generated/prisma/client';
 import notificationRepo from '../repositories/notification.repository';
 import globalNotificationRepo from '../repositories/global-notification.repository';
 import notificationTypeRepo from '../repositories/notification-type.repository';
@@ -101,9 +101,9 @@ class NotificationCreationService {
    * @param {string|null} data.userId           - null → notificación global
    * @param {Object}      [data.relatedEntity]  - { type, id }
    * @param {Object}      [data.metadata]
-   * @param {Object}      transaction            - Transacción de Sequelize
+   * Dentro de unitOfWork.run() la notificación se crea en su transacción (contexto de Prisma).
    */
-  async crearNotificacion(data: NotificationCreationService.CreateInput, transaction: Transaction | null = null) {
+  async crearNotificacion(data: NotificationCreationService.CreateInput) {
     try {
       const { tipoNotificacion, userId = null, relatedEntity = {}, metadata = {} } = data;
 
@@ -127,11 +127,10 @@ class NotificationCreationService {
           generated.title,
           generated.body,
           relatedEntity,
-          metadata,
-          transaction
+          metadata
         );
       } else {
-        result = await this._crearNotificacionGlobal(notificationType, generated.title, generated.body, metadata, transaction);
+        result = await this._crearNotificacionGlobal(notificationType, generated.title, generated.body, metadata);
       }
 
       logger.info('Notificación creada exitosamente', {
@@ -159,30 +158,24 @@ class NotificationCreationService {
   /** @private */
   async _crearNotificacionIndividual(
     userId: string,
-    notificationType: defineNotificationType.Instance,
+    notificationType: NotificationTypeWithCategory,
     title: string,
     body: string,
     relatedEntity: NotificationCreationService.RelatedEntity | null | undefined,
-    metadata: Record<string, unknown>,
-    transaction: Transaction | null
+    metadata: Record<string, unknown>
   ) {
     // 1. Crear notificación in-app
-    const notification = await this.notificationRepo.create(
-      {
-        user_id: userId,
-        // FIX: notification_type_id usa notification_type_id (PK del modelo NotificationType)
-        notification_type_id: notificationType.notification_type_id,
-        title,
-        body,
-        // Antes relatedEntity_type/relatedEntity_id: columnas inexistentes que Sequelize descartaba en silencio
-        related_entity_type: relatedEntity?.type || null,
-        related_entity_id: relatedEntity?.id || null,
-        metadata,
-        processing_status: NOTIFICATION_PROCESSING_STATUS.PENDING,
-        priority: NotificationContentUtil.mapPriority(notificationType.priority)
-      },
-      { transaction }
-    );
+    const notification = await this.notificationRepo.create({
+      userId,
+      notificationTypeId: notificationType.notificationTypeId,
+      title,
+      body,
+      relatedEntityType: relatedEntity?.type || null,
+      relatedEntityId: relatedEntity?.id || null,
+      metadata: metadata as Prisma.InputJsonValue,
+      processingStatus: NOTIFICATION_PROCESSING_STATUS.PENDING,
+      priority: NotificationContentUtil.mapPriority(notificationType.priority)
+    });
 
     // 2. Preferencias del usuario — atadas a la CATEGORÍA del tipo (o global si no tiene categoría)
     const category = notificationType.category || null;
@@ -193,8 +186,8 @@ class NotificationCreationService {
 
     // 3. Quiet hours y prioridad — la categoría manda. Una categoría crítica o no silenciable
     //    ignora el quiet hours del usuario.
-    const isCritical = category?.is_critical === true;
-    const allowDnd = category?.allow_dnd !== false;
+    const isCritical = category?.isCritical === true;
+    const allowDnd = category?.allowDnd !== false;
     const isQuietHours = allowDnd && !isCritical && this.notificationSchedulerService.isInQuietHours(userPreference);
     const isHighPriority = isCritical || category?.priority === 'urgent' || notificationType.priority === 'high';
 
@@ -202,8 +195,7 @@ class NotificationCreationService {
     setImmediate(() => {
       this.notificationSendingService
         .procesarEnviosIndividuales(
-          // FIX: notification.notification_id en vez de notification.id
-          notification.notification_id,
+          notification.notificationId,
           userId,
           notificationType,
           title,
@@ -216,8 +208,7 @@ class NotificationCreationService {
         .catch(err => {
           logger.error('Error procesando envíos individuales', {
             error: err.message,
-            // FIX: notification.notification_id en vez de notification.id
-            notification_id: notification.notification_id
+            notification_id: notification.notificationId
           });
         });
     });
@@ -225,34 +216,29 @@ class NotificationCreationService {
     // 5. Refrescar el contador SSE del destinatario (side-effect de fondo, nunca en el flujo principal)
     setImmediate(() => NotificationCountUtil.emitCountUpdate(userId));
 
-    // FIX: retornar notification_id (PK real) en vez de id
-    return { notification_id: notification.notification_id };
+    // Contrato de respuesta: la clave sigue en snake_case (la leen controladores y servicios)
+    return { notification_id: notification.notificationId };
   }
 
   /** @private */
   async _crearNotificacionGlobal(
-    notificationType: defineNotificationType.Instance,
+    notificationType: NotificationTypeWithCategory,
     title: string,
     body: string,
-    metadata: Record<string, unknown>,
-    transaction: Transaction | null
+    metadata: Record<string, unknown>
   ) {
     // 1. Crear notificación global
-    const globalNotification = await this.globalNotificationRepo.create(
-      {
-        // FIX: notification_type_id usa notification_type_id (PK del modelo NotificationType)
-        notification_type_id: notificationType.notification_type_id,
-        title,
-        body,
-        metadata,
-        send_push: notificationType.category?.supports_push ?? true,
-        send_email: notificationType.category?.supports_email ?? true,
-        send_in_app: true,
-        batch_size: 100,
-        is_active: true
-      },
-      { transaction }
-    );
+    const globalNotification = await this.globalNotificationRepo.create({
+      notificationTypeId: notificationType.notificationTypeId,
+      title,
+      body,
+      metadata: metadata as Prisma.InputJsonValue,
+      sendPush: notificationType.category?.supportsPush ?? true,
+      sendEmail: notificationType.category?.supportsEmail ?? true,
+      sendInApp: true,
+      batchSize: 100,
+      isActive: true
+    });
 
     // 2. Programar procesamiento masivo en background
     // FIX: nombre de archivo corregido de notificationBatch.service → notification-batch.service
@@ -261,8 +247,7 @@ class NotificationCreationService {
     setImmediate(() => {
       batchService
         .procesarNotificacionGlobal(
-          // FIX: global_notification_id (PK real) en vez de id
-          globalNotification.global_notification_id,
+          globalNotification.globalNotificationId,
           notificationType,
           title,
           body,
@@ -271,8 +256,7 @@ class NotificationCreationService {
         .catch(err => {
           logger.error('Error procesando notificación global', {
             error: err.message,
-            // FIX: global_notification_id (PK real) en vez de id
-            global_notification_id: globalNotification.global_notification_id
+            global_notification_id: globalNotification.globalNotificationId
           });
         });
     });
@@ -281,8 +265,7 @@ class NotificationCreationService {
     // conexión SSE abierta recalcula su propio count al recibir { global: true }.
     setImmediate(() => NotificationCountUtil.emitGlobalCountInvalidation());
 
-    // FIX: retornar global_notification_id (PK real) en vez de id
-    return { global_notification_id: globalNotification.global_notification_id };
+    return { global_notification_id: globalNotification.globalNotificationId };
   }
 }
 

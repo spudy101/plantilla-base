@@ -32,7 +32,7 @@ class PromotionalBannerPublicService {
 
     const config = await this.systemGlobalConfigRepository.findActive();
     // JSONB: forma libre en el modelo; la describe el DTO
-    const banners = (config?.promotional_banners ?? []) as PromotionalBannerDto.Banner[];
+    const banners = (config?.promotionalBanners ?? []) as unknown as PromotionalBannerDto.Banner[];
     const activos = banners.filter(b => b.is_active !== false);
 
     const dto = PublicPromotionalBannerListDTO(activos);

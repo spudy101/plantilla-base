@@ -31,6 +31,7 @@ jest.mock('shared/dtos/notification/components-notification.dto', () => ({
   UserNotificationPreferenceComponent: { buildArray: jest.fn() }
 }));
 
+import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
 import modelsModule from 'shared/models';
 const { sequelize } = mocked(modelsModule);
@@ -60,12 +61,12 @@ describe('NotificationPreferenceService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     transaction = makeTransaction();
-    sequelize.transaction.mockResolvedValue(transaction);
+    sequelize.transaction.mockImplementation(managedTransaction(transaction));
   });
 
   describe('updateGlobalPreference', () => {
-    it('filtra solo los campos presentes, hace upsert, commit, audita y devuelve el DTO', async () => {
-      const preference = { user_notification_preference_id: 'pref-1' };
+    it('filtra solo los campos presentes, hace upsert, audita y devuelve el DTO', async () => {
+      const preference = { userNotificationPreferenceId: 'pref-1' };
       prefRepo.upsertGlobalPreference.mockResolvedValue(preference);
 
       const result = await service.updateGlobalPreference(
@@ -76,11 +77,8 @@ describe('NotificationPreferenceService', () => {
       // undefined y keys ajenas no se propagan.
       expect(prefRepo.upsertGlobalPreference).toHaveBeenCalledWith(
         'user-1',
-        { allowPush: false, allowSms: true, quietHoursStart: '22:00' },
-        { transaction }
+        { allowPush: false, allowSms: true, quietHoursStart: '22:00' }
       );
-      expect(transaction.commit).toHaveBeenCalled();
-      expect(transaction.rollback).not.toHaveBeenCalled();
       expect(logAudit).toHaveBeenCalledWith(
         'NOTIFICATION_GLOBAL_PREFERENCE_UPDATED',
         'user-1',
@@ -95,13 +93,12 @@ describe('NotificationPreferenceService', () => {
       expect(result).toEqual({ built: preference });
     });
 
-    it('si el upsert falla hace rollback y repropaga el error', async () => {
+    it('si el upsert falla repropaga el error', async () => {
       const boom = new Error('db down');
       prefRepo.upsertGlobalPreference.mockRejectedValue(boom);
 
       await expect(service.updateGlobalPreference({ allowPush: true }, 'user-1')).rejects.toBe(boom);
-      expect(transaction.rollback).toHaveBeenCalled();
-      expect(transaction.commit).not.toHaveBeenCalled();
+      expect(logAudit).not.toHaveBeenCalled();
       expect(logAudit).not.toHaveBeenCalled();
     });
   });
@@ -114,21 +111,19 @@ describe('NotificationPreferenceService', () => {
         statusCode: 404,
         code: 'NOT_FOUND'
       });
-      expect(sequelize.transaction).not.toHaveBeenCalled();
     });
 
     it('rechaza categoría inactiva con AppError.notFound (404)', async () => {
-      categoryRepo.findByCode.mockResolvedValue({ code: 'SECURITY', is_active: false });
+      categoryRepo.findByCode.mockResolvedValue({ code: 'SECURITY', isActive: false });
 
       await expect(service.updateCategoryPreference('SECURITY', { allowSms: true }, 'user-1')).rejects.toMatchObject({
         statusCode: 404
       });
-      expect(sequelize.transaction).not.toHaveBeenCalled();
     });
 
-    it('categoría válida: upsert por categoría, commit, audita y devuelve DTO', async () => {
-      categoryRepo.findByCode.mockResolvedValue({ code: 'SECURITY', is_active: true });
-      const preference = { user_notification_preference_id: 'pref-2' };
+    it('categoría válida: upsert por categoría, audita y devuelve DTO', async () => {
+      categoryRepo.findByCode.mockResolvedValue({ code: 'SECURITY', isActive: true });
+      const preference = { userNotificationPreferenceId: 'pref-2' };
       prefRepo.upsertCategoryPreference.mockResolvedValue(preference);
 
       const result = await service.updateCategoryPreference('SECURITY', { allowEmail: true }, 'user-1');
@@ -136,10 +131,8 @@ describe('NotificationPreferenceService', () => {
       expect(prefRepo.upsertCategoryPreference).toHaveBeenCalledWith(
         'user-1',
         'SECURITY',
-        { allowEmail: true },
-        { transaction }
+        { allowEmail: true }
       );
-      expect(transaction.commit).toHaveBeenCalled();
       expect(logAudit).toHaveBeenCalledWith(
         'NOTIFICATION_CATEGORY_PREFERENCE_UPDATED',
         'user-1',
@@ -149,13 +142,13 @@ describe('NotificationPreferenceService', () => {
       expect(result).toEqual({ built: preference });
     });
 
-    it('si el upsert por categoría falla hace rollback y repropaga', async () => {
-      categoryRepo.findByCode.mockResolvedValue({ code: 'SECURITY', is_active: true });
+    it('si el upsert por categoría falla repropaga', async () => {
+      categoryRepo.findByCode.mockResolvedValue({ code: 'SECURITY', isActive: true });
       const boom = new Error('upsert boom');
       prefRepo.upsertCategoryPreference.mockRejectedValue(boom);
 
       await expect(service.updateCategoryPreference('SECURITY', { allowEmail: true }, 'user-1')).rejects.toBe(boom);
-      expect(transaction.rollback).toHaveBeenCalled();
+      expect(logAudit).not.toHaveBeenCalled();
     });
   });
 
@@ -164,16 +157,14 @@ describe('NotificationPreferenceService', () => {
       categoryRepo.findByCode.mockResolvedValue(null);
 
       await expect(service.deleteCategoryPreference('SECURITY', 'user-1')).rejects.toMatchObject({ statusCode: 404 });
-      expect(sequelize.transaction).not.toHaveBeenCalled();
     });
 
-    it('categoría válida: borra override, commit, audita y devuelve el código', async () => {
-      categoryRepo.findByCode.mockResolvedValue({ code: 'SECURITY', is_active: true });
+    it('categoría válida: borra override, audita y devuelve el código', async () => {
+      categoryRepo.findByCode.mockResolvedValue({ code: 'SECURITY', isActive: true });
 
       const result = await service.deleteCategoryPreference('SECURITY', 'user-1');
 
-      expect(prefRepo.deleteCategoryPreference).toHaveBeenCalledWith('user-1', 'SECURITY', { transaction });
-      expect(transaction.commit).toHaveBeenCalled();
+      expect(prefRepo.deleteCategoryPreference).toHaveBeenCalledWith('user-1', 'SECURITY');
       expect(logAudit).toHaveBeenCalledWith(
         'NOTIFICATION_CATEGORY_PREFERENCE_DELETED',
         'user-1',
@@ -183,13 +174,13 @@ describe('NotificationPreferenceService', () => {
       expect(result).toEqual({ notificationCategoryCode: 'SECURITY' });
     });
 
-    it('si el borrado falla hace rollback y repropaga', async () => {
-      categoryRepo.findByCode.mockResolvedValue({ code: 'SECURITY', is_active: true });
+    it('si el borrado falla repropaga', async () => {
+      categoryRepo.findByCode.mockResolvedValue({ code: 'SECURITY', isActive: true });
       const boom = new Error('delete boom');
       prefRepo.deleteCategoryPreference.mockRejectedValue(boom);
 
       await expect(service.deleteCategoryPreference('SECURITY', 'user-1')).rejects.toBe(boom);
-      expect(transaction.rollback).toHaveBeenCalled();
+      expect(logAudit).not.toHaveBeenCalled();
     });
   });
 
@@ -215,8 +206,8 @@ describe('NotificationPreferenceService', () => {
   describe('getCategoriesWithPreferences', () => {
     it('separa la global de los overrides por categoría y arma la vista efectiva', async () => {
       const categories = [{ code: 'SECURITY' }, { code: 'MARKETING' }];
-      const globalPref = { notification_category_code: null, allow_push: false };
-      const override = { notification_category_code: 'SECURITY', allow_sms: false };
+      const globalPref = { notificationCategoryCode: null, allowPush: false };
+      const override = { notificationCategoryCode: 'SECURITY', allowSms: false };
       prefRepo.findAllByUser.mockResolvedValue([globalPref, override]);
       categoryRepo.findAllActive.mockResolvedValue(categories);
       CategoryPreferencesViewDTO.buildArray.mockReturnValue(['view']);

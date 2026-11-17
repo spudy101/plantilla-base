@@ -1,7 +1,6 @@
+import type { Person } from '../../../../../shared/database/generated/prisma/client';
 import { interopDefault } from '../../../../../shared/utils/interop.util';
-import type { Transaction } from 'sequelize';
 import type * as ProfileTypes from '../../../../schemas/kyc/person/helpers/profile.types';
-import type definePerson from '../../../../schemas/kyc/person/models/person.model';
 import type { RequestAuditContext } from '../../../../../shared/types/audit-context';
 import unitOfWork from '../../../../../shared/database/unit-of-work';
 import userRepository from '../../../../schemas/kyc/iam/repositories/user.repository';
@@ -111,72 +110,63 @@ class ProfileService {
   ) {
     const snapshot = await this.profileHelper.fetchPersonSnapshot(personId);
 
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    await this.unitOfWork.run(async () => {
       if (data.username && data.username !== username) {
-        await this.profileHelper.updateUsername(userId, data.username, transaction);
+        await this.profileHelper.updateUsername(userId, data.username);
       }
       if (data.avatarId) {
-        await this.profileHelper.updateAvatar(userId, data.avatarId, transaction);
+        await this.profileHelper.updateAvatar(userId, data.avatarId);
       }
       if (data.genderId) {
-        await this.profileHelper.updateGender(personId, data.genderId, transaction);
+        await this.profileHelper.updateGender(personId, data.genderId);
       }
       if (data.location) {
-        await this.profileHelper.updateLocation(personId, data.location, transaction);
+        await this.profileHelper.updateLocation(personId, data.location);
       }
       if (data.birthDate) {
-        await this.profileHelper.updateBirthDate(personId, data.birthDate, transaction);
+        await this.profileHelper.updateBirthDate(personId, data.birthDate);
       }
 
-      await _logProfileFieldChanges({ data, snapshot, userId, auditContext, transaction });
+      await _logProfileFieldChanges({ data, snapshot, userId, auditContext });
+    });
 
-      await transaction.commit();
+    logAudit(
+      'PROFILE_UPDATED',
+      userId,
+      {
+        updatedFields: Object.keys(data)
+      },
+      { entityId: userId, entityType: 'User', entityTable: 'users' }
+    );
 
-      logAudit(
-        'PROFILE_UPDATED',
+    setImmediate(() => {
+      this.NotificationUtil.crearNotificacion({
+        tipoNotificacion: 'PROFILE_UPDATED',
         userId,
-        {
-          updatedFields: Object.keys(data)
-        },
-        { entityId: userId, entityType: 'User', entityTable: 'users' }
+        relatedEntity: null,
+        metadata: { nombre: firstName }
+      }).catch(err =>
+        logger.warn('Error enviando notificacion profile updated', {
+          error: err.message,
+          userId
+        })
       );
+    });
 
-      setImmediate(() => {
-        this.NotificationUtil.crearNotificacion({
-          tipoNotificacion: 'PROFILE_UPDATED',
-          userId,
-          relatedEntity: null,
-          metadata: { nombre: firstName }
-        }).catch(err =>
-          logger.warn('Error enviando notificacion profile updated', {
-            error: err.message,
-            userId
-          })
-        );
-      });
-
-      const updatedUser = await this.userRepository.findByUserId(userId, 'full');
-      if (!updatedUser) {
-        throw AppError.notFound('Usuario no encontrado');
-      }
-      return ExtendedProfileDTO(updatedUser);
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
+    const updatedUser = await this.userRepository.findByUserId(userId, 'full');
+    if (!updatedUser) {
+      throw AppError.notFound('Usuario no encontrado');
     }
+    return ExtendedProfileDTO(updatedUser);
   }
 
   async updateEmail(data: { email: string; currentPassword: string }, userId: string, personId: string, firstName: string | null, auditContext: RequestAuditContext) {
     const { email, currentPassword } = data;
 
     const user = await this._getUserSecure(userId);
-    await this.profileHelper.validateCurrentPassword(user.password_hash, currentPassword);
+    await this.profileHelper.validateCurrentPassword(user.passwordHash, currentPassword);
 
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    const newEmail = await this.unitOfWork.run(async () => {
       const { newEmail } = await this.profileHelper.updateEmailLogic({
         userId,
         personId,
@@ -185,29 +175,24 @@ class ProfileService {
         changedByRole: 'user',
         changeReason: 'Email actualizado por cliente',
         auditContext,
-        transaction,
         skipVerificationCheck: false
       });
+      return newEmail;
+    });
 
-      await transaction.commit();
+    // Cambio de email — riesgo high, dato de contacto crítico
+    logAudit('PROFILE_EMAIL_UPDATED', userId, { newEmail }, { entityId: userId, entityType: 'User', entityTable: 'users' });
 
-      // Cambio de email — riesgo high, dato de contacto crítico
-      logAudit('PROFILE_EMAIL_UPDATED', userId, { newEmail }, { entityId: userId, entityType: 'User', entityTable: 'users' });
+    setImmediate(() => {
+      this.NotificationUtil.crearNotificacion({
+        tipoNotificacion: 'EMAIL_UPDATED',
+        userId,
+        relatedEntity: null,
+        metadata: { nombre: firstName }
+      }).catch(err => logger.warn('Error enviando notificacion email updated', { error: err.message, userId }));
+    });
 
-      setImmediate(() => {
-        this.NotificationUtil.crearNotificacion({
-          tipoNotificacion: 'EMAIL_UPDATED',
-          userId,
-          relatedEntity: null,
-          metadata: { nombre: firstName }
-        }).catch(err => logger.warn('Error enviando notificacion email updated', { error: err.message, userId }));
-      });
-
-      return UpdateEmailResponseDTO(newEmail, new Date());
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    return UpdateEmailResponseDTO(newEmail, new Date());
   }
 
   async updatePhone(
@@ -218,219 +203,186 @@ class ProfileService {
     auditContext: ProfileTypes.AuditInfo = {}
   ) {
     const { newPhone, phonePrefixId, phoneType } = data;
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    const result = await this.unitOfWork.run(async () => {
       const result = await this.profileHelper.updatePhoneLogic({
         personId,
         phone: newPhone,
         phonePrefixId,
         phoneType,
-        transaction,
         userId,
         changedByUserId: userId,
         changedByRole: 'user',
         auditContext
       });
+      return result;
+    });
 
-      await transaction.commit();
+    logAudit('PROFILE_PHONE_UPDATED', userId, { phoneType }, { entityId: userId, entityType: 'User', entityTable: 'users' });
 
-      logAudit('PROFILE_PHONE_UPDATED', userId, { phoneType }, { entityId: userId, entityType: 'User', entityTable: 'users' });
+    setImmediate(() => {
+      this.NotificationUtil.crearNotificacion({
+        tipoNotificacion: 'PHONE_UPDATED',
+        userId,
+        relatedEntity: null,
+        metadata: { nombre: firstName }
+      }).catch(err => logger.warn('Error enviando notificacion phone updated', { error: err.message, userId }));
+    });
 
-      setImmediate(() => {
-        this.NotificationUtil.crearNotificacion({
-          tipoNotificacion: 'PHONE_UPDATED',
-          userId,
-          relatedEntity: null,
-          metadata: { nombre: firstName }
-        }).catch(err => logger.warn('Error enviando notificacion phone updated', { error: err.message, userId }));
-      });
-
-      return UpdatePhoneResponseDTO(result.phone, result.phonePrefixId, result.phoneType, new Date());
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    return UpdatePhoneResponseDTO(result.phone, result.phonePrefixId, result.phoneType, new Date());
   }
 
   async updatePassword(data: { currentPassword: string; newPassword: string }, userId: string, firstName: string | null, auditContext: RequestAuditContext) {
     const { currentPassword, newPassword } = data;
 
     const user = await this._getUserSecure(userId);
-    await this.profileHelper.validateCurrentPassword(user.password_hash, currentPassword);
+    await this.profileHelper.validateCurrentPassword(user.passwordHash, currentPassword);
 
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    await this.unitOfWork.run(async () => {
       await this.profileHelper.updatePasswordLogic({
         userId,
         newPassword,
         changedByUserId: userId,
         changedByRole: 'user',
         changeReason: 'Contrasena actualizada por cliente',
-        auditContext,
-        transaction
+        auditContext
       });
+    });
 
-      await transaction.commit();
+    // Cambio de contraseña — riesgo high
+    logAudit('PASSWORD_CHANGED', userId, {}, { entityId: userId, entityType: 'User', entityTable: 'users' });
 
-      // Cambio de contraseña — riesgo high
-      logAudit('PASSWORD_CHANGED', userId, {}, { entityId: userId, entityType: 'User', entityTable: 'users' });
+    setImmediate(() => {
+      this.NotificationUtil.crearNotificacion({
+        tipoNotificacion: 'PASSWORD_UPDATED',
+        userId,
+        relatedEntity: null,
+        metadata: { nombre: firstName }
+      }).catch(err =>
+        logger.warn('Error enviando notificacion password updated', {
+          error: err.message,
+          userId
+        })
+      );
+    });
 
-      setImmediate(() => {
-        this.NotificationUtil.crearNotificacion({
-          tipoNotificacion: 'PASSWORD_UPDATED',
-          userId,
-          relatedEntity: null,
-          metadata: { nombre: firstName }
-        }).catch(err =>
-          logger.warn('Error enviando notificacion password updated', {
-            error: err.message,
-            userId
-          })
-        );
-      });
-
-      return null;
-    } catch (error) {
-      await transaction.rollback();
-      // (Se eliminó el caso InvalidPasswordException: era un error de Cognito, código residual)
-      throw error;
-    }
+    return null;
   }
 
   /**
    * Actualiza los nombres del cliente (primer/segundo nombre, primer/segundo apellido).
    * En la plantilla no hay validación de identidad, así que los nombres son libremente editables.
    */
-  async updateNames(data: ProfileTypes.NamesInput, userId: string, personId: string, firstName: string | null, auditContext: RequestAuditContext) {
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+  async updateNames(
+    data: ProfileTypes.NamesInput,
+    userId: string,
+    personId: string,
+    firstName: string | null,
+    auditContext: RequestAuditContext
+  ) {
+    await this.unitOfWork.run(async () => {
       const before = await this.personRepository.findById(personId);
       if (!before) {
         throw AppError.notFound('Persona no encontrada');
       }
       const previousName = _composeFullName(before);
 
-      await this.profileHelper.updateNames(
-        personId,
-        {
-          firstName: data.firstName,
-          middleName: data.middleName,
-          lastName: data.lastName,
-          secondLastName: data.secondLastName
-        },
-        transaction
-      );
+      await this.profileHelper.updateNames(personId, {
+        firstName: data.firstName,
+        middleName: data.middleName,
+        lastName: data.lastName,
+        secondLastName: data.secondLastName
+      });
 
       const newName = _composeFullName({
-        first_name: data.firstName !== undefined ? data.firstName : before.first_name,
-        middle_name: data.middleName !== undefined ? (data.middleName === '' ? null : data.middleName) : before.middle_name,
-        last_name: data.lastName !== undefined ? data.lastName : before.last_name,
-        second_last_name:
-          data.secondLastName !== undefined ? (data.secondLastName === '' ? null : data.secondLastName) : before.second_last_name
+        firstName: data.firstName !== undefined ? data.firstName : before.firstName,
+        middleName: data.middleName !== undefined ? (data.middleName === '' ? null : data.middleName) : before.middleName,
+        lastName: data.lastName !== undefined ? data.lastName : before.lastName,
+        secondLastName:
+          data.secondLastName !== undefined ? (data.secondLastName === '' ? null : data.secondLastName) : before.secondLastName
       });
 
       if (previousName !== newName) {
-        await KycSharedUtil.logChange(
-          {
-            userId,
-            changedByUserId: userId,
-            changedByRole: 'user',
-            changeType: 'name',
-            previousValue: previousName,
-            newValue: newName,
-            ipAddress: auditContext?.ip || auditContext?.ipAddress || null,
-            userAgent: auditContext?.userAgent || null
-          },
-          { transaction }
-        );
-      }
-
-      await transaction.commit();
-
-      logAudit(
-        'PROFILE_UPDATED',
-        userId,
-        { updatedFields: Object.keys(data) },
-        { entityId: userId, entityType: 'User', entityTable: 'users' }
-      );
-
-      setImmediate(() => {
-        this.NotificationUtil.crearNotificacion({
-          tipoNotificacion: 'PROFILE_UPDATED',
+        await KycSharedUtil.logChange({
           userId,
-          relatedEntity: null,
-          metadata: { nombre: firstName }
-        }).catch(err => logger.warn('Error enviando notificacion profile updated', { error: err.message, userId }));
-      });
-
-      const updatedPerson = await this.personRepository.findById(personId);
-      if (!updatedPerson) {
-        throw AppError.notFound('Persona no encontrada');
+          changedByUserId: userId,
+          changedByRole: 'user',
+          changeType: 'name',
+          previousValue: previousName,
+          newValue: newName,
+          ipAddress: auditContext?.ip || auditContext?.ipAddress || null,
+          userAgent: auditContext?.userAgent || null
+        });
       }
-      return UpdateNamesResponseDTO(updatedPerson);
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
+    });
+
+    logAudit(
+      'PROFILE_UPDATED',
+      userId,
+      { updatedFields: Object.keys(data) },
+      { entityId: userId, entityType: 'User', entityTable: 'users' }
+    );
+
+    setImmediate(() => {
+      this.NotificationUtil.crearNotificacion({
+        tipoNotificacion: 'PROFILE_UPDATED',
+        userId,
+        relatedEntity: null,
+        metadata: { nombre: firstName }
+      }).catch(err => logger.warn('Error enviando notificacion profile updated', { error: err.message, userId }));
+    });
+
+    const updatedPerson = await this.personRepository.findById(personId);
+    if (!updatedPerson) {
+      throw AppError.notFound('Persona no encontrada');
     }
+    return UpdateNamesResponseDTO(updatedPerson);
   }
 
   async deleteAccount(data: { currentPassword: string }, { userId, personId, nationalId, email, firstName, auditContext }: ProfileService.DeleteAccountContext) {
     const { currentPassword } = data;
 
     const user = await this._getUserSecure(userId);
-    await this.profileHelper.validateCurrentPassword(user.password_hash, currentPassword);
+    await this.profileHelper.validateCurrentPassword(user.passwordHash, currentPassword);
 
-    const transaction = await this.unitOfWork.begin();
-
-    try {
+    const result = await this.unitOfWork.run(async () => {
       const result = await this.profileHelper.deleteAccountLogic({
         userId,
         personId,
         nationalId,
         email,
         username: user.username,
-        firstName: firstName || user.person?.first_name || 'Usuario',
+        firstName: firstName || user.person?.firstName || 'Usuario',
         changedByUserId: userId,
         changedByRole: 'user',
         changeReason: 'Cuenta eliminada por el usuario',
-        auditContext,
-        transaction
+        auditContext
       });
+      return result;
+    });
 
-      await transaction.commit();
+    // Eliminación de cuenta — crítico, acción irreversible
+    logAudit('ACCOUNT_DELETED', userId, {}, { entityId: userId, entityType: 'User', entityTable: 'users' });
 
-      // Eliminación de cuenta — crítico, acción irreversible
-      logAudit('ACCOUNT_DELETED', userId, {}, { entityId: userId, entityType: 'User', entityTable: 'users' });
-
-      const { deletedEmail } = result;
-      if (deletedEmail) {
-        setImmediate(() => {
-          this.NotificationUtil.crearNotificacionDirecta({
-            tipoNotificacion: 'CUENTA_ELIMINADA',
-            email: deletedEmail,
-            metadata: {
-              nombre: result.firstName,
-              email: deletedEmail
-            }
-          }).catch(err =>
-            logger.warn('Error sending account deletion notification', {
-              userId,
-              error: err.message
-            })
-          );
-        });
-      }
-
-      return null;
-    } catch (error) {
-      if (!transaction.finished) {
-        await transaction.rollback();
-      }
-      throw error;
+    const { deletedEmail } = result;
+    if (deletedEmail) {
+      setImmediate(() => {
+        this.NotificationUtil.crearNotificacionDirecta({
+          tipoNotificacion: 'CUENTA_ELIMINADA',
+          email: deletedEmail,
+          metadata: {
+            nombre: result.firstName,
+            email: deletedEmail
+          }
+        }).catch(err =>
+          logger.warn('Error sending account deletion notification', {
+            userId,
+            error: err.message
+          })
+        );
+      });
     }
+
+    return null;
   }
 
   /** @private */
@@ -448,9 +400,9 @@ class ProfileService {
 // ============================================================
 
 function _composeFullName(
-  person: Partial<Pick<definePerson.Attributes, 'first_name' | 'middle_name' | 'last_name' | 'second_last_name'>> | null | undefined
+  person: Partial<Pick<Person, 'firstName' | 'middleName' | 'lastName' | 'secondLastName'>> | null | undefined
 ) {
-  return [person?.first_name, person?.middle_name, person?.last_name, person?.second_last_name].filter(Boolean).join(' ');
+  return [person?.firstName, person?.middleName, person?.lastName, person?.secondLastName].filter(Boolean).join(' ');
 }
 
 // ============================================================
@@ -461,14 +413,12 @@ async function _logProfileFieldChanges({
   data,
   snapshot,
   userId,
-  auditContext,
-  transaction
+  auditContext
 }: {
   data: ProfileService.UpdateProfileInput;
   snapshot: Awaited<ReturnType<(typeof ProfileHelper)['fetchPersonSnapshot']>>;
   userId: string;
   auditContext: ProfileTypes.AuditInfo;
-  transaction: Transaction;
 }) {
   const ip = auditContext?.ip || auditContext?.ipAddress || null;
   const ua = auditContext?.userAgent || null;
@@ -481,44 +431,35 @@ async function _logProfileFieldChanges({
   };
 
   if (data.genderId && data.genderId !== snapshot.genderId) {
-    await KycSharedUtil.logChange(
-      {
-        ...base,
-        changeType: 'gender',
-        previousValue: snapshot.genderId ?? null,
-        newValue: data.genderId
-      },
-      { transaction }
-    );
+    await KycSharedUtil.logChange({
+      ...base,
+      changeType: 'gender',
+      previousValue: snapshot.genderId ?? null,
+      newValue: data.genderId
+    });
   }
 
   if (data.birthDate) {
     const prev = snapshot.birthDate ? new Date(snapshot.birthDate).toISOString().slice(0, 10) : null;
     const next = new Date(data.birthDate).toISOString().slice(0, 10);
     if (prev !== next) {
-      await KycSharedUtil.logChange(
-        {
-          ...base,
-          changeType: 'birth_date',
-          previousValue: prev,
-          newValue: next
-        },
-        { transaction }
-      );
+      await KycSharedUtil.logChange({
+        ...base,
+        changeType: 'birth_date',
+        previousValue: prev,
+        newValue: next
+      });
     }
   }
 
   if (data.location) {
-    await KycSharedUtil.logChange(
-      {
-        ...base,
-        changeType: 'location',
-        previousValue: snapshot.location ? JSON.stringify(snapshot.location) : null,
-        newValue: JSON.stringify(data.location),
-        changeReason: 'Ubicación de residencia'
-      },
-      { transaction }
-    );
+    await KycSharedUtil.logChange({
+      ...base,
+      changeType: 'location',
+      previousValue: snapshot.location ? JSON.stringify(snapshot.location) : null,
+      newValue: JSON.stringify(data.location),
+      changeReason: 'Ubicación de residencia'
+    });
   }
 }
 

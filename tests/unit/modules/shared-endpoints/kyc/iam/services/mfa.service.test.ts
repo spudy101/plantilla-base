@@ -72,6 +72,7 @@ jest.mock('modules/shared-endpoints/kyc/iam/dtos/mfa.dto', () => ({
   PreferredMethodResponseDTO: (x: Loose) => x
 }));
 
+import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked, Loose } from 'tests/helpers/mock';
 import modelsModule from 'shared/models';
 const { sequelize } = mocked(modelsModule);
@@ -99,12 +100,12 @@ const flushMacrotasks = () => new Promise(resolve => { setImmediate(resolve); })
 
 function makeUser(overrides = {}) {
   return {
-    user_id: USER_ID,
-    totp_enabled: false,
-    totp_secret: null,
-    sms_mfa_enabled: false,
-    preferred_mfa_method: 'none',
-    password_hash: 'hash',
+    userId: USER_ID,
+    totpEnabled: false,
+    totpSecret: null,
+    smsMfaEnabled: false,
+    preferredMfaMethod: 'none',
+    passwordHash: 'hash',
     ...overrides
   };
 }
@@ -122,12 +123,12 @@ describe('MFAService', () => {
     userRepo.findWithPrimaryPhone.mockImplementation((...args) => userRepo.findById(...args));
     constants.MOCKS.EXTERNAL_PROVIDERS = false;
     tx = makeTx();
-    sequelize.transaction.mockResolvedValue(tx);
+    sequelize.transaction.mockImplementation(managedTransaction(tx));
   });
 
   describe('setupTOTP', () => {
     it('lanza conflict si TOTP ya está activado', async () => {
-      userRepo.findById.mockResolvedValue(makeUser({ totp_enabled: true }));
+      userRepo.findById.mockResolvedValue(makeUser({ totpEnabled: true }));
       await expect(mfa.setupTOTP(USER_ID, 'juan')).rejects.toMatchObject({ statusCode: 409 });
     });
 
@@ -136,7 +137,7 @@ describe('MFAService', () => {
 
       const result = await mfa.setupTOTP(USER_ID, 'juan');
 
-      expect(userRepo.update).toHaveBeenCalledWith(USER_ID, { totp_secret: 'enc(secret)' });
+      expect(userRepo.update).toHaveBeenCalledWith(USER_ID, { totpSecret: 'enc(secret)' });
       expect(userRepo.updateTOTPStatus).not.toHaveBeenCalled(); // aún no se activa
       expect(result).toMatchObject({ otpauthUrl: 'otpauth://totp/x', secretCode: 'SECRET123' });
       expect(logAudit).toHaveBeenCalledWith('MFA_TOTP_SETUP', USER_ID, { username: 'juan' }, expect.any(Object));
@@ -145,25 +146,27 @@ describe('MFAService', () => {
 
   describe('verifyAndActivateTOTP', () => {
     it('lanza badRequest si no hay secreto configurado', async () => {
-      userRepo.findById.mockResolvedValue(makeUser({ totp_secret: null }));
-      await expect(mfa.verifyAndActivateTOTP('000000', USER_ID, 'juan', 'Juan', AUDIT)).rejects.toMatchObject({ statusCode: 400 });
+      userRepo.findById.mockResolvedValue(makeUser({ totpSecret: null }));
+      await expect(mfa.verifyAndActivateTOTP('000000', USER_ID, 'juan', 'Juan', AUDIT)).rejects.toMatchObject({
+        statusCode: 400
+      });
     });
 
     it('lanza badRequest si el código TOTP es inválido', async () => {
-      userRepo.findById.mockResolvedValue(makeUser({ totp_secret: 'enc' }));
+      userRepo.findById.mockResolvedValue(makeUser({ totpSecret: 'enc' }));
       TotpUtil.verify.mockReturnValue(false);
       await expect(mfa.verifyAndActivateTOTP('999999', USER_ID, 'juan', 'Juan', AUDIT)).rejects.toMatchObject({ statusCode: 400 });
       expect(sequelize.transaction).not.toHaveBeenCalled(); // verifica antes de abrir tx
     });
 
     it('activa TOTP en transacción, lo fija como preferido si era none, commitea y notifica', async () => {
-      userRepo.findById.mockResolvedValue(makeUser({ totp_secret: 'enc', preferred_mfa_method: 'none' }));
+      userRepo.findById.mockResolvedValue(makeUser({ totpSecret: 'enc', preferredMfaMethod: 'none' }));
       TotpUtil.verify.mockReturnValue(true);
 
       const result = await mfa.verifyAndActivateTOTP('123456', USER_ID, 'juan', 'Juan', AUDIT);
 
-      expect(userRepo.updateTOTPStatus).toHaveBeenCalledWith(USER_ID, true, { transaction: tx });
-      expect(userRepo.update).toHaveBeenCalledWith(USER_ID, { preferred_mfa_method: 'totp' }, { transaction: tx });
+      expect(userRepo.updateTOTPStatus).toHaveBeenCalledWith(USER_ID, true);
+      expect(userRepo.update).toHaveBeenCalledWith(USER_ID, { preferredMfaMethod: 'totp' });
       expect(KycSharedUtil.logChange).toHaveBeenCalled();
       expect(tx.commit).toHaveBeenCalled();
       expect(result).toMatchObject({ totpEnabled: true });
@@ -173,7 +176,7 @@ describe('MFAService', () => {
     });
 
     it('hace rollback y propaga si falla dentro de la transacción', async () => {
-      userRepo.findById.mockResolvedValue(makeUser({ totp_secret: 'enc' }));
+      userRepo.findById.mockResolvedValue(makeUser({ totpSecret: 'enc' }));
       TotpUtil.verify.mockReturnValue(true);
       userRepo.updateTOTPStatus.mockRejectedValueOnce(new Error('db fail'));
 
@@ -185,12 +188,12 @@ describe('MFAService', () => {
 
   describe('verifyTOTP', () => {
     it('lanza badRequest si TOTP no está activado', async () => {
-      userRepo.findById.mockResolvedValue(makeUser({ totp_enabled: false }));
+      userRepo.findById.mockResolvedValue(makeUser({ totpEnabled: false }));
       await expect(mfa.verifyTOTP('123456', USER_ID, 'juan')).rejects.toMatchObject({ statusCode: 400 });
     });
 
     it('devuelve valid=true y audita MFA_VERIFIED cuando el código es correcto', async () => {
-      userRepo.findById.mockResolvedValue(makeUser({ totp_enabled: true, totp_secret: 'enc' }));
+      userRepo.findById.mockResolvedValue(makeUser({ totpEnabled: true, totpSecret: 'enc' }));
       TotpUtil.verify.mockReturnValue(true);
 
       const result = await mfa.verifyTOTP('123456', USER_ID, 'juan');
@@ -200,7 +203,7 @@ describe('MFAService', () => {
     });
 
     it('devuelve valid=false y audita MFA_FAILED cuando el código es incorrecto', async () => {
-      userRepo.findById.mockResolvedValue(makeUser({ totp_enabled: true, totp_secret: 'enc' }));
+      userRepo.findById.mockResolvedValue(makeUser({ totpEnabled: true, totpSecret: 'enc' }));
       TotpUtil.verify.mockReturnValue(false);
 
       const result = await mfa.verifyTOTP('000000', USER_ID, 'juan');
@@ -212,19 +215,19 @@ describe('MFAService', () => {
 
   describe('deactivateTOTP', () => {
     it('lanza unauthorized si la contraseña es incorrecta', async () => {
-      userRepo.findById.mockResolvedValue(makeUser({ totp_enabled: true }));
+      userRepo.findById.mockResolvedValue(makeUser({ totpEnabled: true }));
       userRepo.verifyPassword.mockResolvedValue(false);
       await expect(mfa.deactivateTOTP('bad', USER_ID, 'juan', 'Juan', AUDIT)).rejects.toMatchObject({ statusCode: 401 });
     });
 
     it('borra el secreto y degrada el preferido a sms si SMS seguía activo', async () => {
-      userRepo.findById.mockResolvedValue(makeUser({ totp_enabled: true, preferred_mfa_method: 'totp', sms_mfa_enabled: true }));
+      userRepo.findById.mockResolvedValue(makeUser({ totpEnabled: true, preferredMfaMethod: 'totp', smsMfaEnabled: true }));
       userRepo.verifyPassword.mockResolvedValue(true);
 
       const result = await mfa.deactivateTOTP('good', USER_ID, 'juan', 'Juan', AUDIT);
 
-      expect(userRepo.setTOTPStatus).toHaveBeenCalledWith(USER_ID, false, null, { transaction: tx });
-      expect(userRepo.update).toHaveBeenCalledWith(USER_ID, { preferred_mfa_method: 'sms' }, { transaction: tx });
+      expect(userRepo.setTOTPStatus).toHaveBeenCalledWith(USER_ID, false, null);
+      expect(userRepo.update).toHaveBeenCalledWith(USER_ID, { preferredMfaMethod: 'sms' });
       expect(tx.commit).toHaveBeenCalled();
       expect(result).toMatchObject({ totpEnabled: false });
     });
@@ -244,7 +247,7 @@ describe('MFAService', () => {
 
   describe('getStatus', () => {
     it('devuelve el estado con defaults seguros', async () => {
-      userRepo.findById.mockResolvedValue(makeUser({ totp_enabled: true, sms_mfa_enabled: null, preferred_mfa_method: null }));
+      userRepo.findById.mockResolvedValue(makeUser({ totpEnabled: true, smsMfaEnabled: null, preferredMfaMethod: null }));
 
       const result = await mfa.getStatus(USER_ID, 'juan');
 
@@ -255,13 +258,13 @@ describe('MFAService', () => {
   describe('requestSMSActivation', () => {
     function userWithPhone(overrides = {}) {
       return makeUser({
-        person: { contact: { phone_primary: '911112222', phone_primary_prefix_id: 'pref-1' } },
+        person: { contact: { phonePrimary: '911112222', phonePrimaryPrefixId: 'pref-1' } },
         ...overrides
       });
     }
 
     it('lanza conflict si SMS MFA ya está activado', async () => {
-      userRepo.findById.mockResolvedValue(userWithPhone({ sms_mfa_enabled: true }));
+      userRepo.findById.mockResolvedValue(userWithPhone({ smsMfaEnabled: true }));
       await expect(mfa.requestSMSActivation('pw', USER_ID, 'juan')).rejects.toMatchObject({ statusCode: 409 });
     });
 
@@ -283,7 +286,7 @@ describe('MFAService', () => {
       userRepo.findById.mockResolvedValue(userWithPhone());
       userRepo.verifyPassword.mockResolvedValue(true);
       verificationCodeRepo.canRequestNewCode.mockResolvedValue(true);
-      verificationCodeRepo.create.mockResolvedValue({ verification_code_id: 'vc-1' });
+      verificationCodeRepo.create.mockResolvedValue({ verificationCodeId: 'vc-1' });
 
       const result = await mfa.requestSMSActivation('pw', USER_ID, 'juan');
 
@@ -297,7 +300,7 @@ describe('MFAService', () => {
   });
 
   describe('confirmSMSActivation', () => {
-    const PHONE_USER = () => makeUser({ person: { contact: { phone_primary: '911112222' } } });
+    const PHONE_USER = () => makeUser({ person: { contact: { phonePrimary: '911112222' } } });
 
     it('lanza notFound si no hay código activo', async () => {
       userRepo.findById.mockResolvedValue(PHONE_USER());
@@ -307,13 +310,13 @@ describe('MFAService', () => {
 
     it('lanza forbidden si se agotaron los intentos', async () => {
       userRepo.findById.mockResolvedValue(PHONE_USER());
-      verificationCodeRepo.findActiveByContact.mockResolvedValue({ verification_code_id: 'vc-1', attempts: 5, code: '123456' });
+      verificationCodeRepo.findActiveByContact.mockResolvedValue({ verificationCodeId: 'vc-1', attempts: 5, code: '123456' });
       await expect(mfa.confirmSMSActivation('123456', USER_ID, 'juan', 'Juan', AUDIT)).rejects.toMatchObject({ statusCode: 403 });
     });
 
     it('con código incorrecto incrementa intentos y lanza badRequest con los restantes', async () => {
       userRepo.findById.mockResolvedValue(PHONE_USER());
-      verificationCodeRepo.findActiveByContact.mockResolvedValue({ verification_code_id: 'vc-1', attempts: 1, code: '123456' });
+      verificationCodeRepo.findActiveByContact.mockResolvedValue({ verificationCodeId: 'vc-1', attempts: 1, code: '123456' });
 
       await expect(mfa.confirmSMSActivation('000000', USER_ID, 'juan', 'Juan', AUDIT)).rejects.toMatchObject({ statusCode: 400 });
       expect(verificationCodeRepo.incrementAttempts).toHaveBeenCalledWith('vc-1');
@@ -321,12 +324,12 @@ describe('MFAService', () => {
 
     it('con código correcto marca verificado, activa SMS MFA y lo fija como preferido si era none', async () => {
       userRepo.findById.mockResolvedValue(PHONE_USER());
-      verificationCodeRepo.findActiveByContact.mockResolvedValue({ verification_code_id: 'vc-1', attempts: 0, code: '123456' });
+      verificationCodeRepo.findActiveByContact.mockResolvedValue({ verificationCodeId: 'vc-1', attempts: 0, code: '123456' });
 
       const result = await mfa.confirmSMSActivation('123456', USER_ID, 'juan', 'Juan', AUDIT);
 
-      expect(verificationCodeRepo.markAsVerified).toHaveBeenCalledWith('vc-1', { transaction: tx });
-      expect(userRepo.update).toHaveBeenCalledWith(USER_ID, { sms_mfa_enabled: true, preferred_mfa_method: 'sms' }, { transaction: tx });
+      expect(verificationCodeRepo.markAsVerified).toHaveBeenCalledWith('vc-1');
+      expect(userRepo.update).toHaveBeenCalledWith(USER_ID, { smsMfaEnabled: true, preferredMfaMethod: 'sms' });
       expect(tx.commit).toHaveBeenCalled();
       expect(result).toMatchObject({ smsMfaEnabled: true });
     });
@@ -334,17 +337,17 @@ describe('MFAService', () => {
 
   describe('deactivateSMSMFA', () => {
     it('lanza badRequest si SMS MFA no está activado', async () => {
-      userRepo.findById.mockResolvedValue(makeUser({ sms_mfa_enabled: false }));
+      userRepo.findById.mockResolvedValue(makeUser({ smsMfaEnabled: false }));
       await expect(mfa.deactivateSMSMFA('pw', USER_ID, 'juan', 'Juan', AUDIT)).rejects.toMatchObject({ statusCode: 400 });
     });
 
     it('desactiva y degrada el preferido a totp si TOTP seguía activo', async () => {
-      userRepo.findById.mockResolvedValue(makeUser({ sms_mfa_enabled: true, preferred_mfa_method: 'sms', totp_enabled: true }));
+      userRepo.findById.mockResolvedValue(makeUser({ smsMfaEnabled: true, preferredMfaMethod: 'sms', totpEnabled: true }));
       userRepo.verifyPassword.mockResolvedValue(true);
 
       const result = await mfa.deactivateSMSMFA('good', USER_ID, 'juan', 'Juan', AUDIT);
 
-      expect(userRepo.update).toHaveBeenCalledWith(USER_ID, { sms_mfa_enabled: false, preferred_mfa_method: 'totp' }, { transaction: tx });
+      expect(userRepo.update).toHaveBeenCalledWith(USER_ID, { smsMfaEnabled: false, preferredMfaMethod: 'totp' });
       expect(tx.commit).toHaveBeenCalled();
       expect(result).toMatchObject({ smsMfaEnabled: false });
     });
@@ -352,21 +355,21 @@ describe('MFAService', () => {
 
   describe('updatePreferredMethod', () => {
     it('lanza badRequest si se elige totp sin TOTP activo', async () => {
-      userRepo.findById.mockResolvedValue(makeUser({ totp_enabled: false }));
+      userRepo.findById.mockResolvedValue(makeUser({ totpEnabled: false }));
       await expect(mfa.updatePreferredMethod('totp', USER_ID, 'juan', AUDIT)).rejects.toMatchObject({ statusCode: 400 });
     });
 
     it('lanza badRequest si se elige sms sin SMS MFA activo', async () => {
-      userRepo.findById.mockResolvedValue(makeUser({ sms_mfa_enabled: false }));
+      userRepo.findById.mockResolvedValue(makeUser({ smsMfaEnabled: false }));
       await expect(mfa.updatePreferredMethod('sms', USER_ID, 'juan', AUDIT)).rejects.toMatchObject({ statusCode: 400 });
     });
 
     it('actualiza el método preferido en transacción y commitea', async () => {
-      userRepo.findById.mockResolvedValue(makeUser({ totp_enabled: true }));
+      userRepo.findById.mockResolvedValue(makeUser({ totpEnabled: true }));
 
       const result = await mfa.updatePreferredMethod('totp', USER_ID, 'juan', AUDIT);
 
-      expect(userRepo.update).toHaveBeenCalledWith(USER_ID, { preferred_mfa_method: 'totp' }, { transaction: tx });
+      expect(userRepo.update).toHaveBeenCalledWith(USER_ID, { preferredMfaMethod: 'totp' });
       expect(tx.commit).toHaveBeenCalled();
       expect(result).toMatchObject({ preferredMfaMethod: 'totp' });
     });

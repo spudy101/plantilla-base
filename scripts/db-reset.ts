@@ -8,6 +8,8 @@
 // GUARDA DE SEGURIDAD: esta instancia Postgres puede compartirse entre varios esquemas (p. ej. el
 // template en `plantilla` y un proyecto real en otro). Por eso se niega a correr si DB_SCHEMA está
 // vacío o es `public`, para no arrastrar tablas de esquemas vecinos.
+//
+// `--skip-seed`: solo migraciones (lo usa `npm run db:test:prepare`: los tests no necesitan catálogos).
 import childProcessModule from 'node:child_process';
 const { execSync } = childProcessModule;
 import sequelize from '../config/config';
@@ -15,6 +17,7 @@ import constantsModule from '../shared/constants';
 const { database } = constantsModule;
 
 const SCHEMA = database.schema;
+const SKIP_SEED = process.argv.includes('--skip-seed');
 
 async function main(): Promise<void> {
   if (!SCHEMA || SCHEMA === 'public') {
@@ -29,6 +32,11 @@ async function main(): Promise<void> {
 
   console.log('[db:reset] Esquema recreado. Aplicando migraciones...');
   execSync('npm run db:migrate', { stdio: 'inherit' });
+
+  if (SKIP_SEED) {
+    console.log('[db:reset] OK — esquema reconstruido y migraciones aplicadas (sin seeders).');
+    return;
+  }
 
   console.log('[db:reset] Aplicando seeders...');
   execSync('npm run db:seed', { stdio: 'inherit' });

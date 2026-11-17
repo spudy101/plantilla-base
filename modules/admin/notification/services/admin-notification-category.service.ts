@@ -1,11 +1,10 @@
-import type defineNotificationCategory from '../../../schemas/notification/models/notification-category.model';
+import type { NotificationCategoryInput } from '../../../schemas/notification/repositories/notification-category.repository';
 import notificationCategoryRepository from '../../../schemas/notification/repositories/notification-category.repository';
 import notificationTypeRepository from '../../../schemas/notification/repositories/notification-type.repository';
 import AppError from '../../../../shared/utils/app-error.util';
 import PaginationHelper from '../../../../shared/utils/pagination.util';
 import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
-import unitOfWork from '../../../../shared/database/unit-of-work';
 import adminNotificationCategoryDtoModule from '../dtos/admin-notification-category.dto';
 const {
   NotificationCategoryAdminDTO,
@@ -14,46 +13,45 @@ const {
 
 const AUDIT_META = { entityType: 'NotificationCategory', entityTable: 'notification_categories' };
 
-/** Mapea las keys camelCase del DTO a columnas snake_case (solo las presentes). */
-// Entrada del panel (camelCase) → columnas (snake_case); el validator ya filtró las claves
-function _toColumns(data: Record<string, unknown> = {}): Partial<defineNotificationCategory.Attributes> {
-  const MAP = {
-    name: 'name',
-    description: 'description',
-    supportsPush: 'supports_push',
-    supportsEmail: 'supports_email',
-    supportsSms: 'supports_sms',
-    allowDnd: 'allow_dnd',
-    isCritical: 'is_critical',
-    defaultQuietHoursStart: 'default_quiet_hours_start',
-    defaultQuietHoursEnd: 'default_quiet_hours_end',
-    priority: 'priority',
-    emailLayoutTemplate: 'email_layout_template',
-    sortOrder: 'sort_order',
-    isActive: 'is_active'
-  };
+// Campos editables desde el panel (mismo nombre en la entrada y en el modelo); el validator ya los validó.
+const EDITABLE = [
+  'name',
+  'description',
+  'supportsPush',
+  'supportsEmail',
+  'supportsSms',
+  'allowDnd',
+  'isCritical',
+  'defaultQuietHoursStart',
+  'defaultQuietHoursEnd',
+  'priority',
+  'emailLayoutTemplate',
+  'sortOrder',
+  'isActive'
+] as const;
+
+/** Solo los campos editables presentes en la entrada. */
+function _toColumns(data: Record<string, unknown> = {}): NotificationCategoryInput {
   const columns: Record<string, unknown> = {};
-  for (const [camel, snake] of Object.entries(MAP)) {
-    if (data[camel] !== undefined) {
-      columns[snake] = data[camel];
+  for (const key of EDITABLE) {
+    if (data[key] !== undefined) {
+      columns[key] = data[key];
     }
   }
-  return columns as Partial<defineNotificationCategory.Attributes>;
+  return columns as NotificationCategoryInput;
 }
 
 class NotificationCategoryService {
-  unitOfWork: typeof unitOfWork;
   notificationCategoryRepository: typeof notificationCategoryRepository;
   notificationTypeRepository: typeof notificationTypeRepository;
 
   /**
    * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
    * reales; en tests u otros contextos se pueden reemplazar:
-   *   new NotificationCategoryService({ unitOfWork: fake })
+   *   new NotificationCategoryService({ notificationCategoryRepository: fake })
    * @param {object} [deps]
    */
   constructor(deps: NotificationCategoryService.Deps = {}) {
-    this.unitOfWork = deps.unitOfWork ?? unitOfWork;
     this.notificationCategoryRepository = deps.notificationCategoryRepository ?? notificationCategoryRepository;
     this.notificationTypeRepository = deps.notificationTypeRepository ?? notificationTypeRepository;
   }
@@ -97,53 +95,41 @@ class NotificationCategoryService {
       throw AppError.badRequest(`Ya existe una categoría con el código ${code}`);
     }
 
-    const transaction = await this.unitOfWork.begin();
-    try {
-      const category = await this.notificationCategoryRepository.create(
-        { code, ..._toColumns(data) } as defineNotificationCategory.CreationAttributes,
-        { transaction }
-      );
-      await transaction.commit();
+    const category = await this.notificationCategoryRepository.create({ ..._toColumns(data), code } as NotificationCategoryInput & {
+      code: string;
+      name: string;
+    });
 
-      logAudit('NOTIFICATION_CATEGORY_CREATED', adminUserId, { code }, {
-        ...AUDIT_META,
-        entityId: category.notification_category_id
-      });
+    logAudit('NOTIFICATION_CATEGORY_CREATED', adminUserId, { code }, {
+      ...AUDIT_META,
+      entityId: category.notificationCategoryId
+    });
 
-      return NotificationCategoryAdminDTO(category);
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    return NotificationCategoryAdminDTO(category);
   }
 
   async update(notificationCategoryId: string, data: Record<string, unknown>, adminUserId: string) {
-    const transaction = await this.unitOfWork.begin();
-    try {
-      const category = await this.notificationCategoryRepository.findById(notificationCategoryId);
-      if (!category) {
-        throw AppError.notFound('Categoría de notificación no encontrada');
-      }
-
-      const columns = _toColumns(data);
-      if (Object.keys(columns).length === 0) {
-        await transaction.rollback();
-        return NotificationCategoryAdminDTO(category);
-      }
-
-      const updated = await category.update(columns, { transaction });
-      await transaction.commit();
-
-      logAudit('NOTIFICATION_CATEGORY_UPDATED', adminUserId, { code: updated.code, updatedFields: Object.keys(columns) }, {
-        ...AUDIT_META,
-        entityId: notificationCategoryId
-      });
-
-      return NotificationCategoryAdminDTO(updated);
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
+    const category = await this.notificationCategoryRepository.findById(notificationCategoryId);
+    if (!category) {
+      throw AppError.notFound('Categoría de notificación no encontrada');
     }
+
+    const columns = _toColumns(data);
+    if (Object.keys(columns).length === 0) {
+      return NotificationCategoryAdminDTO(category);
+    }
+
+    const updated = await this.notificationCategoryRepository.update(notificationCategoryId, columns);
+    if (!updated) {
+      throw AppError.notFound('Categoría de notificación no encontrada');
+    }
+
+    logAudit('NOTIFICATION_CATEGORY_UPDATED', adminUserId, { code: updated.code, updatedFields: Object.keys(columns) }, {
+      ...AUDIT_META,
+      entityId: notificationCategoryId
+    });
+
+    return NotificationCategoryAdminDTO(updated);
   }
 
   async remove(notificationCategoryId: string, adminUserId: string) {
@@ -153,7 +139,7 @@ class NotificationCategoryService {
     }
 
     // No se borra una categoría que aún tiene tipos asignados: primero hay que reasignarlos.
-    const assignedTypes = await this.notificationTypeRepository.count({ notification_category_id: notificationCategoryId });
+    const assignedTypes = await this.notificationTypeRepository.countByCategory(notificationCategoryId);
     if (assignedTypes > 0) {
       throw AppError.badRequest(
         `No se puede eliminar: la categoría tiene ${assignedTypes} tipo(s) asignado(s). Reasignalos primero.`
@@ -175,7 +161,6 @@ class NotificationCategoryService {
 namespace NotificationCategoryService {
   /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
   export interface Deps {
-    unitOfWork?: typeof unitOfWork;
     notificationCategoryRepository?: typeof notificationCategoryRepository;
     notificationTypeRepository?: typeof notificationTypeRepository;
   }

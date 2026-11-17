@@ -1,221 +1,118 @@
-import { Op } from 'sequelize';
-import type { CreateOptions } from 'sequelize';
-import ReadRepository from '../../../../../shared/repositories/read.repository';
-import * as queryModule from '../../../../../shared/repositories/query';
-const { dateRange } = queryModule;
-import type { WhereClause } from '../../../../../shared/repositories/query';
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../../shared/models';
-const { UserChangeLog } = modelsModule;
-import requestContext from '../../../../../shared/utils/request-context.util';
-import type defineUserChangeLog from '../models/user-change-log.model';
+// modules/schemas/records/audit/repositories/user-change-log.repository.ts
+//
+// Cambios sobre una cuenta (email, contraseña, MFA, estado, rol…). Se escribe en la misma unidad de
+// trabajo que el cambio que registra (a diferencia de audit_logs): si el cambio se revierte, su registro
+// también. origin_session_id lo completa la extensión de Prisma al crear.
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import { Prisma } from '../../../../../shared/database/generated/prisma/client';
+import type {
+  UserChangeLog,
+  UserChangeLogChangeType,
+  UserChangeLogChangedByRole
+} from '../../../../../shared/database/generated/prisma/client';
+import { USER_REF_SELECT } from './user-ref';
 
-class UserChangeLogRepository extends BaseRepository<defineUserChangeLog.Instance> {
-  constructor() {
-    super(UserChangeLog);
+const WITH_USERS = {
+  user: { select: USER_REF_SELECT },
+  changedBy: { select: USER_REF_SELECT }
+} satisfies Prisma.UserChangeLogInclude;
+
+export type UserChangeLogWithUsers = Prisma.UserChangeLogGetPayload<{ include: typeof WITH_USERS }>;
+
+const SORTABLE = Object.values(Prisma.UserChangeLogScalarFieldEnum);
+const SEARCH_FIELDS = ['changeReason', 'previousValue', 'newValue'];
+
+class UserChangeLogRepository extends PrismaRepository {
+  /**
+   * Cambios hechos SOBRE el usuario por un tercero (admin/system), para el feed de actividad del
+   * cliente. Los que hizo el propio usuario ya están en su rastro de audit_logs. Sin previous/new_value:
+   * el feed nunca expone valores.
+   */
+  async findExternalChangesByUserId(userId: string, { limit = 50, offset = 0 }: { limit?: number; offset?: number } = {}) {
+    const where: Prisma.UserChangeLogWhereInput = { userId, changedByRole: { in: ['admin', 'system'] } };
+    const db = await this.db();
+    const [rows, count] = await Promise.all([
+      db.userChangeLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+        select: { logId: true, changeType: true, changedByRole: true, originSessionId: true, createdAt: true }
+      }),
+      db.userChangeLog.count({ where })
+    ]);
+    return { rows, count };
   }
 
-  /**
-   * Busca logs con paginación y búsqueda
-   * @param {Object} filters - { changeType, changedByRole, user_id }
-   * @param {Object} paginationParams - { page, limit, offset, sortBy, order }
-   * @param {string} searchTerm - Término de búsqueda (opcional)
-   * @returns {Promise<{ rows: Array, count: number }>}
-   */
-  /**
-   * Cambios hechos SOBRE el usuario por un tercero (admin/system) — para el feed de actividad
-   * client. Los cambios que el propio usuario hizo ya viven en su rastro de audit_logs; incluirlos
-   * acá los duplicaría. Sin previous/new_value: el feed nunca expone valores.
-   */
-  findExternalChangesByUserId(userId: string, { limit = 50, offset = 0 }: { limit?: number; offset?: number } = {}) {
-    return this.model.findAndCountAll({
-      where: { user_id: userId, changed_by_role: { [Op.in]: ['admin', 'system'] } },
-      order: [['created_at', 'DESC']],
-      limit,
-      offset,
-      attributes: ['log_id', 'change_type', 'changed_by_role', 'origin_session_id', 'created_at']
-    });
-  }
-
-  override findAllPaginated(
+  /** Listado paginado con el usuario afectado y quién hizo el cambio. */
+  async findAllPaginated(
     filters: UserChangeLogRepository.Filters = {},
-    paginationParams: ReadRepository.PaginationParams = {},
+    pagination: PrismaRepository.PaginationParams = {},
     searchTerm: string | null = null
-  ) {
-    const extraFilters: WhereClause = {};
-
-    if (filters.changeType) {
-      extraFilters.change_type = filters.changeType;
-    }
-
-    if (filters.changedByRole) {
-      extraFilters.changed_by_role = filters.changedByRole;
-    }
-
-    if (filters.changedByUserId) {
-      extraFilters.changed_by_user_id = filters.changedByUserId;
-    }
-
-    if (filters.user_id) {
-      extraFilters.user_id = filters.user_id;
-    }
-
-    const createdAtRange = dateRange(filters.dateFrom, filters.dateTo);
-    if (createdAtRange) {
-      extraFilters.created_at = createdAtRange;
-    }
-
-    const options: ReadRepository.PaginatedOptions<defineUserChangeLog.Instance> = {
-      _extraFilters: extraFilters,
-      _searchFields: ['change_reason', 'previous_value', 'new_value'],
-      attributes: [
-        'log_id',
-        'user_id',
-        'changed_by_user_id',
-        'changed_by_role',
-        'change_type',
-        'previous_value',
-        'new_value',
-        'change_reason',
-        'ip_address',
-        'user_agent',
-        'created_at'
-      ],
-      include: [
-        {
-          association: 'user',
-          attributes: ['user_id', 'username'],
-          include: [
-            {
-              association: 'person',
-              attributes: ['first_name', 'last_name']
+  ): Promise<PrismaRepository.Page<UserChangeLogWithUsers>> {
+    const where: Prisma.UserChangeLogWhereInput = {
+      ...(filters.changeType ? { changeType: filters.changeType } : {}),
+      ...(filters.changedByRole ? { changedByRole: filters.changedByRole } : {}),
+      ...(filters.changedByUserId ? { changedByUserId: filters.changedByUserId } : {}),
+      ...(filters.userId ? { userId: filters.userId } : {}),
+      ...(filters.dateFrom || filters.dateTo
+        ? {
+            createdAt: {
+              ...(filters.dateFrom ? { gte: new Date(filters.dateFrom) } : {}),
+              ...(filters.dateTo ? { lte: new Date(filters.dateTo) } : {})
             }
-          ]
-        },
-        {
-          association: 'changedBy',
-          attributes: ['user_id', 'username'],
-          include: [
-            {
-              association: 'person',
-              attributes: ['first_name', 'last_name']
-            }
-          ]
-        }
-      ]
+          }
+        : {}),
+      ...(this.searchWhere(searchTerm, SEARCH_FIELDS) as Prisma.UserChangeLogWhereInput)
     };
-
-    return super.findAllPaginated({}, paginationParams, searchTerm, options);
+    const db = await this.db();
+    const [rows, count] = await Promise.all([
+      db.userChangeLog.findMany({ where, include: WITH_USERS, ...this.paginationArgs(SORTABLE, pagination) }),
+      db.userChangeLog.count({ where })
+    ]);
+    return { rows, count };
   }
 
-  /**
-   * Crea un log de cambio de usuario
-   * @param {Object} logData - Datos del log
-   * @param {Object} options - Opciones de Sequelize (transaction, etc.)
-   * @returns {Promise<UserChangeLog>}
-   */
-  createLog(logData: UserChangeLogRepository.LogInput, options: CreateOptions<defineUserChangeLog.Attributes> = {}) {
-    return this.create(
-      {
-        user_id: logData.userId,
-        changed_by_user_id: logData.changedByUserId || null,
-        changed_by_role: logData.changedByRole,
-        change_type: logData.changeType,
-        previous_value: logData.previousValue || null,
-        new_value: logData.newValue || null,
-        change_reason: logData.changeReason || null,
-        ip_address: logData.ipAddress || null,
-        user_agent: logData.userAgent || null,
-        // Punto único: createLog tiene ~20 call sites. Alinea esta tabla de auditoría con
-        // audit_logs.session_id, que es la consistencia que pedía el plan §3 (Fase 3).
-        ...requestContext.originFromContext()
-      },
-      options
-    );
-  }
-
-  /**
-   * Obtiene logs de un usuario específico
-   * @param {string} userId - ID del usuario
-   * @param {Object} paginationParams - Parámetros de paginación
-   * @returns {Promise<{rows: Array, count: number}>}
-   */
-  findByUserId(userId: string, paginationParams: ReadRepository.PaginationParams = {}) {
-    const criteria = { user_id: userId };
-
-    return this.findAllPaginated(criteria, paginationParams);
-  }
-
-  /**
-   * Obtiene logs por tipo de cambio
-   * @param {string} changeType - Tipo de cambio
-   * @param {Object} paginationParams - Parámetros de paginación
-   * @returns {Promise<{rows: Array, count: number}>}
-   */
-  findByChangeType(changeType: defineUserChangeLog.Attributes['change_type'], paginationParams: ReadRepository.PaginationParams = {}) {
-    // Las claves son las que lee findAllPaginated (antes se pasaba change_type y el filtro se perdía)
-    return this.findAllPaginated({ changeType }, paginationParams);
-  }
-
-  /**
-   * Obtiene logs realizados por un admin específico
-   * @param {string} adminUserId - ID del admin
-   * @param {Object} paginationParams - Parámetros de paginación
-   * @returns {Promise<{rows: Array, count: number}>}
-   */
-  findByAdminUser(adminUserId: string, paginationParams: ReadRepository.PaginationParams = {}) {
-    // Ídem: antes changed_by_user_id/changed_by_role no llegaban al WHERE
-    return this.findAllPaginated({ changedByUserId: adminUserId, changedByRole: 'admin' }, paginationParams);
-  }
-
-  /**
-   * Cuenta cambios por tipo para un usuario
-   * @param {string} userId - ID del usuario
-   * @param {string} changeType - Tipo de cambio
-   * @returns {Promise<number>}
-   */
-  countByUserAndType(userId: string, changeType: defineUserChangeLog.Attributes['change_type']) {
-    return this.count({
-      user_id: userId,
-      change_type: changeType
+  /** Registra un cambio de usuario. */
+  async createLog(logData: UserChangeLogRepository.LogInput): Promise<UserChangeLog> {
+    return (await this.db()).userChangeLog.create({
+      data: {
+        userId: logData.userId,
+        changedByUserId: logData.changedByUserId || null,
+        changedByRole: logData.changedByRole,
+        changeType: logData.changeType,
+        previousValue: logData.previousValue || null,
+        newValue: logData.newValue || null,
+        changeReason: logData.changeReason || null,
+        ipAddress: logData.ipAddress || null,
+        userAgent: logData.userAgent || null
+      }
     });
   }
 
-  /**
-   * Obtiene el último cambio de un tipo específico para un usuario
-   * @param {string} userId - ID del usuario
-   * @param {string} changeType - Tipo de cambio
-   * @returns {Promise<UserChangeLog|null>}
-   */
-  findLastChangeByType(userId: string, changeType: defineUserChangeLog.Attributes['change_type']) {
-    return this.model.findOne({
-      where: {
-        user_id: userId,
-        change_type: changeType
-      },
-      order: [['created_at', 'DESC']]
-    });
+  /** Cambios de un usuario. */
+  findByUserId(userId: string, pagination: PrismaRepository.PaginationParams = {}) {
+    return this.findAllPaginated({ userId }, pagination);
   }
 
-  // Override para usar log_id en vez de id
-  // Misma firma que BaseRepository.delete(id, options) — SOLID: L (no se pierde la transacción)
-  override delete(logId: string, options = {}) {
-    return this.model.destroy({ where: { log_id: logId }, ...options });
+  /** Cambios de un tipo. */
+  findByChangeType(changeType: UserChangeLogChangeType, pagination: PrismaRepository.PaginationParams = {}) {
+    return this.findAllPaginated({ changeType }, pagination);
   }
 
-  // Override findById para usar log_id
-  override findById(logId: string, options = {}) {
-    return this.model.findByPk(logId, options);
+  /** Cambios hechos por un admin. */
+  findByAdminUser(adminUserId: string, pagination: PrismaRepository.PaginationParams = {}) {
+    return this.findAllPaginated({ changedByUserId: adminUserId, changedByRole: 'admin' }, pagination);
   }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 namespace UserChangeLogRepository {
   export type Filters = {
-    changeType?: defineUserChangeLog.Attributes['change_type'];
-    changedByRole?: defineUserChangeLog.Attributes['changed_by_role'];
+    changeType?: UserChangeLogChangeType;
+    changedByRole?: UserChangeLogChangedByRole;
     changedByUserId?: string;
-    user_id?: string;
+    userId?: string;
     dateFrom?: string | Date;
     dateTo?: string | Date;
   };
@@ -224,8 +121,8 @@ namespace UserChangeLogRepository {
   export interface LogInput {
     userId: string;
     changedByUserId?: string | null;
-    changedByRole: defineUserChangeLog.Attributes['changed_by_role'];
-    changeType: defineUserChangeLog.Attributes['change_type'];
+    changedByRole: UserChangeLogChangedByRole;
+    changeType: UserChangeLogChangeType;
     previousValue?: string | null;
     newValue?: string | null;
     changeReason?: string | null;

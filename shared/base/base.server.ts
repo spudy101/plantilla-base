@@ -1,7 +1,7 @@
 // shared/base/base.server.ts
 import type { Server } from 'node:http';
 import type { Express } from 'express';
-import db from '../models';
+import databaseHealth from '../database/database-health';
 import redisClient from '../utils/redis.util';
 import loggerUtilModule from '../utils/logger.util';
 const { logger } = loggerUtilModule;
@@ -107,7 +107,7 @@ class BaseServer {
 
   async #connectDatabase() {
     logger.info('Connecting to database...');
-    await db.sequelize.authenticate();
+    await databaseHealth.checkDatabase(); // Sequelize y Prisma
     logger.info('✅ Database connection established');
   }
 
@@ -164,8 +164,8 @@ class BaseServer {
         });
         logger.info('✅ HTTP server closed');
 
-        await db.sequelize.close();
-        logger.info('✅ Database connection closed');
+        await databaseHealth.closeDatabase();
+        logger.info('✅ Database connections closed (Sequelize + Prisma)');
 
         await redisClient.disconnect();
         logger.info('✅ Redis connection closed');

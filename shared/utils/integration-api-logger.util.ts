@@ -21,6 +21,7 @@ const { logger } = loggerUtilModule;
 import requestContext from './request-context.util';
 import errorMessageModule from './error-message.util';
 import type DomainEnums from '../constants/domain-enums';
+import type { Prisma } from '../database/generated/prisma/client';
 
 // Se usa como errorMessageModule.errorMessage(…): `log()` recibe un parámetro llamado errorMessage.
 
@@ -124,22 +125,25 @@ class IntegrationApiLogger {
 
     setImmediate(async () => {
       try {
-        // Carga lazy para evitar ciclos de dependencia al importar shared/models
-        const { IntegrationApiLog } = interopDefault(require('../models') as typeof import('../models'));
+        // Carga lazy: el repositorio (y los modelos) dependen del logger
+        const integrationApiLogRepository = interopDefault(
+          require('../../modules/schemas/integration/repositories/integration-api-log.repository') as typeof import('../../modules/schemas/integration/repositories/integration-api-log.repository')
+        );
 
-        await IntegrationApiLog.create({
+        await integrationApiLogRepository.create({
           product,
           endpoint,
-          user_id: origin.userId,
-          session_id: origin.sessionId,
+          userId: origin.userId,
+          sessionId: origin.sessionId,
           result,
-          response_time_ms: responseTimeMs ?? null,
-          error_code: errorCode ? String(errorCode) : null,
-          error_message: errorMessage || null,
-          request_payload: requestPayload ? _sanitize(requestPayload) : null,
-          response_payload: responsePayload ? _sanitize(responsePayload) : null,
-          is_system_error: isSystemError === true,
-          notification_id: notificationId || null
+          responseTimeMs: responseTimeMs ?? null,
+          errorCode: errorCode ? String(errorCode) : null,
+          errorMessage: errorMessage || null,
+          // JSON sanitizado; sin payload la columna queda en NULL (no se envía)
+          ...(requestPayload ? { requestPayload: _sanitize(requestPayload) as Prisma.InputJsonValue } : {}),
+          ...(responsePayload ? { responsePayload: _sanitize(responsePayload) as Prisma.InputJsonValue } : {}),
+          isSystemError: isSystemError === true,
+          notificationId: notificationId || null
         });
       } catch (err) {
         logger.warn('[IntegrationApiLogger] Error persistiendo log de API', {

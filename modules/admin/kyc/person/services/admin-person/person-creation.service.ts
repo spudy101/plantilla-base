@@ -1,10 +1,9 @@
-import type defineUser from '../../../../../schemas/kyc/iam/models/user.model';
+import type { User } from '../../../../../../shared/database/generated/prisma/client';
 // modules/admin/kyc/person/services/admin-person/person-creation.service.ts
 //
 // Alta de cuentas de cliente desde el panel admin (persona + contacto + usuario
 // en una transacción) y notificaciones de bienvenida. Extraído de PersonService (SOLID: S).
 
-import type { Transaction } from 'sequelize';
 import type { AdminAuditContext } from '../../../../../../shared/types/audit-context';
 import { v4 as uuidv4 } from 'uuid';
 import unitOfWork from '../../../../../../shared/database/unit-of-work';
@@ -17,7 +16,6 @@ import NotificationUtil from '../../../../../schemas/notification/services/notif
 import AppError from '../../../../../../shared/utils/app-error.util';
 import loggerUtilModule from '../../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import requestContext from '../../../../../../shared/utils/request-context.util';
 import ProfileHelper from '../../../../../schemas/kyc/person/helpers/profile.helper';
 import constantsModule from '../../../../../../shared/constants';
 const { notifications, RBAC_ROLES } = constantsModule;
@@ -53,10 +51,7 @@ class PersonCreationService {
   // ============================================================
 
   async create(userData: PersonCreationService.CreateInput, auditContext: AdminAuditContext) {
-    const transaction = await this.unitOfWork.begin();
-    let transactionFinished = false;
-
-    try {
+    const { role, user, temporaryPassword } = await this.unitOfWork.run(async () => {
       const role = await this.roleRepository.findByName(RBAC_ROLES.CLIENTE);
       if (!role) {
         throw AppError.internal(`Rol ${RBAC_ROLES.CLIENTE} no configurado. Ejecuta el seeder RBAC.`);
@@ -69,34 +64,28 @@ class PersonCreationService {
       const temporaryPassword = KycSharedUtil.generateSecurePassword();
       const authUsername = `user_${uuidv4()}`;
 
-      const user = await this._createDbRecords(userData, authUsername, temporaryPassword, role.role_id, transaction);
+      const user = await this._createDbRecords(userData, authUsername, temporaryPassword, role.roleId);
+      return { role, user, temporaryPassword };
+    });
 
-      await transaction.commit();
-      transactionFinished = true;
+    // Después del commit: un error acá ya no intenta revertir la transacción confirmada
+    logAudit(
+      'PERSON_CREATED',
+      auditContext.adminUserId,
+      {
+        roleId: role.roleId,
+        roleName: role.name
+      },
+      { entityId: user.userId, entityType: 'User', entityTable: 'users' }
+    );
 
-      logAudit(
-        'PERSON_CREATED',
-        auditContext.adminUserId,
-        {
-          roleId: role.role_id,
-          roleName: role.name
-        },
-        { entityId: user.user_id, entityType: 'User', entityTable: 'users' }
-      );
+    setImmediate(() => this._sendCreateNotifications(userData, user, auditContext, temporaryPassword));
 
-      setImmediate(() => this._sendCreateNotifications(userData, user, auditContext, temporaryPassword));
-
-      const fullUser = await this.userRepository.findByUserId(user.user_id, 'full');
-      if (!fullUser) {
-        throw AppError.internal('Usuario recién creado no encontrado');
-      }
-      return CreateUserDTO(fullUser, temporaryPassword);
-    } catch (error) {
-      if (!transactionFinished) {
-        await transaction.rollback();
-      }
-      throw error;
+    const fullUser = await this.userRepository.findByUserId(user.userId, 'full');
+    if (!fullUser) {
+      throw AppError.internal('Usuario recién creado no encontrado');
     }
+    return CreateUserDTO(fullUser, temporaryPassword);
   }
 
   /** @private */
@@ -104,52 +93,45 @@ class PersonCreationService {
     userData: PersonCreationService.CreateInput,
     authUsername: string,
     temporaryPassword: string,
-    roleId: string,
-    transaction: Transaction
+    roleId: string
   ) {
-    const person = await this.personRepository.create(
-      {
-        first_name: userData.firstName,
-        middle_name: userData.middleName || null,
-        last_name: userData.lastName,
-        second_last_name: userData.secondLastName || null,
-        national_id: userData.nationalId,
-        birth_date: userData.birthDate || null,
-        gender_id: userData.genderId || null,
-        country_id: userData.countryId || null,
-        document_type_id: userData.documentTypeId || null,
-        ...requestContext.originFromContext()
-      },
-      { transaction }
-    );
+    const person = await this.personRepository.create({
+      firstName: userData.firstName,
+      middleName: userData.middleName || null,
+      lastName: userData.lastName,
+      secondLastName: userData.secondLastName || null,
+      nationalId: userData.nationalId,
+      birthDate: userData.birthDate || null,
+      genderId: userData.genderId || null,
+      countryId: userData.countryId || null,
+      documentTypeId: userData.documentTypeId || null
+    });
 
-    await this.personContactRepository.create(
-      {
-        person_id: person.person_id,
-        email: userData.email,
-        email_verified_at: new Date(),
-        ...requestContext.originFromContext()
-      },
-      { transaction }
-    );
+    await this.personContactRepository.create({
+      personId: person.personId,
+      email: userData.email,
+      emailVerifiedAt: new Date()
+    });
 
-    return this.userRepository.createWithPassword(
-      {
-        username: authUsername,
-        auth_username: authUsername,
-        person_id: person.person_id,
-        role_id: roleId,
-        password: temporaryPassword
-      },
-      { transaction }
-    );
+    return this.userRepository.createWithPassword({
+      username: authUsername,
+      authUsername: authUsername,
+      personId: person.personId,
+      roleId: roleId,
+      password: temporaryPassword
+    });
   }
 
   /** @private */
-  _sendCreateNotifications(userData: PersonCreationService.CreateInput, user: Pick<defineUser.Instance, 'user_id'>, auditContext: AdminAuditContext, temporaryPassword: string) {
+  _sendCreateNotifications(
+    userData: PersonCreationService.CreateInput,
+    user: Pick<User, 'userId'>,
+    auditContext: AdminAuditContext,
+    temporaryPassword: string
+  ) {
     this.NotificationUtil.crearNotificacion({
       tipoNotificacion: 'USUARIO_CREADO_ADMIN',
-      userId: user.user_id,
+      userId: user.userId,
       relatedEntity: null,
       metadata: {
         nombre: userData.firstName,
@@ -166,7 +148,7 @@ class PersonCreationService {
       metadata: {
         nombre: auditContext.adminFirstName,
         accion: 'crear',
-        userId: user.user_id,
+        userId: user.userId,
         logoUrl: notifications.ses.logoUrl
       }
     }).catch(err => logger.warn('Error sending admin action notification', { error: err.message }));

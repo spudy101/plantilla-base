@@ -41,7 +41,7 @@ class InternalUserDeletionService {
     if (!adminUser) {
       throw AppError.notFound('Administrador no encontrado');
     }
-    await this.profileHelper.validateCurrentPassword(adminUser.password_hash, currentPassword);
+    await this.profileHelper.validateCurrentPassword(adminUser.passwordHash, currentPassword);
 
     // Debe ser un interno existente, no superadmin y no estar ya eliminado.
     const user = await this.guards.getInternalUserOrFail(userId);
@@ -71,10 +71,8 @@ class InternalUserDeletionService {
    * sesiones). Punto de entrada del handler de doble aprobación y de la ejecución directa.
    */
   async executeDeleteUser(userId: string, auditCtx: AdminAuditContext) {
-    const transaction = await this.unitOfWork.begin();
-
-    try {
-      const user = await this.userRepository.findForAccountDeletion(userId, { transaction });
+    const user = await this.unitOfWork.run(async () => {
+      const user = await this.userRepository.findForAccountDeletion(userId);
       if (!user) {
         throw AppError.notFound('Usuario no encontrado');
       }
@@ -82,47 +80,40 @@ class InternalUserDeletionService {
       const person = this.guards.requirePerson(user);
       await this.profileHelper.deleteAccountLogic({
         userId,
-        personId: person.person_id,
-        nationalId: person.national_id,
+        personId: person.personId,
+        nationalId: person.nationalId,
         email: person.contact?.email,
         username: user.username,
-        firstName: person.first_name,
+        firstName: person.firstName,
         changedByUserId: auditCtx.adminUserId,
         changedByRole: 'admin',
         changeReason: 'Usuario interno eliminado por administrador',
-        auditContext: { ipAddress: auditCtx.ipAddress, userAgent: auditCtx.userAgent },
-        transaction
+        auditContext: { ipAddress: auditCtx.ipAddress, userAgent: auditCtx.userAgent }
       });
+      return user;
+    });
 
-      await transaction.commit();
+    // Tras el commit: cierra sesiones.
+    await this.guards.invalidateSessions(userId, 'account_deleted');
 
-      // Tras el commit: cierra sesiones.
-      await this.guards.invalidateSessions(userId, 'account_deleted');
+    logAudit(
+      'INTERNAL_USER_DELETED',
+      auditCtx.adminUserId,
+      {},
+      { entityId: userId, entityType: 'InternalUser', entityTable: 'users' }
+    );
 
-      logAudit(
-        'INTERNAL_USER_DELETED',
-        auditCtx.adminUserId,
-        {},
-        { entityId: userId, entityType: 'InternalUser', entityTable: 'users' }
-      );
+    const empleadoNombre = user.person?.firstName || 'Usuario';
+    setImmediate(() => {
+      this.NotificationCreationService.crearNotificacion({
+        tipoNotificacion: 'IAM_ADMIN_STATUS_CHANGED',
+        userId: auditCtx.adminUserId,
+        relatedEntity: { type: 'User', id: userId },
+        metadata: { nombreUsuario: empleadoNombre, accion: 'eliminado', logoUrl: notifications.ses.logoUrl }
+      }).catch(err => logger.warn('Error enviando IAM_ADMIN_STATUS_CHANGED (eliminación)', { error: err.message }));
+    });
 
-      const empleadoNombre = user.person?.first_name || 'Usuario';
-      setImmediate(() => {
-        this.NotificationCreationService.crearNotificacion({
-          tipoNotificacion: 'IAM_ADMIN_STATUS_CHANGED',
-          userId: auditCtx.adminUserId,
-          relatedEntity: { type: 'User', id: userId },
-          metadata: { nombreUsuario: empleadoNombre, accion: 'eliminado', logoUrl: notifications.ses.logoUrl }
-        }).catch(err => logger.warn('Error enviando IAM_ADMIN_STATUS_CHANGED (eliminación)', { error: err.message }));
-      });
-
-      return null;
-    } catch (error) {
-      if (!transaction.finished) {
-        await transaction.rollback();
-      }
-      throw error;
-    }
+    return null;
   }
 }
 

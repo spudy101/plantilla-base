@@ -18,7 +18,7 @@ function _buildMixedItem(item: Feed.FeedItem, readIds: string[]) {
     type: 'global',
     ...GlobalNotificationComponent.build(item.__instance, {
       includeType: true,
-      isRead: readIds.includes(item.__instance.global_notification_id)
+      isRead: readIds.includes(item.__instance.globalNotificationId)
     })
   };
 }
@@ -60,7 +60,7 @@ function GlobalNotificationsResponseDTO(result: Feed.GlobalListResult) {
       ? rows.map(item =>
           GlobalNotificationComponent.build(item.__instance, {
             includeType: true,
-            isRead: readIds.includes(item.__instance.global_notification_id)
+            isRead: readIds.includes(item.__instance.globalNotificationId)
           })
         )
       : [],

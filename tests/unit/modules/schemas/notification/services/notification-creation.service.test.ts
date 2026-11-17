@@ -94,7 +94,7 @@ const flush = () => new Promise(resolve => { setImmediate(resolve); });
 
 function notificationType(overrides = {}) {
   return {
-    notification_type_id: 't-1',
+    notificationTypeId: 't-1',
     code: 'WELCOME',
     priority: 'normal',
     category: null,
@@ -171,8 +171,8 @@ describe('NotificationCreationService', () => {
     describe('individual (userId presente)', () => {
       it('crea la notificación in-app, despacha el envío y devuelve notification_id', async () => {
         notificationTypeRepo.findByCode.mockResolvedValue(notificationType());
-        notificationRepo.create.mockResolvedValue({ notification_id: 'n-1' });
-        userPreferenceRepo.findGlobalByUser.mockResolvedValue({ user_id: 'u-1' });
+        notificationRepo.create.mockResolvedValue({ notificationId: 'n-1' });
+        userPreferenceRepo.findGlobalByUser.mockResolvedValue({ userId: 'u-1' });
 
         const result = await creationService.crearNotificacion({
           tipoNotificacion: 'WELCOME',
@@ -185,11 +185,10 @@ describe('NotificationCreationService', () => {
         expect(userPreferenceRepo.findByUserAndCategory).not.toHaveBeenCalled();
         expect(notificationRepo.create).toHaveBeenCalledWith(
           expect.objectContaining({
-            user_id: 'u-1',
-            notification_type_id: 't-1',
-            processing_status: 'pending'
-          }),
-          { transaction: null }
+            userId: 'u-1',
+            notificationTypeId: 't-1',
+            processingStatus: 'pending'
+          })
         );
         expect(result).toMatchObject({ estado_solicitud: 1, notification_id: 'n-1' });
 
@@ -200,10 +199,10 @@ describe('NotificationCreationService', () => {
       });
 
       it('resuelve la preferencia por categoría cuando el tipo tiene categoría', async () => {
-        const type = notificationType({ category: { code: 'SECURITY', allow_dnd: true, is_critical: false } });
+        const type = notificationType({ category: { code: 'SECURITY', allowDnd: true, isCritical: false } });
         notificationTypeRepo.findByCode.mockResolvedValue(type);
-        notificationRepo.create.mockResolvedValue({ notification_id: 'n-2' });
-        userPreferenceRepo.findByUserAndCategory.mockResolvedValue({ user_id: 'u-1' });
+        notificationRepo.create.mockResolvedValue({ notificationId: 'n-2' });
+        userPreferenceRepo.findByUserAndCategory.mockResolvedValue({ userId: 'u-1' });
 
         await creationService.crearNotificacion({ tipoNotificacion: 'LOGIN', userId: 'u-1' });
         await flush(); // drena el envío en background para no filtrarlo al siguiente test
@@ -213,10 +212,10 @@ describe('NotificationCreationService', () => {
       });
 
       it('aplica quiet hours (DND) cuando la categoría lo permite y no es crítica', async () => {
-        const type = notificationType({ category: { code: 'MARKETING', allow_dnd: true, is_critical: false } });
+        const type = notificationType({ category: { code: 'MARKETING', allowDnd: true, isCritical: false } });
         notificationTypeRepo.findByCode.mockResolvedValue(type);
-        notificationRepo.create.mockResolvedValue({ notification_id: 'n-3' });
-        userPreferenceRepo.findByUserAndCategory.mockResolvedValue({ user_id: 'u-1', dnd: true });
+        notificationRepo.create.mockResolvedValue({ notificationId: 'n-3' });
+        userPreferenceRepo.findByUserAndCategory.mockResolvedValue({ userId: 'u-1', dnd: true });
         schedulerService.isInQuietHours.mockReturnValue(true);
 
         await creationService.crearNotificacion({ tipoNotificacion: 'PROMO', userId: 'u-1' });
@@ -229,10 +228,10 @@ describe('NotificationCreationService', () => {
       });
 
       it('una categoría crítica ignora el quiet hours y marca alta prioridad', async () => {
-        const type = notificationType({ category: { code: 'SECURITY', allow_dnd: true, is_critical: true } });
+        const type = notificationType({ category: { code: 'SECURITY', allowDnd: true, isCritical: true } });
         notificationTypeRepo.findByCode.mockResolvedValue(type);
-        notificationRepo.create.mockResolvedValue({ notification_id: 'n-4' });
-        userPreferenceRepo.findByUserAndCategory.mockResolvedValue({ user_id: 'u-1' });
+        notificationRepo.create.mockResolvedValue({ notificationId: 'n-4' });
+        userPreferenceRepo.findByUserAndCategory.mockResolvedValue({ userId: 'u-1' });
         schedulerService.isInQuietHours.mockReturnValue(true);
 
         await creationService.crearNotificacion({ tipoNotificacion: 'ALERT', userId: 'u-1' });
@@ -255,20 +254,19 @@ describe('NotificationCreationService', () => {
 
     describe('global (userId ausente)', () => {
       it('crea la notificación global, despacha el batch y devuelve global_notification_id', async () => {
-        const type = notificationType({ category: { supports_push: true, supports_email: false } });
+        const type = notificationType({ category: { supportsPush: true, supportsEmail: false } });
         notificationTypeRepo.findByCode.mockResolvedValue(type);
-        globalNotificationRepo.create.mockResolvedValue({ global_notification_id: 'g-1' });
+        globalNotificationRepo.create.mockResolvedValue({ globalNotificationId: 'g-1' });
 
         const result = await creationService.crearNotificacion({ tipoNotificacion: 'BROADCAST', metadata: { x: 1 } });
 
         expect(globalNotificationRepo.create).toHaveBeenCalledWith(
           expect.objectContaining({
-            notification_type_id: 't-1',
-            send_push: true,
-            send_email: false,
-            send_in_app: true
-          }),
-          { transaction: null }
+            notificationTypeId: 't-1',
+            sendPush: true,
+            sendEmail: false,
+            sendInApp: true
+          })
         );
         expect(result).toMatchObject({ estado_solicitud: 1, global_notification_id: 'g-1' });
 

@@ -1,16 +1,31 @@
-// modules/schemas/kyc/src/repositories/country.repository.ts
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../../shared/models';
-const { Country } = modelsModule;
-import type defineCountry from '../models/country.model';
+// modules/schemas/kyc/maintainers/repositories/country.repository.ts
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import { Prisma } from '../../../../../shared/database/generated/prisma/client';
+import type { Country } from '../../../../../shared/database/generated/prisma/client';
 
-class CountryRepository extends BaseRepository<defineCountry.Instance> {
-  constructor() {
-    super(Country, { searchFields: ['name', 'code'] });
+const LIST = { sortable: Object.values(Prisma.CountryScalarFieldEnum), searchFields: ['name', 'code'] };
+
+class CountryRepository extends PrismaRepository {
+  async findById(countryId: string): Promise<Country | null> {
+    return (await this.db()).country.findUnique({ where: { countryId } });
   }
 
-  findByCode(code: string) {
-    return this.model.findOne({ where: { code, is_active: true } });
+  async findByCode(code: string): Promise<Country | null> {
+    return (await this.db()).country.findFirst({ where: { code, isActive: true } });
+  }
+
+  async findAllPaginated(
+    filters: PrismaRepository.Filters = {},
+    pagination: PrismaRepository.PaginationParams = {},
+    searchTerm: string | null = null
+  ): Promise<PrismaRepository.Page<Country>> {
+    const { where, page } = this.listQuery(filters, pagination, searchTerm, LIST);
+    const db = await this.db();
+    const [rows, count] = await Promise.all([
+      db.country.findMany({ where: where as Prisma.CountryWhereInput, ...page }),
+      db.country.count({ where: where as Prisma.CountryWhereInput })
+    ]);
+    return { rows, count };
   }
 }
 

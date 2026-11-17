@@ -1,4 +1,4 @@
-import type definePrivacyPolicy from '../../../../schemas/records/legal/models/privacy-policy.model';
+import type { PrivacyPolicy } from '../../../../../shared/database/generated/prisma/client';
 // modules/admin/privacy-policy/dtos/privacy-policy-admin.dto.ts
 
 import componentsCatalogDtoModule from '../../../../../shared/dtos/kyc/components-catalog.dto';
@@ -8,13 +8,13 @@ const { MetadataDTO } = componentsCatalogDtoModule;
 // COMPONENTE BASE — un ítem de la lista o el detalle completo
 // ============================================================
 
-function PrivacyPolicyItemDTO(policy: definePrivacyPolicy.Instance) {
+function PrivacyPolicyItemDTO(policy: PrivacyPolicy) {
   return {
-    id: policy.privacy_policy_id,
+    id: policy.privacyPolicyId,
     version: policy.version,
-    isActive: policy.is_active,
+    isActive: policy.isActive,
     summary: policy.summary || null,
-    effectiveDate: policy.effective_date,
+    effectiveDate: policy.effectiveDate,
     createdAt: policy.createdAt
   };
 }
@@ -23,7 +23,7 @@ function PrivacyPolicyItemDTO(policy: definePrivacyPolicy.Instance) {
 // LIST — paginado
 // ============================================================
 
-function ListPrivacyPoliciesResponseDTO(policies: definePrivacyPolicy.Instance[], metadata: Parameters<typeof MetadataDTO.build>[0]) {
+function ListPrivacyPoliciesResponseDTO(policies: PrivacyPolicy[], metadata: Parameters<typeof MetadataDTO.build>[0]) {
   return {
     data: Array.isArray(policies) ? policies.map(PrivacyPolicyItemDTO) : [],
     metadata: MetadataDTO.build(metadata)
@@ -34,14 +34,14 @@ function ListPrivacyPoliciesResponseDTO(policies: definePrivacyPolicy.Instance[]
 // DETAIL — incluye la URL pública del PDF
 // ============================================================
 
-function PrivacyPolicyDetailResponseDTO(policy: definePrivacyPolicy.Instance) {
+function PrivacyPolicyDetailResponseDTO(policy: PrivacyPolicy) {
   return {
-    id: policy.privacy_policy_id,
+    id: policy.privacyPolicyId,
     version: policy.version,
-    isActive: policy.is_active,
+    isActive: policy.isActive,
     summary: policy.summary || null,
-    documentUrl: policy.document_url,
-    effectiveDate: policy.effective_date,
+    documentUrl: policy.documentUrl,
+    effectiveDate: policy.effectiveDate,
     createdAt: policy.createdAt,
     updatedAt: policy.updatedAt
   };
@@ -51,14 +51,14 @@ function PrivacyPolicyDetailResponseDTO(policy: definePrivacyPolicy.Instance) {
 // CREATE — respuesta tras publicar nueva versión
 // ============================================================
 
-function PrivacyPolicyCreatedResponseDTO(policy: definePrivacyPolicy.Instance) {
+function PrivacyPolicyCreatedResponseDTO(policy: PrivacyPolicy) {
   return {
-    id: policy.privacy_policy_id,
+    id: policy.privacyPolicyId,
     version: policy.version,
-    isActive: policy.is_active,
+    isActive: policy.isActive,
     summary: policy.summary || null,
-    documentUrl: policy.document_url,
-    effectiveDate: policy.effective_date,
+    documentUrl: policy.documentUrl,
+    effectiveDate: policy.effectiveDate,
     createdAt: policy.createdAt
   };
 }

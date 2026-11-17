@@ -270,7 +270,7 @@ class AuthMiddleware {
       });
     }
 
-    const idleMs = Date.now() - new Date(session.last_access_at).getTime();
+    const idleMs = Date.now() - new Date(session.lastAccessAt).getTime();
     const maxIdleMs = SECURITY.SESSION_INACTIVITY_MINUTES * MS_PER_MINUTE;
 
     if (idleMs > maxIdleMs) {

@@ -10,10 +10,10 @@
 //   - DRY     → un único lugar para corregir/auditar el habeas data.
 //
 // Los llamadores deciden si el registro es best-effort (.catch) y qué loguear.
+// Cada grant es atómico por sí mismo (user-consent.repository); si el llamador está dentro de una
+// unidad de trabajo, se une a ella.
 // ============================================================
 
-import type { Transaction } from 'sequelize';
-import type { UserConsentRepositoryPort } from '../../../repository-ports';
 import consentTypeRepository from '../repositories/consent-type.repository';
 import userConsentRepository from '../repositories/user-consent.repository';
 import privacyPolicyRepository from '../repositories/privacy-policy.repository';
@@ -43,20 +43,17 @@ class ConsentRecorderService {
    * @param {string} params.userId
    * @param {string|null} [params.privacyPolicyId] Si se omite (undefined), se usa la política activa.
    * @param {string|null} [params.ip]
-   * @param {object} [params.transaction] Transacción opcional (Unit of Work).
    * @returns {Promise<object|null>} Registro creado, o null si el tipo de consentimiento no existe.
    */
   async grantPrivacyPolicy({
     userId,
     privacyPolicyId,
-    ip,
-    transaction
+    ip
   }: {
     userId: string;
     /** undefined → se usa la política activa; null → sin política asociada */
     privacyPolicyId?: string | null;
     ip?: string | null;
-    transaction?: Transaction;
   }) {
     const consentType = await this.consentTypeRepository.findByCode(CONSENT_TYPE_CODES.PRIVACY_POLICY);
     if (!consentType) {
@@ -65,12 +62,15 @@ class ConsentRecorderService {
     let policyId = privacyPolicyId;
     if (policyId === undefined) {
       const activePolicy = await this.privacyPolicyRepository.findActive();
-      policyId = activePolicy?.privacy_policy_id || null;
+      policyId = activePolicy?.privacyPolicyId || null;
     }
-    return this._grant(
-      { userId, consentTypeId: consentType.consent_type_id, privacyPolicyId: policyId, ip: ip || null, userAgent: null },
-      transaction
-    );
+    return this.userConsentRepository.grant({
+      userId,
+      consentTypeId: consentType.consentTypeId,
+      privacyPolicyId: policyId,
+      ip: ip || null,
+      userAgent: null
+    });
   }
 
   /**
@@ -78,26 +78,20 @@ class ConsentRecorderService {
    * @param {object} params
    * @param {string} params.userId
    * @param {string|null} [params.ip]
-   * @param {object} [params.transaction]
    * @returns {Promise<object|null>}
    */
-  async grantCommercialCommunications({ userId, ip, transaction }: { userId: string; ip?: string | null; transaction?: Transaction }) {
+  async grantCommercialCommunications({ userId, ip }: { userId: string; ip?: string | null }) {
     const consentType = await this.consentTypeRepository.findByCode(CONSENT_TYPE_CODES.COMUNICACIONES_COMERCIALES);
     if (!consentType) {
       return null;
     }
-    return this._grant(
-      { userId, consentTypeId: consentType.consent_type_id, privacyPolicyId: null, ip: ip || null, userAgent: null },
-      transaction
-    );
-  }
-
-  /** @private — solo pasa la transacción si existe (mantiene la firma del repositorio). */
-  _grant(data: Parameters<UserConsentRepositoryPort['grant']>[0], transaction?: Transaction) {
-    if (transaction === undefined) {
-      return this.userConsentRepository.grant(data);
-    }
-    return this.userConsentRepository.grant(data, transaction);
+    return this.userConsentRepository.grant({
+      userId,
+      consentTypeId: consentType.consentTypeId,
+      privacyPolicyId: null,
+      ip: ip || null,
+      userAgent: null
+    });
   }
 }
 

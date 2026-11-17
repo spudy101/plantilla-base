@@ -66,6 +66,7 @@ jest.mock('shared/dtos/kyc', () => ({
   PersonLocationComponent: { build: jest.fn(l => ({ built: 'location', l })) }
 }));
 
+import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
 import modelsModule from 'shared/models';
 const { sequelize } = mocked(modelsModule);
@@ -115,7 +116,7 @@ describe('ProfileService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     transaction = makeTransaction();
-    sequelize.transaction.mockResolvedValue(transaction);
+    sequelize.transaction.mockImplementation(managedTransaction(transaction));
   });
 
   // ============================================================
@@ -124,7 +125,7 @@ describe('ProfileService', () => {
 
   describe('getProfile', () => {
     it('usuario existente: arma BasicProfileDTO con consentimientos y audita', async () => {
-      const user = { user_id: 'u-1' };
+      const user = { userId: 'u-1' };
       userRepository.findByUserId.mockResolvedValue(user);
       consentTypeRepository.findAllActive.mockResolvedValue(['ct']);
       userConsentRepository.findCurrentByUser.mockResolvedValue(['c']);
@@ -152,7 +153,7 @@ describe('ProfileService', () => {
 
   describe('getExtendedProfile', () => {
     it('usuario existente: pide el user full y arma ExtendedProfileDTO', async () => {
-      const user = { user_id: 'u-1' };
+      const user = { userId: 'u-1' };
       userRepository.findByUserId.mockResolvedValue(user);
       consentTypeRepository.findAllActive.mockResolvedValue([]);
       userConsentRepository.findCurrentByUser.mockResolvedValue([]);
@@ -195,13 +196,13 @@ describe('ProfileService', () => {
 
   describe('getLocation', () => {
     it('construye el componente de ubicacion y audita', async () => {
-      personLocationRepository.findByPersonId.mockResolvedValue({ city_id: 3 });
+      personLocationRepository.findByPersonId.mockResolvedValue({ cityId: 3 });
 
       const result = await service.getLocation('p-1', 'u-1');
 
-      expect(PersonLocationComponent.build).toHaveBeenCalledWith({ city_id: 3 });
+      expect(PersonLocationComponent.build).toHaveBeenCalledWith({ cityId: 3 });
       expect(logAudit).toHaveBeenCalledWith('PROFILE_LOCATION_VIEWED', 'u-1', { personId: 'p-1' }, expect.any(Object));
-      expect(result).toEqual({ built: 'location', l: { city_id: 3 } });
+      expect(result).toEqual({ built: 'location', l: { cityId: 3 } });
     });
   });
 
@@ -212,7 +213,7 @@ describe('ProfileService', () => {
   describe('updateProfile', () => {
     it('camino feliz: aplica cada campo, registra cambios, commitea, audita, notifica y devuelve DTO', async () => {
       ProfileHelper.fetchPersonSnapshot.mockResolvedValue({ genderId: null, birthDate: null, location: null });
-      const updatedUser = { user_id: 'u-1' };
+      const updatedUser = { userId: 'u-1' };
       // 1a llamada snapshot ya cubierta; findByUserId('u-1','full') devuelve el user actualizado.
       userRepository.findByUserId.mockResolvedValue(updatedUser);
 
@@ -226,11 +227,11 @@ describe('ProfileService', () => {
 
       const result = await service.updateProfile(fixture(data), 'u-1', 'p-1', 'viejo', 'Ana', { ip: '1.1.1.1' });
 
-      expect(ProfileHelper.updateUsername).toHaveBeenCalledWith('u-1', 'nuevo', transaction);
-      expect(ProfileHelper.updateAvatar).toHaveBeenCalledWith('u-1', 'av-1', transaction);
-      expect(ProfileHelper.updateGender).toHaveBeenCalledWith('p-1', 'g-1', transaction);
-      expect(ProfileHelper.updateLocation).toHaveBeenCalledWith('p-1', { cityId: 5 }, transaction);
-      expect(ProfileHelper.updateBirthDate).toHaveBeenCalledWith('p-1', '1990-01-01', transaction);
+      expect(ProfileHelper.updateUsername).toHaveBeenCalledWith('u-1', 'nuevo');
+      expect(ProfileHelper.updateAvatar).toHaveBeenCalledWith('u-1', 'av-1');
+      expect(ProfileHelper.updateGender).toHaveBeenCalledWith('p-1', 'g-1');
+      expect(ProfileHelper.updateLocation).toHaveBeenCalledWith('p-1', { cityId: 5 });
+      expect(ProfileHelper.updateBirthDate).toHaveBeenCalledWith('p-1', '1990-01-01');
       // _logProfileFieldChanges: gender + birth_date + location => 3 registros de cambio.
       expect(KycSharedUtil.logChange).toHaveBeenCalledTimes(3);
       expect(transaction.commit).toHaveBeenCalled();
@@ -271,7 +272,7 @@ describe('ProfileService', () => {
 
   describe('updateEmail', () => {
     it('camino feliz: valida password, actualiza, commitea, audita, notifica y devuelve DTO', async () => {
-      userRepository.findByUserId.mockResolvedValue({ password_hash: 'hash' });
+      userRepository.findByUserId.mockResolvedValue({ passwordHash: 'hash' });
       ProfileHelper.updateEmailLogic.mockResolvedValue({ newEmail: 'nuevo@b.cl' });
 
       const result = await service.updateEmail(
@@ -307,7 +308,7 @@ describe('ProfileService', () => {
     });
 
     it('si updateEmailLogic falla: rollback y repropaga', async () => {
-      userRepository.findByUserId.mockResolvedValue({ password_hash: 'hash' });
+      userRepository.findByUserId.mockResolvedValue({ passwordHash: 'hash' });
       const boom = new Error('email boom');
       ProfileHelper.updateEmailLogic.mockRejectedValue(boom);
 
@@ -354,7 +355,7 @@ describe('ProfileService', () => {
 
   describe('updatePassword', () => {
     it('camino feliz: valida, actualiza, commitea, audita, notifica y devuelve null', async () => {
-      userRepository.findByUserId.mockResolvedValue({ password_hash: 'hash' });
+      userRepository.findByUserId.mockResolvedValue({ passwordHash: 'hash' });
 
       const result = await service.updatePassword(
         { currentPassword: 'old', newPassword: 'new' },
@@ -380,7 +381,7 @@ describe('ProfileService', () => {
     // InvalidPasswordException era un error de Cognito (código residual eliminado): cualquier error
     // del helper se repropaga tal cual tras el rollback.
     it('error del helper: rollback y repropaga el error original', async () => {
-      userRepository.findByUserId.mockResolvedValue({ password_hash: 'hash' });
+      userRepository.findByUserId.mockResolvedValue({ passwordHash: 'hash' });
       const err = new Error('weak');
       err.name = 'InvalidPasswordException';
       ProfileHelper.updatePasswordLogic.mockRejectedValue(err);
@@ -394,20 +395,20 @@ describe('ProfileService', () => {
 
   describe('updateNames', () => {
     it('con cambio de nombre: registra el cambio, commitea, audita, notifica y devuelve DTO', async () => {
-      const before = { first_name: 'Ana', last_name: 'Perez' };
-      const after = { person_id: 'p-1', first_name: 'Ana Maria', last_name: 'Perez' };
+      const before = { firstName: 'Ana', lastName: 'Perez' };
+      const after = { personId: 'p-1', firstName: 'Ana Maria', lastName: 'Perez' };
       personRepository.findById.mockResolvedValueOnce(before).mockResolvedValueOnce(after);
 
       const result = await service.updateNames({ firstName: 'Ana Maria' }, 'u-1', 'p-1', 'Ana', { ip: '1.1.1.1' });
 
-      expect(ProfileHelper.updateNames).toHaveBeenCalledWith(
-        'p-1',
-        { firstName: 'Ana Maria', middleName: undefined, lastName: undefined, secondLastName: undefined },
-        transaction
-      );
+      expect(ProfileHelper.updateNames).toHaveBeenCalledWith('p-1', {
+        firstName: 'Ana Maria',
+        middleName: undefined,
+        lastName: undefined,
+        secondLastName: undefined
+      });
       expect(KycSharedUtil.logChange).toHaveBeenCalledWith(
-        expect.objectContaining({ changeType: 'name', previousValue: 'Ana Perez', newValue: 'Ana Maria Perez' }),
-        { transaction }
+        expect.objectContaining({ changeType: 'name', previousValue: 'Ana Perez', newValue: 'Ana Maria Perez' })
       );
       expect(transaction.commit).toHaveBeenCalled();
 
@@ -419,7 +420,7 @@ describe('ProfileService', () => {
     });
 
     it('sin cambio de nombre: NO registra cambio pero igual commitea', async () => {
-      const person = { person_id: 'p-1', first_name: 'Ana', last_name: 'Perez' };
+      const person = { personId: 'p-1', firstName: 'Ana', lastName: 'Perez' };
       personRepository.findById.mockResolvedValue(person);
 
       await service.updateNames({ firstName: 'Ana', lastName: 'Perez' }, 'u-1', 'p-1', 'Ana', {});
@@ -429,7 +430,7 @@ describe('ProfileService', () => {
     });
 
     it('si updateNames falla: rollback y repropaga', async () => {
-      personRepository.findById.mockResolvedValue({ first_name: 'Ana', last_name: 'Perez' });
+      personRepository.findById.mockResolvedValue({ firstName: 'Ana', lastName: 'Perez' });
       const boom = new Error('names boom');
       ProfileHelper.updateNames.mockRejectedValue(boom);
 
@@ -440,7 +441,7 @@ describe('ProfileService', () => {
 
   describe('deleteAccount', () => {
     it('camino feliz: valida, elimina, commitea, audita, notifica al email eliminado y devuelve null', async () => {
-      userRepository.findByUserId.mockResolvedValue({ password_hash: 'hash', username: 'ana' });
+      userRepository.findByUserId.mockResolvedValue({ passwordHash: 'hash', username: 'ana' });
       ProfileHelper.deleteAccountLogic.mockResolvedValue({ deletedEmail: 'ana@b.cl', firstName: 'Ana' });
 
       const result = await service.deleteAccount(
@@ -463,7 +464,7 @@ describe('ProfileService', () => {
     });
 
     it('sin deletedEmail: no envia notificacion directa', async () => {
-      userRepository.findByUserId.mockResolvedValue({ password_hash: 'hash' });
+      userRepository.findByUserId.mockResolvedValue({ passwordHash: 'hash' });
       ProfileHelper.deleteAccountLogic.mockResolvedValue({ deletedEmail: null });
 
       await service.deleteAccount(
@@ -476,7 +477,7 @@ describe('ProfileService', () => {
     });
 
     it('si deleteAccountLogic falla y la tx no termino: rollback y repropaga', async () => {
-      userRepository.findByUserId.mockResolvedValue({ password_hash: 'hash' });
+      userRepository.findByUserId.mockResolvedValue({ passwordHash: 'hash' });
       const boom = new Error('delete boom');
       ProfileHelper.deleteAccountLogic.mockRejectedValue(boom);
 

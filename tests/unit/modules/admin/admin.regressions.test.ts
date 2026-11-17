@@ -18,14 +18,14 @@ describe('Timestamps de modelos underscored', () => {
   const updatedAt = new Date('2026-01-03T03:04:05Z');
 
   it('ApprovalRequestComponent devuelve createdAt/updatedAt del atributo', () => {
-    const dto = ApprovalRequestComponent.build({ approval_request_id: 'ar-1', operation_key: 'X', status: 'pending', createdAt, updatedAt });
+    const dto = ApprovalRequestComponent.build({ approvalRequestId: 'ar-1', operationKey: 'X', status: 'pending', createdAt, updatedAt });
     expect(dto?.createdAt).toBe(createdAt);
     expect(dto?.updatedAt).toBe(updatedAt);
-    expect(ApprovalRequestComponent.buildList({ approval_request_id: 'ar-1', operation_key: 'X', status: 'pending', createdAt })?.createdAt).toBe(createdAt);
+    expect(ApprovalRequestComponent.buildList({ approvalRequestId: 'ar-1', operationKey: 'X', status: 'pending', createdAt })?.createdAt).toBe(createdAt);
   });
 
   it('IntegrationLogListItemDTO devuelve la fecha de la llamada', () => {
-    expect(IntegrationLogListItemDTO(fixture({ api_log_id: 'l-1', product: 'ses', createdAt })).createdAt).toBe(createdAt);
+    expect(IntegrationLogListItemDTO(fixture({ apiLogId: 'l-1', product: 'ses', createdAt })).createdAt).toBe(createdAt);
   });
 });
 

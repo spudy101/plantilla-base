@@ -37,13 +37,13 @@ import JwtUtil from 'shared/utils/jwt.util';
 
 // Usuario mínimo con asociaciones cargadas, como espera generateAccessToken.
 const buildUser = () => ({
-  user_id: 'user-uuid-1',
-  person_id: 'person-uuid-1',
-  role_id: 'role-uuid-1',
-  national_id: '12345678',
-  auth_username: 'jperez',
+  userId: 'user-uuid-1',
+  personId: 'person-uuid-1',
+  roleId: 'role-uuid-1',
+  nationalId: '12345678',
+  authUsername: 'jperez',
   role: { name: 'ADMIN' },
-  person: { first_name: 'Juan', last_name: 'Pérez', contact: { email: 'juan@example.com' } }
+  person: { firstName: 'Juan', lastName: 'Pérez', contact: { email: 'juan@example.com' } }
 });
 
 describe('JwtUtil', () => {
@@ -64,7 +64,7 @@ describe('JwtUtil', () => {
     });
 
     it('normaliza asociaciones ausentes a null', async () => {
-      const token = await JwtUtil.generateAccessToken({ user_id: 'u2' }, null);
+      const token = await JwtUtil.generateAccessToken({ userId: 'u2' }, null);
       const payload = await JwtUtil.verifyAccessToken(token);
       expect(payload.sessionId).toBeNull();
       expect(payload.roleName).toBeNull();

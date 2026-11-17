@@ -1,22 +1,11 @@
-import { fn, col } from 'sequelize';
-import BaseRepository from '../../../../shared/repositories/base.repository';
-import ReadRepository from '../../../../shared/repositories/read.repository';
-import modelsModule from '../../../../shared/models';
-const { SmsDeliveryAttempt } = modelsModule;
-import type defineSmsDeliveryAttempt from '../models/sms-delivery-attempt.model';
-import * as queryModule from '../../../../shared/repositories/query';
-const { dateRange, toWhere } = queryModule;
-import type { WhereClause } from '../../../../shared/repositories/query';
+// modules/schemas/notification/repositories/sms-delivery-attempt.repository.ts
+//
+// Bitácora de envíos SMS (por phone_hash, sin el número en claro).
+import PrismaRepository from '../../../../shared/repositories/prisma.repository';
+import type { SmsDeliveryAttempt } from '../../../../shared/database/generated/prisma/client';
 
-const PERCENT_SCALE = 10000;
-const PCT_DIVISOR = 100;
-
-class SmsDeliveryAttemptRepository extends BaseRepository<defineSmsDeliveryAttempt.Instance> {
-  constructor() {
-    super(SmsDeliveryAttempt, {});
-  }
-
-  createAttempt({
+class SmsDeliveryAttemptRepository extends PrismaRepository {
+  async createAttempt({
     userId,
     phoneHash,
     provider = 'aws_sms',
@@ -25,110 +14,37 @@ class SmsDeliveryAttemptRepository extends BaseRepository<defineSmsDeliveryAttem
     userId?: string | null;
     phoneHash: string;
     provider?: string;
-    purpose: defineSmsDeliveryAttempt.Attributes['purpose'];
-  }) {
-    return this.model.create({
-      user_id: userId || null,
-      phone_hash: phoneHash,
-      provider,
-      purpose,
-      status: 'pending',
-      retry_count: 0
+    purpose: string;
+  }): Promise<SmsDeliveryAttempt> {
+    return (await this.db()).smsDeliveryAttempt.create({
+      data: { userId: userId || null, phoneHash, provider, purpose, status: 'pending', retryCount: 0 }
     });
   }
 
-  async markSent(smsAttemptId: string, { providerMessageId = null }: { providerMessageId?: string | null } = {}) {
-    const record = await this.model.findByPk(smsAttemptId);
-    if (!record) {
-      return null;
-    }
-    return record.update({
-      status: 'sent',
-      provider_message_id: providerMessageId,
-      sent_at: new Date()
+  /** Intentos fallidos en una ventana (impacto de un fallback del proveedor SMS). Sin `from`, todo lo anterior a `to`. */
+  async countFailedBetween(from: Date | null, to: Date): Promise<number> {
+    return (await this.db()).smsDeliveryAttempt.count({
+      where: { status: 'failed', createdAt: from ? { gte: from, lte: to } : { lte: to } }
     });
   }
 
-  async markFailed(smsAttemptId: string, { lastError, retryCount }: { lastError?: string | null; retryCount?: number } = {}) {
-    const record = await this.model.findByPk(smsAttemptId);
-    if (!record) {
-      return null;
-    }
-    return record.update({
-      status: 'failed',
-      last_error: lastError || null,
-      retry_count: retryCount ?? record.retry_count
+  /** null si el intento no existe. */
+  async markSent(smsAttemptId: string, { providerMessageId = null }: { providerMessageId?: string | null } = {}): Promise<SmsDeliveryAttempt | null> {
+    const [row] = await (await this.db()).smsDeliveryAttempt.updateManyAndReturn({
+      where: { smsAttemptId },
+      data: { status: 'sent', providerMessageId, sentAt: new Date() }
     });
+    return row ?? null;
   }
 
-  override findAllPaginated(
-    { status = null, provider = null, purpose = null, from = null, to = null }: SmsDeliveryAttemptRepository.Filters = {},
-    paginationParams: ReadRepository.PaginationParams = {}
-  ) {
-    const where: WhereClause = {};
-
-    if (status) {
-      where.status = status;
-    }
-    if (provider) {
-      where.provider = provider;
-    }
-    if (purpose) {
-      where.purpose = purpose;
-    }
-    const createdAtRange = dateRange(from, to);
-    if (createdAtRange) {
-      where.created_at = createdAtRange;
-    }
-
-    return this.model.findAndCountAll({
-      where: toWhere(where),
-      limit: paginationParams.limit,
-      offset: paginationParams.offset,
-      order: [['created_at', 'DESC']],
-      distinct: true
+  /** null si el intento no existe. Sin `retryCount` conserva el que tenía. */
+  async markFailed(smsAttemptId: string, { lastError, retryCount }: { lastError?: string | null; retryCount?: number } = {}): Promise<SmsDeliveryAttempt | null> {
+    const [row] = await (await this.db()).smsDeliveryAttempt.updateManyAndReturn({
+      where: { smsAttemptId },
+      data: { status: 'failed', lastError: lastError || null, ...(retryCount !== undefined ? { retryCount } : {}) }
     });
+    return row ?? null;
   }
-
-  async getStats({ from = null, to = null }: Pick<SmsDeliveryAttemptRepository.Filters, 'from' | 'to'> = {}) {
-    const where: WhereClause = {};
-    const createdAtRange = dateRange(from, to);
-    if (createdAtRange) {
-      where.created_at = createdAtRange;
-    }
-
-    const rows = await this.aggregate<{ status: defineSmsDeliveryAttempt.Attributes['status']; count: string }>({
-      where: toWhere(where),
-      attributes: ['status', [fn('COUNT', col('sms_attempt_id')), 'count']],
-      group: ['status']
-    });
-
-    const stats: { pending: number; sent: number; failed: number; total: number; successRate: number | null } = {
-      pending: 0,
-      sent: 0,
-      failed: 0,
-      total: 0,
-      successRate: null
-    };
-    for (const row of rows) {
-      stats[row.status] = Number.parseInt(row.count, 10);
-    }
-    stats.total = stats.pending + stats.sent + stats.failed;
-    stats.successRate = stats.total > 0 ? Math.round((stats.sent / stats.total) * PERCENT_SCALE) / PCT_DIVISOR : null;
-
-    return stats;
-  }
-}
-
-// eslint-disable-next-line @typescript-eslint/no-namespace
-namespace SmsDeliveryAttemptRepository {
-  export type Filters = {
-    status?: defineSmsDeliveryAttempt.Attributes['status'] | null;
-    provider?: string | null;
-    purpose?: defineSmsDeliveryAttempt.Attributes['purpose'] | null;
-    from?: string | Date | null;
-    to?: string | Date | null;
-  };
 }
 
 export default new SmsDeliveryAttemptRepository();

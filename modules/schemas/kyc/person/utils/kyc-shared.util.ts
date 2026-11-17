@@ -56,11 +56,10 @@ class KycSharedUtil {
    * Registra cambio en audit log
    *
    * @param {Object} logData - Datos del cambio
-   * @param {Object} options - Opciones (transaction, etc.)
    * @returns {Promise<Object>} Log creado
    */
-  static logChange(logData: Parameters<UserChangeLogRepositoryPort['createLog']>[0], options: Parameters<UserChangeLogRepositoryPort['createLog']>[1] = {}) {
-    return userChangeLogRepository.createLog(logData, options);
+  static logChange(logData: Parameters<UserChangeLogRepositoryPort['createLog']>[0]) {
+    return userChangeLogRepository.createLog(logData);
   }
 
   /**

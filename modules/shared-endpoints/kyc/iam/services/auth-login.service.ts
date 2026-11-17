@@ -1,5 +1,5 @@
+import type { UserWith } from '../../../../schemas/kyc/iam/repositories/user.repository';
 import { interopDefault } from '../../../../../shared/utils/interop.util';
-import type defineUser from '../../../../schemas/kyc/iam/models/user.model';
 import type { RequestAuditContext } from '../../../../../shared/types/audit-context';
 import userRepository from '../../../../schemas/kyc/iam/repositories/user.repository';
 import userLoginAttemptRepository from '../../../../schemas/records/audit/repositories/user-login-attempt.repository';
@@ -133,7 +133,7 @@ class AuthLoginService {
       return policyCheck;
     }
 
-    const isValid = await this.userRepository.verifyPassword(password, user.password_hash);
+    const isValid = await this.userRepository.verifyPassword(password, user.passwordHash);
     if (!isValid) {
       await this._handleFailedLogin(user, nationalId, { ip, userAgent, fingerprintHash }, 'Contrasena invalida');
     }
@@ -142,27 +142,27 @@ class AuthLoginService {
     // La contraseña ya se validó arriba contra el hash bcrypt local. Si el usuario
     // tiene un método MFA preferido, emitimos el reto correspondiente en lugar de
     // completar el login directamente.
-    if (user.preferred_mfa_method === 'totp') {
+    if (user.preferredMfaMethod === 'totp') {
       logAudit(
         'MFA_REQUIRED',
-        user.user_id,
+        user.userId,
         { nationalId, challengeType: 'SOFTWARE_TOKEN_MFA' },
-        { entityId: user.user_id, entityType: 'User', entityTable: 'users' }
+        { entityId: user.userId, entityType: 'User', entityTable: 'users' }
       );
 
       // El token de reto prueba que la contraseña ya pasó el paso 1: verify-mfa lo
       // exige antes de aceptar el código TOTP (reemplaza al `session` de Cognito).
-      const challengeToken = await JwtUtil.generateMfaChallengeToken(user.user_id);
+      const challengeToken = await JwtUtil.generateMfaChallengeToken(user.userId);
 
       return MFARequiredResponseDTO({
-        username: user.auth_username,
+        username: user.authUsername,
         session: challengeToken,
         challengeType: 'SOFTWARE_TOKEN_MFA',
         preferredMfaMethod: 'totp'
       });
     }
 
-    if (user.preferred_mfa_method === 'sms') {
+    if (user.preferredMfaMethod === 'sms') {
       return this.smsChallenge.issue(user, nationalId);
     }
 
@@ -185,7 +185,7 @@ class AuthLoginService {
       return policyCheck;
     }
 
-    if (user.preferred_mfa_method === 'sms') {
+    if (user.preferredMfaMethod === 'sms') {
       const smsOtp = smsCode || totpCode;
       if (!smsOtp) {
         throw AppError.badRequest('Falta el código SMS');
@@ -201,19 +201,19 @@ class AuthLoginService {
     // ── TOTP nativo ──────────────────────────────────────────────────────────────
     // El token de reto (session) prueba que la contraseña ya se validó en /auth/login;
     // sin esto, alguien con el nationalId y un código TOTP podría saltarse la contraseña.
-    await this._assertMfaChallenge(session, user.user_id);
+    await this._assertMfaChallenge(session, user.userId);
 
-    const secret = user.totp_secret ? EncryptionUtil.decrypt(user.totp_secret) : null;
+    const secret = user.totpSecret ? EncryptionUtil.decrypt(user.totpSecret) : null;
     if (!TotpUtil.verify(totpCode, secret)) {
       await this.userLoginAttemptRepository.recordAttempt({
-        user_id: user.user_id,
-        username_attempt: user.auth_username ?? user.username, // columna NOT NULL; auth_username es nullable
-        national_id: nationalId,
-        ip_address: ip,
-        user_agent: userAgent,
-        device_fingerprint: fingerprintHash,
+        userId: user.userId,
+        usernameAttempt: user.authUsername ?? user.username, // columna NOT NULL; auth_username es nullable
+        nationalId: nationalId,
+        ipAddress: ip,
+        userAgent: userAgent,
+        deviceFingerprint: fingerprintHash,
         success: false,
-        failure_reason: 'Codigo TOTP incorrecto'
+        failureReason: 'Codigo TOTP incorrecto'
       // attempted_at lo pone recordAttempt
       });
 
@@ -222,12 +222,12 @@ class AuthLoginService {
       // persistido en user_login_attempts. No es duplicación a corregir.
       logAudit(
         'MFA_FAILED',
-        user.user_id,
+        user.userId,
         {
           nationalId,
           reason: 'Codigo TOTP incorrecto'
         },
-        { entityId: user.user_id, entityType: 'User', entityTable: 'users', outcome: 'failure' }
+        { entityId: user.userId, entityType: 'User', entityTable: 'users', outcome: 'failure' }
       );
 
       throw AppError.badRequest('Código TOTP incorrecto');
@@ -254,7 +254,7 @@ class AuthLoginService {
    * @param {string|null} ip
    * @private
    */
-  _checkPrivacyPolicy(user: defineUser.Instance, acceptPolicy: boolean, ip: string | null | undefined) {
+  _checkPrivacyPolicy(user: UserWith<'login'>, acceptPolicy: boolean, ip: string | null | undefined) {
     return this.policyGate.check(user, acceptPolicy, ip ?? null, {
       blockedAuditAction: 'LOGIN_BLOCKED_POLICY_UPDATE',
       source: 'auth-login'
@@ -262,7 +262,7 @@ class AuthLoginService {
   }
 
   /** @private */
-  _checkServerRole(user: defineUser.Instance, serverContext: string | null | undefined) {
+  _checkServerRole(user: UserWith<'login'>, serverContext: string | null | undefined) {
     if (!serverContext) {
       return;
     }
@@ -312,7 +312,7 @@ class AuthLoginService {
     if (!user) {
       throw AppError.badRequest('Credenciales invalidas');
     }
-    if (!user.is_active) {
+    if (!user.isActive) {
       throw AppError.forbidden('Cuenta inactiva o suspendida');
     }
     return user;
@@ -320,17 +320,17 @@ class AuthLoginService {
 
   /** @private */
   // [RF-AUTH-02] | CA-05 | Segunda capa de rate limiting por cuenta (bonus, no exigido por CA-05)
-  async _handleFailedLogin(user: defineUser.Instance, nationalId: string, auditContext: RequestAuditContext, reason: string) {
+  async _handleFailedLogin(user: UserWith<'login'>, nationalId: string, auditContext: RequestAuditContext, reason: string) {
     // Registrar el intento en BD para auditoría (sin blocked_until — el bloqueo lo gestiona Redis)
     await this.userLoginAttemptRepository.recordAttempt({
-      user_id: user.user_id,
-      username_attempt: user.auth_username ?? user.username, // columna NOT NULL; auth_username es nullable
-      national_id: nationalId,
-      ip_address: auditContext.ip,
-      user_agent: auditContext.userAgent,
-      device_fingerprint: auditContext.fingerprintHash,
+      userId: user.userId,
+      usernameAttempt: user.authUsername ?? user.username, // columna NOT NULL; auth_username es nullable
+      nationalId: nationalId,
+      ipAddress: auditContext.ip,
+      userAgent: auditContext.userAgent,
+      deviceFingerprint: auditContext.fingerprintHash,
       success: false,
-      failure_reason: reason
+      failureReason: reason
       // attempted_at lo pone recordAttempt
     });
 
@@ -343,34 +343,34 @@ class AuthLoginService {
     // queda además persistido en user_login_attempts. No son duplicación a corregir.
     logAudit(
       'LOGIN_FAILED',
-      user.user_id,
+      user.userId,
       {
         nationalId,
         reason,
         blocked: blockSecs !== null
       },
-      { entityId: user.user_id, entityType: 'User', entityTable: 'users', outcome: 'failure' }
+      { entityId: user.userId, entityType: 'User', entityTable: 'users', outcome: 'failure' }
     );
 
     if (blockSecs !== null) {
       const minutes = Math.ceil(blockSecs / 60);
       logAudit(
         'ACCOUNT_BLOCKED',
-        user.user_id,
+        user.userId,
         {
           nationalId,
           blockSecs,
           reason: `${MAX} intentos fallidos consecutivos`
         },
-        { entityId: user.user_id, entityType: 'User', entityTable: 'users', outcome: 'failure' }
+        { entityId: user.userId, entityType: 'User', entityTable: 'users', outcome: 'failure' }
       );
 
       // Notificar al usuario que su cuenta quedó bloqueada (fire-and-forget)
       this.NotificationUtil.crearNotificacion({
         tipoNotificacion: 'ACCOUNT_BLOCKED',
-        userId: user.user_id,
+        userId: user.userId,
         metadata: {
-          nombre: user.person?.first_name || 'Usuario',
+          nombre: user.person?.firstName || 'Usuario',
           intentosFallidos: MAX,
           minutosBloqueo: minutes
         }
@@ -404,7 +404,7 @@ class AuthLoginService {
   }
 
   /** @private */
-  async _completeSuccessfulLogin(user: defineUser.Instance, nationalId: string, auditContext: RequestAuditContext) {
+  async _completeSuccessfulLogin(user: UserWith<'login'>, nationalId: string, auditContext: RequestAuditContext) {
     const { ip, userAgent, fingerprintHash } = auditContext;
 
     // ── Manejo de dispositivo (SÍNCRONO — puede bloquear el login si es PENDING) ──
@@ -414,15 +414,15 @@ class AuthLoginService {
     // Cerrar la previa ANTES de contar el tope: una sesión abandonada del mismo
     // dispositivo no debe consumir cupo de los 5 ni empujar al cierre una sesión
     // real en otro dispositivo. Mismo orden que el login biométrico.
-    await this.sessionControl.closePreviousDeviceSessions(user.user_id, deviceResult.deviceId);
-    await this.sessionControl.enforceSessionLimit(user.user_id);
+    await this.sessionControl.closePreviousDeviceSessions(user.userId, deviceResult.deviceId);
+    await this.sessionControl.enforceSessionLimit(user.userId);
 
     // ── Limpiar invalidación global previa (logout-all) ──────────────────────────
     // Permite que el nuevo refresh token funcione correctamente en /auth/refresh.
-    TokenBlacklistUtil.clearUserInvalidation(user.user_id).catch(err =>
+    TokenBlacklistUtil.clearUserInvalidation(user.userId).catch(err =>
       logger.warn('Error limpiando invalidación de usuario en login', {
         error: err.message,
-        userId: user.user_id
+        userId: user.userId
       })
     );
 
@@ -430,7 +430,7 @@ class AuthLoginService {
     LoginRateLimiter.resetAccountCounters(nationalId).catch(err =>
       logger.warn('Error reseteando contadores de login en Redis', {
         error: err.message,
-        userId: user.user_id
+        userId: user.userId
       })
     );
 
@@ -447,38 +447,38 @@ class AuthLoginService {
     const { pushToken, pushDeviceId, pushPlatform } = auditContext;
 
     if (pushToken && pushPlatform) {
-      this._registrarPushToken(user.user_id, pushToken, pushPlatform, pushDeviceId).catch(err =>
+      this._registrarPushToken(user.userId, pushToken, pushPlatform, pushDeviceId).catch(err =>
         logger.warn('Error registrando push token en login', {
           error: err.message,
-          userId: user.user_id
+          userId: user.userId
         })
       );
     }
 
     // ── Registro del intento exitoso ─────────────────────────
     await this.userLoginAttemptRepository.recordAttempt({
-      user_id: user.user_id,
-      username_attempt: user.auth_username ?? user.username, // columna NOT NULL; auth_username es nullable
-      national_id: nationalId,
-      ip_address: ip,
-      user_agent: userAgent,
-      device_fingerprint: fingerprintHash,
+      userId: user.userId,
+      usernameAttempt: user.authUsername ?? user.username, // columna NOT NULL; auth_username es nullable
+      nationalId: nationalId,
+      ipAddress: ip,
+      userAgent: userAgent,
+      deviceFingerprint: fingerprintHash,
       success: true,
       // Explícito: `POST /auth/login` es ruta pública y no pasa por AuthMiddleware.authenticate, así que
       // el AsyncLocalStorage no tiene el sessionId aunque la sesión ya se creó unas líneas más arriba.
       // Ata el intento exitoso a su sesión — es lo que `session_cache_key` prometía y nunca cumplió.
-      origin_session_id: sessionId
+      originSessionId: sessionId
     });
 
     logAudit(
       'LOGIN_SUCCESS',
-      user.user_id,
+      user.userId,
       {
         nationalId,
         fingerprintHash,
         deviceId: deviceResult.deviceId
       },
-      { entityId: user.user_id, entityType: 'User', entityTable: 'users' }
+      { entityId: user.userId, entityType: 'User', entityTable: 'users' }
     );
 
     return LoginResponseDTO({

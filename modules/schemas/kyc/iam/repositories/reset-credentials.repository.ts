@@ -1,173 +1,64 @@
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../../shared/models';
-const { ResetCredentials } = modelsModule;
-import requestContext from '../../../../../shared/utils/request-context.util';
-import { Op } from 'sequelize';
-import type { CreateOptions } from 'sequelize';
-import type defineResetCredentials from '../models/reset-credentials.model';
+// modules/schemas/kyc/iam/repositories/reset-credentials.repository.ts
+//
+// Tokens de reset de contraseña / MFA. Flujo NO autenticado: origin_session_id queda null; la extensión
+// de Prisma completa el correlationId del request.
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import type { Prisma, ResetCredentials } from '../../../../../shared/database/generated/prisma/client';
 
-class ResetCredentialsRepository extends BaseRepository<defineResetCredentials.Instance> {
-  constructor() {
-    super(ResetCredentials);
+const WITH_USER = {
+  user: {
+    select: {
+      userId: true,
+      authUsername: true,
+      person: { select: { personId: true, firstName: true, contact: { select: { email: true } } } }
+    }
+  }
+} satisfies Prisma.ResetCredentialsInclude;
+
+export type ResetTokenWithUser = Prisma.ResetCredentialsGetPayload<{ include: typeof WITH_USER }>;
+
+const valid = (token: string): Prisma.ResetCredentialsWhereInput => ({ token, used: false, expiresAt: { gt: new Date() } });
+
+class ResetCredentialsRepository extends PrismaRepository {
+  /** Token válido (no usado y no expirado). */
+  async findValidToken(token: string): Promise<ResetCredentials | null> {
+    return (await this.db()).resetCredentials.findFirst({ where: valid(token) });
+  }
+
+  /** Token válido con el usuario, su persona y el email de contacto (aplicar el reset y avisar). */
+  async findValidTokenWithUser(token: string): Promise<ResetTokenWithUser | null> {
+    return (await this.db()).resetCredentials.findFirst({ where: valid(token), include: WITH_USER });
   }
 
   /**
-   * Busca un token válido (no usado y no expirado)
-   * @param {string} token - Token a validar
-   * @returns {Promise<ResetCredentials|null>}
+   * Marca el token como usado si todavía no lo estaba. Devuelve si lo marcó: false = otro request lo
+   * consumió primero.
    */
-  findValidToken(token: string, options = {}) {
-    return this.findOne(
-      {
-        token,
-        used: false,
-        expires_at: {
-          [Op.gt]: new Date()
-        }
-      },
-      options
-    );
-  }
-
-  /**
-   * Token válido con el usuario, su persona y el email de contacto
-   * (lo necesario para aplicar el reset y notificar la confirmación).
-   * @param {string} token
-   * @returns {Promise<ResetCredentials|null>}
-   */
-  findValidTokenWithUser(token: string) {
-    return this.findValidToken(token, {
-      include: [
-        {
-          association: 'user',
-          attributes: ['user_id', 'auth_username'],
-          include: [
-            {
-              association: 'person',
-              attributes: ['person_id', 'first_name'],
-              include: [{ association: 'contact', attributes: ['email'] }]
-            }
-          ]
-        }
-      ]
+  async markAsUsed(resetCredentialsId: string): Promise<boolean> {
+    const { count } = await (
+      await this.db()
+    ).resetCredentials.updateMany({
+      where: { resetCredentialsId, used: false },
+      data: { used: true, usedAt: new Date() }
     });
+    return count > 0;
   }
 
-  /**
-   * Busca un token por su valor (sin validar expiración ni uso)
-   * @param {string} token - Token a buscar
-   * @returns {Promise<ResetCredentials|null>}
-   */
-  findByToken(token: string) {
-    return this.findOne({ token });
+  /** Invalida los tokens activos del usuario; devuelve cuántos. */
+  async invalidateUserTokens(userId: string): Promise<number> {
+    return (
+      await (
+        await this.db()
+      ).resetCredentials.updateMany({ where: { userId, used: false }, data: { used: true, usedAt: new Date() } })
+    ).count;
   }
 
-  /**
-   * Marca un token como usado
-   * @param {string} resetCredentialsId - ID del token
-   * @param {object} options - Opciones de Sequelize (transaction, etc)
-   * @returns {Promise<ResetCredentials>}
-   */
-  markAsUsed(resetCredentialsId: string, options = {}) {
-    return this.update(
-      resetCredentialsId,
-      {
-        used: true,
-        used_at: new Date()
-      },
-      options
-    );
-  }
-
-  /**
-   * Invalida todos los tokens activos de un usuario
-   * @param {string} userId - ID del usuario
-   * @param {object} options - Opciones de Sequelize (transaction, etc)
-   * @returns {Promise<number>} - Cantidad de tokens invalidados
-   */
-  async invalidateUserTokens(userId: string, options = {}) {
-    const [affectedCount] = await this.bulkUpdate(
-      {
-        used: true,
-        used_at: new Date()
-      },
-      {
-        user_id: userId,
-        used: false
-      },
-      options
-    );
-
-    return affectedCount;
-  }
-
-  /**
-   * Crea un nuevo token de reset
-   * @param {object} data - Datos del token { user_id, token, email, type, expires_at }
-   * @param {object} options - Opciones de Sequelize (transaction, etc)
-   * @returns {Promise<ResetCredentials>}
-   */
-  createResetToken(
-    data: Pick<defineResetCredentials.Attributes, 'user_id' | 'token' | 'email' | 'type' | 'expires_at'>,
-    options: CreateOptions<defineResetCredentials.Attributes> = {}
+  async createResetToken(
+    data: Pick<Prisma.ResetCredentialsUncheckedCreateInput, 'userId' | 'token' | 'email' | 'type' | 'expiresAt'>
   ) {
-    return this.create(
-      {
-        user_id: data.user_id,
-        token: data.token,
-        email: data.email,
-        type: data.type,
-        expires_at: data.expires_at,
-        used: false,
-        // Flujo NO autenticado: origin_session_id queda null siempre. El correlationId sí ata la fila al request.
-        ...requestContext.originFromContext()
-      },
-      options
-    );
-  }
-
-  /**
-   * Limpia tokens expirados (útil para tareas de mantenimiento)
-   * @param {object} options - Opciones de Sequelize (transaction, etc)
-   * @returns {Promise<number>} - Cantidad de tokens eliminados
-   */
-  cleanExpiredTokens(options = {}) {
-    return this.bulkDelete(
-      {
-        expires_at: {
-          [Op.lt]: new Date() // Menor a fecha actual
-        },
-        used: true // Solo limpiar tokens ya usados
-      },
-      options
-    );
-  }
-
-  /**
-   * Cuenta tokens activos de un usuario por tipo
-   * @param {string} userId - ID del usuario
-   * @param {string} type - Tipo de token ('mfa' | 'password')
-   * @returns {Promise<number>}
-   */
-  countActiveTokensByType(userId: string, type: defineResetCredentials.Attributes['type']) {
-    return this.count({
-      user_id: userId,
-      type,
-      used: false,
-      expires_at: {
-        [Op.gt]: new Date()
-      }
+    return (await this.db()).resetCredentials.create({
+      data: { userId: data.userId, token: data.token, email: data.email, type: data.type, expiresAt: data.expiresAt, used: false }
     });
-  }
-
-  // Override para usar reset_credentials_id
-  override findById(resetCredentialsId: string, options = {}) {
-    return this.model.findByPk(resetCredentialsId, options);
-  }
-
-  // Misma firma que BaseRepository.delete(id, options) — SOLID: L (no se pierde la transacción)
-  override delete(resetCredentialsId: string, options = {}) {
-    return this.model.destroy({ where: { reset_credentials_id: resetCredentialsId }, ...options });
   }
 }
 

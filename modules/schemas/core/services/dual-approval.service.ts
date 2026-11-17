@@ -19,7 +19,6 @@ const { logAudit, logger } = loggerUtilModule;
 import businessHoursUtilModule from '../../../../shared/utils/business-hours.util';
 const { addBusinessHours } = businessHoursUtilModule;
 import PaginationHelper from '../../../../shared/utils/pagination.util';
-import requestContext from '../../../../shared/utils/request-context.util';
 import approvalRequestRepository from '../repositories/approval-request.repository';
 import userRepository from '../../kyc/iam/repositories/user.repository';
 import NotificationCreationService from '../../../schemas/notification/services/notification-creation.service';
@@ -38,7 +37,7 @@ import componentsCatalogDtoModule from '../../../../shared/dtos/kyc/components-c
 const { MetadataDTO } = componentsCatalogDtoModule;
 import errorMessageModule from '../../../../shared/utils/error-message.util';
 import type { AdminAuditContext } from '../../../../shared/types/audit-context';
-import type defineApprovalRequest from '../models/approval-request.model';
+import type { ApprovalRequest, Prisma } from '../../../../shared/database/generated/prisma/client';
 
 const { errorMessage } = errorMessageModule;
 
@@ -142,7 +141,7 @@ class DualApprovalService {
       if (existing) {
         throw AppError.conflict('Ya hay una solicitud de aprobación pendiente para esta operación sobre esta entidad', {
           code: 'DUAL_APPROVAL_ALREADY_PENDING',
-          approvalRequestId: existing.approval_request_id
+          approvalRequestId: existing.approvalRequestId
         });
       }
     }
@@ -159,16 +158,16 @@ class DualApprovalService {
     const expiresAt = addBusinessHours(new Date(), ttlHours);
 
     const request = await this.approvalRequestRepository.create({
-      operation_key: opKey,
-      entity_type: resolvedEntityType,
-      entity_id: entityId ?? null,
-      payload: payload ?? {},
-      requested_by: ctx.adminUserId,
-      requested_at: new Date(),
+      operationKey: opKey,
+      entityType: resolvedEntityType,
+      entityId: entityId ?? null,
+      payload: (payload ?? {}) as Prisma.InputJsonValue,
+      requestedBy: ctx.adminUserId,
+      requestedAt: new Date(),
       status: APPROVAL_REQUEST_STATUS.PENDING,
-      expires_at: expiresAt,
-      // Sesión del MAKER. El approver resuelve en otra sesión — esa queda en audit_logs, no acá.
-      ...requestContext.originFromContext()
+      expiresAt
+      // origin_session_id = sesión del MAKER (la completa la extensión de Prisma). El approver resuelve
+      // en otra sesión — esa queda en audit_logs, no acá.
     });
 
     this.notifier.notifyApprovers(op, request, ctx);
@@ -177,13 +176,13 @@ class DualApprovalService {
       'DUAL_APPROVAL_REQUESTED',
       ctx.adminUserId,
       {
-        approvalRequestId: request.approval_request_id,
+        approvalRequestId: request.approvalRequestId,
         operationKey: opKey,
         entityType: resolvedEntityType,
         entityId: entityId ?? null,
         expiresAt
       },
-      { entityId: request.approval_request_id, entityType: 'ApprovalRequest', entityTable: 'approval_requests' }
+      { entityId: request.approvalRequestId, entityType: 'ApprovalRequest', entityTable: 'approval_requests' }
     );
 
     return { pending: true, request: ApprovalRequestComponent.build(request) };
@@ -217,29 +216,29 @@ class DualApprovalService {
   ) {
     const now = new Date();
     const request = await this.approvalRequestRepository.create({
-      operation_key: opKey,
-      entity_type: resolvedEntityType,
-      entity_id: entityId ?? null,
-      payload: payload ?? {},
-      requested_by: ctx.adminUserId,
-      requested_at: now,
+      operationKey: opKey,
+      entityType: resolvedEntityType,
+      entityId: entityId ?? null,
+      payload: (payload ?? {}) as Prisma.InputJsonValue,
+      requestedBy: ctx.adminUserId,
+      requestedAt: now,
       status: APPROVAL_REQUEST_STATUS.APPROVED,
-      second_approver_id: ctx.adminUserId,
-      resolved_at: now,
-      resolution_notes: AUTO_APPROVE_NOTE,
-      expires_at: null,
-      // Auto-aprobación de super_admin: maker y approver son el mismo, así que esta única sesión cubre ambos.
-      ...requestContext.originFromContext()
+      secondApproverId: ctx.adminUserId,
+      resolvedAt: now,
+      resolutionNotes: AUTO_APPROVE_NOTE,
+      expiresAt: null
+      // Auto-aprobación de super_admin: maker y approver son el mismo, así que la sesión de origen
+      // (extensión de Prisma) cubre ambos.
     });
 
     const auditDetails = {
-      approvalRequestId: request.approval_request_id,
+      approvalRequestId: request.approvalRequestId,
       operationKey: opKey,
       entityType: resolvedEntityType,
       entityId: entityId ?? null
     };
     const auditMeta = {
-      entityId: request.approval_request_id,
+      entityId: request.approvalRequestId,
       entityType: 'ApprovalRequest',
       entityTable: 'approval_requests'
     };
@@ -268,7 +267,7 @@ class DualApprovalService {
       });
     }
 
-    const op = _getOp(request.operation_key);
+    const op = _getOp(request.operationKey);
     _assertApproverRole(op, approverCtx.adminRoleName);
     _assertSegregation(request, approverCtx.adminUserId);
 
@@ -282,10 +281,10 @@ class DualApprovalService {
     throw AppError.badRequest('Decisión no reconocida', { code: 'INVALID_RESOLUTION_DECISION' });
   }
 
-  async _approve(request: defineApprovalRequest.Instance, op: DualApprovalConstants.Op, body: DualApprovalService.ResolveBody, approverCtx: AdminAuditContext) {
-    const entry = HANDLERS.get(request.operation_key);
+  async _approve(request: ApprovalRequest, op: DualApprovalConstants.Op, body: DualApprovalService.ResolveBody, approverCtx: AdminAuditContext) {
+    const entry = HANDLERS.get(request.operationKey);
     if (!entry || typeof entry.onApprove !== 'function') {
-      throw AppError.badRequest(`No hay handler registrado para la operación "${request.operation_key}"`, {
+      throw AppError.badRequest(`No hay handler registrado para la operación "${request.operationKey}"`, {
         code: 'DUAL_APPROVAL_NO_HANDLER'
       });
     }
@@ -294,62 +293,69 @@ class DualApprovalService {
     // solicitud queda pendiente y puede reintentarse sin doble ejecución.
     const result = await entry.onApprove(request.payload, approverCtx);
 
-    await request.update({
+    const resolved = await this._resolve(request.approvalRequestId, {
       status: APPROVAL_REQUEST_STATUS.APPROVED,
-      second_approver_id: approverCtx.adminUserId,
-      resolved_at: new Date(),
-      resolution_notes: body.notes ?? null,
+      secondApproverId: approverCtx.adminUserId,
+      resolvedAt: new Date(),
+      resolutionNotes: body.notes ?? null,
       result: _sanitizeResult(result)
     });
 
-    this.notifier.notifyMaker(request, op, DECISION.APPROVE);
+    this.notifier.notifyMaker(resolved, op, DECISION.APPROVE);
 
     logAudit(
       'DUAL_APPROVAL_APPROVED',
       approverCtx.adminUserId,
       {
-        approvalRequestId: request.approval_request_id,
-        operationKey: request.operation_key,
-        entityType: request.entity_type,
-        entityId: request.entity_id
+        approvalRequestId: request.approvalRequestId,
+        operationKey: request.operationKey,
+        entityType: request.entityType,
+        entityId: request.entityId
       },
-      { entityId: request.approval_request_id, entityType: 'ApprovalRequest', entityTable: 'approval_requests' }
+      { entityId: request.approvalRequestId, entityType: 'ApprovalRequest', entityTable: 'approval_requests' }
     );
 
-    await request.reload();
-    return ApprovalRequestComponent.build(request);
+    return ApprovalRequestComponent.build(resolved);
   }
 
-  async _reject(request: defineApprovalRequest.Instance, op: DualApprovalConstants.Op, body: DualApprovalService.ResolveBody, approverCtx: AdminAuditContext) {
+  async _reject(request: ApprovalRequest, op: DualApprovalConstants.Op, body: DualApprovalService.ResolveBody, approverCtx: AdminAuditContext) {
     // Reacción opcional del módulo al rechazo (ej: revertir un estado provisional).
-    const entry = HANDLERS.get(request.operation_key);
+    const entry = HANDLERS.get(request.operationKey);
     if (entry && typeof entry.onReject === 'function') {
       await entry.onReject(request.payload, approverCtx);
     }
 
-    await request.update({
+    const resolved = await this._resolve(request.approvalRequestId, {
       status: APPROVAL_REQUEST_STATUS.REJECTED,
-      second_approver_id: approverCtx.adminUserId,
-      resolved_at: new Date(),
-      resolution_notes: body.notes ?? null
+      secondApproverId: approverCtx.adminUserId,
+      resolvedAt: new Date(),
+      resolutionNotes: body.notes ?? null
     });
 
-    this.notifier.notifyMaker(request, op, DECISION.REJECT);
+    this.notifier.notifyMaker(resolved, op, DECISION.REJECT);
 
     logAudit(
       'DUAL_APPROVAL_REJECTED',
       approverCtx.adminUserId,
       {
-        approvalRequestId: request.approval_request_id,
-        operationKey: request.operation_key,
-        entityType: request.entity_type,
-        entityId: request.entity_id
+        approvalRequestId: request.approvalRequestId,
+        operationKey: request.operationKey,
+        entityType: request.entityType,
+        entityId: request.entityId
       },
-      { entityId: request.approval_request_id, entityType: 'ApprovalRequest', entityTable: 'approval_requests' }
+      { entityId: request.approvalRequestId, entityType: 'ApprovalRequest', entityTable: 'approval_requests' }
     );
 
-    await request.reload();
-    return ApprovalRequestComponent.build(request);
+    return ApprovalRequestComponent.build(resolved);
+  }
+
+  /** Persiste el cierre y devuelve la solicitud recargada (con requester y aprobador). */
+  async _resolve(approvalRequestId: string, changes: Parameters<typeof approvalRequestRepository.resolve>[1]) {
+    const resolved = await this.approvalRequestRepository.resolve(approvalRequestId, changes);
+    if (!resolved) {
+      throw AppError.notFound('Solicitud de aprobación no encontrada');
+    }
+    return resolved;
   }
 
   // ── Annotate de pendientes en listados ────────────────────────────────────────
@@ -376,9 +382,9 @@ class DualApprovalService {
     const ids = rows.map(r => asRecord(r)[pkField]).filter((id): id is string => typeof id === 'string' && id !== '');
     const pendings = await this.approvalRequestRepository.findPendingByEntityIds(entityType, ids);
 
-    const byEntityId = new Map<string | null, defineApprovalRequest.Instance>();
+    const byEntityId = new Map<string | null, ApprovalRequest>();
     for (const p of pendings) {
-      byEntityId.set(p.entity_id, p);
+      byEntityId.set(p.entityId, p);
     }
 
     for (const row of rows) {
@@ -473,7 +479,9 @@ async function _resolveThreshold(op: DualApprovalConstants.Op): Promise<number> 
     // require perezoso: evita un ciclo de carga con los módulos que dependen de dual-approval
     const systemGlobalConfigRepository = interopDefault(require('../repositories/system-global-config.repository') as typeof import('../repositories/system-global-config.repository')) as SystemGlobalConfigRepositoryPort;
     const cfg = await systemGlobalConfigRepository.findActive();
-    const raw = cfg ? (cfg as unknown as Record<string, unknown>)[op.thresholdConfigKey] : null;
+    // La clave puede venir con el nombre de la columna (snake_case) o del campo de Prisma
+    const key = op.thresholdConfigKey.replace(/_([a-z0-9])/g, (_m, c: string) => c.toUpperCase());
+    const raw = cfg ? (cfg as unknown as Record<string, unknown>)[key] : null;
     if (raw === null || raw === undefined) {
       return op.thresholdDefault ?? 0;
     }
@@ -498,8 +506,8 @@ function _assertApproverRole(op: DualApprovalConstants.Op, roleName: string | nu
   }
 }
 
-function _assertSegregation(request: defineApprovalRequest.Instance, approverUserId: string) {
-  if (request.requested_by === approverUserId) {
+function _assertSegregation(request: ApprovalRequest, approverUserId: string) {
+  if (request.requestedBy === approverUserId) {
     throw AppError.forbidden('El segundo aprobador no puede ser el mismo que originó la operación (segregación de funciones)', {
       code: 'DUAL_APPROVAL_SAME_AS_MAKER'
     });

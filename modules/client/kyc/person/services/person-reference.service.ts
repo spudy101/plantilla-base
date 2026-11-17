@@ -1,10 +1,9 @@
-import type definePersonReference from '../../../../schemas/kyc/person/models/person-reference.model';
+import type { PersonReference } from '../../../../../shared/database/generated/prisma/client';
 // modules/client/kyc/services/person-reference.service.ts
 
 import AppError from '../../../../../shared/utils/app-error.util';
 import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
-import requestContext from '../../../../../shared/utils/request-context.util';
 import personReferenceRepository from '../../../../schemas/kyc/person/repositories/person-reference.repository';
 import personReferenceDtoModule from '../dtos/person-reference.dto';
 const { PersonReferenceDTO, PersonReferenceListDTO } = personReferenceDtoModule;
@@ -42,18 +41,17 @@ class PersonReferenceService {
     }
 
     const reference = await this.personReferenceRepository.create({
-      person_id: personId,
-      reference_name: data.referenceName,
-      reference_phone: data.referencePhone,
-      reference_type: data.referenceType,
-      ...requestContext.originFromContext()
+      personId: personId,
+      referenceName: data.referenceName,
+      referencePhone: data.referencePhone,
+      referenceType: data.referenceType
     });
 
     logAudit(
       'PROFILE_REFERENCE_CREATED',
       userId,
       {},
-      { entityId: reference.person_reference_id, entityType: 'PersonReference', entityTable: 'person_references' }
+      { entityId: reference.personReferenceId, entityType: 'PersonReference', entityTable: 'person_references' }
     );
     return PersonReferenceDTO(reference);
   }
@@ -65,9 +63,9 @@ class PersonReferenceService {
     }
 
     const updated = await this.personReferenceRepository.update(referenceId, {
-      reference_name: data.referenceName,
-      reference_phone: data.referencePhone,
-      reference_type: data.referenceType
+      referenceName: data.referenceName,
+      referencePhone: data.referencePhone,
+      referenceType: data.referenceType
     });
 
     logAudit(
@@ -75,14 +73,14 @@ class PersonReferenceService {
       userId,
       {
         before: {
-          referenceName: reference.reference_name,
-          referencePhone: reference.reference_phone,
-          referenceType: reference.reference_type
+          referenceName: reference.referenceName,
+          referencePhone: reference.referencePhone,
+          referenceType: reference.referenceType
         },
         after: {
-          referenceName: data.referenceName ?? reference.reference_name,
-          referencePhone: data.referencePhone ?? reference.reference_phone,
-          referenceType: data.referenceType ?? reference.reference_type
+          referenceName: data.referenceName ?? reference.referenceName,
+          referencePhone: data.referencePhone ?? reference.referencePhone,
+          referenceType: data.referenceType ?? reference.referenceType
         }
       },
       { entityId: referenceId, entityType: 'PersonReference', entityTable: 'person_references' }
@@ -96,7 +94,7 @@ class PersonReferenceService {
       throw AppError.notFound('Referencia no encontrada');
     }
 
-    await this.personReferenceRepository.update(referenceId, { is_active: false });
+    await this.personReferenceRepository.update(referenceId, { isActive: false });
     logAudit(
       'PROFILE_REFERENCE_DELETED',
       userId,
@@ -111,7 +109,7 @@ namespace PersonReferenceService {
   export interface ReferenceInput {
     referenceName: string;
     referencePhone: string;
-    referenceType: definePersonReference.Attributes['reference_type'];
+    referenceType: PersonReference['referenceType'];
   }
 
   /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */

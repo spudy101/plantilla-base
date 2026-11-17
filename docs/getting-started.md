@@ -57,6 +57,7 @@ Swagger: `http://localhost:<PORT>/admin/docs` y `/client/docs`.
 ## 4. Calidad
 
 ```bash
+npm run db:test:prepare  # una vez: esquema `test` aislado + migraciones (los tests de integración usan Postgres)
 npm test             # Jest
 npm run lint         # ESLint
 npm run format       # Prettier

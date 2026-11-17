@@ -11,8 +11,7 @@ const {
   RoleComponent
 } = componentsCatalogDtoModule;
 
-import type definePrivacyPolicy from '../../../../schemas/records/legal/models/privacy-policy.model';
-import type defineDocumentType from '../../../../schemas/kyc/maintainers/models/document-type.model';
+import type { DocumentType, PrivacyPolicy } from '../../../../../shared/database/generated/prisma/client';
 import componentsNotificationDtoModule from '../../../../../shared/dtos/notification/components-notification.dto';
 const { NotificationTypeComponent } = componentsNotificationDtoModule;
 
@@ -99,13 +98,13 @@ function ListCitiesResponseDTO(cities: Array<Parameters<typeof CityComponent.bui
 // ============================================================
 
 function ActivePrivacyPolicyResponseDTO(
-  policy: Pick<definePrivacyPolicy.Attributes, 'version' | 'document_url' | 'summary' | 'effective_date'>
+  policy: Pick<PrivacyPolicy, 'version' | 'documentUrl' | 'summary' | 'effectiveDate'>
 ) {
   return {
     version: policy.version,
-    documentUrl: policy.document_url,
+    documentUrl: policy.documentUrl,
     summary: policy.summary || null,
-    effectiveDate: policy.effective_date
+    effectiveDate: policy.effectiveDate
   };
 }
 
@@ -130,15 +129,15 @@ function ListNotificationTypesResponseDTO(types: Array<Parameters<typeof Notific
 // ============================================================
 
 function ListDocumentTypesResponseDTO(
-  documentTypes: Array<Pick<defineDocumentType.Attributes, 'document_type_id' | 'code' | 'name' | 'is_visible_to_client' | 'is_active'>>,
+  documentTypes: Array<Pick<DocumentType, 'documentTypeId' | 'code' | 'name' | 'isVisibleToClient' | 'isActive'>>,
   metadata: Metadata
 ) {
   return buildListResponse(documentTypes, metadata, dt => ({
-    documentTypeId: dt.document_type_id,
+    documentTypeId: dt.documentTypeId,
     code: dt.code,
     name: dt.name,
-    isVisibleToClient: dt.is_visible_to_client,
-    isActive: dt.is_active
+    isVisibleToClient: dt.isVisibleToClient,
+    isActive: dt.isActive
   }));
 }
 

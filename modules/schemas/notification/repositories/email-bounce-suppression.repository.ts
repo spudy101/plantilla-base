@@ -1,106 +1,60 @@
-import { Op, fn, col } from 'sequelize';
-import BaseRepository from '../../../../shared/repositories/base.repository';
-import ReadRepository from '../../../../shared/repositories/read.repository';
-import modelsModule from '../../../../shared/models';
-const { EmailBounceSuppression } = modelsModule;
-import type defineEmailBounceSuppression from '../models/email-bounce-suppression.model';
+// modules/schemas/notification/repositories/email-bounce-suppression.repository.ts
+//
+// Suppression list de correo (por email_hash): rebotes duros por dirección y bloqueo al llegar al umbral.
+import PrismaRepository from '../../../../shared/repositories/prisma.repository';
+import type { EmailBounceSuppression } from '../../../../shared/database/generated/prisma/client';
 
-// Persistencia de la suppression list de correo (por email_hash).
-class EmailBounceSuppressionRepository extends BaseRepository<defineEmailBounceSuppression.Instance> {
-  constructor() {
-    super(EmailBounceSuppression, {});
-  }
-
-  findByHash(emailHash: string) {
-    return this.model.findOne({ where: { email_hash: emailHash } });
-  }
-
-  async isSuppressed(emailHash: string) {
-    const record = await this.model.findOne({
-      where: { email_hash: emailHash, status: 'suppressed' },
-      attributes: ['email_bounce_suppression_id']
-    });
-    return record !== null;
+class EmailBounceSuppressionRepository extends PrismaRepository {
+  async isSuppressed(emailHash: string): Promise<boolean> {
+    return (await (await this.db()).emailBounceSuppression.count({ where: { emailHash, status: 'suppressed' } })) > 0;
   }
 
   /**
-   * Registra un rebote duro para una dirección: crea el registro o incrementa el contador.
-   * Al alcanzar el umbral la marca como 'suppressed'. Devuelve el estado resultante.
-   * @param {string} emailHash
-   * @param {{ userId?: string, errorCode?: string, threshold: number }} params
-   * @returns {Promise<{ bounceCount: number, suppressed: boolean, alreadySuppressed: boolean }>}
+   * Registra un rebote duro: crea el registro o incrementa el contador, y al alcanzar el umbral marca la
+   * dirección como 'suppressed'. Atómico (antes, dos rebotes simultáneos podían perder uno).
    */
-  async registerHardBounce(
+  registerHardBounce(
     emailHash: string,
     { userId = null, errorCode = null, threshold }: { userId?: string | null; errorCode?: string | null; threshold: number }
-  ) {
-    const [record] = await this.model.findOrCreate({
-      where: { email_hash: emailHash },
-      defaults: { email_hash: emailHash, user_id: userId, bounce_count: 0, status: 'active' }
-    });
+  ): Promise<{ bounceCount: number; suppressed: boolean; alreadySuppressed: boolean }> {
+    return this.atomic(async db => {
+      // Crea la fila si no existe; el incremento en la base la bloquea para el resto de la transacción.
+      await db.emailBounceSuppression.upsert({
+        where: { emailHash },
+        create: { emailHash, userId, bounceCount: 0, status: 'active' },
+        update: {}
+      });
+      const locked = await db.emailBounceSuppression.update({
+        where: { emailHash },
+        data: { bounceCount: { increment: 1 } }
+      });
 
-    const alreadySuppressed = record.status === 'suppressed';
-    const bounceCount = record.bounce_count + 1;
-    const reachedThreshold = bounceCount >= threshold;
+      const alreadySuppressed = locked.status === 'suppressed';
+      const { bounceCount } = locked;
+      const reachedThreshold = bounceCount >= threshold;
 
-    await record.update({
-      bounce_count: bounceCount,
-      user_id: record.user_id || userId,
-      last_error_code: errorCode,
-      last_bounce_at: new Date(),
-      status: reachedThreshold ? 'suppressed' : record.status,
-      suppressed_at: reachedThreshold && !alreadySuppressed ? new Date() : record.suppressed_at
-    });
+      await db.emailBounceSuppression.update({
+        where: { emailHash },
+        data: {
+          userId: locked.userId || userId,
+          lastErrorCode: errorCode,
+          lastBounceAt: new Date(),
+          status: reachedThreshold ? 'suppressed' : locked.status,
+          suppressedAt: reachedThreshold && !alreadySuppressed ? new Date() : locked.suppressedAt
+        }
+      });
 
-    return {
-      bounceCount,
-      suppressed: reachedThreshold,
-      alreadySuppressed
-    };
-  }
-
-  /**
-   * Levanta la supresión de una dirección (des-bloqueo manual): resetea contador y estado.
-   * @returns el registro actualizado, o null si no existía.
-   */
-  async lift(emailHash: string) {
-    const record = await this.model.findOne({ where: { email_hash: emailHash } });
-    if (!record) {
-      return null;
-    }
-    return record.update({
-      status: 'active',
-      bounce_count: 0,
-      suppressed_at: null
+      return { bounceCount, suppressed: reachedThreshold, alreadySuppressed };
     });
   }
 
-  override findAllPaginated(
-    { status = null }: { status?: defineEmailBounceSuppression.Attributes['status'] | null } = {},
-    paginationParams: ReadRepository.PaginationParams = {}
-  ) {
-    return this.model.findAndCountAll({
-      where: status ? { status } : {},
-      limit: paginationParams.limit,
-      offset: paginationParams.offset,
-      order: [['last_bounce_at', 'DESC']],
-      distinct: true
+  /** Levanta la supresión (des-bloqueo manual): resetea contador y estado. null si no existía. */
+  async lift(emailHash: string): Promise<EmailBounceSuppression | null> {
+    const [row] = await (await this.db()).emailBounceSuppression.updateManyAndReturn({
+      where: { emailHash },
+      data: { status: 'active', bounceCount: 0, suppressedAt: null }
     });
-  }
-
-  async getStats() {
-    const rows = await this.aggregate<{ status: defineEmailBounceSuppression.Attributes['status']; count: string }>({
-      where: { status: { [Op.in]: ['active', 'suppressed'] } },
-      attributes: ['status', [fn('COUNT', col('email_bounce_suppression_id')), 'count']],
-      group: ['status']
-    });
-
-    const stats = { active: 0, suppressed: 0, total: 0 };
-    for (const row of rows) {
-      stats[row.status] = Number.parseInt(row.count, 10);
-    }
-    stats.total = stats.active + stats.suppressed;
-    return stats;
+    return row ?? null;
   }
 }
 

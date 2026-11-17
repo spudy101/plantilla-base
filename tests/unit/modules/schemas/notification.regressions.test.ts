@@ -64,20 +64,19 @@ describe('NotificationCreationService: entidad relacionada', () => {
   // Antes se escribía relatedEntity_type / relatedEntity_id: columnas inexistentes que Sequelize
   // descartaba, así que la notificación nunca guardaba a qué entidad apuntaba.
   it('guarda related_entity_type y related_entity_id', async () => {
-    const notificationRepo = { create: jest.fn().mockResolvedValue({ notification_id: 'n-1' }) };
+    const notificationRepo = { create: jest.fn().mockResolvedValue({ notificationId: 'n-1' }) };
     const service = new NotificationCreationService(fixture({
       notificationRepo,
       userNotificationPreferenceRepo: { findGlobalByUser: jest.fn().mockResolvedValue(null) },
       notificationSchedulerService: { isInQuietHours: jest.fn(() => false) },
       notificationSendingService: { procesarEnviosIndividuales: jest.fn().mockResolvedValue(undefined) }
     }));
-    const notificationType = { notification_type_id: 'nt-1', priority: 'normal', category: null };
+    const notificationType = { notificationTypeId: 'nt-1', priority: 'normal', category: null };
 
-    await service._crearNotificacionIndividual('u-1', fixture(notificationType), 'T', 'B', { type: 'ApprovalRequest', id: 'ar-1' }, {}, null);
+    await service._crearNotificacionIndividual('u-1', fixture(notificationType), 'T', 'B', { type: 'ApprovalRequest', id: 'ar-1' }, {});
 
     expect(notificationRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({ related_entity_type: 'ApprovalRequest', related_entity_id: 'ar-1' }),
-      { transaction: null }
+      expect.objectContaining({ relatedEntityType: 'ApprovalRequest', relatedEntityId: 'ar-1' })
     );
   });
 });

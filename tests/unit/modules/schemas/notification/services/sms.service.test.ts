@@ -62,7 +62,7 @@ describe('SmsService', () => {
     jest.clearAllMocks();
     constants.MOCKS.EXTERNAL_PROVIDERS = false;
     CircuitBreaker.canCall.mockResolvedValue(true);
-    attemptRepo.createAttempt.mockResolvedValue({ sms_attempt_id: ATTEMPT_ID, purpose: 'mfa_login' });
+    attemptRepo.createAttempt.mockResolvedValue({ smsAttemptId: ATTEMPT_ID, purpose: 'mfa_login' });
   });
 
   describe('enviarSmsOtp — modo mock', () => {

@@ -1,4 +1,4 @@
-import type defineSmsDeliveryAttempt from '../models/sms-delivery-attempt.model';
+import type { SmsDeliveryAttempt } from '../../../../shared/database/generated/prisma/client';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 /** Lo único que se usa del cliente SNS (un doble de test solo necesita send). */
 type SnsSender = Pick<InstanceType<typeof SNSClient>, 'send'>;
@@ -104,7 +104,7 @@ class SmsService {
     // Circuit breaker (protege ante fallos repetidos de envío SNS).
     const allowed = await CircuitBreaker.canCall(CB_PRODUCT);
     if (!allowed) {
-      await this.smsDeliveryAttemptRepository.markFailed(attempt.sms_attempt_id, {
+      await this.smsDeliveryAttemptRepository.markFailed(attempt.smsAttemptId, {
         lastError: 'Circuit breaker abierto — SMS (AWS SNS) no disponible'
       });
       ProviderApiLogger.log({
@@ -115,7 +115,7 @@ class SmsService {
       });
       return {
         success: false,
-        attemptId: attempt.sms_attempt_id,
+        attemptId: attempt.smsAttemptId,
         error: 'Servicio SMS no disponible temporalmente',
         circuitOpen: true
       };
@@ -132,7 +132,7 @@ class SmsService {
 
       const responseTimeMs = Date.now() - startTime;
       await CircuitBreaker.recordSuccess(CB_PRODUCT);
-      await this.smsDeliveryAttemptRepository.markSent(attempt.sms_attempt_id, {
+      await this.smsDeliveryAttemptRepository.markSent(attempt.smsAttemptId, {
         providerMessageId: result.messageId || null
       });
       ProviderApiLogger.log({
@@ -144,11 +144,11 @@ class SmsService {
         responsePayload: { messageId: result.messageId || null }
       });
 
-      return { success: true, attemptId: attempt.sms_attempt_id };
+      return { success: true, attemptId: attempt.smsAttemptId };
     } catch (error) {
       const responseTimeMs = Date.now() - startTime;
       await CircuitBreaker.recordFailure(CB_PRODUCT);
-      await this.smsDeliveryAttemptRepository.markFailed(attempt.sms_attempt_id, {
+      await this.smsDeliveryAttemptRepository.markFailed(attempt.smsAttemptId, {
         lastError: errorMessage(error),
         retryCount: SMS_MAX_RETRIES
       });
@@ -165,7 +165,7 @@ class SmsService {
 
       return {
         success: false,
-        attemptId: attempt.sms_attempt_id,
+        attemptId: attempt.smsAttemptId,
         error: errorMessage(error),
         serviceUnavailable: true
       };
@@ -201,25 +201,25 @@ class SmsService {
    * ni al circuit breaker.
    * @private
    */
-  async _mockEnvio(attempt: Pick<defineSmsDeliveryAttempt.Instance, 'sms_attempt_id' | 'purpose'>) {
+  async _mockEnvio(attempt: Pick<SmsDeliveryAttempt, 'smsAttemptId' | 'purpose'>) {
     logger.warn('[SMS] MODO MOCK ACTIVO — SMS no enviado realmente (OTP fijo en entornos no productivos)', {
-      attemptId: attempt.sms_attempt_id,
+      attemptId: attempt.smsAttemptId,
       purpose: attempt.purpose
     });
 
-    await this.smsDeliveryAttemptRepository.markSent(attempt.sms_attempt_id, {
-      providerMessageId: `MOCK-${attempt.sms_attempt_id}`
+    await this.smsDeliveryAttemptRepository.markSent(attempt.smsAttemptId, {
+      providerMessageId: `MOCK-${attempt.smsAttemptId}`
     });
 
     ProviderApiLogger.log({
       product: CB_PRODUCT,
       endpoint: 'mock',
-      responsePayload: { providerMessageId: `MOCK-${attempt.sms_attempt_id}` },
+      responsePayload: { providerMessageId: `MOCK-${attempt.smsAttemptId}` },
       result: 'success',
       responseTimeMs: 0
     });
 
-    return { success: true, attemptId: attempt.sms_attempt_id, mock: true };
+    return { success: true, attemptId: attempt.smsAttemptId, mock: true };
   }
 
   /**

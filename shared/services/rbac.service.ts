@@ -29,13 +29,14 @@ const { RBAC_WILDCARD, RBAC_MODULES, RBAC_MODULE_GROUPS, RBAC_ACTIONS, ROLE_PERM
 import redisClient from '../utils/redis.util';
 
 const CACHE_TTL_SECONDS = 60;
-const CACHE_KEY_PREFIX = 'rbac:overrides:';
+// v2: los overrides pasaron a camelCase (moduleName) con Prisma; la clave nueva evita leer entradas viejas.
+const CACHE_KEY_PREFIX = 'rbac:overrides:v2:';
 
 import type { RolePermissionOverrideRepositoryPort } from '../../modules/schemas/repository-ports';
 
 /** Override de permiso en BD (role_permission_overrides): concede una acción extra sobre un módulo. */
 interface PermissionOverride {
-  module_name: string;
+  moduleName: string;
   action: string;
 }
 
@@ -92,7 +93,7 @@ class RbacService {
 
     // La base no concede el permiso → revisar overrides en BD (con caché).
     const overrides = await this._loadOverrides(roleName);
-    return overrides.some(o => o.module_name === moduleName && o.action === action);
+    return overrides.some(o => o.moduleName === moduleName && o.action === action);
   }
 
   /**
@@ -181,7 +182,7 @@ class RbacService {
 
       for (const action of Object.values(RBAC_ACTIONS)) {
         const fromBase = this._comesFromBase(roleName, moduleName, action);
-        const fromOverride = overrides.some(o => o.module_name === moduleName && o.action === action);
+        const fromOverride = overrides.some(o => o.moduleName === moduleName && o.action === action);
 
         if (fromBase) {
           baseActions.push(action);
@@ -252,12 +253,12 @@ class RbacService {
     if (this._moduleAllows(basePerms[moduleName], action) || this._moduleAllows(basePerms[RBAC_WILDCARD], action)) {
       return true;
     }
-    return overrides.some(o => o.module_name === moduleName && o.action === action);
+    return overrides.some(o => o.moduleName === moduleName && o.action === action);
   }
 
   /**
    * Carga los overrides de un rol desde caché Redis o BD.
-   * Retorna array de { module_name, action }.
+   * Retorna array de { moduleName, action }.
    * @private
    */
   async _loadOverrides(roleName: string): Promise<PermissionOverride[]> {

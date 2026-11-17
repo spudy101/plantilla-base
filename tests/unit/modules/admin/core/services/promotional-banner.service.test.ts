@@ -17,14 +17,14 @@ jest.mock('shared/utils/logger.util', () => ({
   logAudit: jest.fn()
 }));
 
-jest.mock('modules/schemas/core/repositories/system-global-config.repository', () => ({ findActive: jest.fn() }));
+jest.mock('modules/schemas/core/repositories/system-global-config.repository', () => ({ findActive: jest.fn(), update: jest.fn() }));
 
 jest.mock('modules/admin/core/dtos/promotional-banner.dto', () => ({
   PromotionalBannerListDTO: jest.fn(banners => ({ banners })),
   PromotionalBannerImageDTO: jest.fn((imageUrl, s3Key) => ({ imageUrl, s3Key }))
 }));
 
-import { mocked, fixture } from 'tests/helpers/mock';
+import { mocked, fixture, Loose } from 'tests/helpers/mock';
 import uuidModule from 'uuid';
 const { v4: uuidv4 } = mocked(uuidModule);
 import S3UtilModule from 'shared/utils/s3.util';
@@ -54,7 +54,7 @@ describe('PromotionalBannerService', () => {
     });
 
     it('devuelve los banners de la config activa y audita', async () => {
-      systemGlobalConfigRepository.findActive.mockResolvedValue({ config_id: 'cfg-1', promotional_banners: [{ id: 'b1' }] });
+      systemGlobalConfigRepository.findActive.mockResolvedValue({ configId: 'cfg-1', promotionalBanners: [{ id: 'b1' }] });
 
       const result = await service.list(ADMIN_ID);
 
@@ -69,7 +69,7 @@ describe('PromotionalBannerService', () => {
     });
 
     it('usa arreglo vacío cuando promotional_banners es null', async () => {
-      systemGlobalConfigRepository.findActive.mockResolvedValue({ config_id: 'cfg-1', promotional_banners: null });
+      systemGlobalConfigRepository.findActive.mockResolvedValue({ configId: 'cfg-1', promotionalBanners: null });
 
       await service.list(ADMIN_ID);
 
@@ -79,12 +79,11 @@ describe('PromotionalBannerService', () => {
 
   describe('replace', () => {
     it('normaliza a snake_case, genera ids faltantes, sube versión y audita', async () => {
-      const update = jest.fn().mockImplementation(payload => ({ promotional_banners: payload.promotional_banners }));
+      systemGlobalConfigRepository.update.mockImplementation(async (_id: string, p: Loose) => ({ promotionalBanners: p.promotionalBanners }));
       systemGlobalConfigRepository.findActive.mockResolvedValue({
-        config_id: 'cfg-1',
-        config_version: 4,
-        promotional_banners: [],
-        update
+        configId: 'cfg-1',
+        configVersion: 4,
+        promotionalBanners: []
       });
 
       await service.replace(
@@ -92,9 +91,10 @@ describe('PromotionalBannerService', () => {
         ADMIN_ID
       );
 
-      const payload = update.mock.calls[0][0];
-      expect(payload.config_version).toBe(5);
-      expect(payload.promotional_banners[0]).toEqual(
+      expect(systemGlobalConfigRepository.update).toHaveBeenCalledWith('cfg-1', expect.any(Object));
+      const payload = systemGlobalConfigRepository.update.mock.calls[0][1];
+      expect(payload.configVersion).toEqual({ increment: 1 }); // se incrementa en la base
+      expect(payload.promotionalBanners[0]).toEqual(
         expect.objectContaining({
           id: 'uuid-generado',
           title: 'T',
@@ -115,12 +115,11 @@ describe('PromotionalBannerService', () => {
     it('borra de S3 las imágenes gestionadas que quedaron huérfanas e ignora las externas', async () => {
       const orphanManaged = `https://cdn.test/${PREFIX}/vieja.png`;
       const externalUrl = 'https://marca.externa.com/logo.png';
-      const update = jest.fn().mockImplementation(p => ({ promotional_banners: p.promotional_banners }));
+      systemGlobalConfigRepository.update.mockImplementation(async (_id: string, p: Loose) => ({ promotionalBanners: p.promotionalBanners }));
       systemGlobalConfigRepository.findActive.mockResolvedValue({
-        config_id: 'cfg-1',
-        config_version: 1,
-        promotional_banners: [{ image_url: orphanManaged }, { image_url: externalUrl }],
-        update
+        configId: 'cfg-1',
+        configVersion: 1,
+        promotionalBanners: [{ image_url: orphanManaged }, { image_url: externalUrl }]
       });
 
       // El nuevo catálogo no referencia ninguna imagen → la gestionada queda huérfana.
@@ -137,12 +136,11 @@ describe('PromotionalBannerService', () => {
     });
 
     it('registra warn si algún borrado de imagen huérfana falla (best-effort)', async () => {
-      const update = jest.fn().mockImplementation(p => ({ promotional_banners: p.promotional_banners }));
+      systemGlobalConfigRepository.update.mockImplementation(async (_id: string, p: Loose) => ({ promotionalBanners: p.promotionalBanners }));
       systemGlobalConfigRepository.findActive.mockResolvedValue({
-        config_id: 'cfg-1',
-        config_version: 1,
-        promotional_banners: [{ image_url: `https://cdn.test/${PREFIX}/a.png` }, { image_url: `https://cdn.test/${PREFIX}/b.png` }],
-        update
+        configId: 'cfg-1',
+        configVersion: 1,
+        promotionalBanners: [{ image_url: `https://cdn.test/${PREFIX}/a.png` }, { image_url: `https://cdn.test/${PREFIX}/b.png` }]
       });
       S3Util.deletePublicFile.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('s3 fail'));
 

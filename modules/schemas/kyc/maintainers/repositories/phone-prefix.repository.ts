@@ -1,17 +1,33 @@
-// modules/schemas/kyc/src/repositories/phone-prefix.repository.ts
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../../shared/models';
-const { PhonePrefix } = modelsModule;
-import type definePhonePrefix from '../models/phone-prefix.model';
+// modules/schemas/kyc/maintainers/repositories/phone-prefix.repository.ts
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import { Prisma } from '../../../../../shared/database/generated/prisma/client';
+import type { PhonePrefix } from '../../../../../shared/database/generated/prisma/client';
 
-class PhonePrefixRepository extends BaseRepository<definePhonePrefix.Instance> {
-  constructor() {
-    super(PhonePrefix, {
-      searchFields: ['prefix'],
-      filterIdField: 'country_id',
-      filterIdKey: 'countryId',
-      defaultInclude: [{ association: 'country', attributes: ['country_id', 'name', 'code'] }]
-    });
+const LIST = {
+  sortable: Object.values(Prisma.PhonePrefixScalarFieldEnum),
+  searchFields: ['prefix'],
+  filterId: { key: 'countryId', field: 'countryId' }
+};
+// Mismo include por defecto que en Sequelize: el país (id, nombre, código)
+const WITH_COUNTRY = { country: { select: { countryId: true, name: true, code: true } } } satisfies Prisma.PhonePrefixInclude;
+
+class PhonePrefixRepository extends PrismaRepository {
+  async findById(phonePrefixId: string): Promise<PhonePrefix | null> {
+    return (await this.db()).phonePrefix.findUnique({ where: { phonePrefixId } });
+  }
+
+  async findAllPaginated(
+    filters: PrismaRepository.Filters = {},
+    pagination: PrismaRepository.PaginationParams = {},
+    searchTerm: string | null = null
+  ) {
+    const { where, page } = this.listQuery(filters, pagination, searchTerm, LIST);
+    const db = await this.db();
+    const [rows, count] = await Promise.all([
+      db.phonePrefix.findMany({ where: where as Prisma.PhonePrefixWhereInput, include: WITH_COUNTRY, ...page }),
+      db.phonePrefix.count({ where: where as Prisma.PhonePrefixWhereInput })
+    ]);
+    return { rows, count };
   }
 
   /**
@@ -19,14 +35,13 @@ class PhonePrefixRepository extends BaseRepository<definePhonePrefix.Instance> {
    * Normaliza a solo dígitos y antepone '+' (en BD se guarda con '+', ej '+57').
    *
    * @param {string} rawPrefix - Prefijo del bureau (ej: '57')
-   * @returns {Promise<PhonePrefix|null>}
    */
-  findActiveByPrefix(rawPrefix: string) {
+  async findActiveByPrefix(rawPrefix: string): Promise<PhonePrefix | null> {
     const digits = String(rawPrefix ?? '').replace(/\D/g, '');
     if (!digits) {
       return null;
     }
-    return this.findOne({ prefix: `+${digits}`, is_active: true });
+    return (await this.db()).phonePrefix.findFirst({ where: { prefix: `+${digits}`, isActive: true } });
   }
 }
 

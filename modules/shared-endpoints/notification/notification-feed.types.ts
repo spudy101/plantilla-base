@@ -2,16 +2,19 @@
 //
 // Feed de notificaciones del usuario: personales + globales mezcladas y ordenadas por fecha.
 // Lo arma NotificationService y lo serializan los DTOs. Solo tipos.
-import type defineNotification from '../../schemas/notification/models/notification.model';
-import type defineGlobalNotification from '../../schemas/notification/models/global-notification.model';
+import type { GlobalNotification, Notification, NotificationType } from '../../../shared/database/generated/prisma/client';
 import type PaginationHelper from '../../../shared/utils/pagination.util';
 
 export type PaginationParams = ReturnType<typeof PaginationHelper.getPaginationParams>;
 
+/** Notificación personal o global con su tipo (filas de Prisma). */
+export type PersonalRow = Notification & { notificationType: NotificationType | null };
+export type GlobalRow = GlobalNotification & { notificationType: NotificationType | null };
+
 /** Ítem del feed: unión discriminada por __type. */
 export type FeedItem =
-  | { __type: 'personal'; __instance: defineNotification.Instance; createdAt: Date; is_read: boolean | null }
-  | { __type: 'global'; __instance: defineGlobalNotification.Instance; createdAt: Date; is_read: boolean };
+  | { __type: 'personal'; __instance: PersonalRow; createdAt: Date; isRead: boolean | null }
+  | { __type: 'global'; __instance: GlobalRow; createdAt: Date; isRead: boolean };
 
 export type GlobalFeedItem = Extract<FeedItem, { __type: 'global' }>;
 
@@ -23,7 +26,7 @@ export interface MixedListResult {
 }
 
 export interface PersonalListResult {
-  rows: defineNotification.Instance[];
+  rows: PersonalRow[];
   count: number;
   paginationParams: PaginationParams;
 }

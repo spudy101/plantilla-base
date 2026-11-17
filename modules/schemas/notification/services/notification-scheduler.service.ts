@@ -31,15 +31,15 @@ class NotificationSchedulerService {
    * @returns {boolean}
    */
   isInQuietHours(userPreference: NotificationSchedulerService.Preference) {
-    if (!userPreference?.quiet_hours_start || !userPreference?.quiet_hours_end) {
+    if (!userPreference?.quietHoursStart || !userPreference?.quietHoursEnd) {
       return false;
     }
 
     const now = new Date();
     const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:00`;
 
-    const start = userPreference.quiet_hours_start;
-    const end = userPreference.quiet_hours_end;
+    const start = userPreference.quietHoursStart;
+    const end = userPreference.quietHoursEnd;
 
     // Quiet hours dentro del mismo día (ej: 22:00 - 23:59)
     if (start < end) {
@@ -56,12 +56,12 @@ class NotificationSchedulerService {
    * @returns {Date}
    */
   calcularFinQuietHours(userPreference: NotificationSchedulerService.Preference) {
-    if (!userPreference?.quiet_hours_end) {
+    if (!userPreference?.quietHoursEnd) {
       return new Date(Date.now() + DEFAULT_QUIET_HOURS_DELAY_MINUTES * SECONDS_PER_MINUTE * MS_PER_SECOND); // +15 min por defecto
     }
 
     const now = new Date();
-    const [hours = '0', minutes = '0'] = userPreference.quiet_hours_end.split(':');
+    const [hours = '0', minutes = '0'] = userPreference.quietHoursEnd.split(':');
 
     const endTime = new Date(now);
     endTime.setHours(Number.parseInt(hours, 10), Number.parseInt(minutes, 10), 0, 0);
@@ -83,8 +83,8 @@ class NotificationSchedulerService {
     const nextRetryAt = this.calcularFinQuietHours(userPreference);
 
     await this.notificationRepo.update(notificationId, {
-      scheduled_for: nextRetryAt,
-      push_next_retry_at: nextRetryAt
+      scheduledFor: nextRetryAt,
+      pushNextRetryAt: nextRetryAt
     });
 
     logger.info('Push programado para después de quiet hours', { notificationId, nextRetryAt });
@@ -99,8 +99,8 @@ class NotificationSchedulerService {
     const nextRetryAt = this.calcularFinQuietHours(userPreference);
 
     await this.notificationRepo.update(notificationId, {
-      scheduled_for: nextRetryAt,
-      email_next_retry_at: nextRetryAt
+      scheduledFor: nextRetryAt,
+      emailNextRetryAt: nextRetryAt
     });
 
     logger.info('Email programado para después de quiet hours', { notificationId, nextRetryAt });
@@ -115,8 +115,8 @@ class NotificationSchedulerService {
     const nextRetryAt = this.calcularFinQuietHours(userPreference);
 
     await this.notificationRepo.update(notificationId, {
-      scheduled_for: nextRetryAt,
-      sms_next_retry_at: nextRetryAt
+      scheduledFor: nextRetryAt,
+      smsNextRetryAt: nextRetryAt
     });
 
     logger.info('SMS programado para después de quiet hours', { notificationId, nextRetryAt });

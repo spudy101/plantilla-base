@@ -8,7 +8,6 @@ import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
 import constantsModule from '../../../../shared/constants';
 const { notifications } = constantsModule;
-import unitOfWork from '../../../../shared/database/unit-of-work';
 import adminNotificationTypeDtoModule from '../dtos/admin-notification-type.dto';
 const {
   ListNotificationTypesResponseDTO,
@@ -18,7 +17,6 @@ const {
 } = adminNotificationTypeDtoModule;
 
 class NotificationTypeService {
-  unitOfWork: typeof unitOfWork;
   notificationTypeRepository: typeof notificationTypeRepository;
   notificationCategoryRepository: typeof notificationCategoryRepository;
   userRepository: typeof userRepository;
@@ -27,11 +25,10 @@ class NotificationTypeService {
   /**
    * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
    * reales; en tests u otros contextos se pueden reemplazar:
-   *   new NotificationTypeService({ unitOfWork: fake })
+   *   new NotificationTypeService({ notificationTypeRepository: fake })
    * @param {object} [deps]
    */
   constructor(deps: NotificationTypeService.Deps = {}) {
-    this.unitOfWork = deps.unitOfWork ?? unitOfWork;
     this.notificationTypeRepository = deps.notificationTypeRepository ?? notificationTypeRepository;
     this.notificationCategoryRepository = deps.notificationCategoryRepository ?? notificationCategoryRepository;
     this.userRepository = deps.userRepository ?? userRepository;
@@ -69,60 +66,48 @@ class NotificationTypeService {
   }
 
   async update(notificationTypeId: string, data: Record<string, unknown>, adminUserId: string) {
-    const transaction = await this.unitOfWork.begin();
-
-    try {
-      const nt = await this.notificationTypeRepository.findById(notificationTypeId);
-      if (!nt) {
-        throw AppError.notFound('Tipo de notificación no encontrado');
-      }
-
-      // Si se reasigna la categoría, validar que exista (además del FK) para dar un error claro.
-      if (data.notificationCategoryId) {
-        const category = await this.notificationCategoryRepository.findById(data.notificationCategoryId);
-        if (!category) {
-          throw AppError.badRequest('La categoría indicada no existe');
-        }
-      }
-
-      // Los templates no se incluyen: son read-only vía API. Los canales/DND viven en la categoría.
-      const FIELD_MAP = {
-        name: 'name',
-        description: 'description',
-        priority: 'priority',
-        notificationCategoryId: 'notification_category_id'
-      };
-
-      const updateData: Record<string, unknown> = {};
-      for (const [camel, snake] of Object.entries(FIELD_MAP)) {
-        if (data[camel] !== undefined) {
-          updateData[snake] = data[camel];
-        }
-      }
-
-      if (Object.keys(updateData).length === 0) {
-        await transaction.rollback();
-        return UpdateNotificationTypeResponseDTO(nt);
-      }
-
-      const updated = await nt.update(updateData, { transaction });
-      await transaction.commit();
-
-      logAudit(
-        'NOTIFICATION_TYPE_UPDATED',
-        adminUserId,
-        {
-          code: updated.code,
-          updatedFields: Object.keys(updateData)
-        },
-        { entityId: notificationTypeId, entityType: 'NotificationType', entityTable: 'notification_types' }
-      );
-
-      return UpdateNotificationTypeResponseDTO(updated);
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
+    const nt = await this.notificationTypeRepository.findById(notificationTypeId);
+    if (!nt) {
+      throw AppError.notFound('Tipo de notificación no encontrado');
     }
+
+    // Si se reasigna la categoría, validar que exista (además del FK) para dar un error claro.
+    if (typeof data.notificationCategoryId === 'string' && data.notificationCategoryId) {
+      const category = await this.notificationCategoryRepository.findById(data.notificationCategoryId);
+      if (!category) {
+        throw AppError.badRequest('La categoría indicada no existe');
+      }
+    }
+
+    // Los templates no se incluyen: son read-only vía API. Los canales/DND viven en la categoría.
+    const EDITABLE = ['name', 'description', 'priority', 'notificationCategoryId'] as const;
+    const updateData: Record<string, unknown> = {};
+    for (const key of EDITABLE) {
+      if (data[key] !== undefined) {
+        updateData[key] = data[key];
+      }
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return UpdateNotificationTypeResponseDTO(nt);
+    }
+
+    const updated = await this.notificationTypeRepository.update(notificationTypeId, updateData);
+    if (!updated) {
+      throw AppError.notFound('Tipo de notificación no encontrado');
+    }
+
+    logAudit(
+      'NOTIFICATION_TYPE_UPDATED',
+      adminUserId,
+      {
+        code: updated.code,
+        updatedFields: Object.keys(updateData)
+      },
+      { entityId: notificationTypeId, entityType: 'NotificationType', entityTable: 'notification_types' }
+    );
+
+    return UpdateNotificationTypeResponseDTO(updated);
   }
 
   async createGlobalNotification(data: { titulo: string; contenido: string; asunto?: string | null }, adminUserId: string) {
@@ -159,7 +144,7 @@ class NotificationTypeService {
     if (!user) {
       throw AppError.notFound('Usuario no encontrado');
     }
-    if (!user.is_active) {
+    if (!user.isActive) {
       throw AppError.badRequest('No se puede notificar a un usuario inactivo');
     }
 
@@ -192,7 +177,6 @@ class NotificationTypeService {
 namespace NotificationTypeService {
   /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
   export interface Deps {
-    unitOfWork?: typeof unitOfWork;
     notificationTypeRepository?: typeof notificationTypeRepository;
     notificationCategoryRepository?: typeof notificationCategoryRepository;
     userRepository?: typeof userRepository;

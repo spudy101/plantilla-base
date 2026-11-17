@@ -1,5 +1,5 @@
-import type defineUser from '../../../../schemas/kyc/iam/models/user.model';
-import type defineUserBiometricCredential from '../../../../schemas/kyc/iam/models/user-biometric-credential.model';
+import type { UserWith } from '../../../../schemas/kyc/iam/repositories/user.repository';
+import type { UserBiometricCredential } from '../../../../../shared/database/generated/prisma/client';
 import type { RequestAuditContext } from '../../../../../shared/types/audit-context';
 import crypto from 'node:crypto';
 
@@ -108,7 +108,7 @@ class AuthBiometricService {
     }
 
     // Verificar que el dispositivo no tiene ya una credencial activa
-    const existing = await this.biometricCredentialRepository.findByUserAndDevice(userId, device.user_trusted_device_id);
+    const existing = await this.biometricCredentialRepository.findByUserAndDevice(userId, device.userTrustedDeviceId);
     if (existing) {
       throw AppError.conflict('Este dispositivo ya tiene una huella registrada. Elimínala primero.');
     }
@@ -116,7 +116,7 @@ class AuthBiometricService {
     const challenge = crypto.randomBytes(CHALLENGE_BYTES).toString('base64url');
 
     await this.biometricChallengeRepository.create({
-      user_id: userId,
+      userId: userId,
       challenge,
       type: 'registration'
     });
@@ -125,12 +125,12 @@ class AuthBiometricService {
       'BIOMETRIC_REGISTER_START',
       userId,
       {},
-      { entityId: device.user_trusted_device_id, entityType: 'UserTrustedDevice', entityTable: 'user_trusted_devices' }
+      { entityId: device.userTrustedDeviceId, entityType: 'UserTrustedDevice', entityTable: 'user_trusted_devices' }
     );
 
     return BiometricRegisterStartDTO({
       challenge,
-      deviceId: device.user_trusted_device_id,
+      deviceId: device.userTrustedDeviceId,
       algorithm: SUPPORTED_ALGORITHM
     });
   }
@@ -162,15 +162,17 @@ class AuthBiometricService {
     if (!challengeRecord) {
       throw AppError.badRequest('Challenge inválido, expirado o ya utilizado');
     }
-    if (challengeRecord.user_id !== userId) {
+    if (challengeRecord.userId !== userId) {
       throw AppError.forbidden('El challenge no pertenece a este usuario');
     }
     if (challengeRecord.type !== 'registration') {
       throw AppError.badRequest('Tipo de challenge incorrecto');
     }
 
-    // Marcar como usado ANTES de verificar la firma — evita race conditions
-    await this.biometricChallengeRepository.markAsUsed(challengeRecord.challenge_id);
+    // Consumir ANTES de verificar y solo si sigue sin usar: si otro request lo usó primero, se rechaza (replay)
+    if (!(await this.biometricChallengeRepository.markAsUsed(challengeRecord.challengeId))) {
+      throw AppError.badRequest('Challenge inválido, expirado o ya utilizado');
+    }
 
     // Verificar la firma ES256
     const isValid = this._verifySignature({ publicKey, challenge, signature });
@@ -180,7 +182,7 @@ class AuthBiometricService {
         userId,
         {},
         {
-          entityId: device.user_trusted_device_id,
+          entityId: device.userTrustedDeviceId,
           entityType: 'UserTrustedDevice',
           entityTable: 'user_trusted_devices',
           outcome: 'failure'
@@ -197,20 +199,20 @@ class AuthBiometricService {
 
     // Guardar la credencial
     const credential = await this.biometricCredentialRepository.create({
-      user_id: userId,
-      user_trusted_device_id: device.user_trusted_device_id,
-      credential_id: credentialId,
-      public_key: publicKey,
-      sign_count: 0
+      userId: userId,
+      userTrustedDeviceId: device.userTrustedDeviceId,
+      credentialId: credentialId,
+      publicKey: publicKey,
+      signCount: 0
     });
 
     logAudit(
       'BIOMETRIC_REGISTER_SUCCESS',
       userId,
       {
-        deviceId: device.user_trusted_device_id
+        deviceId: device.userTrustedDeviceId
       },
-      { entityId: credential.biometric_credential_id, entityType: 'BiometricCredential', entityTable: 'biometric_credentials' }
+      { entityId: credential.biometricCredentialId, entityType: 'BiometricCredential', entityTable: 'biometric_credentials' }
     );
 
     setImmediate(() => {
@@ -221,8 +223,8 @@ class AuthBiometricService {
             tipoNotificacion: 'BIOMETRIC_CREDENTIAL_REGISTERED',
             userId,
             // Antes se pasaba el id suelto (string) y la notificación no guardaba la entidad
-            relatedEntity: { type: 'BiometricCredential', id: credential.biometric_credential_id },
-            metadata: { nombre: user?.person?.first_name ?? 'Usuario', logoUrl: notifications.ses.logoUrl }
+            relatedEntity: { type: 'BiometricCredential', id: credential.biometricCredentialId },
+            metadata: { nombre: user?.person?.firstName ?? 'Usuario', logoUrl: notifications.ses.logoUrl }
           })
         )
         .catch(err => logger.warn('Error enviando notificación biométrico registrado', { error: err.message }));
@@ -246,26 +248,26 @@ class AuthBiometricService {
     if (!user) {
       throw AppError.unauthorized('Credenciales inválidas');
     }
-    if (!user.is_active) {
+    if (!user.isActive) {
       throw AppError.forbidden('Cuenta inactiva o suspendida');
     }
 
     const challenge = crypto.randomBytes(CHALLENGE_BYTES).toString('base64url');
 
     await this.biometricChallengeRepository.create({
-      user_id: user.user_id,
+      userId: user.userId,
       challenge,
       type: 'authentication'
     });
 
     logAudit(
       'BIOMETRIC_LOGIN_START',
-      user.user_id,
+      user.userId,
       { nationalId },
-      { entityId: user.user_id, entityType: 'User', entityTable: 'users' }
+      { entityId: user.userId, entityType: 'User', entityTable: 'users' }
     );
 
-    return BiometricLoginStartDTO({ challenge, userId: user.user_id });
+    return BiometricLoginStartDTO({ challenge, userId: user.userId });
   }
 
   /**
@@ -291,7 +293,7 @@ class AuthBiometricService {
       throw AppError.unauthorized('Credencial biométrica no encontrada');
     }
 
-    const userId = credential.user_id;
+    const { userId } = credential;
 
     // Verificar y consumir el challenge, sign_count y firma
     await this._verifyLoginChallenge({
@@ -308,7 +310,7 @@ class AuthBiometricService {
     if (!user) {
       throw AppError.unauthorized('Usuario no encontrado');
     }
-    if (!user.is_active) {
+    if (!user.isActive) {
       throw AppError.forbidden('Cuenta inactiva o suspendida');
     }
 
@@ -319,20 +321,20 @@ class AuthBiometricService {
     }
 
     // Verificar que el dispositivo de la credencial sigue siendo TRUSTED
-    const device = await this.trustedDeviceRepository.findById(credential.user_trusted_device_id);
+    const device = await this.trustedDeviceRepository.findById(credential.userTrustedDeviceId);
     if (!device || device.status !== 'trusted') {
       throw AppError.forbidden('El dispositivo asociado a esta credencial ya no es de confianza');
     }
 
     // Una sesión por dispositivo + límite de sesiones simultáneas — igual que el login por contraseña
-    await this.sessionControl.closePreviousDeviceSessions(userId, device.user_trusted_device_id);
+    await this.sessionControl.closePreviousDeviceSessions(userId, device.userTrustedDeviceId);
     await this.sessionControl.enforceSessionLimit(userId);
 
     // La firma ES256 verificada YA autenticó al usuario: la huella desbloqueó la llave
     // privada en el secure enclave del dispositivo. Emitimos tokens propios RS256 igual
     // que _completeSuccessfulLogin del login por contraseña — sin Cognito ni contraseña.
     const { sessionId, tokens } = await this.sessionIssuer.issue(user, {
-      deviceId: device.user_trusted_device_id,
+      deviceId: device.userTrustedDeviceId,
       ip,
       userAgent,
       source: 'login biométrico'
@@ -341,18 +343,18 @@ class AuthBiometricService {
     // Actualizar sign_count, last_seen y registrar intento — en paralelo
     await Promise.all([
       this.biometricCredentialRepository.updateAfterLogin(credentialId, signCount),
-      this.trustedDeviceRepository.updateLastSeen(userId, device.fingerprint_hash),
+      this.trustedDeviceRepository.updateLastSeen(userId, device.fingerprintHash),
       this.userLoginAttemptRepository.recordAttempt({
-        user_id: userId,
-        username_attempt: user.auth_username ?? user.username, // columna NOT NULL; auth_username es nullable
-        national_id: user.username,
-        ip_address: ip,
-        user_agent: userAgent,
-        device_fingerprint: fingerprintHash,
+        userId: userId,
+        usernameAttempt: user.authUsername ?? user.username, // columna NOT NULL; auth_username es nullable
+        nationalId: user.username,
+        ipAddress: ip,
+        userAgent: userAgent,
+        deviceFingerprint: fingerprintHash,
         success: true,
         // Explícito por lo mismo que en auth-login: la ruta de login biométrico es pública, el
         // AsyncLocalStorage no trae sessionId aunque la sesión ya exista en scope.
-        origin_session_id: sessionId
+        originSessionId: sessionId
       })
     ]);
 
@@ -360,7 +362,7 @@ class AuthBiometricService {
       'BIOMETRIC_LOGIN_SUCCESS',
       userId,
       {
-        deviceId: device.user_trusted_device_id
+        deviceId: device.userTrustedDeviceId
       },
       { entityId: credentialId, entityType: 'BiometricCredential', entityTable: 'biometric_credentials' }
     );
@@ -368,9 +370,9 @@ class AuthBiometricService {
     return LoginResponseDTO({
       user,
       tokens,
-      deviceId: device.user_trusted_device_id,
+      deviceId: device.userTrustedDeviceId,
       // El mobile necesita el hmacSecret para firmar requests posteriores
-      deviceHmacSecret: device.hmac_secret || null
+      deviceHmacSecret: device.hmacSecret || null
     });
   }
 
@@ -387,7 +389,7 @@ class AuthBiometricService {
     userId,
     credentialId
   }: {
-    credential: defineUserBiometricCredential.Instance;
+    credential: UserBiometricCredential;
     challenge: string;
     signature: string;
     signCount: number;
@@ -399,18 +401,20 @@ class AuthBiometricService {
     if (!challengeRecord) {
       throw AppError.badRequest('Challenge inválido, expirado o ya utilizado');
     }
-    if (challengeRecord.user_id !== userId) {
+    if (challengeRecord.userId !== userId) {
       throw AppError.forbidden('El challenge no pertenece a este usuario');
     }
     if (challengeRecord.type !== 'authentication') {
       throw AppError.badRequest('Tipo de challenge incorrecto');
     }
 
-    // Marcar como usado ANTES de verificar — evita race conditions
-    await this.biometricChallengeRepository.markAsUsed(challengeRecord.challenge_id);
+    // Consumir ANTES de verificar y solo si sigue sin usar: si otro request lo usó primero, se rechaza (replay)
+    if (!(await this.biometricChallengeRepository.markAsUsed(challengeRecord.challengeId))) {
+      throw AppError.badRequest('Challenge inválido, expirado o ya utilizado');
+    }
 
     // Verificar sign_count — debe ser mayor al guardado (anti-replay)
-    if (signCount <= credential.sign_count) {
+    if (signCount <= credential.signCount) {
       logAudit(
         'BIOMETRIC_LOGIN_REPLAY_ATTACK',
         userId,
@@ -422,7 +426,7 @@ class AuthBiometricService {
 
     // Verificar la firma ES256
     const isValid = this._verifySignature({
-      publicKey: credential.public_key,
+      publicKey: credential.publicKey,
       challenge,
       signature
     });
@@ -468,10 +472,7 @@ class AuthBiometricService {
    */
   async deleteCredential(userId: string, biometricCredentialId: string) {
     // Verificar que la credencial pertenece al usuario
-    const credential = await this.biometricCredentialRepository.findOne({
-      biometric_credential_id: biometricCredentialId,
-      user_id: userId
-    });
+    const credential = await this.biometricCredentialRepository.findByIdAndUser(biometricCredentialId, userId);
     if (!credential) {
       throw AppError.notFound('Credencial biométrica no encontrada');
     }
@@ -498,7 +499,7 @@ class AuthBiometricService {
    * y deja continuar el login en un solo paso.
    * @private
    */
-  _checkPrivacyPolicy(user: defineUser.Instance, acceptPolicy: boolean, ip: string | null | undefined) {
+  _checkPrivacyPolicy(user: UserWith<'login'>, acceptPolicy: boolean, ip: string | null | undefined) {
     return this.policyGate.check(user, acceptPolicy, ip ?? null, {
       blockedAuditAction: 'BIOMETRIC_LOGIN_BLOCKED_POLICY_UPDATE',
       source: 'auth-biometric'

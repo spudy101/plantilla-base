@@ -1,5 +1,6 @@
 import type BannerDto from '../dtos/promotional-banner.dto';
 import { v4 as uuidv4 } from 'uuid';
+import type { Prisma } from '../../../../shared/database/generated/prisma/client';
 import AppError from '../../../../shared/utils/app-error.util';
 import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logAudit, logger } = loggerUtilModule;
@@ -32,9 +33,9 @@ class PromotionalBannerService {
   async list(adminUserId: string) {
     const config = await this._getActiveConfig();
 
-    logAudit('PROMOTIONAL_BANNERS_VIEWED_ADMIN', adminUserId, {}, { entityId: config.config_id, ...ENTITY_META });
+    logAudit('PROMOTIONAL_BANNERS_VIEWED_ADMIN', adminUserId, {}, { entityId: config.configId, ...ENTITY_META });
 
-    return PromotionalBannerListDTO((config.promotional_banners ?? []) as BannerDto.Stored[]);
+    return PromotionalBannerListDTO((config.promotionalBanners ?? []) as unknown as BannerDto.Stored[]);
   }
 
   /**
@@ -45,7 +46,7 @@ class PromotionalBannerService {
   async replace(banners: PromotionalBannerService.BannerInput[], adminUserId: string) {
     const config = await this._getActiveConfig();
     // JSONB: forma libre en el modelo; la describe el DTO
-    const previousBanners = (config.promotional_banners ?? []) as BannerDto.Stored[];
+    const previousBanners = (config.promotionalBanners ?? []) as unknown as BannerDto.Stored[];
 
     const normalized = banners.map((b, index): BannerDto.Stored => ({
       id: b.id ?? uuidv4(),
@@ -59,10 +60,13 @@ class PromotionalBannerService {
       sort_order: b.sortOrder ?? index + 1
     }));
 
-    const updated = await config.update({
-      promotional_banners: normalized,
-      config_version: config.config_version + 1
+    const updated = await this.systemGlobalConfigRepository.update(config.configId, {
+      promotionalBanners: normalized as unknown as Prisma.InputJsonValue,
+      configVersion: { increment: 1 }
     });
+    if (!updated) {
+      throw AppError.notFound('Configuración global no encontrada');
+    }
 
     // El catálogo ya se persistió: recién ahí borramos de S3 las imágenes que ningún banner
     // referencia más (best-effort — un fallo de S3 no revierte el reemplazo).
@@ -72,10 +76,10 @@ class PromotionalBannerService {
       'PROMOTIONAL_BANNERS_UPDATED',
       adminUserId,
       { total: normalized.length, active: normalized.filter(b => b.is_active).length, imagesRemoved: cleanup.deleted },
-      { entityId: config.config_id, ...ENTITY_META }
+      { entityId: config.configId, ...ENTITY_META }
     );
 
-    return PromotionalBannerListDTO((updated.promotional_banners ?? []) as BannerDto.Stored[]);
+    return PromotionalBannerListDTO((updated.promotionalBanners ?? []) as unknown as BannerDto.Stored[]);
   }
 
   /**

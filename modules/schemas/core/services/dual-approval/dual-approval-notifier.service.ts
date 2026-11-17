@@ -15,8 +15,7 @@ import errorMessageModule from '../../../../../shared/utils/error-message.util';
 const { errorMessage } = errorMessageModule;
 import type { AdminAuditContext } from '../../../../../shared/types/audit-context';
 import type DualApprovalConstants from '../../../../../shared/constants/dual-approval';
-import type defineApprovalRequest from '../../models/approval-request.model';
-import type defineUser from '../../../kyc/iam/models/user.model';
+import type { ApprovalRequest } from '../../../../../shared/database/generated/prisma/client';
 
 
 const NOTIF_DUAL_APPROVAL_RESOLVED = 'DUAL_APPROVAL_RESOLVED';
@@ -32,15 +31,12 @@ class DualApprovalNotifierService {
   }
 
   /** Avisa a todos los usuarios activos con un rol aprobador de la operación (fire-and-forget). */
-  async notifyApprovers(op: DualApprovalConstants.Op, request: defineApprovalRequest.Instance, ctx: AdminAuditContext) {
-    let approvers: defineUser.Instance[] = [];
+  async notifyApprovers(op: DualApprovalConstants.Op, request: ApprovalRequest, ctx: AdminAuditContext) {
+    let approvers: Array<{ userId: string }> = [];
     try {
-      approvers = await this.userRepository.findActiveUsersByRoleNames(op.approverRoles, {
-        attributes: ['user_id'],
-        includePerson: false
-      });
+      approvers = await this.userRepository.findActiveUsersByRoleNames(op.approverRoles);
     } catch (err) {
-      logger.warn('[DualApproval] Error buscando aprobadores', { error: errorMessage(err), operationKey: request.operation_key });
+      logger.warn('[DualApproval] Error buscando aprobadores', { error: errorMessage(err), operationKey: request.operationKey });
       return;
     }
 
@@ -48,20 +44,20 @@ class DualApprovalNotifierService {
       setImmediate(() => {
         this.NotificationCreationService.crearNotificacion({
           tipoNotificacion: op.notificationType,
-          userId: approver.user_id,
-          relatedEntity: { type: 'ApprovalRequest', id: request.approval_request_id },
+          userId: approver.userId,
+          relatedEntity: { type: 'ApprovalRequest', id: request.approvalRequestId },
           metadata: {
-            approvalRequestId: request.approval_request_id,
+            approvalRequestId: request.approvalRequestId,
             operationLabel: op.label,
-            entityType: request.entity_type,
-            entityId: request.entity_id,
+            entityType: request.entityType,
+            entityId: request.entityId,
             firstName: ctx.adminFirstName ?? '',
             logoUrl: notifications?.ses?.logoUrl ?? ''
           }
         }).catch(err =>
           logger.warn('[DualApproval] Error notificando aprobador', {
             error: err.message,
-            approvalRequestId: request.approval_request_id
+            approvalRequestId: request.approvalRequestId
           })
         );
       });
@@ -69,17 +65,17 @@ class DualApprovalNotifierService {
   }
 
   /** Avisa al solicitante (maker) la decisión tomada sobre su solicitud (fire-and-forget). */
-  notifyMaker(request: defineApprovalRequest.Instance, op: DualApprovalConstants.Op, decision: 'approve' | 'reject') {
-    if (!request.requested_by) {
+  notifyMaker(request: ApprovalRequest, op: DualApprovalConstants.Op, decision: 'approve' | 'reject') {
+    if (!request.requestedBy) {
       return;
     }
     setImmediate(() => {
       this.NotificationCreationService.crearNotificacion({
         tipoNotificacion: NOTIF_DUAL_APPROVAL_RESOLVED,
-        userId: request.requested_by,
-        relatedEntity: { type: 'ApprovalRequest', id: request.approval_request_id },
+        userId: request.requestedBy,
+        relatedEntity: { type: 'ApprovalRequest', id: request.approvalRequestId },
         metadata: {
-          approvalRequestId: request.approval_request_id,
+          approvalRequestId: request.approvalRequestId,
           operationLabel: op.label,
           decision,
           logoUrl: notifications?.ses?.logoUrl ?? ''
@@ -87,7 +83,7 @@ class DualApprovalNotifierService {
       }).catch(err =>
         logger.warn('[DualApproval] Error notificando al maker', {
           error: err.message,
-          approvalRequestId: request.approval_request_id
+          approvalRequestId: request.approvalRequestId
         })
       );
     });

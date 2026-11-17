@@ -1,5 +1,4 @@
-import type defineVerificationCode from '../../../schemas/notification/models/verification-code.model';
-import unitOfWork from '../../../../shared/database/unit-of-work';
+import type { VerificationCodeType } from '../../../../shared/database/generated/prisma/client';
 import verificationCodeRepository from '../../../schemas/notification/repositories/verification-code.repository';
 import NotificationUtil from '../../../schemas/notification/services/notification-creation.service';
 import SmsService from '../../../schemas/notification/services/sms.service';
@@ -23,7 +22,6 @@ const VERIFICATION_CODE_MAX = 999999;
 const MASKED_CODE_VISIBLE_DIGITS = 2;
 
 class SendVerificationService {
-  unitOfWork: typeof unitOfWork;
   verificationCodeRepository: typeof verificationCodeRepository;
   NotificationUtil: typeof NotificationUtil;
   SmsService: typeof SmsService;
@@ -31,11 +29,10 @@ class SendVerificationService {
   /**
    * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
    * reales; en tests u otros contextos se pueden reemplazar:
-   *   new SendVerificationService({ unitOfWork: fake })
+   *   new SendVerificationService({ verificationCodeRepository: fake })
    * @param {object} [deps]
    */
   constructor(deps: SendVerificationService.Deps = {}) {
-    this.unitOfWork = deps.unitOfWork ?? unitOfWork;
     this.verificationCodeRepository = deps.verificationCodeRepository ?? verificationCodeRepository;
     this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
     this.SmsService = deps.SmsService ?? SmsService;
@@ -56,51 +53,34 @@ class SendVerificationService {
     const code = this._generateCode();
     const expiresAt = new Date(Date.now() + VERIFICATION_EXPIRATION_MINUTES * 60 * 1000);
 
-    const transaction = await this.unitOfWork.begin();
+    const verificationCode = await this.verificationCodeRepository.create({ type, contactValue: contact, code, expiresAt });
 
-    try {
-      const verificationCode = await this.verificationCodeRepository.create(
-        {
-          type,
-          contact_value: contact,
-          code,
-          expires_at: expiresAt
-        },
-        { transaction }
-      );
+    // Ruta pública — userId = null (no hay sesión activa)
+    logAudit(
+      'VERIFICATION_CODE_SENT',
+      null,
+      {
+        type,
+        contact,
+        expiresAt
+      },
+      { entityId: verificationCode.verificationCodeId, entityType: 'VerificationCode', entityTable: 'verification_codes' }
+    );
 
-      await transaction.commit();
-
-      // Ruta pública — userId = null (no hay sesión activa)
-      logAudit(
-        'VERIFICATION_CODE_SENT',
-        null,
-        {
+    setImmediate(() => {
+      this._sendCode(type, contact, phonePrefixId, code).catch(err =>
+        // El código no llegó al usuario: integración (SES/SMS) caída → solo el admin lo resuelve.
+        logger.warn('Error sending verification code', {
+          error: err.message,
           type,
           contact,
-          expiresAt
-        },
-        { entityId: verificationCode.verification_code_id, entityType: 'VerificationCode', entityTable: 'verification_codes' }
+          codeId: verificationCode.verificationCodeId
+        })
       );
+    });
 
-      setImmediate(() => {
-        this._sendCode(type, contact, phonePrefixId, code).catch(err =>
-          // El código no llegó al usuario: integración (SES/SMS) caída → solo el admin lo resuelve.
-          logger.warn('Error sending verification code', {
-            error: err.message,
-            type,
-            contact,
-            codeId: verificationCode.verification_code_id
-          })
-        );
-      });
-
-      const truncatedCode = this._getTruncatedCode(type, code);
-      return SendVerificationResponseDTO({ verificationCode, truncatedCode });
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    const truncatedCode = this._getTruncatedCode(type, code);
+    return SendVerificationResponseDTO({ verificationCode, truncatedCode });
   }
 
   // ============================================================
@@ -117,7 +97,7 @@ class SendVerificationService {
       logger.info('Verificación de código sin registro activo', { type, contact });
       throw AppError.notFound('Código de verificación no encontrado o expirado');
     }
-    if (verificationCode.verified_at) {
+    if (verificationCode.verifiedAt) {
       logger.info('Intento de reusar un código ya verificado', { type, contact });
       throw AppError.badRequest('Este código ya fue utilizado');
     }
@@ -128,18 +108,7 @@ class SendVerificationService {
     }
 
     if (verificationCode.code !== code) {
-      const transaction = await this.unitOfWork.begin();
-      try {
-        await this.verificationCodeRepository.incrementAttempts(verificationCode.verification_code_id, {
-          transaction
-        });
-        await transaction.commit();
-      } catch (err) {
-        if (!transaction.finished) {
-          await transaction.rollback();
-        }
-        throw err;
-      }
+      await this.verificationCodeRepository.incrementAttempts(verificationCode.verificationCodeId);
 
       // Evento de seguridad (mismo patrón que LOGIN_FAILED / MFA SMS fallido): se audita el
       // intento fallido con outcome=failure y datos (contact, attempts) que el middleware no captura.
@@ -153,7 +122,7 @@ class SendVerificationService {
           attempts: attempts + 1
         },
         {
-          entityId: verificationCode.verification_code_id,
+          entityId: verificationCode.verificationCodeId,
           entityType: 'VerificationCode',
           entityTable: 'verification_codes',
           outcome: 'failure'
@@ -164,18 +133,7 @@ class SendVerificationService {
       throw AppError.badRequest(`Código inválido. Te quedan ${remaining} intento${remaining !== 1 ? 's' : ''}`);
     }
 
-    const transaction = await this.unitOfWork.begin();
-    try {
-      await this.verificationCodeRepository.markAsVerified(verificationCode.verification_code_id, {
-        transaction
-      });
-      await transaction.commit();
-    } catch (err) {
-      if (!transaction.finished) {
-        await transaction.rollback();
-      }
-      throw err;
-    }
+    await this.verificationCodeRepository.markAsVerified(verificationCode.verificationCodeId);
 
     // Verificación exitosa — ruta pública, userId = null
     logAudit(
@@ -185,7 +143,7 @@ class SendVerificationService {
         type,
         contact
       },
-      { entityId: verificationCode.verification_code_id, entityType: 'VerificationCode', entityTable: 'verification_codes' }
+      { entityId: verificationCode.verificationCodeId, entityType: 'VerificationCode', entityTable: 'verification_codes' }
     );
 
     return VerifyCodeResponseDTO();
@@ -244,11 +202,10 @@ class SendVerificationService {
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 namespace SendVerificationService {
-  export type ContactType = defineVerificationCode.Attributes['type'];
+  export type ContactType = VerificationCodeType;
 
   /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
   export interface Deps {
-    unitOfWork?: typeof unitOfWork;
     verificationCodeRepository?: typeof verificationCodeRepository;
     NotificationUtil?: typeof NotificationUtil;
     SmsService?: typeof SmsService;

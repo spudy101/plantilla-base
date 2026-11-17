@@ -1,4 +1,3 @@
-import unitOfWork from '../../../../../shared/database/unit-of-work';
 import AppError from '../../../../../shared/utils/app-error.util';
 import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
@@ -33,18 +32,16 @@ function _pickPreferenceFields(data: PreferenceInput): PreferenceInput {
 }
 
 class NotificationPreferenceService {
-  unitOfWork: typeof unitOfWork;
   userNotificationPreferenceRepository: typeof userNotificationPreferenceRepository;
   notificationCategoryRepository: typeof notificationCategoryRepository;
 
   /**
    * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
    * reales; en tests u otros contextos se pueden reemplazar:
-   *   new NotificationPreferenceService({ unitOfWork: fake })
+   *   new NotificationPreferenceService({ userNotificationPreferenceRepository: fake })
    * @param {object} [deps]
    */
   constructor(deps: NotificationPreferenceService.Deps = {}) {
-    this.unitOfWork = deps.unitOfWork ?? unitOfWork;
     this.userNotificationPreferenceRepository = deps.userNotificationPreferenceRepository ?? userNotificationPreferenceRepository;
     this.notificationCategoryRepository = deps.notificationCategoryRepository ?? notificationCategoryRepository;
   }
@@ -56,29 +53,20 @@ class NotificationPreferenceService {
   async updateGlobalPreference(data: PreferenceInput, userId: string) {
     const updateData = _pickPreferenceFields(data);
 
-    const transaction = await this.unitOfWork.begin();
-    try {
-      const preference = await this.userNotificationPreferenceRepository.upsertGlobalPreference(userId, updateData, {
-        transaction
-      });
-      await transaction.commit();
+    const preference = await this.userNotificationPreferenceRepository.upsertGlobalPreference(userId, updateData);
 
-      logAudit(
-        'NOTIFICATION_GLOBAL_PREFERENCE_UPDATED',
-        userId,
-        { ...updateData },
-        {
-          entityId: preference.user_notification_preference_id,
-          entityType: 'UserNotificationPreference',
-          entityTable: 'user_notification_preferences'
-        }
-      );
+    logAudit(
+      'NOTIFICATION_GLOBAL_PREFERENCE_UPDATED',
+      userId,
+      { ...updateData },
+      {
+        entityId: preference.userNotificationPreferenceId,
+        entityType: 'UserNotificationPreference',
+        entityTable: 'user_notification_preferences'
+      }
+    );
 
-      return new UpdatePreferenceResponseDTO(preference);
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    return new UpdatePreferenceResponseDTO(preference);
   }
 
   /**
@@ -88,38 +76,26 @@ class NotificationPreferenceService {
    */
   async updateCategoryPreference(categoryCode: string, data: PreferenceInput, userId: string) {
     const category = await this.notificationCategoryRepository.findByCode(categoryCode);
-    if (!category || !category.is_active) {
+    if (!category || !category.isActive) {
       throw AppError.notFound('Categoría de notificación no encontrada');
     }
 
     const updateData = _pickPreferenceFields(data);
 
-    const transaction = await this.unitOfWork.begin();
-    try {
-      const preference = await this.userNotificationPreferenceRepository.upsertCategoryPreference(
-        userId,
-        categoryCode,
-        updateData,
-        { transaction }
-      );
-      await transaction.commit();
+    const preference = await this.userNotificationPreferenceRepository.upsertCategoryPreference(userId, categoryCode, updateData);
 
-      logAudit(
-        'NOTIFICATION_CATEGORY_PREFERENCE_UPDATED',
-        userId,
-        { notificationCategoryCode: categoryCode, ...updateData },
-        {
-          entityId: preference.user_notification_preference_id,
-          entityType: 'UserNotificationPreference',
-          entityTable: 'user_notification_preferences'
-        }
-      );
+    logAudit(
+      'NOTIFICATION_CATEGORY_PREFERENCE_UPDATED',
+      userId,
+      { notificationCategoryCode: categoryCode, ...updateData },
+      {
+        entityId: preference.userNotificationPreferenceId,
+        entityType: 'UserNotificationPreference',
+        entityTable: 'user_notification_preferences'
+      }
+    );
 
-      return new UpdatePreferenceResponseDTO(preference);
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    return new UpdatePreferenceResponseDTO(preference);
   }
 
   /**
@@ -127,27 +103,20 @@ class NotificationPreferenceService {
    */
   async deleteCategoryPreference(categoryCode: string, userId: string) {
     const category = await this.notificationCategoryRepository.findByCode(categoryCode);
-    if (!category || !category.is_active) {
+    if (!category || !category.isActive) {
       throw AppError.notFound('Categoría de notificación no encontrada');
     }
 
-    const transaction = await this.unitOfWork.begin();
-    try {
-      await this.userNotificationPreferenceRepository.deleteCategoryPreference(userId, categoryCode, { transaction });
-      await transaction.commit();
+    await this.userNotificationPreferenceRepository.deleteCategoryPreference(userId, categoryCode);
 
-      logAudit(
-        'NOTIFICATION_CATEGORY_PREFERENCE_DELETED',
-        userId,
-        { notificationCategoryCode: categoryCode },
-        { entityType: 'UserNotificationPreference', entityTable: 'user_notification_preferences' }
-      );
+    logAudit(
+      'NOTIFICATION_CATEGORY_PREFERENCE_DELETED',
+      userId,
+      { notificationCategoryCode: categoryCode },
+      { entityType: 'UserNotificationPreference', entityTable: 'user_notification_preferences' }
+    );
 
-      return { notificationCategoryCode: categoryCode };
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+    return { notificationCategoryCode: categoryCode };
   }
 
   /**
@@ -177,8 +146,8 @@ class NotificationPreferenceService {
       this.userNotificationPreferenceRepository.findAllByUser(userId)
     ]);
 
-    const global = stored.find(p => !p.notification_category_code) || null;
-    const overrides = new Map(stored.flatMap(p => (p.notification_category_code ? [[p.notification_category_code, p] as const] : [])));
+    const global = stored.find(p => !p.notificationCategoryCode) || null;
+    const overrides = new Map(stored.flatMap(p => (p.notificationCategoryCode ? [[p.notificationCategoryCode, p] as const] : [])));
 
     logAudit(
       'NOTIFICATION_PREFERENCES_VIEWED',
@@ -195,7 +164,6 @@ class NotificationPreferenceService {
 namespace NotificationPreferenceService {
   /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
   export interface Deps {
-    unitOfWork?: typeof unitOfWork;
     userNotificationPreferenceRepository?: typeof userNotificationPreferenceRepository;
     notificationCategoryRepository?: typeof notificationCategoryRepository;
   }

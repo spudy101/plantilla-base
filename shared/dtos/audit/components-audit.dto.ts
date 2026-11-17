@@ -2,127 +2,144 @@
 // Componentes reutilizables de auditoría — RF-ADM-03
 
 import MaskingUtil from '../../utils/masking.util';
-import type { DbDate, Maybe, UserRefRow } from '../../types/db-rows';
+import type { DbDate, Maybe } from '../../types/db-rows';
 
+/** Usuario adjunto a una fila de auditoría (Prisma): firstName/lastName viven en Person. */
+interface AuditUserRow {
+  userId: string;
+  username?: Maybe<string>;
+  person?: Maybe<{ firstName?: Maybe<string>; lastName?: Maybe<string> }>;
+}
+
+// Filas de Prisma (camelCase): audit_logs y audit_alerts migraron en la fase 5 (grupo 5).
 interface AuditLogRow {
-  audit_log_id: string;
+  auditLogId: string;
   action: string;
   description?: Maybe<string>;
   category?: Maybe<string>;
   module?: Maybe<string>;
   risk?: Maybe<string>;
   outcome?: Maybe<string>;
-  http_status?: Maybe<number>;
-  error_code?: Maybe<string>;
-  error_message?: Maybe<string>;
-  user_id?: Maybe<string>;
-  session_id?: Maybe<string>;
-  executor?: Maybe<UserRefRow>;
-  entity_id?: Maybe<string>;
-  entity_type?: Maybe<string>;
-  entity_table?: Maybe<string>;
+  httpStatus?: Maybe<number>;
+  errorCode?: Maybe<string>;
+  errorMessage?: Maybe<string>;
+  userId?: Maybe<string>;
+  sessionId?: Maybe<string>;
+  executor?: Maybe<AuditUserRow>;
+  entityId?: Maybe<string>;
+  entityType?: Maybe<string>;
+  entityTable?: Maybe<string>;
   method?: Maybe<string>;
   path?: Maybe<string>;
   ip?: Maybe<string>;
   source?: Maybe<string>;
-  correlation_id?: Maybe<string>;
-  user_agent?: Maybe<string>;
+  correlationId?: Maybe<string>;
+  userAgent?: Maybe<string>;
   fingerprint?: Maybe<string>;
   details?: unknown;
   createdAt?: Maybe<DbDate>;
 }
 
 interface AuditAlertRow {
-  alert_id: string;
-  audit_log_id?: Maybe<string>;
+  alertId: string;
+  auditLogId?: Maybe<string>;
   action: string;
   category?: Maybe<string>;
   risk?: Maybe<string>;
-  user_id?: Maybe<string>;
-  actor?: Maybe<UserRefRow>;
-  entity_id?: Maybe<string>;
-  entity_type?: Maybe<string>;
+  userId?: Maybe<string>;
+  actor?: Maybe<AuditUserRow>;
+  entityId?: Maybe<string>;
+  entityType?: Maybe<string>;
   message?: Maybe<string>;
   acknowledged?: Maybe<boolean>;
-  acknowledged_by?: Maybe<string>;
-  acknowledgedByUser?: Maybe<UserRefRow>;
-  acknowledged_at?: Maybe<DbDate>;
+  acknowledgedBy?: Maybe<string>;
+  acknowledgedByUser?: Maybe<AuditUserRow>;
+  acknowledgedAt?: Maybe<DbDate>;
   createdAt?: Maybe<DbDate>;
 }
 
+// Filas de Prisma (camelCase): consent_types, privacy_policies y user_consents ya migraron (fase 5).
 interface ConsentTypeRow {
-  consent_type_id: string;
+  consentTypeId: string;
   code: string;
   name?: Maybe<string>;
   description?: Maybe<string>;
-  is_mandatory?: Maybe<boolean>;
-  is_revocable?: Maybe<boolean>;
-  is_active?: Maybe<boolean>;
+  isMandatory?: Maybe<boolean>;
+  isRevocable?: Maybe<boolean>;
+  isActive?: Maybe<boolean>;
   scope?: Maybe<string>;
   createdAt?: Maybe<DbDate>;
   updatedAt?: Maybe<DbDate>;
 }
 
 interface PrivacyPolicyRefRow {
-  privacy_policy_id: string;
+  privacyPolicyId: string;
   version: string;
-  document_url?: Maybe<string>;
-  effective_date?: Maybe<DbDate>;
+  documentUrl?: Maybe<string>;
+  effectiveDate?: Maybe<DbDate>;
+}
+
+/** Usuario incluido en un consentimiento (Prisma). El de las filas de auditoría sigue en snake_case. */
+interface ConsentUserRow {
+  userId: string;
+  username?: Maybe<string>;
+  person?: Maybe<{ firstName?: Maybe<string>; lastName?: Maybe<string> }>;
 }
 
 interface UserConsentRow {
-  user_consent_id: string;
-  user_id?: Maybe<string>;
-  user?: Maybe<UserRefRow>;
-  consent_type_id?: Maybe<string>;
+  userConsentId: string;
+  userId?: Maybe<string>;
+  user?: Maybe<ConsentUserRow>;
+  consentTypeId?: Maybe<string>;
   consentType?: Maybe<ConsentTypeRow>;
   privacyPolicy?: Maybe<PrivacyPolicyRefRow>;
-  granted_at?: Maybe<DbDate>;
-  granted_ip?: Maybe<string>;
-  origin_session_id?: Maybe<string>;
-  revoked_at?: Maybe<DbDate>;
-  revocation_reason?: Maybe<string>;
-  is_current?: Maybe<boolean>;
+  grantedAt?: Maybe<DbDate>;
+  grantedIp?: Maybe<string>;
+  originSessionId?: Maybe<string>;
+  revokedAt?: Maybe<DbDate>;
+  revocationReason?: Maybe<string>;
+  isCurrent?: Maybe<boolean>;
   createdAt?: Maybe<DbDate>;
 }
 
+/** Fila de Prisma (fase 5, grupo 3); el horario de no molestar llega como 'HH:MM:SS'. */
 interface NotificationPreferenceRow {
-  user_notification_preference_id: string;
-  user_id: string;
-  notification_category_code?: Maybe<string>;
-  allow_push?: Maybe<boolean>;
-  allow_email?: Maybe<boolean>;
-  allow_sms?: Maybe<boolean>;
-  quiet_hours_start?: Maybe<string>;
-  quiet_hours_end?: Maybe<string>;
-  origin_session_id?: Maybe<string>;
+  userNotificationPreferenceId: string;
+  userId: string;
+  notificationCategoryCode?: Maybe<string>;
+  allowPush?: Maybe<boolean>;
+  allowEmail?: Maybe<boolean>;
+  allowSms?: Maybe<boolean>;
+  quietHoursStart?: Maybe<string>;
+  quietHoursEnd?: Maybe<string>;
+  originSessionId?: Maybe<string>;
   createdAt?: Maybe<DbDate>;
   updatedAt?: Maybe<DbDate>;
 }
 
 interface TrustedDeviceTraceRow {
-  user_trusted_device_id: string;
-  user_id: string;
-  device_name?: Maybe<string>;
-  device_type?: Maybe<string>;
+  userTrustedDeviceId: string;
+  userId: string;
+  deviceName?: Maybe<string>;
+  deviceType?: Maybe<string>;
   browser?: Maybe<string>;
   os?: Maybe<string>;
   status?: Maybe<string>;
-  origin_session_id?: Maybe<string>;
+  originSessionId?: Maybe<string>;
   createdAt?: Maybe<DbDate>;
 }
 
 /** Variantes de UserConsentComponent que buildArray puede aplicar a cada registro. */
 type UserConsentVariant = 'build' | 'buildForClient' | 'buildGranted';
 
-function _buildUserRef(user: Maybe<UserRefRow>) {
+function _buildUserRef(user: Maybe<AuditUserRow | ConsentUserRow>) {
   if (!user) {
     return null;
   }
   return {
-    userId: user.user_id,
+    userId: user.userId,
     username: user.username,
-    fullName: [user.person?.first_name, user.person?.last_name].filter(Boolean).join(' ') || null
+    fullName: [user.person?.firstName, user.person?.lastName].filter(Boolean).join(' ') || null
   };
 }
 
@@ -132,22 +149,22 @@ class AuditLogComponent {
       return null;
     }
     return {
-      auditLogId: record.audit_log_id,
+      auditLogId: record.auditLogId,
       action: record.action,
       description: record.description || null,
       category: record.category || null,
       module: record.module || null,
       risk: record.risk,
       outcome: record.outcome,
-      httpStatus: record.http_status || null,
-      errorCode: record.error_code || null,
-      errorMessage: record.error_message || null,
-      userId: record.user_id || null,
-      sessionId: record.session_id || null,
+      httpStatus: record.httpStatus || null,
+      errorCode: record.errorCode || null,
+      errorMessage: record.errorMessage || null,
+      userId: record.userId || null,
+      sessionId: record.sessionId || null,
       executor: _buildUserRef(record.executor),
-      entityId: record.entity_id || null,
-      entityType: record.entity_type || null,
-      entityTable: record.entity_table || null,
+      entityId: record.entityId || null,
+      entityType: record.entityType || null,
+      entityTable: record.entityTable || null,
       method: record.method || null,
       path: record.path || null,
       ip: record.ip || null,
@@ -162,11 +179,11 @@ class AuditLogComponent {
     }
     return {
       ...AuditLogComponent.buildList(record),
-      httpStatus: record.http_status || null,
-      errorCode: record.error_code || null,
-      errorMessage: record.error_message || null,
-      correlationId: record.correlation_id || null,
-      userAgent: record.user_agent || null,
+      httpStatus: record.httpStatus || null,
+      errorCode: record.errorCode || null,
+      errorMessage: record.errorMessage || null,
+      correlationId: record.correlationId || null,
+      userAgent: record.userAgent || null,
       fingerprint: record.fingerprint || null,
       method: record.method || null,
       path: record.path || null,
@@ -190,20 +207,20 @@ class AuditAlertComponent {
       return null;
     }
     return {
-      alertId: record.alert_id,
-      auditLogId: record.audit_log_id || null,
+      alertId: record.alertId,
+      auditLogId: record.auditLogId || null,
       action: record.action,
       category: record.category || null,
       risk: record.risk,
-      userId: record.user_id || null,
+      userId: record.userId || null,
       user: _buildUserRef(record.actor),
-      entityId: record.entity_id || null,
-      entityType: record.entity_type || null,
+      entityId: record.entityId || null,
+      entityType: record.entityType || null,
       message: record.message || null,
       acknowledged: record.acknowledged,
-      acknowledgedBy: record.acknowledged_by || null,
+      acknowledgedBy: record.acknowledgedBy || null,
       acknowledgedByUser: _buildUserRef(record.acknowledgedByUser),
-      acknowledgedAt: record.acknowledged_at || null,
+      acknowledgedAt: record.acknowledgedAt || null,
       createdAt: record.createdAt
     };
   }
@@ -226,12 +243,12 @@ class ConsentTypeComponent {
       return null;
     }
     return {
-      consentTypeId: consentType.consent_type_id,
+      consentTypeId: consentType.consentTypeId,
       code: consentType.code,
       name: consentType.name,
-      isMandatory: consentType.is_mandatory,
-      isRevocable: consentType.is_revocable,
-      isActive: consentType.is_active,
+      isMandatory: consentType.isMandatory,
+      isRevocable: consentType.isRevocable,
+      isActive: consentType.isActive,
       scope: consentType.scope
     };
   }
@@ -269,10 +286,10 @@ class PrivacyPolicyRefComponent {
       return null;
     }
     return {
-      privacyPolicyId: policy.privacy_policy_id,
+      privacyPolicyId: policy.privacyPolicyId,
       version: policy.version,
-      documentUrl: policy.document_url,
-      effectiveDate: policy.effective_date
+      documentUrl: policy.documentUrl,
+      effectiveDate: policy.effectiveDate
     };
   }
 }
@@ -287,19 +304,19 @@ class UserConsentComponent {
       return null;
     }
     return {
-      userConsentId: record.user_consent_id,
-      userId: record.user_id,
+      userConsentId: record.userConsentId,
+      userId: record.userId,
       user: _buildUserRef(record.user),
       consentType: ConsentTypeComponent.build(record.consentType),
       privacyPolicy: PrivacyPolicyRefComponent.build(record.privacyPolicy),
-      grantedAt: record.granted_at,
-      grantedIp: record.granted_ip,
+      grantedAt: record.grantedAt,
+      grantedIp: record.grantedIp,
       // Solo variante admin: ata el consentimiento a su sesión de origen (user_sessions / audit_logs).
       // NO se expone en buildForClient/buildGranted/buildClientCatalogItem.
-      originSessionId: record.origin_session_id ?? null,
-      revokedAt: record.revoked_at ?? null,
-      revocationReason: record.revocation_reason ?? null,
-      isCurrent: record.is_current,
+      originSessionId: record.originSessionId ?? null,
+      revokedAt: record.revokedAt ?? null,
+      revocationReason: record.revocationReason ?? null,
+      isCurrent: record.isCurrent,
       createdAt: record.createdAt
     };
   }
@@ -309,12 +326,12 @@ class UserConsentComponent {
       return null;
     }
     return {
-      userConsentId: record.user_consent_id,
+      userConsentId: record.userConsentId,
       consentType: ConsentTypeComponent.build(record.consentType),
       privacyPolicy: PrivacyPolicyRefComponent.build(record.privacyPolicy),
-      grantedAt: record.granted_at,
-      revokedAt: record.revoked_at ?? null,
-      isCurrent: record.is_current
+      grantedAt: record.grantedAt,
+      revokedAt: record.revokedAt ?? null,
+      isCurrent: record.isCurrent
     };
   }
 
@@ -323,10 +340,10 @@ class UserConsentComponent {
       return null;
     }
     return {
-      userConsentId: record.user_consent_id,
-      consentTypeId: record.consent_type_id,
-      grantedAt: record.granted_at,
-      isCurrent: record.is_current
+      userConsentId: record.userConsentId,
+      consentTypeId: record.consentTypeId,
+      grantedAt: record.grantedAt,
+      isCurrent: record.isCurrent
     };
   }
 
@@ -340,11 +357,11 @@ class UserConsentComponent {
     return {
       consentType: ConsentTypeComponent.build(consentType),
       granted: Boolean(record),
-      userConsentId: record ? record.user_consent_id : null,
+      userConsentId: record ? record.userConsentId : null,
       privacyPolicy: record ? PrivacyPolicyRefComponent.build(record.privacyPolicy) : null,
-      grantedAt: record ? record.granted_at : null,
-      revokedAt: record ? (record.revoked_at ?? null) : null,
-      isCurrent: record ? record.is_current : false
+      grantedAt: record ? record.grantedAt : null,
+      revokedAt: record ? (record.revokedAt ?? null) : null,
+      isCurrent: record ? record.isCurrent : false
     };
   }
 
@@ -368,16 +385,16 @@ class NotificationPreferenceComponent {
       return null;
     }
     return {
-      userNotificationPreferenceId: record.user_notification_preference_id,
-      userId: record.user_id,
+      userNotificationPreferenceId: record.userNotificationPreferenceId,
+      userId: record.userId,
       // null = preferencia global; con valor = override de esa categoría.
-      notificationCategoryCode: record.notification_category_code ?? null,
-      allowPush: record.allow_push,
-      allowEmail: record.allow_email,
-      allowSms: record.allow_sms,
-      quietHoursStart: record.quiet_hours_start ?? null,
-      quietHoursEnd: record.quiet_hours_end ?? null,
-      originSessionId: record.origin_session_id ?? null,
+      notificationCategoryCode: record.notificationCategoryCode ?? null,
+      allowPush: record.allowPush,
+      allowEmail: record.allowEmail,
+      allowSms: record.allowSms,
+      quietHoursStart: record.quietHoursStart ?? null,
+      quietHoursEnd: record.quietHoursEnd ?? null,
+      originSessionId: record.originSessionId ?? null,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt
     };
@@ -390,14 +407,14 @@ class TrustedDeviceComponent {
       return null;
     }
     return {
-      userTrustedDeviceId: record.user_trusted_device_id,
-      userId: record.user_id,
-      deviceName: record.device_name ?? null,
-      deviceType: record.device_type ?? null,
+      userTrustedDeviceId: record.userTrustedDeviceId,
+      userId: record.userId,
+      deviceName: record.deviceName ?? null,
+      deviceType: record.deviceType ?? null,
       browser: record.browser ?? null,
       os: record.os ?? null,
       status: record.status,
-      originSessionId: record.origin_session_id ?? null,
+      originSessionId: record.originSessionId ?? null,
       createdAt: record.createdAt
     };
   }

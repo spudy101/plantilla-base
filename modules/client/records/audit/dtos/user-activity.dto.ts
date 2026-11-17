@@ -1,13 +1,12 @@
-import type defineAuditLog from '../../../../schemas/records/audit/models/audit-log.model';
-import type defineUserChangeLog from '../../../../schemas/records/audit/models/user-change-log.model';
+import type { AuditLogRepositoryPort, UserChangeLogRepositoryPort } from '../../../../schemas/repository-ports';
 // DTO del feed de actividad del propio usuario. Client-safe: NUNCA expone `details` de audit_logs
 // (claves before/after), `previous_value`/`new_value` de user_change_logs, user_agent ni datos de
 // terceros. Keys camelCase; `source`/`action`/`category`/`outcome`/`changedByRole` son enums → snake_case.
 
 /** Fila de audit_logs del feed (findClientSafeByUser). */
-type AuditRow = defineAuditLog.Instance & { created_at?: Date };
-/** Fila de user_change_logs: el repo selecciona la columna por su nombre (created_at), que Sequelize expone tal cual. */
-type ChangeRow = defineUserChangeLog.Instance & { created_at?: Date };
+type AuditRow = Awaited<ReturnType<AuditLogRepositoryPort['findClientSafeByUser']>>['rows'][number];
+/** Fila de user_change_logs del feed (findExternalChangesByUserId). */
+type ChangeRow = Awaited<ReturnType<UserChangeLogRepositoryPort['findExternalChangesByUserId']>>['rows'][number];
 
 /** Ítem del feed mezclado: unión discriminada por __source. */
 type FeedItem = { __source: 'audit'; row: AuditRow; at: Date | undefined } | { __source: 'change'; row: ChangeRow; at: Date | undefined };
@@ -35,7 +34,7 @@ const CHANGE_TYPE_DESCRIPTIONS: Record<string, string> = {
 
 function _auditItem(row: AuditRow, deviceBySession: DeviceBySession) {
   return {
-    activityId: row.audit_log_id,
+    activityId: row.auditLogId,
     source: 'audit_log',
     action: row.action,
     description: row.description ?? null,
@@ -43,25 +42,25 @@ function _auditItem(row: AuditRow, deviceBySession: DeviceBySession) {
     outcome: row.outcome ?? null,
     changedByRole: 'user',
     ip: row.ip ?? null,
-    device: deviceBySession.get(row.session_id) ?? null,
-    occurredAt: row.createdAt ?? row.created_at ?? null
+    device: deviceBySession.get(row.sessionId) ?? null,
+    occurredAt: row.createdAt ?? null
   };
 }
 
 function _changeItem(row: ChangeRow, deviceBySession: DeviceBySession) {
   return {
-    activityId: row.log_id,
+    activityId: row.logId,
     source: 'user_change_log',
-    action: row.change_type,
-    description: CHANGE_TYPE_DESCRIPTIONS[row.change_type] ?? 'Actualización de datos de la cuenta',
+    action: row.changeType,
+    description: CHANGE_TYPE_DESCRIPTIONS[row.changeType] ?? 'Actualización de datos de la cuenta',
     category: 'profile',
     outcome: 'success',
-    changedByRole: row.changed_by_role,
+    changedByRole: row.changedByRole,
     ip: null,
     // Solo se resuelve si la sesión es del PROPIO usuario (el service filtra por user_id): un cambio
     // hecho por un admin sale con device null — su equipo no se expone al cliente.
-    device: deviceBySession.get(row.origin_session_id) ?? null,
-    occurredAt: row.created_at ?? null
+    device: deviceBySession.get(row.originSessionId) ?? null,
+    occurredAt: row.createdAt ?? null
   };
 }
 

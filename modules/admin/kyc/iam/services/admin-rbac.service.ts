@@ -1,4 +1,3 @@
-import type defineRolePermissionOverride from '../../../../schemas/kyc/iam/models/role-permission-override.model';
 // modules/admin/rbac/services/admin-rbac.service.ts
 //
 // Catálogo RBAC de solo lectura + gestión de overrides en runtime (RF-ADM-01).
@@ -85,7 +84,7 @@ class AdminRbacService {
    * Otorga un permiso adicional a un rol.
    * Solo el SUPERADMIN llega aquí (protegido por RbacMiddleware en la ruta).
    */
-  async grantPermission(roleName: string, moduleName: string, action: defineRolePermissionOverride.Attributes['action'], grantedByUserId: string) {
+  async grantPermission(roleName: string, moduleName: string, action: string, grantedByUserId: string) {
     this._assertValidRole(roleName);
 
     const alreadyExists = await this.rolePermissionOverrideRepository.existsOverride(roleName, moduleName, action);
@@ -94,10 +93,10 @@ class AdminRbacService {
     }
 
     const override = await this.rolePermissionOverrideRepository.create({
-      role_name: roleName,
-      module_name: moduleName,
+      roleName,
+      moduleName,
       action,
-      granted_by_user_id: grantedByUserId
+      grantedByUserId
     });
 
     await this.RbacService.invalidateCache(roleName);
@@ -110,14 +109,14 @@ class AdminRbacService {
         moduleName,
         action
       },
-      { entityId: override.role_permission_id, entityType: 'RbacPermission', entityTable: 'role_permission_overrides' }
+      { entityId: override.rolePermissionId, entityType: 'RbacPermission', entityTable: 'role_permission_overrides' }
     );
 
     setImmediate(() => {
       this.NotificationCreationService.crearNotificacion({
         tipoNotificacion: 'IAM_RBAC_PERMISSION_GRANTED',
         userId: grantedByUserId,
-        relatedEntity: { type: 'RolePermissionOverride', id: override.role_permission_id },
+        relatedEntity: { type: 'RolePermissionOverride', id: override.rolePermissionId },
         metadata: { roleName, moduleName, action, logoUrl: notifications.ses.logoUrl }
       }).catch(err => logger.warn('Error enviando IAM_RBAC_PERMISSION_GRANTED', { error: err.message }));
     });
@@ -136,14 +135,14 @@ class AdminRbacService {
     }
 
     await this.rolePermissionOverrideRepository.deleteById(permissionId);
-    await this.RbacService.invalidateCache(override.role_name);
+    await this.RbacService.invalidateCache(override.roleName);
 
     logAudit(
       'RBAC_PERMISSION_REVOKED',
       adminUserId,
       {
-        roleName: override.role_name,
-        moduleName: override.module_name,
+        roleName: override.roleName,
+        moduleName: override.moduleName,
         action: override.action
       },
       { entityId: permissionId, entityType: 'RbacPermission', entityTable: 'role_permission_overrides' }
@@ -155,8 +154,8 @@ class AdminRbacService {
         userId: adminUserId,
         relatedEntity: { type: 'RolePermissionOverride', id: permissionId },
         metadata: {
-          roleName: override.role_name,
-          moduleName: override.module_name,
+          roleName: override.roleName,
+          moduleName: override.moduleName,
           action: override.action,
           logoUrl: notifications.ses.logoUrl
         }

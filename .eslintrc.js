@@ -46,7 +46,7 @@ module.exports = {
   // Archivos/carpetas que ESLint ignora completamente.
   // Migrations y seeders son código generado o de un solo uso — no hace falta
   // que cumplan los estándares del proyecto.
-  ignorePatterns: ['dist/**', 'coverage/**', '**/migrations/**', '**/seeders/**', '**/migrate/**', '**/seeder/**', '**/scripts/**', '.eslintrc.js'],
+  ignorePatterns: ['dist/**', 'coverage/**', '**/generated/**', '**/migrations/**', '**/seeders/**', '**/migrate/**', '**/seeder/**', '**/scripts/**', '.eslintrc.js'],
 
   // Declara los globals disponibles según el entorno para que ESLint
   // no los marque como "variable no definida".
@@ -142,7 +142,10 @@ module.exports = {
       {
         builtinGlobals: false,
         hoist: 'functions',
-        allow: ['error', 'resolve', 'reject', 'next']
+        allow: ['error', 'resolve', 'reject', 'next'],
+        // `const user = await uow.run(async tx => { const user = …; return user; })`: la interna vive
+        // en el inicializador de la externa (patrón del Unit of Work, docs/prisma-migration.md)
+        ignoreOnInitialization: true
       }
     ],
 
@@ -477,7 +480,8 @@ module.exports = {
     // valores por defecto numéricos que son semánticamente claros en contexto.
     // -------------------------------------------------------------------------
     {
-      files: ['**/shared/constants/**/*.{js,ts}', '**/shared/constants.js', '**/tests/**/*.{js,ts}', '**/shared/utils/hash.util.{js,ts}'],
+      // prisma.config.ts y database-url.ts: el CLI de Prisma lee DB_* sin pasar por la validación completa
+      files: ['**/shared/constants/**/*.{js,ts}', '**/shared/constants.js', '**/tests/**/*.{js,ts}', '**/shared/utils/hash.util.{js,ts}', 'prisma.config.ts', '**/shared/database/database-url.ts'],
       rules: {
         'no-process-env': 'off',
         'no-magic-numbers': 'off'
@@ -597,7 +601,9 @@ module.exports = {
         'max-lines-per-function': 'off',
         'max-len': 'off',
         '@typescript-eslint/no-magic-numbers': 'off',
-        '@typescript-eslint/no-explicit-any': 'off'
+        '@typescript-eslint/no-explicit-any': 'off',
+        // mockImplementation(async () => valor): la forma natural de un doble que devuelve una promesa
+        'require-await': 'off'
       }
     }
   ]

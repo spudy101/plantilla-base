@@ -1,6 +1,6 @@
+import type { User } from '../../../../../../shared/database/generated/prisma/client';
 import personGuardsModule from '../../../person/services/admin-person/person-guards';
 const { requirePerson } = personGuardsModule;
-import type defineUser from '../../../../../schemas/kyc/iam/models/user.model';
 // modules/admin/kyc/iam/services/admin-user/internal-user-guards.ts
 //
 // Reglas y lecturas compartidas por los servicios de gestión de usuarios internos
@@ -40,8 +40,8 @@ class InternalUserGuards {
    * Bloquea toda operación de escritura sobre un usuario eliminado (deleted_at != null).
    * Las cuentas eliminadas son intocables: no se editan, no cambian de rol/estado, no se re-eliminan.
    */
-  assertNotDeleted(user: Pick<defineUser.Instance, 'deleted_at'> | null | undefined) {
-    if (user?.deleted_at) {
+  assertNotDeleted(user: Pick<User, 'deletedAt'> | null | undefined) {
+    if (user?.deletedAt) {
       throw AppError.conflict('El usuario está eliminado y no admite modificaciones', { code: 'USER_DELETED' });
     }
   }
@@ -79,7 +79,7 @@ class InternalUserGuards {
    */
   async listableInternalRoleIds() {
     const roles = await this.roleRepository.findByNames(INTERNAL_ROLE_NAMES, { exclude: SUPERADMIN_ROLE_NAMES });
-    return roles.map(r => r.role_id);
+    return roles.map(r => r.roleId);
   }
 
   /** Cierra sesiones en BD y las invalida en Redis. */
@@ -92,8 +92,8 @@ class InternalUserGuards {
 }
 
 /** Nombre completo para notificaciones ("Usuario" si no hay datos). */
-function displayName(user: { person?: { first_name?: string | null; last_name?: string | null } | null }) {
-  return [user.person?.first_name, user.person?.last_name].filter(Boolean).join(' ') || 'Usuario';
+function displayName(user: { person?: { firstName?: string | null; lastName?: string | null } | null }) {
+  return [user.person?.firstName, user.person?.lastName].filter(Boolean).join(' ') || 'Usuario';
 }
 
 // eslint-disable-next-line @typescript-eslint/no-namespace

@@ -29,22 +29,22 @@ describe('isMfaActive', () => {
   });
 
   it('retorna true cuando TOTP está activo', async () => {
-    userRepository.findMfaFlags.mockResolvedValue({ totp_enabled: true, sms_mfa_enabled: false });
+    userRepository.findMfaFlags.mockResolvedValue({ totpEnabled: true, smsMfaEnabled: false });
     await expect(isMfaActive('u1')).resolves.toBe(true);
   });
 
   it('retorna true cuando SMS MFA está activo', async () => {
-    userRepository.findMfaFlags.mockResolvedValue({ totp_enabled: false, sms_mfa_enabled: true });
+    userRepository.findMfaFlags.mockResolvedValue({ totpEnabled: false, smsMfaEnabled: true });
     await expect(isMfaActive('u1')).resolves.toBe(true);
   });
 
   it('retorna false cuando ningún factor está activo', async () => {
-    userRepository.findMfaFlags.mockResolvedValue({ totp_enabled: false, sms_mfa_enabled: false });
+    userRepository.findMfaFlags.mockResolvedValue({ totpEnabled: false, smsMfaEnabled: false });
     await expect(isMfaActive('u1')).resolves.toBe(false);
   });
 
   it('consulta los flags de MFA del usuario vía repositorio', async () => {
-    userRepository.findMfaFlags.mockResolvedValue({ totp_enabled: true, sms_mfa_enabled: false });
+    userRepository.findMfaFlags.mockResolvedValue({ totpEnabled: true, smsMfaEnabled: false });
     await isMfaActive('u-42');
     expect(userRepository.findMfaFlags).toHaveBeenCalledWith('u-42');
   });

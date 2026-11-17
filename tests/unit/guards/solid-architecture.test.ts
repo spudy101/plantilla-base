@@ -13,7 +13,8 @@ function walk(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      return entry.name === 'node_modules' ? [] : walk(full);
+      // generated/: cliente de Prisma generado (no es código del proyecto)
+      return entry.name === 'node_modules' || entry.name === 'generated' ? [] : walk(full);
     }
     // los .d.ts solo declaran tipos
     return entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts') ? [full] : [];
@@ -29,11 +30,9 @@ const isRepository = (f: string) => f.endsWith('.repository.ts');
 // Capa de aplicación: lo que NO debe conocer el ORM.
 const APPLICATION_LAYER = /\.(service|helper|validator|controller|middleware|util)\.(js|ts)$/;
 
-// Adaptadores de infraestructura que escriben/arrancan con Sequelize a propósito (ver docs/solid.md § D).
-const ORM_ALLOWLIST = new Set([
-  'shared/utils/logger.util.ts', // escribe audit_logs (require diferido: el resto del sistema depende del logger)
-  'shared/utils/integration-api-logger.util.ts' // escribe integration_api_logs (mismo motivo)
-]);
+// Excepciones a "la capa de aplicación no conoce el ORM". Vacía desde la fase 3 de docs/prisma-migration.md:
+// logger.util e integration-api-logger.util escriben a través de sus repositorios.
+const ORM_ALLOWLIST = new Set<string>([]);
 
 // `import … from '…'` y los require('…') diferidos (cortan ciclos de carga).
 // `import type` se excluye: solo trae tipos, no acopla en runtime.
@@ -50,6 +49,15 @@ describe('SOLID — guardas de arquitectura', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('solo repositorios, modelos y shared/database importan shared/models (workers y bootstraps incluidos)', () => {
+    // Fase 3 de docs/prisma-migration.md: para cambiar de ORM alcanza con tocar los repositorios.
+    // El resto (incluidas las llamadas a instancias: record.update()) lo revisa `npm run check:orm`.
+    const ormLayer = (f: string) =>
+      isRepository(f) || /[\\/]models[\\/]/.test(f) || rel(f).startsWith('shared/database/') || rel(f).startsWith('shared/repositories/');
+    const offenders = sourceFiles.filter(f => !ormLayer(f) && MODELS_REQUIRE.test(read(f))).map(rel);
+    expect(offenders).toEqual([]);
+  });
+
   it('la capa de aplicación no importa sequelize ni usa operadores Op (I/D: consultas con nombre de negocio)', () => {
     const offenders = applicationFiles.filter(f => SEQUELIZE_REQUIRE.test(read(f)) || /\bOp\.\w+/.test(read(f))).map(rel);
     expect(offenders).toEqual([]);
@@ -63,10 +71,10 @@ describe('SOLID — guardas de arquitectura', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('todo repositorio pertenece a la jerarquía Read/Base/AppendOnly (L)', () => {
+  it('todo repositorio pertenece a la jerarquía Read/Base/AppendOnly o a PrismaRepository (L)', () => {
     const offenders = sourceFiles
       .filter(f => isRepository(f) && !rel(f).startsWith('shared/repositories/'))
-      .filter(f => !/extends\s+(ReadRepository|BaseRepository|AppendOnlyRepository)\b/.test(read(f)))
+      .filter(f => !/extends\s+(ReadRepository|BaseRepository|AppendOnlyRepository|PrismaRepository)\b/.test(read(f)))
       .map(rel);
     expect(offenders).toEqual([]);
   });

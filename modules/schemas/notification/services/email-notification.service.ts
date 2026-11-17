@@ -64,22 +64,22 @@ class EmailNotificationService {
     try {
       // El soporte de email lo define la CATEGORÍA del tipo (fuente de verdad).
       const category = notificationType.category || null;
-      if (!(category?.supports_email ?? true)) {
+      if (!(category?.supportsEmail ?? true)) {
         logger.warn('La categoría de la notificación no soporta email', {
           notificationType: notificationType.code
         });
         return null;
       }
 
-      if (!notificationType.email_subject_template || !notificationType.email_body_template) {
+      if (!notificationType.emailSubjectTemplate || !notificationType.emailBodyTemplate) {
         logger.warn('El tipo de notificación no tiene templates de email configurados', {
           notificationType: notificationType.code
         });
         return null;
       }
 
-      const asunto = this._reemplazarVariables(notificationType.email_subject_template, datos);
-      const contenido = this._reemplazarVariables(notificationType.email_body_template, datos);
+      const asunto = this._reemplazarVariables(notificationType.emailSubjectTemplate, datos);
+      const contenido = this._reemplazarVariables(notificationType.emailBodyTemplate, datos);
       const cuerpoHtml = this._envolverEnLayout(contenido, category, datos);
 
       // Los adjuntos (ej: un PDF de comprobante) viajan en metadata.attachments y son específicos
@@ -378,8 +378,8 @@ class EmailNotificationService {
    * se devuelve el contenido tal cual sin envolver.
    * @private
    */
-  _envolverEnLayout(contenido: string, category: { email_layout_template?: string | null } | null | undefined, datos: Record<string, unknown>) {
-    const layout = category?.email_layout_template;
+  _envolverEnLayout(contenido: string, category: { emailLayoutTemplate?: string | null } | null | undefined, datos: Record<string, unknown>) {
+    const layout = category?.emailLayoutTemplate;
     const yaEsDocumento = /<!doctype|<html/i.test(contenido);
 
     if (!layout || yaEsDocumento) {

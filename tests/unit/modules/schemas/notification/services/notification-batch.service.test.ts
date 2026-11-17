@@ -95,7 +95,7 @@ import service from 'modules/schemas/notification/services/notification-batch.se
 const GID = 'g-1';
 
 function pushCategoryType(overrides = {}) {
-  return { category: { code: 'CAT', supports_push: true, supports_email: true, ...overrides } };
+  return { category: { code: 'CAT', supportsPush: true, supportsEmail: true, ...overrides } };
 }
 
 describe('NotificationBatchService', () => {
@@ -116,7 +116,7 @@ describe('NotificationBatchService', () => {
 
   describe('procesarNotificacionGlobal', () => {
     it('procesa ambos canales, marca estados de procesamiento y guarda el estado de lotes', async () => {
-      const users = [{ user_id: 'u-1', person: { contact: { email: 'a@b.cl' } } }];
+      const users = [{ userId: 'u-1', person: { contact: { email: 'a@b.cl' } } }];
       userRepository.findActiveUsersByRoleNamesDetailed.mockResolvedValue(users);
       pushTokenRepo.findActiveByUsers.mockResolvedValue([{ token: 'arn-1' }]);
       pushService.enviarPushMasivo.mockResolvedValue({ success: 1, failed: 0 });
@@ -126,7 +126,7 @@ describe('NotificationBatchService', () => {
       // Total de usuarios objetivo y arranque del procesamiento.
       expect(globalNotificationRepo.update).toHaveBeenCalledWith(
         GID,
-        expect.objectContaining({ total_target_users: 1 })
+        expect.objectContaining({ totalTargetUsers: 1 })
       );
       // Estados push: processing → completed.
       expect(globalNotificationRepo.updatePushProcessingStatus).toHaveBeenNthCalledWith(1, GID, 'processing');
@@ -139,7 +139,7 @@ describe('NotificationBatchService', () => {
       // Cierre del procesamiento y persistencia del estado de lotes.
       expect(globalNotificationRepo.update).toHaveBeenCalledWith(
         GID,
-        expect.objectContaining({ processing_completed_at: expect.any(Date) })
+        expect.objectContaining({ processingCompletedAt: expect.any(Date) })
       );
       expect(localCache.set).toHaveBeenCalledWith(
         `global_notif:${GID}:batch_state`,
@@ -150,10 +150,10 @@ describe('NotificationBatchService', () => {
 
     it('salta el canal push cuando la categoría no lo soporta', async () => {
       userRepository.findActiveUsersByRoleNamesDetailed.mockResolvedValue([
-        { user_id: 'u-1', person: { contact: { email: 'a@b.cl' } } }
+        { userId: 'u-1', person: { contact: { email: 'a@b.cl' } } }
       ]);
 
-      await service.procesarNotificacionGlobal(GID, fixture(pushCategoryType({ supports_push: false })), 'T', 'B', {});
+      await service.procesarNotificacionGlobal(GID, fixture(pushCategoryType({ supportsPush: false })), 'T', 'B', {});
 
       expect(globalNotificationRepo.updatePushProcessingStatus).not.toHaveBeenCalled();
       expect(pushService.enviarPushMasivo).not.toHaveBeenCalled();
@@ -169,7 +169,7 @@ describe('NotificationBatchService', () => {
       expect(logger.warn).toHaveBeenCalledWith('Error en procesamiento global', expect.objectContaining({ error: 'db down' }));
       expect(globalNotificationRepo.update).toHaveBeenCalledWith(
         GID,
-        expect.objectContaining({ push_processing_status: 'failed', email_processing_status: 'failed' })
+        expect.objectContaining({ pushProcessingStatus: 'failed', emailProcessingStatus: 'failed' })
       );
     });
   });
@@ -178,7 +178,7 @@ describe('NotificationBatchService', () => {
     it('corta y avisa cuando no hay tokens activos', async () => {
       pushTokenRepo.findActiveByUsers.mockResolvedValue([]);
 
-      await service.enviarPushGlobalPorLotes(GID, fixture([{ user_id: 'u-1' }]), 'T', 'B', {}, 'CAT', localCache);
+      await service.enviarPushGlobalPorLotes(GID, fixture([{ userId: 'u-1' }]), 'T', 'B', {}, 'CAT', localCache);
 
       expect(logger.warn).toHaveBeenCalledWith('No hay tokens activos para push global');
       expect(pushService.enviarPushMasivo).not.toHaveBeenCalled();
@@ -192,7 +192,7 @@ describe('NotificationBatchService', () => {
 
       await service.enviarPushGlobalPorLotes(
         GID,
-        fixture([{ user_id: 'u-1' }, { user_id: 'u-2' }]),
+        fixture([{ userId: 'u-1' }, { userId: 'u-2' }]),
         'T',
         'B',
         {},
@@ -210,8 +210,8 @@ describe('NotificationBatchService', () => {
   describe('enviarEmailGlobalPorLotes', () => {
     it('descifra el email en formato GCM y deja el email plano tal cual', async () => {
       const users = [
-        { user_id: 'u-1', person: { contact: { email: 'iv:tag:cipher' } } }, // 3 partes → GCM
-        { user_id: 'u-2', person: { contact: { email: 'plano@b.cl' } } }
+        { userId: 'u-1', person: { contact: { email: 'iv:tag:cipher' } } }, // 3 partes → GCM
+        { userId: 'u-2', person: { contact: { email: 'plano@b.cl' } } }
       ];
 
       await service.enviarEmailGlobalPorLotes(GID, fixture(users), fixture({ code: 'WELCOME' }), { m: 1 }, 'CAT', localCache);
@@ -228,7 +228,7 @@ describe('NotificationBatchService', () => {
 
       await service.enviarEmailGlobalPorLotes(
         GID,
-        fixture([{ user_id: 'u-1', person: { contact: { email: 'a@b.cl' } } }]),
+        fixture([{ userId: 'u-1', person: { contact: { email: 'a@b.cl' } } }]),
         fixture({ code: 'WELCOME' }),
         {},
         'CAT',
@@ -244,7 +244,7 @@ describe('NotificationBatchService', () => {
 
       await service.enviarEmailGlobalPorLotes(
         GID,
-        fixture([{ user_id: 'u-1', person: { contact: { email: 'a@b.cl' } } }]),
+        fixture([{ userId: 'u-1', person: { contact: { email: 'a@b.cl' } } }]),
         fixture({ code: 'WELCOME' }),
         {},
         'CAT',
