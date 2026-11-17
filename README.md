@@ -199,7 +199,7 @@ DTOs: [`docs/dtos.md`](docs/dtos.md).
 │
 ├── migrations/                 # 45 migraciones (esquema completo)
 ├── seeders/                    # 20 seeders (catálogos + admin inicial)
-├── scripts/                    # db-reset.js, generate-keys.util.js
+├── scripts/                    # db-reset.ts, db-tracking-ts.ts, generate-keys.util.ts
 ├── tests/                      # unit / integration (jest)
 ├── docs/                       # documentación técnica (ver §Documentación)
 ├── Dockerfile · entrypoint.sh
@@ -251,7 +251,7 @@ npm install
 cp .env.example .env        # y editar (ver §Configuración)
 
 # 3. Generar las claves requeridas (JWT RS256 + AES) y pegarlas en el .env
-node scripts/generate-keys.util.js
+npm run keys:generate
 
 # 4. Crear el esquema, migrar y sembrar (ver §Base de datos)
 npm run db:reset
@@ -272,7 +272,7 @@ npm run dev
 | `DB_HOST/PORT/NAME/USER/PASSWORD`     |    ✅     | PostgreSQL.                                                     |
 | `DB_SCHEMA`                           |    ✅     | Esquema activo. **No usar `public`** (ver Base de datos).       |
 | `JWT_PRIVATE_KEY` / `JWT_PUBLIC_KEY`  |    ✅     | Par RS256 (PEM con `\n` literales). Sin ellas el arranque falla.|
-| `AES_KEY` (+ `AES_IV`)                |    ✅     | Cifrado de PII. Generar con `generate-keys.util.js`.            |
+| `AES_KEY` (+ `AES_IV`)                |    ✅     | Cifrado de PII. Generar con `npm run keys:generate`.            |
 | `REDIS_*`                             |    —      | Opcional; sin config usa memoria local.                        |
 | `AWS_*`, `SES_FROM_EMAIL`, `SNS_*`    |  parcial  | Requerido para notificar; en dev se puede mockear.             |
 | `MOCK_EXTERNAL_PROVIDERS`             |    —      | Simula SMS/biométrico en dev (OTP fijo `123456`). Apagar en prod.|

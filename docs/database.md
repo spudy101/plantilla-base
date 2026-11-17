@@ -9,7 +9,7 @@
 
 Una misma instancia Postgres puede alojar **varios esquemas** (p. ej. el template en `plantilla` y un
 proyecto real en otro). El esquema activo lo fija `DB_SCHEMA` en `.env`. El tracking de Sequelize vive
-**dentro** de ese esquema (`config/database.js`):
+**dentro** de ese esquema (`config/database.ts`):
 
 ```js
 migrationStorageTableSchema: database.schema,  // SequelizeMeta dentro de DB_SCHEMA
@@ -20,7 +20,7 @@ Consecuencia: apuntar `DB_SCHEMA` a otro esquema re-corre migraciones/seeders de
 tracking ni las tablas de los demás. Todo comando de BD queda acotado al esquema apuntado.
 
 > **Antes de cualquier comando destructivo**, verificá `DB_SCHEMA` en `.env`. `db:reset` tiene además una
-> guarda que **aborta si `DB_SCHEMA` está vacío o es `public`** (`scripts/db-reset.js`).
+> guarda que **aborta si `DB_SCHEMA` está vacío o es `public`** (`scripts/db-reset.ts`).
 
 ---
 
@@ -39,7 +39,7 @@ tracking ni las tablas de los demás. Todo comando de BD queda acotado al esquem
 ## Convención para cambiar el esquema: editar la migración ORIGINAL
 
 En este repo **no se acumulan migraciones `ALTER TABLE`/`ADD COLUMN`**. Para cambiar una tabla se **edita
-su `create-*.js` original** (y el modelo, y el seeder si aplica) y se corre `npm run db:reset`. Igual para
+su `create-*.ts` original** (y el modelo, y el seeder si aplica) y se corre `npm run db:reset`. Igual para
 los tipos de notificación y otros datos sembrados: se edita el **seeder original** (cada `up` hace
 `DELETE por code` + `bulkInsert`, idempotente) y se resetea.
 
@@ -55,7 +55,7 @@ Postgres eso es frágil con **enum types**: `createTable` con `Sequelize.ENUM(..
 `down()` fallan al dropearlo ("otros objetos dependen de él") o dejan tipos huérfanos que rompen el
 `up()` siguiente.
 
-Por eso `db:reset` = `scripts/db-reset.js`:
+Por eso `db:reset` = `scripts/db-reset.ts`:
 
 ```
 DROP SCHEMA "<DB_SCHEMA>" CASCADE;  ← también borra SequelizeMeta/SequelizeData (viven en el esquema)
