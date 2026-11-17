@@ -7,12 +7,12 @@
 //
 // Se llama UNA vez al arranque desde shared/base/base.server.js.
 
-import loggerUtilModule = require('../../../shared/utils/logger.util');
+import loggerUtilModule from '../../../shared/utils/logger.util';
 const { logger } = loggerUtilModule;
-import DualApproval = require('./services/dual-approval.service');
+import DualApproval from './services/dual-approval.service';
 
-import AdminUserService = require('../../admin/kyc/iam/services/admin-user.service');
-import PersonService = require('../../admin/kyc/person/services/admin-person.service');
+import AdminUserService from '../../admin/kyc/iam/services/admin-user.service';
+import PersonService from '../../admin/kyc/person/services/admin-person.service';
 
 function registerDualApprovalHandlers() {
   // RBAC — cambio de rol de usuario interno. Reanuda con executeChangeRole (no re-gatea).
@@ -30,4 +30,4 @@ function registerDualApprovalHandlers() {
   logger.info('✅ DualApproval handlers registrados');
 }
 
-export = { registerDualApprovalHandlers };
+export default { registerDualApprovalHandlers };

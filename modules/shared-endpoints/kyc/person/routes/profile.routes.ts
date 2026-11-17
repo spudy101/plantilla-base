@@ -1,12 +1,12 @@
-import express = require('express');
+import express from 'express';
 const router = express.Router();
-import ProfileController = require('../controllers/profile.controller');
-import ProfileValidator = require('../validators/profile.validator');
-import AuthMiddleware = require('../../../../../shared/middlewares/auth.middleware');
-import RequestLockMiddleware = require('../../../../../shared/middlewares/request-lock.middleware');
-import RateLimitMiddleware = require('../../../../../shared/middlewares/rate-limit.middleware');
-import ValidatorUtil = require('../../../../../shared/utils/validators.util');
-import AuditAction = require('../../../../../shared/middlewares/audit-action.middleware');
+import ProfileController from '../controllers/profile.controller';
+import ProfileValidator from '../validators/profile.validator';
+import AuthMiddleware from '../../../../../shared/middlewares/auth.middleware';
+import RequestLockMiddleware from '../../../../../shared/middlewares/request-lock.middleware';
+import RateLimitMiddleware from '../../../../../shared/middlewares/rate-limit.middleware';
+import ValidatorUtil from '../../../../../shared/utils/validators.util';
+import AuditAction from '../../../../../shared/middlewares/audit-action.middleware';
 
 /**
  * TODAS LAS RUTAS REQUIEREN AUTENTICACIÓN
@@ -127,4 +127,4 @@ router.delete(
   ProfileController.deleteAccount
 );
 
-export = router;
+export default router;

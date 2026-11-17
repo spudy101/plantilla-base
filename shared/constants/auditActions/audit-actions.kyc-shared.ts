@@ -8,10 +8,10 @@
 // lo registre automáticamente en audit_logs sin pasarlo en cada llamada.
 // ================================================================
 
-import auditCatalogModule = require('./audit-catalog');
+import auditCatalogModule from './audit-catalog';
 const { AUDIT_CATEGORIES, AUDIT_RISKS, AUDIT_MODULES } = auditCatalogModule;
 
-export = {
+export default {
   // ── AUTENTICACIÓN ────────────────────────────────────────────────────────
   LOGIN_SUCCESS: {
     description: 'Inicio de sesión exitoso',

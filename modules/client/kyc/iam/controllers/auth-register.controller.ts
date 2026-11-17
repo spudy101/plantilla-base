@@ -1,9 +1,9 @@
-import AuthRegisterService = require('../services/auth-register.service');
-import ApiResponse = require('../../../../../shared/utils/app-response.util');
-import errorMiddlewareModule = require('../../../../../shared/middlewares/error.middleware');
+import AuthRegisterService from '../services/auth-register.service';
+import ApiResponse from '../../../../../shared/utils/app-response.util';
+import errorMiddlewareModule from '../../../../../shared/middlewares/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
 
-import authCookiesUtilModule = require('../../../../../shared/utils/auth-cookies.util');
+import authCookiesUtilModule from '../../../../../shared/utils/auth-cookies.util';
 const { setAuthCookies } = authCookiesUtilModule;
 
 // ============================================================
@@ -52,4 +52,4 @@ class AuthRegisterController {
   });
 }
 
-export = new AuthRegisterController();
+export default new AuthRegisterController();

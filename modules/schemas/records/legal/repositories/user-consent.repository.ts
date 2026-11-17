@@ -1,10 +1,10 @@
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../../shared/models';
 const { UserConsent, ConsentType, PrivacyPolicy, User, Person } = modelsModule;
-import requestContext = require('../../../../../shared/utils/request-context.util');
+import requestContext from '../../../../../shared/utils/request-context.util';
 import type { IncludeOptions, Transaction } from 'sequelize';
-import type defineUserConsent = require('../models/user-consent.model');
-import queryModule = require('../../../../../shared/repositories/query');
+import type defineUserConsent from '../models/user-consent.model';
+import * as queryModule from '../../../../../shared/repositories/query';
 const { range, toWhere } = queryModule;
 import type { WhereClause } from '../../../../../shared/repositories/query';
 
@@ -177,4 +177,4 @@ namespace UserConsentRepository {
   }
 }
 
-export = new UserConsentRepository();
+export default new UserConsentRepository();

@@ -1,54 +1,54 @@
 import type { Application, Request, Response } from 'express';
 // config/swagger.admin.ts
 
-import swaggerUi = require('swagger-ui-express');
-import getAllSchemas = require('./swagger/schemas');
-import constantsModule = require('../shared/constants');
+import swaggerUi from 'swagger-ui-express';
+import getAllSchemas from './swagger/schemas';
+import constantsModule from '../shared/constants';
 const { server } = constantsModule;
 
 // ─── Módulos KYC (compartidos con client) ─────────────────────
-import authLoginPaths = require('./swagger/modules/shared-endpoints/kyc/iam/auth-login.paths');
-import catalogPaths = require('./swagger/modules/shared-endpoints/kyc/maintainers/maintainers.paths');
-import profilePaths = require('./swagger/modules/shared-endpoints/kyc/person/profile.paths');
-import mfaPaths = require('./swagger/modules/shared-endpoints/kyc/iam/mfa.paths');
+import authLoginPaths from './swagger/modules/shared-endpoints/kyc/iam/auth-login.paths';
+import catalogPaths from './swagger/modules/shared-endpoints/kyc/maintainers/maintainers.paths';
+import profilePaths from './swagger/modules/shared-endpoints/kyc/person/profile.paths';
+import mfaPaths from './swagger/modules/shared-endpoints/kyc/iam/mfa.paths';
 
 // ─── Módulos Notification (compartidos con client) ────────────
-import notificationSharedPaths = require('./swagger/modules/shared-endpoints/notification/notification.paths');
-import notificationPreferencePaths = require('./swagger/modules/shared-endpoints/kyc/person/notification-preference.paths');
-import sendVerificationPaths = require('./swagger/modules/shared-endpoints/notification/send-verification.paths');
+import notificationSharedPaths from './swagger/modules/shared-endpoints/notification/notification.paths';
+import notificationPreferencePaths from './swagger/modules/shared-endpoints/kyc/person/notification-preference.paths';
+import sendVerificationPaths from './swagger/modules/shared-endpoints/notification/send-verification.paths';
 
 // ─── Módulos Admin — Privacidad ───────────────────────────────
-import privacyPolicyPaths = require('./swagger/modules/admin/records/legal/privacy-policy-admin.paths');
+import privacyPolicyPaths from './swagger/modules/admin/records/legal/privacy-policy-admin.paths';
 
 // ─── Módulos Admin — KYC ──────────────────────────────────────
-import personPaths = require('./swagger/modules/admin/kyc/person/person.paths');
-import notificationTypePaths = require('./swagger/modules/admin/notification/notification-type.paths');
+import personPaths from './swagger/modules/admin/kyc/person/person.paths';
+import notificationTypePaths from './swagger/modules/admin/notification/notification-type.paths';
 
 // ─── Módulos Admin — Auditoría ────────────────────────────────
-import adminAuthSessionPaths = require('./swagger/modules/admin/kyc/iam/admin-auth-session.paths');
-import changeLogPaths = require('./swagger/modules/admin/records/audit/change-log.paths');
-import auditLogPaths = require('./swagger/modules/admin/records/audit/audit-log.paths');
-import auditAlertPaths = require('./swagger/modules/admin/records/audit/audit-alert.paths');
-import auditActionCatalogPaths = require('./swagger/modules/admin/records/audit/audit-action-catalog.paths');
-import sessionTracePaths = require('./swagger/modules/admin/records/audit/session-trace.paths');
-import notificationDeliveryPaths = require('./swagger/modules/admin/notification/notification-delivery.paths');
+import adminAuthSessionPaths from './swagger/modules/admin/kyc/iam/admin-auth-session.paths';
+import changeLogPaths from './swagger/modules/admin/records/audit/change-log.paths';
+import auditLogPaths from './swagger/modules/admin/records/audit/audit-log.paths';
+import auditAlertPaths from './swagger/modules/admin/records/audit/audit-alert.paths';
+import auditActionCatalogPaths from './swagger/modules/admin/records/audit/audit-action-catalog.paths';
+import sessionTracePaths from './swagger/modules/admin/records/audit/session-trace.paths';
+import notificationDeliveryPaths from './swagger/modules/admin/notification/notification-delivery.paths';
 
 // ─── Módulos Admin — Consentimientos ──────────────────────────
-import consentTypePaths = require('./swagger/modules/admin/records/legal/consent-type.paths');
-import userConsentAuditPaths = require('./swagger/modules/admin/records/legal/user-consent.paths');
+import consentTypePaths from './swagger/modules/admin/records/legal/consent-type.paths';
+import userConsentAuditPaths from './swagger/modules/admin/records/legal/user-consent.paths';
 
 // ─── Módulos Admin — Configuración global ─────────────────────
-import systemGlobalConfigPaths = require('./swagger/modules/admin/core/system-global-config.paths');
+import systemGlobalConfigPaths from './swagger/modules/admin/core/system-global-config.paths';
 
 // ─── Módulos Admin — Banners promocionales ────────────────────
-import promotionalBannerAdminPaths = require('./swagger/modules/admin/core/promotional-banner.paths');
+import promotionalBannerAdminPaths from './swagger/modules/admin/core/promotional-banner.paths';
 
 // ─── Módulos Admin — Usuarios internos & RBAC ─────────────────
-import adminUserPaths = require('./swagger/modules/admin/kyc/iam/admin-user.paths');
-import adminRbacPaths = require('./swagger/modules/admin/kyc/iam/admin-rbac.paths');
+import adminUserPaths from './swagger/modules/admin/kyc/iam/admin-user.paths';
+import adminRbacPaths from './swagger/modules/admin/kyc/iam/admin-rbac.paths';
 
 // ─── Módulos Admin — Doble aprobación global (maker-checker) ──
-import approvalRequestPaths = require('./swagger/modules/admin/core/approval-request.paths');
+import approvalRequestPaths from './swagger/modules/admin/core/approval-request.paths';
 
 // ─── Merge paths ──────────────────────────────────────────────
 
@@ -215,4 +215,4 @@ Esta API permite a los administradores (\`admin\` / \`super_admin\`):
   console.log(`📚 [ADMIN] Swagger Docs: http://${HOST}:${PORT}/admin/docs`);
 };
 
-export = swaggerAdminDocs;
+export default swaggerAdminDocs;

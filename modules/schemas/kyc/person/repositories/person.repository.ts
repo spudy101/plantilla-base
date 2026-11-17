@@ -1,8 +1,8 @@
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../../shared/models';
 const { Person } = modelsModule;
-import HashUtil = require('../../../../../shared/utils/hash.util');
-import type definePerson = require('../models/person.model');
+import HashUtil from '../../../../../shared/utils/hash.util';
+import type definePerson from '../models/person.model';
 
 class PersonRepository extends BaseRepository<definePerson.Instance> {
   constructor() {
@@ -21,4 +21,4 @@ class PersonRepository extends BaseRepository<definePerson.Instance> {
   }
 }
 
-export = new PersonRepository();
+export default new PersonRepository();

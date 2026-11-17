@@ -1,16 +1,9 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../shared/models/registry';
-import type defineUser = require('../../kyc/iam/models/user.model');
-
-
-
-
-
-
+import type defineUser from '../../kyc/iam/models/user.model';
 
 // Suppression list de correo por dirección (HMAC). Al acumular 3 rebotes duros (hard bounces) la
 // dirección pasa a 'suppressed' y todo envío futuro se salta, protegiendo la reputación de envío de
@@ -114,4 +107,4 @@ namespace defineEmailBounceSuppression {
   };
 }
 
-export = defineEmailBounceSuppression;
+export default defineEmailBounceSuppression;

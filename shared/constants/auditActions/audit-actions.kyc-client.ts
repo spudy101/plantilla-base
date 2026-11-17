@@ -5,10 +5,10 @@
 //           profile-completeness, user-consent, person-reference
 // ================================================================
 
-import auditCatalogModule = require('./audit-catalog');
+import auditCatalogModule from './audit-catalog';
 const { AUDIT_CATEGORIES, AUDIT_RISKS, AUDIT_MODULES } = auditCatalogModule;
 
-export = {
+export default {
   // ── REGISTRO ──────────────────────────────────────────────────
   USER_REGISTERED: {
     description: 'Registro de nuevo usuario en el sistema',

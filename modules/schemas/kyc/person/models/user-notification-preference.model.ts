@@ -1,17 +1,10 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../../shared/models/registry';
-import type defineNotificationCategory = require('../../../notification/models/notification-category.model');
-import type defineUser = require('../../iam/models/user.model');
-
-
-
-
-
-
+import type defineNotificationCategory from '../../../notification/models/notification-category.model';
+import type defineUser from '../../iam/models/user.model';
 
 function defineUserNotificationPreference(sequelize: Sequelize): defineUserNotificationPreference.Static {
   const UserNotificationPreference = sequelize.define<defineUserNotificationPreference.Instance>(
@@ -140,4 +133,4 @@ namespace defineUserNotificationPreference {
   };
 }
 
-export = defineUserNotificationPreference;
+export default defineUserNotificationPreference;

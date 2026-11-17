@@ -7,10 +7,10 @@
 // a audit-actions.audit-admin.js (módulo modules/admin/audit/).
 // ================================================================
 
-import auditCatalogModule = require('./audit-catalog');
+import auditCatalogModule from './audit-catalog';
 const { AUDIT_CATEGORIES, AUDIT_RISKS, AUDIT_MODULES } = auditCatalogModule;
 
-export = {
+export default {
   // ── PERSONAS ──────────────────────────────────────────────────
 
   PERSON_LIST_VIEWED: {

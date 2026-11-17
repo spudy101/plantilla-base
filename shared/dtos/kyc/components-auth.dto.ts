@@ -1,5 +1,5 @@
-import EncryptionUtil = require('../../utils/encryption.util');
-import MaskingUtil = require('../../utils/masking.util');
+import EncryptionUtil from '../../utils/encryption.util';
+import MaskingUtil from '../../utils/masking.util';
 import type { DbDate, Maybe, UserRefRow } from '../../types/db-rows';
 
 interface VerificationCodeRow {
@@ -380,7 +380,7 @@ class BiometricCredentialComponent {
   }
 }
 
-export = {
+export default {
   VerificationCodeComponent,
   UserLoginAttemptComponent,
   ResetCredentialsComponent,

@@ -18,11 +18,11 @@ jest.mock('shared/utils/logger.util', () => ({
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import redisClientModule = require('shared/utils/redis.util');
+import redisClientModule from 'shared/utils/redis.util';
 const redisClient = mocked(redisClientModule);
-import ResilienceConfigModule = require('shared/utils/resilience-config.util');
+import ResilienceConfigModule from 'shared/utils/resilience-config.util';
 const ResilienceConfig = mocked(ResilienceConfigModule);
-import breaker = require('shared/utils/circuit-breaker.util');
+import breaker from 'shared/utils/circuit-breaker.util';
 
 // Umbrales de test: abre a los 3 fallos, recupera a los 1000 ms.
 const THRESHOLDS = { failureThreshold: 3, recoveryTimeMs: 1000, failuresTtlS: 300 };

@@ -1,5 +1,5 @@
-import type defineIntegrationApiLog = require('../../../schemas/integration/models/integration-api-log.model');
-import type defineProviderFallbackEvent = require('../../../schemas/integration/models/provider-fallback-event.model');
+import type defineIntegrationApiLog from '../../../schemas/integration/models/integration-api-log.model';
+import type defineProviderFallbackEvent from '../../../schemas/integration/models/provider-fallback-event.model';
 import type { IntegrationApiLogRepositoryPort } from '../../../schemas/repository-ports';
 // DTOs del monitoreo de integraciones externas (solo AWS). Vistas de solo lectura: el template
 // no gestiona integraciones, solo las observa.
@@ -140,7 +140,7 @@ function FallbackEventDTO(row: defineProviderFallbackEvent.Instance) {
   };
 }
 
-export = {
+export default {
   IntegrationDashboardDTO,
   buildProductView,
   IntegrationLogListItemDTO,

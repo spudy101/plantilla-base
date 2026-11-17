@@ -23,18 +23,17 @@
 //     openssl genpkey -algorithm RSA -out private.pem -pkeyopt rsa_keygen_bits:2048
 //     openssl rsa -pubout -in private.pem -out public.pem
 
-import joseModule = require('jose');
-const { SignJWT, jwtVerify, decodeJwt } = joseModule;
-import cryptoModule = require('node:crypto');
+import { SignJWT, jwtVerify, decodeJwt } from 'jose';
+import cryptoModule from 'node:crypto';
 const { createPrivateKey, createPublicKey } = cryptoModule;
 import type { KeyObject } from 'node:crypto';
 import type { JWTPayload } from 'jose';
-import AppError = require('./app-error.util');
-import loggerUtilModule = require('./logger.util');
+import AppError from './app-error.util';
+import loggerUtilModule from './logger.util';
 const { logger } = loggerUtilModule;
-import constantsModule = require('../constants');
+import constantsModule from '../constants';
 const { jwt: jwtConfig, AUTH_ERROR_CODES } = constantsModule;
-import errorMessageModule = require('./error-message.util');
+import errorMessageModule from './error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -329,4 +328,4 @@ namespace JwtUtil {
   export type AccessClaims = AccessTokenClaims;
 }
 
-export = JwtUtil;
+export default JwtUtil;

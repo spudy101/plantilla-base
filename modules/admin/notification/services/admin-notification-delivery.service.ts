@@ -1,24 +1,24 @@
-import type defineNotification = require('../../../schemas/notification/models/notification.model');
+import type defineNotification from '../../../schemas/notification/models/notification.model';
 // NOTA DE UBICACIÓN (cross-dominio): este panel vive en modules/admin/notification/ pero NO tiene
 // modelo/tabla propia: es una vista de auditoría/observabilidad de ENTREGAS de notificaciones
 // (delivery status, fallos, reintentos, métricas) respaldada por la tabla `notifications` del
 // dominio schemas/notification. Su carácter es de oversight, no de negocio.
-import notificationRepo = require('../../../schemas/notification/repositories/notification.repository');
-import notificationTypeRepo = require('../../../schemas/notification/repositories/notification-type.repository');
-import notificationSendingService = require('../../../schemas/notification/services/notification-sending.service');
-import NotificationCreationService = require('../../../schemas/notification/services/notification-creation.service');
-import PaginationHelper = require('../../../../shared/utils/pagination.util');
-import componentsCatalogDtoModule = require('../../../../shared/dtos/kyc/components-catalog.dto');
+import notificationRepo from '../../../schemas/notification/repositories/notification.repository';
+import notificationTypeRepo from '../../../schemas/notification/repositories/notification-type.repository';
+import notificationSendingService from '../../../schemas/notification/services/notification-sending.service';
+import NotificationCreationService from '../../../schemas/notification/services/notification-creation.service';
+import PaginationHelper from '../../../../shared/utils/pagination.util';
+import componentsCatalogDtoModule from '../../../../shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
-import AppError = require('../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import AppError from '../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import constantsModule = require('../../../../shared/constants');
+import constantsModule from '../../../../shared/constants';
 const { notifications } = constantsModule;
-import domainEnumsModule = require('../../../../shared/constants/domain-enums');
+import domainEnumsModule from '../../../../shared/constants/domain-enums';
 const { NOTIFICATION_PROCESSING_STATUS } = domainEnumsModule;
-import adminNotificationDeliveryDtoModule = require('../dtos/admin-notification-delivery.dto');
-import errorMessageModule = require('../../../../shared/utils/error-message.util');
+import adminNotificationDeliveryDtoModule from '../dtos/admin-notification-delivery.dto';
+import errorMessageModule from '../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -289,4 +289,4 @@ namespace AdminNotificationDeliveryService {
   }
 }
 
-export = Object.assign(new AdminNotificationDeliveryService(), { AdminNotificationDeliveryService });
+export default Object.assign(new AdminNotificationDeliveryService(), { AdminNotificationDeliveryService });

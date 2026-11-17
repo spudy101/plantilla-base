@@ -8,9 +8,9 @@ jest.mock('modules/schemas/kyc/iam/repositories/user.repository', () => ({
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import userRepositoryModule = require('modules/schemas/kyc/iam/repositories/user.repository');
+import userRepositoryModule from 'modules/schemas/kyc/iam/repositories/user.repository';
 const userRepository = mocked(userRepositoryModule);
-import mfaStatusUtilModule = require('shared/utils/mfa-status.util');
+import mfaStatusUtilModule from 'shared/utils/mfa-status.util';
 const { isMfaActive } = mfaStatusUtilModule;
 
 describe('isMfaActive', () => {

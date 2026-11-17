@@ -49,17 +49,17 @@ jest.mock('shared/constants', () => ({
 }));
 
 import { mocked, fixture } from 'tests/helpers/mock';
-import retryUtilModule = require('shared/utils/retry.util');
+import retryUtilModule from 'shared/utils/retry.util';
 const { withRetry } = mocked(retryUtilModule);
-import CircuitBreakerModule = require('shared/utils/circuit-breaker.util');
+import CircuitBreakerModule from 'shared/utils/circuit-breaker.util';
 const CircuitBreaker = mocked(CircuitBreakerModule);
-import ProviderApiLoggerModule = require('shared/utils/integration-api-logger.util');
+import ProviderApiLoggerModule from 'shared/utils/integration-api-logger.util';
 const ProviderApiLogger = mocked(ProviderApiLoggerModule);
-import emailSuppressionModule = require('modules/schemas/notification/services/email-suppression.service');
+import emailSuppressionModule from 'modules/schemas/notification/services/email-suppression.service';
 const emailSuppression = mocked(emailSuppressionModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import service = require('modules/schemas/notification/services/email-notification.service');
+import service from 'modules/schemas/notification/services/email-notification.service';
 
 const DEST = 'user@test.cl';
 

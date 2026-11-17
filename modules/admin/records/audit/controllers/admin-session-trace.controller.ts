@@ -1,10 +1,10 @@
-import AdminSessionTraceService = require('../services/admin-session-trace.service');
-import ApiResponse = require('../../../../../shared/utils/app-response.util');
-import errorMiddlewareModule = require('../../../../../shared/middlewares/error.middleware');
+import AdminSessionTraceService from '../services/admin-session-trace.service';
+import ApiResponse from '../../../../../shared/utils/app-response.util';
+import errorMiddlewareModule from '../../../../../shared/middlewares/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
-import routeParamUtilModule = require('../../../../../shared/utils/route-param.util');
+import routeParamUtilModule from '../../../../../shared/utils/route-param.util';
 const { routeParam } = routeParamUtilModule;
-import authUserUtilModule = require('../../../../../shared/utils/auth-user.util');
+import authUserUtilModule from '../../../../../shared/utils/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
 
 class AdminSessionTraceController {
@@ -24,4 +24,4 @@ class AdminSessionTraceController {
   });
 }
 
-export = new AdminSessionTraceController();
+export default new AdminSessionTraceController();

@@ -1,19 +1,12 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import domainEnumsModule = require('../../../../../shared/constants/domain-enums');
+import { DataTypes } from 'sequelize';
+import domainEnumsModule from '../../../../../shared/constants/domain-enums';
 const { USER_SESSION_STATUS } = domainEnumsModule;
-import constantsModule = require('../../../../../shared/constants');
+import constantsModule from '../../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../../shared/models/registry';
-import type defineUser = require('./user.model');
-import type defineUserTrustedDevice = require('./user-trusted-device.model');
-
-
-
-
-
-
+import type defineUser from './user.model';
+import type defineUserTrustedDevice from './user-trusted-device.model';
 
 function defineUserSession(sequelize: Sequelize): defineUserSession.Static {
   const UserSession = sequelize.define<defineUserSession.Instance>(
@@ -145,4 +138,4 @@ namespace defineUserSession {
   };
 }
 
-export = defineUserSession;
+export default defineUserSession;

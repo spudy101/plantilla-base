@@ -3,11 +3,11 @@
 // Cierre de sesión (actual o todas): revoca refresh tokens, blacklista access
 // tokens y notifica. Extraído de AuthLoginService (SOLID: S).
 
-import userSessionRepository = require('../../../../../schemas/kyc/iam/repositories/user-session.repository');
-import trustedDeviceRepository = require('../../../../../schemas/kyc/iam/repositories/auth-trusted-device.repository');
-import TokenBlacklistUtil = require('../../../../../../shared/utils/token-blacklist.util');
-import NotificationUtil = require('../../../../../schemas/notification/services/notification-creation.service');
-import loggerUtilModule = require('../../../../../../shared/utils/logger.util');
+import userSessionRepository from '../../../../../schemas/kyc/iam/repositories/user-session.repository';
+import trustedDeviceRepository from '../../../../../schemas/kyc/iam/repositories/auth-trusted-device.repository';
+import TokenBlacklistUtil from '../../../../../../shared/utils/token-blacklist.util';
+import NotificationUtil from '../../../../../schemas/notification/services/notification-creation.service';
+import loggerUtilModule from '../../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
 
 class AuthLogoutService {
@@ -150,4 +150,4 @@ namespace AuthLogoutService {
   }
 }
 
-export = AuthLogoutService;
+export default AuthLogoutService;

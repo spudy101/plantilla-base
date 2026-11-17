@@ -1,12 +1,11 @@
-import cron = require('node-cron');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import cron from 'node-cron';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import requestContext = require('../../../../../shared/utils/request-context.util');
-import modelsModule = require('../../../../../shared/models');
+import requestContext from '../../../../../shared/utils/request-context.util';
+import modelsModule from '../../../../../shared/models';
 const { SystemGlobalConfig, AuditLog, sequelize } = modelsModule;
-import sequelizeModule = require('sequelize');
-const { Op } = sequelizeModule;
-import errorMessageModule = require('../../../../../shared/utils/error-message.util');
+import { Op } from 'sequelize';
+import errorMessageModule from '../../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -133,4 +132,4 @@ function iniciar() {
   logger.info('Worker de retención de auditoría iniciado exitosamente');
 }
 
-export = { run, iniciar };
+export default { run, iniciar };

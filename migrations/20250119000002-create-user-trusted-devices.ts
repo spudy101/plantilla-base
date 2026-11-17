@@ -1,5 +1,5 @@
 import type { Migration } from '../shared/types/migration';
-import constantsModule = require('../shared/constants');
+import constantsModule from '../shared/constants';
 const { database } = constantsModule;
 
 const SCHEMA = database.schema;

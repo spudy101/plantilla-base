@@ -5,10 +5,10 @@
 // Services: user-activity
 // ================================================================
 
-import auditCatalogModule = require('./audit-catalog');
+import auditCatalogModule from './audit-catalog';
 const { AUDIT_CATEGORIES, AUDIT_RISKS, AUDIT_MODULES } = auditCatalogModule;
 
-export = {
+export default {
   RECENT_ACTIVITY_VIEWED: {
     description: 'Feed de actividad reciente del propio usuario consultado',
     category: AUDIT_CATEGORIES.PROFILE,

@@ -8,10 +8,10 @@ jest.mock('shared/utils/logger.util', () => ({ logger: { info: jest.fn(), warn: 
 jest.mock('shared/utils/token-blacklist.util', () => ({ invalidateUserSessions: jest.fn().mockResolvedValue(undefined) }));
 
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
-import CredentialResetService = require('modules/client/kyc/iam/services/auth-register/credential-reset.service');
-import TokenBlacklistUtilModule = require('shared/utils/token-blacklist.util');
+import CredentialResetService from 'modules/client/kyc/iam/services/auth-register/credential-reset.service';
+import TokenBlacklistUtilModule from 'shared/utils/token-blacklist.util';
 const TokenBlacklistUtil = mocked(TokenBlacklistUtilModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
 
 const flush = () => new Promise(resolve => { setImmediate(resolve); });

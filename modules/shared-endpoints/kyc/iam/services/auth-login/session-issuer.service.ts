@@ -1,17 +1,17 @@
-import type defineUser = require('../../../../../schemas/kyc/iam/models/user.model');
+import type defineUser from '../../../../../schemas/kyc/iam/models/user.model';
 // modules/shared-endpoints/kyc/iam/services/auth-login/session-issuer.service.ts
 //
 // Emisión de una sesión autenticada: par de tokens RS256 propios + JTI en Redis + fila en
 // user_sessions. Lo usan el login por contraseña, el biométrico y el login automático
 // post-registro (antes el bloque estaba copiado en los tres). Extraído por SOLID: S.
 
-import crypto = require('node:crypto');
-import userSessionRepository = require('../../../../../schemas/kyc/iam/repositories/user-session.repository');
-import JwtUtil = require('../../../../../../shared/utils/jwt.util');
-import RefreshTokenStore = require('../../../../../../shared/utils/refresh-token-store.util');
-import loggerUtilModule = require('../../../../../../shared/utils/logger.util');
+import crypto from 'node:crypto';
+import userSessionRepository from '../../../../../schemas/kyc/iam/repositories/user-session.repository';
+import JwtUtil from '../../../../../../shared/utils/jwt.util';
+import RefreshTokenStore from '../../../../../../shared/utils/refresh-token-store.util';
+import loggerUtilModule from '../../../../../../shared/utils/logger.util';
 const { logger } = loggerUtilModule;
-import constantsModule = require('../../../../../../shared/constants');
+import constantsModule from '../../../../../../shared/constants';
 const { jwt: jwtConfig } = constantsModule;
 
 class SessionIssuerService {
@@ -83,4 +83,4 @@ namespace SessionIssuerService {
   }
 }
 
-export = SessionIssuerService;
+export default SessionIssuerService;

@@ -1,6 +1,5 @@
-import expressValidatorModule = require('express-validator');
-const { query, body } = expressValidatorModule;
-import BaseValidator = require('../../../../../shared/validators/base.validator');
+import { query, body } from 'express-validator';
+import BaseValidator from '../../../../../shared/validators/base.validator';
 
 class AdminAuditAlertValidator {
   static listQuery() {
@@ -40,4 +39,4 @@ class AdminAuditAlertValidator {
   }
 }
 
-export = AdminAuditAlertValidator;
+export default AdminAuditAlertValidator;

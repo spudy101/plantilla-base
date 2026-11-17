@@ -1,4 +1,4 @@
-import commonResponses = require('../../../../responses/common.responses');
+import commonResponses from '../../../../responses/common.responses';
 
 /**
  * ============================================================
@@ -321,4 +321,4 @@ Si el cliente de la sesión revocada intenta renovar, recibe 401 con \`details.c
   }
 };
 
-export = { paths, schemas };
+export default { paths, schemas };

@@ -1,8 +1,8 @@
 // servers/client.ts
-import constantsModule = require('../shared/constants');
+import constantsModule from '../shared/constants';
 const { server } = constantsModule;
-import BaseServer = require('../shared/base/base.server');
-import clientApp = require('../modules/client/app');
+import BaseServer from '../shared/base/base.server';
+import clientApp from '../modules/client/app';
 
 class ClientServer extends BaseServer {
   override get port() {
@@ -19,4 +19,4 @@ class ClientServer extends BaseServer {
 const clientServer = new ClientServer();
 clientServer.start();
 
-export = clientServer;
+export default clientServer;

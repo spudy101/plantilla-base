@@ -1,4 +1,4 @@
-import loggerUtilModule = require('./logger.util');
+import loggerUtilModule from './logger.util';
 const { logger } = loggerUtilModule;
 
 const DEFAULT_MAX_RETRIES = 3;
@@ -30,7 +30,7 @@ interface RetryOptions {
   label?: string;
 }
 
-import errorMessageModule = require('./error-message.util');
+import errorMessageModule from './error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -65,4 +65,4 @@ async function withRetry<T>(
   throw lastError;
 }
 
-export = { withRetry };
+export default { withRetry };

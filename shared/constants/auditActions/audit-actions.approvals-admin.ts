@@ -6,10 +6,10 @@
 // checker que resuelve (APPROVED / REJECTED), más los GET del panel.
 // ================================================================
 
-import auditCatalogModule = require('./audit-catalog');
+import auditCatalogModule from './audit-catalog';
 const { AUDIT_CATEGORIES, AUDIT_RISKS, AUDIT_MODULES } = auditCatalogModule;
 
-export = {
+export default {
   DUAL_APPROVAL_REQUESTED: {
     description: 'Operación sensible quedó pendiente de segunda aprobación (maker)',
     category: AUDIT_CATEGORIES.DUAL_APPROVAL,

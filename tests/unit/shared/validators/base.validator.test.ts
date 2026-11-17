@@ -15,9 +15,8 @@ jest.mock('shared/constants', () => ({
 
 import { Loose, fixture } from 'tests/helpers/mock';
 import type { ValidationChain } from 'express-validator';
-import expressValidatorModule = require('express-validator');
-const { validationResult } = expressValidatorModule;
-import BaseValidator = require('shared/validators/base.validator');
+import { validationResult } from 'express-validator';
+import BaseValidator from 'shared/validators/base.validator';
 
 interface FakeReqParts {
   body?: Record<string, Loose>;

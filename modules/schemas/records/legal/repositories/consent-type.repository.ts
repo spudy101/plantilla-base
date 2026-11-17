@@ -1,7 +1,7 @@
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../../shared/models';
 const { ConsentType } = modelsModule;
-import type defineConsentType = require('../models/consent-type.model');
+import type defineConsentType from '../models/consent-type.model';
 
 class ConsentTypeRepository extends BaseRepository<defineConsentType.Instance> {
   constructor() {
@@ -19,4 +19,4 @@ class ConsentTypeRepository extends BaseRepository<defineConsentType.Instance> {
   }
 }
 
-export = new ConsentTypeRepository();
+export default new ConsentTypeRepository();

@@ -1,11 +1,11 @@
 import type { NextFunction, Request, Response } from 'express';
-import AppError = require('../utils/app-error.util');
-import loggerUtilModule = require('../utils/logger.util');
+import AppError from '../utils/app-error.util';
+import loggerUtilModule from '../utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import errorMiddlewareModule = require('./error.middleware');
+import errorMiddlewareModule from './error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
-import userConsentRepository = require('../../modules/schemas/records/legal/repositories/user-consent.repository');
-import consentTypeRepository = require('../../modules/schemas/records/legal/repositories/consent-type.repository');
+import userConsentRepository from '../../modules/schemas/records/legal/repositories/user-consent.repository';
+import consentTypeRepository from '../../modules/schemas/records/legal/repositories/consent-type.repository';
 
 // Filas que lee este middleware. Los repositorios aún son JS (devuelven un Model genérico); al tiparlos en la
 // fase 3 de la migración estos casts desaparecen.
@@ -98,4 +98,4 @@ class ConsentMiddleware {
   }
 }
 
-export = ConsentMiddleware;
+export default ConsentMiddleware;

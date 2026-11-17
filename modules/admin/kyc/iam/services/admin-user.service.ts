@@ -17,22 +17,22 @@
 // ============================================================
 
 import type { AdminAuditContext } from '../../../../../shared/types/audit-context';
-import userRepository = require('../../../../schemas/kyc/iam/repositories/user.repository');
-import roleRepository = require('../../../../schemas/kyc/iam/repositories/role.repository');
-import personRepository = require('../../../../schemas/kyc/person/repositories/person.repository');
-import documentTypeRepository = require('../../../../schemas/kyc/maintainers/repositories/document-type.repository');
-import userSessionRepository = require('../../../../schemas/kyc/iam/repositories/user-session.repository');
-import userChangeLogRepository = require('../../../../schemas/records/audit/repositories/user-change-log.repository');
-import ProfileHelper = require('../../../../schemas/kyc/person/helpers/profile.helper');
-import unitOfWork = require('../../../../../shared/database/unit-of-work');
-import NotificationCreationService = require('../../../../schemas/notification/services/notification-creation.service');
-import DualApprovalService = require('../../../../schemas/core/services/dual-approval.service');
-import internalUserGuardsModule = require('./admin-user/internal-user-guards');
+import userRepository from '../../../../schemas/kyc/iam/repositories/user.repository';
+import roleRepository from '../../../../schemas/kyc/iam/repositories/role.repository';
+import personRepository from '../../../../schemas/kyc/person/repositories/person.repository';
+import documentTypeRepository from '../../../../schemas/kyc/maintainers/repositories/document-type.repository';
+import userSessionRepository from '../../../../schemas/kyc/iam/repositories/user-session.repository';
+import userChangeLogRepository from '../../../../schemas/records/audit/repositories/user-change-log.repository';
+import ProfileHelper from '../../../../schemas/kyc/person/helpers/profile.helper';
+import unitOfWork from '../../../../../shared/database/unit-of-work';
+import NotificationCreationService from '../../../../schemas/notification/services/notification-creation.service';
+import DualApprovalService from '../../../../schemas/core/services/dual-approval.service';
+import internalUserGuardsModule from './admin-user/internal-user-guards';
 const { InternalUserGuards } = internalUserGuardsModule;
-import InternalUserQueryService = require('./admin-user/internal-user-query.service');
-import InternalUserProfileService = require('./admin-user/internal-user-profile.service');
-import InternalUserAccessService = require('./admin-user/internal-user-access.service');
-import InternalUserDeletionService = require('./admin-user/internal-user-deletion.service');
+import InternalUserQueryService from './admin-user/internal-user-query.service';
+import InternalUserProfileService from './admin-user/internal-user-profile.service';
+import InternalUserAccessService from './admin-user/internal-user-access.service';
+import InternalUserDeletionService from './admin-user/internal-user-deletion.service';
 
 /** Dependencias que comparten los sub-servicios (cada uno declara las suyas; aquí se unen). */
 type SharedDeps = NonNullable<ConstructorParameters<typeof InternalUserQueryService>[0]> &
@@ -154,4 +154,4 @@ namespace AdminUserService {
   }
 }
 
-export = Object.assign(new AdminUserService(), { AdminUserService });
+export default Object.assign(new AdminUserService(), { AdminUserService });

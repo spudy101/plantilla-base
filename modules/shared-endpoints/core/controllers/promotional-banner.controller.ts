@@ -1,6 +1,6 @@
-import PromotionalBannerPublicService = require('../services/promotional-banner.service');
-import ApiResponse = require('../../../../shared/utils/app-response.util');
-import errorMiddlewareModule = require('../../../../shared/middlewares/error.middleware');
+import PromotionalBannerPublicService from '../services/promotional-banner.service';
+import ApiResponse from '../../../../shared/utils/app-response.util';
+import errorMiddlewareModule from '../../../../shared/middlewares/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
 
 class PromotionalBannerPublicController {
@@ -11,4 +11,4 @@ class PromotionalBannerPublicController {
   });
 }
 
-export = new PromotionalBannerPublicController();
+export default new PromotionalBannerPublicController();

@@ -1,8 +1,8 @@
 // servers/admin.ts
-import constantsModule = require('../shared/constants');
+import constantsModule from '../shared/constants';
 const { server } = constantsModule;
-import BaseServer = require('../shared/base/base.server');
-import adminApp = require('../modules/admin/app');
+import BaseServer from '../shared/base/base.server';
+import adminApp from '../modules/admin/app';
 
 class AdminServer extends BaseServer {
   override get port() {
@@ -19,4 +19,4 @@ class AdminServer extends BaseServer {
 const adminServer = new AdminServer();
 adminServer.start();
 
-export = adminServer;
+export default adminServer;

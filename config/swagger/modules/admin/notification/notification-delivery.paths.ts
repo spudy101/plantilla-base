@@ -1,5 +1,5 @@
-import commonResponses = require('../../../responses/common.responses');
-import piiMaskingDocModule = require('../../../schemas/pii-masking.doc');
+import commonResponses from '../../../responses/common.responses';
+import piiMaskingDocModule from '../../../schemas/pii-masking.doc';
 const { REDACTED_PAYLOAD_DESC } = piiMaskingDocModule;
 
 /**
@@ -347,4 +347,4 @@ El reintento se ejecuta de forma asíncrona. El campo \`status: "retry_initiated
   }
 };
 
-export = { paths, schemas };
+export default { paths, schemas };

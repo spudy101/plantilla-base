@@ -1,20 +1,21 @@
-import type defineNotificationType = require('../models/notification-type.model');
+import { interopDefault } from '../../../../shared/utils/interop.util';
+import type defineNotificationType from '../models/notification-type.model';
 import type { Transaction } from 'sequelize';
-import notificationRepo = require('../repositories/notification.repository');
-import globalNotificationRepo = require('../repositories/global-notification.repository');
-import notificationTypeRepo = require('../repositories/notification-type.repository');
-import userNotificationPreferenceRepo = require('../../kyc/person/repositories/user-notification-preference.repository');
-import NotificationCountUtil = require('../utils/notification-count.util');
-import notificationSchedulerService = require('./notification-scheduler.service');
-import notificationSendingService = require('./notification-sending.service');
-import NotificationContentUtil = require('../utils/notification-content.util');
-import EncryptionUtil = require('../../../../shared/utils/encryption.util');
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import notificationRepo from '../repositories/notification.repository';
+import globalNotificationRepo from '../repositories/global-notification.repository';
+import notificationTypeRepo from '../repositories/notification-type.repository';
+import userNotificationPreferenceRepo from '../../kyc/person/repositories/user-notification-preference.repository';
+import NotificationCountUtil from '../utils/notification-count.util';
+import notificationSchedulerService from './notification-scheduler.service';
+import notificationSendingService from './notification-sending.service';
+import NotificationContentUtil from '../utils/notification-content.util';
+import EncryptionUtil from '../../../../shared/utils/encryption.util';
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger } = loggerUtilModule;
-import AppError = require('../../../../shared/utils/app-error.util');
-import domainEnumsModule = require('../../../../shared/constants/domain-enums');
+import AppError from '../../../../shared/utils/app-error.util';
+import domainEnumsModule from '../../../../shared/constants/domain-enums';
 const { NOTIFICATION_PROCESSING_STATUS } = domainEnumsModule;
-import errorMessageModule = require('../../../../shared/utils/error-message.util');
+import errorMessageModule from '../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -74,7 +75,7 @@ class NotificationCreationService {
       const emailDestino = EncryptionUtil.safeDecrypt(email);
 
       // FIX: nombre de archivo corregido de emailNotification.service → email-notification.service
-      const emailService = require('./email-notification.service') as typeof import('./email-notification.service');
+      const emailService = interopDefault(require('./email-notification.service') as typeof import('./email-notification.service'));
       await emailService.enviarNotificacion(emailDestino, notificationType, metadata);
 
       logger.info('Notificación directa enviada exitosamente', { tipo: tipoNotificacion, email: emailDestino });
@@ -255,7 +256,7 @@ class NotificationCreationService {
 
     // 2. Programar procesamiento masivo en background
     // FIX: nombre de archivo corregido de notificationBatch.service → notification-batch.service
-    const batchService = require('./notification-batch.service') as typeof import('./notification-batch.service');
+    const batchService = interopDefault(require('./notification-batch.service') as typeof import('./notification-batch.service'));
 
     setImmediate(() => {
       batchService
@@ -314,4 +315,4 @@ namespace NotificationCreationService {
   }
 }
 
-export = Object.assign(new NotificationCreationService(), { NotificationCreationService });
+export default Object.assign(new NotificationCreationService(), { NotificationCreationService });

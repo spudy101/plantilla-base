@@ -5,7 +5,7 @@
 // o lanza 401 si la ruta quedó mal configurada (antes eso terminaba en un TypeError → 500).
 import type { Request } from 'express';
 import type { AuthenticatedUser } from '../types/express';
-import AppError = require('./app-error.util');
+import AppError from './app-error.util';
 
 function requireAuthUser(req: Request): AuthenticatedUser {
   if (!req.user) {
@@ -26,4 +26,4 @@ function requireAuthPerson(req: Request): AuthenticatedUser & { personId: string
   return user as AuthenticatedUser & { personId: string };
 }
 
-export = { requireAuthUser, requireAuthPerson };
+export default { requireAuthUser, requireAuthPerson };

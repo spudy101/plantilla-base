@@ -4,10 +4,10 @@
 // `SystemGlobalConfig.findOne(...)` (el modelo de Sequelize), saltándose la capa
 // de repositorios. Centralizarlo aquí cumple Dependency Inversion: los services
 // dependen de este repositorio (inyectable) y no del ORM.
-import BaseRepository = require('../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../shared/models');
+import BaseRepository from '../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../shared/models';
 const { SystemGlobalConfig } = modelsModule;
-import type defineSystemGlobalConfig = require('../models/system-global-config.model');
+import type defineSystemGlobalConfig from '../models/system-global-config.model';
 
 class SystemGlobalConfigRepository extends BaseRepository<defineSystemGlobalConfig.Instance> {
   constructor() {
@@ -33,4 +33,4 @@ class SystemGlobalConfigRepository extends BaseRepository<defineSystemGlobalConf
   }
 }
 
-export = new SystemGlobalConfigRepository();
+export default new SystemGlobalConfigRepository();

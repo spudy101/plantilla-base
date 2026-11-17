@@ -7,10 +7,10 @@ jest.mock('shared/models', () => ({}));
 jest.mock('shared/utils/logger.util', () => ({ logger: { warn: jest.fn() }, logAudit: jest.fn() }));
 
 import { mocked, fixture } from 'tests/helpers/mock';
-import LoginPolicyGateService = require('modules/shared-endpoints/kyc/iam/services/auth-login/login-policy-gate.service');
-import loggerUtilModule = require('shared/utils/logger.util');
+import LoginPolicyGateService from 'modules/shared-endpoints/kyc/iam/services/auth-login/login-policy-gate.service';
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import constantsModule = require('shared/constants');
+import constantsModule from 'shared/constants';
 const { INTERNAL_ROLE_NAMES } = constantsModule;
 
 const ACTIVE_POLICY = { privacy_policy_id: 'pp-2', version: '2.0', document_url: 'http://x/p.pdf', summary: 's', effective_date: 'd' };

@@ -9,7 +9,7 @@ jest.mock('shared/constants', () => ({
 }));
 
 import { Loose } from 'tests/helpers/mock';
-import sanitizeAuditBodyUtilModule = require('shared/utils/sanitize-audit-body.util');
+import sanitizeAuditBodyUtilModule from 'shared/utils/sanitize-audit-body.util';
 const { sanitizeAuditBody, sanitizeErrorContext, SENSITIVE_FIELDS } = sanitizeAuditBodyUtilModule;
 
 // sanitizeAuditBody devuelve unknown (acepta cualquier body); sobre un objeto plano devuelve otro.

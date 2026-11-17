@@ -8,8 +8,8 @@
 // Cada archivo de área llama a `describeLoadability(baseDir)` y obtiene un bloque
 // que verifica que TODOS los módulos de ese subárbol se puedan `require()` sin lanzar.
 
-import fs = require('fs');
-import path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 const ROOT = path.resolve(__dirname, '..', '..');
 
@@ -58,4 +58,4 @@ function describeLoadability(baseDir: string): void {
   });
 }
 
-export = { ROOT, EXCLUDES, collectModuleFiles, describeLoadability };
+export default { ROOT, EXCLUDES, collectModuleFiles, describeLoadability };

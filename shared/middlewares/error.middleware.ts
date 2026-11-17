@@ -2,11 +2,11 @@
 // shared/middlewares/error.middleware.ts
 
 import type { NextFunction, Request, Response } from 'express';
-import ApiResponse = require('../utils/app-response.util');
-import AppError = require('../utils/app-error.util');
-import loggerUtilModule = require('../utils/logger.util');
+import ApiResponse from '../utils/app-response.util';
+import AppError from '../utils/app-error.util';
+import loggerUtilModule from '../utils/logger.util';
 const { logger, logAudit, sanitizeForLog } = loggerUtilModule;
-import constantsModule = require('../constants');
+import constantsModule from '../constants';
 const { HTTP_STATUS, ERROR_CODES, ERROR_MESSAGES, server, FIELD_LABELS, DEFAULT_FIELD_LABEL } = constantsModule;
 
 /**
@@ -297,4 +297,4 @@ class ErrorMiddleware {
   }
 }
 
-export = ErrorMiddleware;
+export default ErrorMiddleware;

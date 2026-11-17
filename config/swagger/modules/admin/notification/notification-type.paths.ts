@@ -1,6 +1,6 @@
 // config/swagger/modules/admin/notification/notification-type.paths.ts
 
-import commonResponses = require('../../../responses/common.responses');
+import commonResponses from '../../../responses/common.responses';
 
 /**
  * ============================================================
@@ -352,4 +352,4 @@ El usuario destinatario debe existir y estar **activo**. La notificación se enc
   }
 };
 
-export = { paths, schemas };
+export default { paths, schemas };

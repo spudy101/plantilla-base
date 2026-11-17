@@ -49,21 +49,21 @@ jest.mock('modules/shared-endpoints/notification/dtos/send-verification.dto', ()
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import modelsModule = require('shared/models');
+import modelsModule from 'shared/models';
 const { sequelize } = mocked(modelsModule);
-import verificationCodeRepoModule = require('modules/schemas/notification/repositories/verification-code.repository');
+import verificationCodeRepoModule from 'modules/schemas/notification/repositories/verification-code.repository';
 const verificationCodeRepo = mocked(verificationCodeRepoModule);
-import NotificationUtilModule = require('modules/schemas/notification/services/notification-creation.service');
+import NotificationUtilModule from 'modules/schemas/notification/services/notification-creation.service';
 const NotificationUtil = mocked(NotificationUtilModule);
-import SmsServiceModule = require('modules/schemas/notification/services/sms.service');
+import SmsServiceModule from 'modules/schemas/notification/services/sms.service';
 const SmsService = mocked(SmsServiceModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit, logger } = mocked(loggerUtilModule);
-import constantsModule = require('shared/constants');
+import constantsModule from 'shared/constants';
 const constants = mocked(constantsModule);
-import sendVerificationDtoModule = require('modules/shared-endpoints/notification/dtos/send-verification.dto');
+import sendVerificationDtoModule from 'modules/shared-endpoints/notification/dtos/send-verification.dto';
 const { SendVerificationResponseDTO } = mocked(sendVerificationDtoModule);
-import service = require('modules/shared-endpoints/notification/services/send-verification.service');
+import service from 'modules/shared-endpoints/notification/services/send-verification.service';
 
 const flush = () => new Promise(resolve => { setImmediate(resolve); });
 

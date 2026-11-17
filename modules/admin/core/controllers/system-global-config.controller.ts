@@ -1,10 +1,10 @@
-import SystemGlobalConfigService = require('../services/system-global-config.service');
-import ApiResponse = require('../../../../shared/utils/app-response.util');
-import errorMiddlewareModule = require('../../../../shared/middlewares/error.middleware');
+import SystemGlobalConfigService from '../services/system-global-config.service';
+import ApiResponse from '../../../../shared/utils/app-response.util';
+import errorMiddlewareModule from '../../../../shared/middlewares/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
-import authUserUtilModule = require('../../../../shared/utils/auth-user.util');
+import authUserUtilModule from '../../../../shared/utils/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
-import adminAuditContextUtilModule = require('../../../../shared/utils/admin-audit-context.util');
+import adminAuditContextUtilModule from '../../../../shared/utils/admin-audit-context.util';
 const { adminAuditContext } = adminAuditContextUtilModule;
 
 class SystemGlobalConfigController {
@@ -21,4 +21,4 @@ class SystemGlobalConfigController {
   });
 }
 
-export = new SystemGlobalConfigController();
+export default new SystemGlobalConfigController();

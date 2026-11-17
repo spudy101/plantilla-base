@@ -27,4 +27,4 @@ function isOperationalError(error: unknown): boolean {
   return Boolean(error && typeof error === 'object' && 'isOperational' in error && error.isOperational);
 }
 
-export = { errorMessage, errorName, isOperationalError };
+export default { errorMessage, errorName, isOperationalError };

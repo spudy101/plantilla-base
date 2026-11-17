@@ -54,4 +54,4 @@ class SystemGlobalConfigComponent {
   }
 }
 
-export = { SystemGlobalConfigComponent };
+export default { SystemGlobalConfigComponent };

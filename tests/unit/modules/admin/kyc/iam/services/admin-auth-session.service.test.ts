@@ -45,21 +45,21 @@ jest.mock('modules/admin/kyc/iam/dtos/admin-auth-session.dto', () => ({
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import userSessionRepositoryModule = require('modules/schemas/kyc/iam/repositories/user-session.repository');
+import userSessionRepositoryModule from 'modules/schemas/kyc/iam/repositories/user-session.repository';
 const userSessionRepository = mocked(userSessionRepositoryModule);
-import auditLogRepositoryModule = require('modules/schemas/records/audit/repositories/audit-log.repository');
+import auditLogRepositoryModule from 'modules/schemas/records/audit/repositories/audit-log.repository';
 const auditLogRepository = mocked(auditLogRepositoryModule);
-import RefreshTokenStoreModule = require('shared/utils/refresh-token-store.util');
+import RefreshTokenStoreModule from 'shared/utils/refresh-token-store.util';
 const RefreshTokenStore = mocked(RefreshTokenStoreModule);
-import TokenBlacklistUtilModule = require('shared/utils/token-blacklist.util');
+import TokenBlacklistUtilModule from 'shared/utils/token-blacklist.util';
 const TokenBlacklistUtil = mocked(TokenBlacklistUtilModule);
-import NotificationCreationServiceModule = require('modules/schemas/notification/services/notification-creation.service');
+import NotificationCreationServiceModule from 'modules/schemas/notification/services/notification-creation.service';
 const NotificationCreationService = mocked(NotificationCreationServiceModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit, logger } = mocked(loggerUtilModule);
-import adminAuthSessionDtoModule = require('modules/admin/kyc/iam/dtos/admin-auth-session.dto');
+import adminAuthSessionDtoModule from 'modules/admin/kyc/iam/dtos/admin-auth-session.dto';
 const { SessionListDTO, AuthAttemptListDTO } = mocked(adminAuthSessionDtoModule);
-import service = require('modules/admin/kyc/iam/services/admin-auth-session.service');
+import service from 'modules/admin/kyc/iam/services/admin-auth-session.service';
 
 // Helper de flush con cuerpo de bloque (eslint no-promise-executor-return).
 const flush = () =>

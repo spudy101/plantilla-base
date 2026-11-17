@@ -4,8 +4,8 @@
 // Puro: sin BD ni estado. Extraído de AuthBiometricService (SOLID: S) — la criptografía
 // cambia por razones distintas que el flujo de enrolamiento/login.
 
-import crypto = require('node:crypto');
-import loggerUtil = require('./logger.util');
+import crypto from 'node:crypto';
+import loggerUtil from './logger.util';
 
 const { logger } = loggerUtil as { logger: { info(message: string, meta?: object): void } };
 
@@ -74,4 +74,4 @@ function verifyEs256Signature({ publicKey, challenge, signature }: Es256Signatur
   }
 }
 
-export = { verifyEs256Signature, derToPem, rawToDer };
+export default { verifyEs256Signature, derToPem, rawToDer };

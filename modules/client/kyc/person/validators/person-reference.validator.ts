@@ -1,8 +1,7 @@
 // modules/client/kyc/validators/person-reference.validator.ts
 
-import expressValidatorModule = require('express-validator');
-const { body } = expressValidatorModule;
-import BaseValidator = require('../../../../../shared/validators/base.validator');
+import { body } from 'express-validator';
+import BaseValidator from '../../../../../shared/validators/base.validator';
 
 class PersonReferenceValidator {
   static create() {
@@ -66,4 +65,4 @@ class PersonReferenceValidator {
   }
 }
 
-export = PersonReferenceValidator;
+export default PersonReferenceValidator;

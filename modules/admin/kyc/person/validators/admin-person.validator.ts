@@ -1,6 +1,5 @@
-import expressValidatorModule = require('express-validator');
-const { body, query } = expressValidatorModule;
-import BaseValidator = require('../../../../../shared/validators/base.validator');
+import { body, query } from 'express-validator';
+import BaseValidator from '../../../../../shared/validators/base.validator';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -169,4 +168,4 @@ class PersonValidator {
   }
 }
 
-export = PersonValidator;
+export default PersonValidator;

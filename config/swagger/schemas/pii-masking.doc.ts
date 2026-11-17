@@ -31,7 +31,7 @@ const UNMASKED_ROUTE_DESC =
   '⚠️ Endpoint **exento** del enmascaramiento global: devuelve el dato completo porque el usuario está ' +
   'ingresando o confirmando sus propios datos durante el registro.';
 
-export = {
+export default {
   MASKED_DOCUMENT_DESC,
   MASKED_PHONE_DESC,
   MASKED_EMAIL_DESC,

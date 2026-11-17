@@ -1,6 +1,6 @@
-import type defineUser = require('../../../../schemas/kyc/iam/models/user.model');
-import type defineUserTrustedDevice = require('../../../../schemas/kyc/iam/models/user-trusted-device.model');
-import kycModule = require('../../../../../shared/dtos/kyc');
+import type defineUser from '../../../../schemas/kyc/iam/models/user.model';
+import type defineUserTrustedDevice from '../../../../schemas/kyc/iam/models/user-trusted-device.model';
+import kycModule from '../../../../../shared/dtos/kyc';
 const {
   UserComponent,
   PersonComponent,
@@ -197,7 +197,7 @@ function TrustedDeviceUpdateDTO(device: Pick<defineUserTrustedDevice.Instance, '
   };
 }
 
-export = {
+export default {
   LoginResponseDTO,
   PolicyUpdateRequiredDTO,
   DeviceApprovalRequiredDTO,

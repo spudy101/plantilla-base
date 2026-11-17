@@ -110,7 +110,7 @@ class PendingApprovalComponent {
   }
 }
 
-export = {
+export default {
   ApprovalRequestComponent,
   PendingApprovalComponent
 };

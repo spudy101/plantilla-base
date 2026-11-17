@@ -11,7 +11,7 @@
 //   npm run db:seed          → aplica seeders pendientes    (tracking en SequelizeData)
 //   npm run db:seed:undo     → revierte todos los seeders
 import type { Dialect, Options } from 'sequelize';
-import constantsModule = require('../shared/constants');
+import constantsModule from '../shared/constants';
 const { database, server } = constantsModule;
 
 

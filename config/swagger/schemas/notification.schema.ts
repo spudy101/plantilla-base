@@ -13,7 +13,7 @@
  *   UserNotificationPreferenceComponent   → UserNotificationPreference
  */
 
-import piiMaskingDocModule = require('./pii-masking.doc');
+import piiMaskingDocModule from './pii-masking.doc';
 const { REDACTED_PAYLOAD_DESC } = piiMaskingDocModule;
 
 // ─── NotificationCategoryComponent.build() ────────────────────
@@ -265,7 +265,7 @@ const UserNotificationPreference = {
 
 // ─── Exports ──────────────────────────────────────────────────
 
-export = {
+export default {
   NotificationCategory,
   NotificationType,
   NotificationTypeWithTemplates,

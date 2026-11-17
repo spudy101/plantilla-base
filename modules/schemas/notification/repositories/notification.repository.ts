@@ -1,14 +1,13 @@
-import BaseRepository = require('../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../shared/models');
+import BaseRepository from '../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../shared/models';
 const { Notification } = modelsModule;
-import sequelizeModule = require('sequelize');
-const { Op, QueryTypes } = sequelizeModule;
-import constantsModule = require('../../../../shared/constants');
+import { Op, QueryTypes } from 'sequelize';
+import constantsModule from '../../../../shared/constants';
 const { database } = constantsModule;
 import type { UpdateOptions } from 'sequelize';
-import ReadRepository = require('../../../../shared/repositories/read.repository');
-import type defineNotification = require('../models/notification.model');
-import queryModule = require('../../../../shared/repositories/query');
+import ReadRepository from '../../../../shared/repositories/read.repository';
+import type defineNotification from '../models/notification.model';
+import * as queryModule from '../../../../shared/repositories/query';
 const { dateRange, toWhere } = queryModule;
 import type { WhereClause } from '../../../../shared/repositories/query';
 
@@ -456,4 +455,4 @@ namespace NotificationRepository {
   }
 }
 
-export = new NotificationRepository();
+export default new NotificationRepository();

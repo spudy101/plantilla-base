@@ -12,9 +12,8 @@
 // Ventana de tolerancia (drift): ±1 período (30s antes/después) para absorber
 // desfase de reloj entre el dispositivo del usuario y el servidor.
 
-import otplibModule = require('otplib');
-const { authenticator } = otplibModule;
-import constantsModule = require('../constants');
+import { authenticator } from 'otplib';
+import constantsModule from '../constants';
 const { SECURITY, MOCKS } = constantsModule;
 
 // ±1 step ⇒ acepta el código del período actual, el anterior y el siguiente.
@@ -69,4 +68,4 @@ class TotpUtil {
   }
 }
 
-export = TotpUtil;
+export default TotpUtil;

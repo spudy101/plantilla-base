@@ -33,12 +33,12 @@
 //   revoke()      — best-effort con log.
 //   getRotation() — best-effort: ante error se comporta como "sin gracia" (miss).
 
-import redisClient = require('./redis.util');
-import loggerUtilModule = require('./logger.util');
+import redisClient from './redis.util';
+import loggerUtilModule from './logger.util';
 const { logger } = loggerUtilModule;
-import constantsModule = require('../constants');
+import constantsModule from '../constants';
 const { SECURITY } = constantsModule;
-import errorMessageModule = require('./error-message.util');
+import errorMessageModule from './error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -208,4 +208,4 @@ namespace RefreshTokenStore {
   }
 }
 
-export = RefreshTokenStore;
+export default RefreshTokenStore;

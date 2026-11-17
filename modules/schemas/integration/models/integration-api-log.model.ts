@@ -1,19 +1,12 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../shared/constants';
 const { database } = constantsModule;
-import domainEnumsModule = require('../../../../shared/constants/domain-enums');
+import domainEnumsModule from '../../../../shared/constants/domain-enums';
 const { INTEGRATION_PRODUCTS, INTEGRATION_RESULTS } = domainEnumsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../shared/models/registry';
-import type defineUser = require('../../kyc/iam/models/user.model');
-import type defineUserSession = require('../../kyc/iam/models/user-session.model');
-
-
-
-
-
-
+import type defineUser from '../../kyc/iam/models/user.model';
+import type defineUserSession from '../../kyc/iam/models/user-session.model';
 
 // Bitácora central de consumos de integraciones externas (solo AWS en este template:
 // SES / S3 / SNS / SMS por SNS). Una fila por llamada al proveedor. Alimenta el
@@ -179,4 +172,4 @@ namespace defineIntegrationApiLog {
   };
 }
 
-export = defineIntegrationApiLog;
+export default defineIntegrationApiLog;

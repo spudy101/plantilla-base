@@ -1,13 +1,12 @@
-import BaseRepository = require('../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../shared/models');
+import BaseRepository from '../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../shared/models';
 const { VerificationCode } = modelsModule;
-import sequelizeModule = require('sequelize');
-const { Op, literal } = sequelizeModule;
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import { Op, literal } from 'sequelize';
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger } = loggerUtilModule;
-import requestContext = require('../../../../shared/utils/request-context.util');
+import requestContext from '../../../../shared/utils/request-context.util';
 import type { CreateOptions, DestroyOptions, UpdateOptions } from 'sequelize';
-import type defineVerificationCode = require('../models/verification-code.model');
+import type defineVerificationCode from '../models/verification-code.model';
 
 class VerificationCodeRepository extends BaseRepository<defineVerificationCode.Instance> {
   constructor() {
@@ -152,4 +151,4 @@ class VerificationCodeRepository extends BaseRepository<defineVerificationCode.I
   }
 }
 
-export = new VerificationCodeRepository();
+export default new VerificationCodeRepository();

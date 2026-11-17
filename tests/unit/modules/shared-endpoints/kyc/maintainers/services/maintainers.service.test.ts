@@ -25,8 +25,8 @@ jest.mock('shared/utils/logger.util', () => ({ logAudit: jest.fn() }));
 jest.mock('shared/utils/redis.util', () => ({ get: jest.fn(), set: jest.fn() }));
 
 jest.mock('shared/utils/pagination.util', () => ({
-  stringParam: jest.requireActual('shared/utils/pagination.util').stringParam,
-  booleanParam: jest.requireActual('shared/utils/pagination.util').booleanParam,
+  stringParam: jest.requireActual('shared/utils/pagination.util').default.stringParam,
+  booleanParam: jest.requireActual('shared/utils/pagination.util').default.booleanParam,
   getPaginationParams: jest.fn(),
   buildFilters: jest.fn()
 }));
@@ -47,22 +47,22 @@ jest.mock('modules/shared-endpoints/kyc/maintainers/dtos/maintainers.dto', () =>
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import genderRepositoryModule = require('modules/schemas/kyc/maintainers/repositories/gender.repository');
+import genderRepositoryModule from 'modules/schemas/kyc/maintainers/repositories/gender.repository';
 const genderRepository = mocked(genderRepositoryModule);
-import documentTypeRepositoryModule = require('modules/schemas/kyc/maintainers/repositories/document-type.repository');
+import documentTypeRepositoryModule from 'modules/schemas/kyc/maintainers/repositories/document-type.repository';
 const documentTypeRepository = mocked(documentTypeRepositoryModule);
-import phonePrefixRepositoryModule = require('modules/schemas/kyc/maintainers/repositories/phone-prefix.repository');
+import phonePrefixRepositoryModule from 'modules/schemas/kyc/maintainers/repositories/phone-prefix.repository';
 const phonePrefixRepository = mocked(phonePrefixRepositoryModule);
-import privacyPolicyRepositoryModule = require('modules/schemas/records/legal/repositories/privacy-policy.repository');
+import privacyPolicyRepositoryModule from 'modules/schemas/records/legal/repositories/privacy-policy.repository';
 const privacyPolicyRepository = mocked(privacyPolicyRepositoryModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import redisClientModule = require('shared/utils/redis.util');
+import redisClientModule from 'shared/utils/redis.util';
 const redisClient = mocked(redisClientModule);
-import PaginationHelperModule = require('shared/utils/pagination.util');
+import PaginationHelperModule from 'shared/utils/pagination.util';
 const PaginationHelper = mocked(PaginationHelperModule);
-import AppError = require('shared/utils/app-error.util');
-import service = require('modules/shared-endpoints/kyc/maintainers/services/maintainers.service');
+import AppError from 'shared/utils/app-error.util';
+import service from 'modules/shared-endpoints/kyc/maintainers/services/maintainers.service';
 
 describe('MaintainersService', () => {
   beforeEach(() => {

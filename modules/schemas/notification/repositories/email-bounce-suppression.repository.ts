@@ -1,10 +1,9 @@
-import sequelizeModule = require('sequelize');
-const { Op, fn, col } = sequelizeModule;
-import BaseRepository = require('../../../../shared/repositories/base.repository');
-import ReadRepository = require('../../../../shared/repositories/read.repository');
-import modelsModule = require('../../../../shared/models');
+import { Op, fn, col } from 'sequelize';
+import BaseRepository from '../../../../shared/repositories/base.repository';
+import ReadRepository from '../../../../shared/repositories/read.repository';
+import modelsModule from '../../../../shared/models';
 const { EmailBounceSuppression } = modelsModule;
-import type defineEmailBounceSuppression = require('../models/email-bounce-suppression.model');
+import type defineEmailBounceSuppression from '../models/email-bounce-suppression.model';
 
 // Persistencia de la suppression list de correo (por email_hash).
 class EmailBounceSuppressionRepository extends BaseRepository<defineEmailBounceSuppression.Instance> {
@@ -105,4 +104,4 @@ class EmailBounceSuppressionRepository extends BaseRepository<defineEmailBounceS
   }
 }
 
-export = new EmailBounceSuppressionRepository();
+export default new EmailBounceSuppressionRepository();

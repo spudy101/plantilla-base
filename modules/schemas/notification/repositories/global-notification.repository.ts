@@ -1,9 +1,8 @@
-import BaseRepository = require('../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../shared/models');
+import BaseRepository from '../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../shared/models';
 const { GlobalNotification, GlobalNotificationRead } = modelsModule;
-import sequelizeModule = require('sequelize');
-const { Op } = sequelizeModule;
-import type defineGlobalNotification = require('../models/global-notification.model');
+import { Op } from 'sequelize';
+import type defineGlobalNotification from '../models/global-notification.model';
 
 class GlobalNotificationRepository extends BaseRepository<defineGlobalNotification.Instance> {
   constructor() {
@@ -213,4 +212,4 @@ class GlobalNotificationRepository extends BaseRepository<defineGlobalNotificati
   }
 }
 
-export = new GlobalNotificationRepository();
+export default new GlobalNotificationRepository();

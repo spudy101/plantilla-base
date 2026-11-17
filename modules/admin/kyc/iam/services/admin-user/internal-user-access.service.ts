@@ -1,23 +1,23 @@
-import type defineUser = require('../../../../../schemas/kyc/iam/models/user.model');
-import type defineRole = require('../../../../../schemas/kyc/iam/models/role.model');
+import type defineUser from '../../../../../schemas/kyc/iam/models/user.model';
+import type defineRole from '../../../../../schemas/kyc/iam/models/role.model';
 // modules/admin/kyc/iam/services/admin-user/internal-user-access.service.ts
 //
 // Control de acceso de usuarios internos: cambio de rol (doble aprobación), activar/desactivar
 // y cierre de sesiones. Extraído de AdminUserService (SOLID: S).
 
 import type { AdminAuditContext } from '../../../../../../shared/types/audit-context';
-import userRepository = require('../../../../../schemas/kyc/iam/repositories/user.repository');
-import KycSharedUtil = require('../../../../../schemas/kyc/person/utils/kyc-shared.util');
-import NotificationCreationService = require('../../../../../schemas/notification/services/notification-creation.service');
-import DualApprovalService = require('../../../../../schemas/core/services/dual-approval.service');
-import AppError = require('../../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../../shared/utils/logger.util');
+import userRepository from '../../../../../schemas/kyc/iam/repositories/user.repository';
+import KycSharedUtil from '../../../../../schemas/kyc/person/utils/kyc-shared.util';
+import NotificationCreationService from '../../../../../schemas/notification/services/notification-creation.service';
+import DualApprovalService from '../../../../../schemas/core/services/dual-approval.service';
+import AppError from '../../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import constantsModule = require('../../../../../../shared/constants');
+import constantsModule from '../../../../../../shared/constants';
 const { notifications } = constantsModule;
-import adminUserDtoModule = require('../../dtos/admin-user.dto');
+import adminUserDtoModule from '../../dtos/admin-user.dto';
 const { InternalUserDTO } = adminUserDtoModule;
-import internalUserGuardsModule = require('./internal-user-guards');
+import internalUserGuardsModule from './internal-user-guards';
 const { InternalUserGuards, displayName } = internalUserGuardsModule;
 
 const ENTITY = { entityType: 'InternalUser', entityTable: 'users' };
@@ -237,4 +237,4 @@ namespace InternalUserAccessService {
   }
 }
 
-export = InternalUserAccessService;
+export default InternalUserAccessService;

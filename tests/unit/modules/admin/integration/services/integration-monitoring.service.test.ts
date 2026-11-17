@@ -24,8 +24,8 @@ jest.mock('shared/utils/circuit-breaker.util', () => ({
 }));
 
 jest.mock('shared/utils/pagination.util', () => ({
-  stringParam: jest.requireActual('shared/utils/pagination.util').stringParam,
-  booleanParam: jest.requireActual('shared/utils/pagination.util').booleanParam,
+  stringParam: jest.requireActual('shared/utils/pagination.util').default.stringParam,
+  booleanParam: jest.requireActual('shared/utils/pagination.util').default.booleanParam,
   getPaginationParams: jest.fn().mockReturnValue({ limit: 20, offset: 0, page: 1, sortBy: 'created_at', order: 'DESC' })
 }));
 
@@ -54,15 +54,15 @@ jest.mock('modules/admin/integration/dtos/integration-monitoring.dto', () => ({
 }));
 
 import { mocked, Loose } from 'tests/helpers/mock';
-import apiLogRepoModule = require('modules/schemas/integration/repositories/integration-api-log.repository');
+import apiLogRepoModule from 'modules/schemas/integration/repositories/integration-api-log.repository';
 const apiLogRepo = mocked(apiLogRepoModule);
-import fallbackRepoModule = require('modules/schemas/integration/repositories/provider-fallback-event.repository');
+import fallbackRepoModule from 'modules/schemas/integration/repositories/provider-fallback-event.repository';
 const fallbackRepo = mocked(fallbackRepoModule);
-import CircuitBreakerModule = require('shared/utils/circuit-breaker.util');
+import CircuitBreakerModule from 'shared/utils/circuit-breaker.util';
 const CircuitBreaker = mocked(CircuitBreakerModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import service = require('modules/admin/integration/services/integration-monitoring.service');
+import service from 'modules/admin/integration/services/integration-monitoring.service';
 
 const ADMIN = 'admin-1';
 

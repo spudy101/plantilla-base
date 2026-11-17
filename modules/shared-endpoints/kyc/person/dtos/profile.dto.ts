@@ -1,6 +1,6 @@
-import type defineUser = require('../../../../schemas/kyc/iam/models/user.model');
-import type definePerson = require('../../../../schemas/kyc/person/models/person.model');
-import kycModule = require('../../../../../shared/dtos/kyc');
+import type defineUser from '../../../../schemas/kyc/iam/models/user.model';
+import type definePerson from '../../../../schemas/kyc/person/models/person.model';
+import kycModule from '../../../../../shared/dtos/kyc';
 const {
   UserComponent,
   PersonComponent,
@@ -8,9 +8,9 @@ const {
   PersonLocationComponent
 } = kycModule;
 
-import componentsAuditDtoModule = require('../../../../../shared/dtos/audit/components-audit.dto');
+import componentsAuditDtoModule from '../../../../../shared/dtos/audit/components-audit.dto';
 const { UserConsentComponent } = componentsAuditDtoModule;
-import MaskingUtil = require('../../../../../shared/utils/masking.util');
+import MaskingUtil from '../../../../../shared/utils/masking.util';
 
 /**
  * ============================================================
@@ -156,7 +156,7 @@ function UpdateNamesResponseDTO(
   };
 }
 
-export = {
+export default {
   BasicProfileDTO,
   ExtendedProfileDTO,
   UpdateEmailResponseDTO,

@@ -26,8 +26,8 @@ jest.mock('shared/utils/logger.util', () => ({
 
 // Paginación reducida a valores deterministas para no depender de su parsing interno.
 jest.mock('shared/utils/pagination.util', () => ({
-  stringParam: jest.requireActual('shared/utils/pagination.util').stringParam,
-  booleanParam: jest.requireActual('shared/utils/pagination.util').booleanParam,
+  stringParam: jest.requireActual('shared/utils/pagination.util').default.stringParam,
+  booleanParam: jest.requireActual('shared/utils/pagination.util').default.booleanParam,
   getPaginationParams: jest.fn().mockReturnValue({ limit: 10, offset: 0, page: 1, sortBy: 'created_at', order: 'DESC' }),
   buildFilters: jest.fn().mockReturnValue({})
 }));
@@ -45,13 +45,13 @@ jest.mock('modules/admin/records/audit/dtos/admin-audit-alert.dto', () => ({
 }));
 
 import { mocked, Loose } from 'tests/helpers/mock';
-import auditAlertRepoModule = require('modules/schemas/records/audit/repositories/audit-alert.repository');
+import auditAlertRepoModule from 'modules/schemas/records/audit/repositories/audit-alert.repository';
 const auditAlertRepo = mocked(auditAlertRepoModule);
-import notificationCreationModule = require('modules/schemas/notification/services/notification-creation.service');
+import notificationCreationModule from 'modules/schemas/notification/services/notification-creation.service';
 const notificationCreation = mocked(notificationCreationModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import service = require('modules/admin/records/audit/services/admin-audit-alert.service');
+import service from 'modules/admin/records/audit/services/admin-audit-alert.service';
 
 const ADMIN = 'admin-1';
 const flushMacrotasks = () => new Promise(resolve => { setImmediate(resolve); });

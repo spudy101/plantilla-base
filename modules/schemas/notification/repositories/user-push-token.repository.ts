@@ -1,9 +1,8 @@
-import BaseRepository = require('../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../shared/models');
+import BaseRepository from '../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../shared/models';
 const { UserPushToken } = modelsModule;
-import sequelizeModule = require('sequelize');
-const { Op, fn, col } = sequelizeModule;
-import type defineUserPushToken = require('../models/user-push-token.model');
+import { Op, fn, col } from 'sequelize';
+import type defineUserPushToken from '../models/user-push-token.model';
 
 class UserPushTokenRepository extends BaseRepository<defineUserPushToken.Instance> {
   constructor() {
@@ -150,4 +149,4 @@ class UserPushTokenRepository extends BaseRepository<defineUserPushToken.Instanc
   }
 }
 
-export = new UserPushTokenRepository();
+export default new UserPushTokenRepository();

@@ -1,4 +1,4 @@
-import commonResponses = require('../../../../responses/common.responses');
+import commonResponses from '../../../../responses/common.responses';
 
 /**
  * ============================================================
@@ -253,4 +253,4 @@ se derivan de \`audit_logs\` (nunca de input del usuario). Las tablas aún no re
   }
 };
 
-export = { paths, schemas };
+export default { paths, schemas };

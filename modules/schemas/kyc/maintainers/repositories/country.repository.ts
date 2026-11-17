@@ -1,8 +1,8 @@
 // modules/schemas/kyc/src/repositories/country.repository.ts
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../../shared/models';
 const { Country } = modelsModule;
-import type defineCountry = require('../models/country.model');
+import type defineCountry from '../models/country.model';
 
 class CountryRepository extends BaseRepository<defineCountry.Instance> {
   constructor() {
@@ -14,4 +14,4 @@ class CountryRepository extends BaseRepository<defineCountry.Instance> {
   }
 }
 
-export = new CountryRepository();
+export default new CountryRepository();

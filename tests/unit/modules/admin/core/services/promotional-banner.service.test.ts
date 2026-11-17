@@ -25,17 +25,17 @@ jest.mock('modules/admin/core/dtos/promotional-banner.dto', () => ({
 }));
 
 import { mocked, fixture } from 'tests/helpers/mock';
-import uuidModule = require('uuid');
+import uuidModule from 'uuid';
 const { v4: uuidv4 } = mocked(uuidModule);
-import S3UtilModule = require('shared/utils/s3.util');
+import S3UtilModule from 'shared/utils/s3.util';
 const S3Util = mocked(S3UtilModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit, logger } = mocked(loggerUtilModule);
-import systemGlobalConfigRepositoryModule = require('modules/schemas/core/repositories/system-global-config.repository');
+import systemGlobalConfigRepositoryModule from 'modules/schemas/core/repositories/system-global-config.repository';
 const systemGlobalConfigRepository = mocked(systemGlobalConfigRepositoryModule);
-import promotionalBannerDtoModule = require('modules/admin/core/dtos/promotional-banner.dto');
+import promotionalBannerDtoModule from 'modules/admin/core/dtos/promotional-banner.dto';
 const { PromotionalBannerListDTO, PromotionalBannerImageDTO } = mocked(promotionalBannerDtoModule);
-import service = require('modules/admin/core/services/promotional-banner.service');
+import service from 'modules/admin/core/services/promotional-banner.service';
 
 const ADMIN_ID = 'admin-1';
 const PREFIX = 'promotional/banners';

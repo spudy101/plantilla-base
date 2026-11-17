@@ -1,18 +1,11 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../../shared/constants';
 const { database } = constantsModule;
-import originSessionMixinModule = require('../../../../../shared/models/mixins/origin-session.mixin');
+import originSessionMixinModule from '../../../../../shared/models/mixins/origin-session.mixin';
 const { originSessionModelFields } = originSessionMixinModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../../shared/models/registry';
-import type defineUser = require('./user.model');
-
-
-
-
-
-
+import type defineUser from './user.model';
 
 function defineRolePermissionOverride(sequelize: Sequelize): defineRolePermissionOverride.Static {
   const RolePermissionOverride = sequelize.define<defineRolePermissionOverride.Instance>(
@@ -97,4 +90,4 @@ namespace defineRolePermissionOverride {
   };
 }
 
-export = defineRolePermissionOverride;
+export default defineRolePermissionOverride;

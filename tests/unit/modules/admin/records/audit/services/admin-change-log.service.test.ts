@@ -11,8 +11,8 @@ jest.mock('modules/schemas/records/audit/repositories/user-change-log.repository
 }));
 
 jest.mock('shared/utils/pagination.util', () => ({
-  stringParam: jest.requireActual('shared/utils/pagination.util').stringParam,
-  booleanParam: jest.requireActual('shared/utils/pagination.util').booleanParam,
+  stringParam: jest.requireActual('shared/utils/pagination.util').default.stringParam,
+  booleanParam: jest.requireActual('shared/utils/pagination.util').default.booleanParam,
   getPaginationParams: jest.fn(),
   buildFilters: jest.fn()
 }));
@@ -27,15 +27,15 @@ jest.mock('modules/admin/records/audit/dtos/admin-change-log.dto', () => ({
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import userChangeLogRepositoryModule = require('modules/schemas/records/audit/repositories/user-change-log.repository');
+import userChangeLogRepositoryModule from 'modules/schemas/records/audit/repositories/user-change-log.repository';
 const userChangeLogRepository = mocked(userChangeLogRepositoryModule);
-import PaginationHelperModule = require('shared/utils/pagination.util');
+import PaginationHelperModule from 'shared/utils/pagination.util';
 const PaginationHelper = mocked(PaginationHelperModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import adminChangeLogDtoModule = require('modules/admin/records/audit/dtos/admin-change-log.dto');
+import adminChangeLogDtoModule from 'modules/admin/records/audit/dtos/admin-change-log.dto';
 const { ListUserChangeLogsResponseDTO } = mocked(adminChangeLogDtoModule);
-import service = require('modules/admin/records/audit/services/admin-change-log.service');
+import service from 'modules/admin/records/audit/services/admin-change-log.service';
 
 const ADMIN = 'admin-1';
 const PAGINATION = { page: 2, limit: 20, sortBy: 'created_at', order: 'DESC' };

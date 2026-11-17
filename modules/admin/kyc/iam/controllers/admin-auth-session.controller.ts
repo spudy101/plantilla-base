@@ -1,10 +1,10 @@
-import AdminAuthSessionService = require('../services/admin-auth-session.service');
-import ApiResponse = require('../../../../../shared/utils/app-response.util');
-import errorMiddlewareModule = require('../../../../../shared/middlewares/error.middleware');
+import AdminAuthSessionService from '../services/admin-auth-session.service';
+import ApiResponse from '../../../../../shared/utils/app-response.util';
+import errorMiddlewareModule from '../../../../../shared/middlewares/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
-import routeParamUtilModule = require('../../../../../shared/utils/route-param.util');
+import routeParamUtilModule from '../../../../../shared/utils/route-param.util';
 const { routeParam } = routeParamUtilModule;
-import authUserUtilModule = require('../../../../../shared/utils/auth-user.util');
+import authUserUtilModule from '../../../../../shared/utils/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
 
 class AdminAuthSessionController {
@@ -34,4 +34,4 @@ class AdminAuthSessionController {
   });
 }
 
-export = new AdminAuthSessionController();
+export default new AdminAuthSessionController();

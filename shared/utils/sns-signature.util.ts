@@ -1,8 +1,8 @@
-import crypto = require('crypto');
+import crypto from 'crypto';
 import axios from 'axios';
-import loggerUtilModule = require('./logger.util');
+import loggerUtilModule from './logger.util';
 const { logger } = loggerUtilModule;
-import errorMessageModule = require('./error-message.util');
+import errorMessageModule from './error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -128,4 +128,4 @@ declare namespace SnsSignature {
   type Message = SnsMessage;
 }
 
-export = SnsSignature;
+export default SnsSignature;

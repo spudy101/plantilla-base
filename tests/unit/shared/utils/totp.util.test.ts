@@ -4,14 +4,14 @@
 // Cargamos el módulo con isolateModules para poder alternar el flag MOCKS.EXTERNAL_PROVIDERS
 // (que en modo mock acepta el código fijo 123456, paridad con el OTP de SMS).
 
-import otplibModule = require('otplib');
-const { authenticator } = otplibModule;
+import { interopDefault } from 'shared/utils/interop.util';
+import { authenticator } from 'otplib';
 
 /**
  * Carga TotpUtil con las constantes mockeadas. `mockExternal` controla si el modo
  * mock de proveedores externos está activo.
  */
-type TotpUtil = typeof import('shared/utils/totp.util');
+type TotpUtil = typeof import('shared/utils/totp.util').default;
 
 function loadTotp(mockExternal: boolean): TotpUtil {
   let Totp!: TotpUtil;
@@ -20,7 +20,7 @@ function loadTotp(mockExternal: boolean): TotpUtil {
       SECURITY: { TOTP_ISSUER: 'TestIssuer' },
       MOCKS: { EXTERNAL_PROVIDERS: mockExternal }
     }));
-    Totp = require('shared/utils/totp.util');
+    Totp = interopDefault(require('shared/utils/totp.util') as typeof import('shared/utils/totp.util'));
   });
   return Totp;
 }

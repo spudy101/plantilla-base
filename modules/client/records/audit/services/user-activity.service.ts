@@ -1,11 +1,11 @@
-import type UserActivityDto = require('../dtos/user-activity.dto');
-import auditLogRepository = require('../../../../schemas/records/audit/repositories/audit-log.repository');
-import userChangeLogRepository = require('../../../../schemas/records/audit/repositories/user-change-log.repository');
-import userSessionRepository = require('../../../../schemas/kyc/iam/repositories/user-session.repository');
-import PaginationHelper = require('../../../../../shared/utils/pagination.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import type UserActivityDto from '../dtos/user-activity.dto';
+import auditLogRepository from '../../../../schemas/records/audit/repositories/audit-log.repository';
+import userChangeLogRepository from '../../../../schemas/records/audit/repositories/user-change-log.repository';
+import userSessionRepository from '../../../../schemas/kyc/iam/repositories/user-session.repository';
+import PaginationHelper from '../../../../../shared/utils/pagination.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
-import userActivityDtoModule = require('../dtos/user-activity.dto');
+import userActivityDtoModule from '../dtos/user-activity.dto';
 const { UserActivityListResponseDTO } = userActivityDtoModule;
 
 // Whitelist client-safe del feed: hitos que el usuario entiende y le pertenecen. Nada de acciones
@@ -144,4 +144,4 @@ namespace UserActivityService {
   }
 }
 
-export = Object.assign(new UserActivityService(), { UserActivityService });
+export default Object.assign(new UserActivityService(), { UserActivityService });

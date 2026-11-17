@@ -35,24 +35,24 @@ jest.mock('modules/admin/records/legal/dtos/privacy-policy-admin.dto', () => ({
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import repoModule = require('modules/schemas/records/legal/repositories/privacy-policy-admin.repository');
+import repoModule from 'modules/schemas/records/legal/repositories/privacy-policy-admin.repository';
 const repo = mocked(repoModule);
-import S3UtilModule = require('shared/utils/s3.util');
+import S3UtilModule from 'shared/utils/s3.util';
 const S3Util = mocked(S3UtilModule);
-import redisClientModule = require('shared/utils/redis.util');
+import redisClientModule from 'shared/utils/redis.util';
 const redisClient = mocked(redisClientModule);
-import NotificationCreationServiceModule = require('modules/schemas/notification/services/notification-creation.service');
+import NotificationCreationServiceModule from 'modules/schemas/notification/services/notification-creation.service';
 const NotificationCreationService = mocked(NotificationCreationServiceModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit, logger } = mocked(loggerUtilModule);
-import privacyPolicyAdminDtoModuleModule = require('modules/admin/records/legal/dtos/privacy-policy-admin.dto');
+import privacyPolicyAdminDtoModuleModule from 'modules/admin/records/legal/dtos/privacy-policy-admin.dto';
 const privacyPolicyAdminDtoModule = mocked(privacyPolicyAdminDtoModuleModule);
 const {
   ListPrivacyPoliciesResponseDTO,
   PrivacyPolicyDetailResponseDTO,
   PrivacyPolicyCreatedResponseDTO
 } = mocked(privacyPolicyAdminDtoModule);
-import service = require('modules/admin/records/legal/services/privacy-policy-admin.service');
+import service from 'modules/admin/records/legal/services/privacy-policy-admin.service';
 
 const flush = () =>
   new Promise(resolve => {

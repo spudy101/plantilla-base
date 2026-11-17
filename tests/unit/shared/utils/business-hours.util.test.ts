@@ -5,7 +5,7 @@
 // timers. Usamos fechas locales explícitas con new Date(año, mesIdx, día, ...) para que
 // getDay()/getFullYear() (que operan en hora local) sean deterministas.
 
-import businessHoursUtilModule = require('shared/utils/business-hours.util');
+import businessHoursUtilModule from 'shared/utils/business-hours.util';
 const { isBusinessDay, addBusinessHours } = businessHoursUtilModule;
 
 describe('business-hours.util', () => {

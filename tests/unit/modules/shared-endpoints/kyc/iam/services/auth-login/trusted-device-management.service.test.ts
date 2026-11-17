@@ -15,7 +15,7 @@ jest.mock('shared/utils/token-blacklist.util', () => ({
 }));
 
 import { fixture } from 'tests/helpers/mock';
-import TrustedDeviceManagementService = require('modules/shared-endpoints/kyc/iam/services/auth-login/trusted-device-management.service');
+import TrustedDeviceManagementService from 'modules/shared-endpoints/kyc/iam/services/auth-login/trusted-device-management.service';
 
 describe('TrustedDeviceManagementService.blockDevice', () => {
   it('registra el dispositivo de confianza que hizo el bloqueo', async () => {

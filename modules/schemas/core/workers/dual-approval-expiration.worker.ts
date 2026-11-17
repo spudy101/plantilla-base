@@ -1,11 +1,11 @@
-import cron = require('node-cron');
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import cron from 'node-cron';
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import requestContext = require('../../../../shared/utils/request-context.util');
-import approvalRequestRepository = require('../repositories/approval-request.repository');
-import domainEnumsModule = require('../../../../shared/constants/domain-enums');
+import requestContext from '../../../../shared/utils/request-context.util';
+import approvalRequestRepository from '../repositories/approval-request.repository';
+import domainEnumsModule from '../../../../shared/constants/domain-enums';
 const { APPROVAL_REQUEST_STATUS } = domainEnumsModule;
-import errorMessageModule = require('../../../../shared/utils/error-message.util');
+import errorMessageModule from '../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -66,4 +66,4 @@ class DualApprovalExpirationWorker {
   }
 }
 
-export = DualApprovalExpirationWorker;
+export default DualApprovalExpirationWorker;

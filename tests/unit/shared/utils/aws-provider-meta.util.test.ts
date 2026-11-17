@@ -6,7 +6,7 @@
 // SDK v3 a su `name` o, en su defecto, al status HTTP del $metadata.
 
 import { fixture } from 'tests/helpers/mock';
-import awsProviderMetaUtilModule = require('shared/utils/aws-provider-meta.util');
+import awsProviderMetaUtilModule from 'shared/utils/aws-provider-meta.util';
 const { resolveAwsGate, awsErrorCode } = awsProviderMetaUtilModule;
 
 describe('aws-provider-meta.util', () => {

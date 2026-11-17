@@ -67,33 +67,33 @@ jest.mock('shared/dtos/kyc', () => ({
 }));
 
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
-import modelsModule = require('shared/models');
+import modelsModule from 'shared/models';
 const { sequelize } = mocked(modelsModule);
-import userRepositoryModule = require('modules/schemas/kyc/iam/repositories/user.repository');
+import userRepositoryModule from 'modules/schemas/kyc/iam/repositories/user.repository';
 const userRepository = mocked(userRepositoryModule);
-import personRepositoryModule = require('modules/schemas/kyc/person/repositories/person.repository');
+import personRepositoryModule from 'modules/schemas/kyc/person/repositories/person.repository';
 const personRepository = mocked(personRepositoryModule);
-import userConsentRepositoryModule = require('modules/schemas/records/legal/repositories/user-consent.repository');
+import userConsentRepositoryModule from 'modules/schemas/records/legal/repositories/user-consent.repository';
 const userConsentRepository = mocked(userConsentRepositoryModule);
-import consentTypeRepositoryModule = require('modules/schemas/records/legal/repositories/consent-type.repository');
+import consentTypeRepositoryModule from 'modules/schemas/records/legal/repositories/consent-type.repository';
 const consentTypeRepository = mocked(consentTypeRepositoryModule);
-import personContactRepositoryModule = require('modules/schemas/kyc/person/repositories/person-contact.repository');
+import personContactRepositoryModule from 'modules/schemas/kyc/person/repositories/person-contact.repository';
 const personContactRepository = mocked(personContactRepositoryModule);
-import personLocationRepositoryModule = require('modules/schemas/kyc/person/repositories/person-location.repository');
+import personLocationRepositoryModule from 'modules/schemas/kyc/person/repositories/person-location.repository';
 const personLocationRepository = mocked(personLocationRepositoryModule);
-import NotificationUtilModule = require('modules/schemas/notification/services/notification-creation.service');
+import NotificationUtilModule from 'modules/schemas/notification/services/notification-creation.service';
 const NotificationUtil = mocked(NotificationUtilModule);
-import KycSharedUtilModule = require('modules/schemas/kyc/person/utils/kyc-shared.util');
+import KycSharedUtilModule from 'modules/schemas/kyc/person/utils/kyc-shared.util';
 const KycSharedUtil = mocked(KycSharedUtilModule);
-import ProfileHelperModule = require('modules/schemas/kyc/person/helpers/profile.helper');
+import ProfileHelperModule from 'modules/schemas/kyc/person/helpers/profile.helper';
 const ProfileHelper = mocked(ProfileHelperModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import kycModule = require('shared/dtos/kyc');
+import kycModule from 'shared/dtos/kyc';
 const { PersonContactComponent, PersonLocationComponent } = mocked(kycModule);
-import profileDtoModule = require('modules/shared-endpoints/kyc/person/dtos/profile.dto');
+import profileDtoModule from 'modules/shared-endpoints/kyc/person/dtos/profile.dto';
 const profileDto = mocked(profileDtoModule);
-import service = require('modules/shared-endpoints/kyc/person/services/profile.service');
+import service from 'modules/shared-endpoints/kyc/person/services/profile.service';
 
 // Vacia la cola de macrotareas (setImmediate) para dejar correr las notificaciones fire-and-forget.
 const flush = () =>

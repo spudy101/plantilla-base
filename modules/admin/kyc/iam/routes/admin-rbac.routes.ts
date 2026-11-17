@@ -8,17 +8,17 @@
 //   POST   /admin/api/rbac/roles/:roleName/permissions           → otorgar permiso
 //   DELETE /admin/api/rbac/roles/:roleName/permissions/:id       → revocar permiso
 
-import express = require('express');
+import express from 'express';
 const router = express.Router();
-import AdminRbacController = require('../controllers/admin-rbac.controller');
-import AdminRbacValidator = require('../validators/admin-rbac.validator');
-import AuthMiddleware = require('../../../../../shared/middlewares/auth.middleware');
-import RbacMiddleware = require('../../../../../shared/middlewares/rbac.middleware');
-import RateLimitMiddleware = require('../../../../../shared/middlewares/rate-limit.middleware');
-import RequestLockMiddleware = require('../../../../../shared/middlewares/request-lock.middleware');
-import ValidatorUtil = require('../../../../../shared/utils/validators.util');
-import AuditAction = require('../../../../../shared/middlewares/audit-action.middleware');
-import constantsModule = require('../../../../../shared/constants');
+import AdminRbacController from '../controllers/admin-rbac.controller';
+import AdminRbacValidator from '../validators/admin-rbac.validator';
+import AuthMiddleware from '../../../../../shared/middlewares/auth.middleware';
+import RbacMiddleware from '../../../../../shared/middlewares/rbac.middleware';
+import RateLimitMiddleware from '../../../../../shared/middlewares/rate-limit.middleware';
+import RequestLockMiddleware from '../../../../../shared/middlewares/request-lock.middleware';
+import ValidatorUtil from '../../../../../shared/utils/validators.util';
+import AuditAction from '../../../../../shared/middlewares/audit-action.middleware';
+import constantsModule from '../../../../../shared/constants';
 const { RBAC_MODULES, RBAC_ACTIONS } = constantsModule;
 
 // ── Catálogo: lectura sobre el módulo admin ─────────────────────────────────
@@ -88,4 +88,4 @@ router.delete(
   AdminRbacController.revokePermission
 );
 
-export = router;
+export default router;

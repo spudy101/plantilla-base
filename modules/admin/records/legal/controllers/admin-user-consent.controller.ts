@@ -1,10 +1,10 @@
-import AdminUserConsentService = require('../services/admin-user-consent.service');
-import ApiResponse = require('../../../../../shared/utils/app-response.util');
-import errorMiddlewareModule = require('../../../../../shared/middlewares/error.middleware');
+import AdminUserConsentService from '../services/admin-user-consent.service';
+import ApiResponse from '../../../../../shared/utils/app-response.util';
+import errorMiddlewareModule from '../../../../../shared/middlewares/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
-import routeParamUtilModule = require('../../../../../shared/utils/route-param.util');
+import routeParamUtilModule from '../../../../../shared/utils/route-param.util';
 const { routeParam } = routeParamUtilModule;
-import authUserUtilModule = require('../../../../../shared/utils/auth-user.util');
+import authUserUtilModule from '../../../../../shared/utils/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
 
 class AdminUserConsentController {
@@ -19,4 +19,4 @@ class AdminUserConsentController {
   });
 }
 
-export = new AdminUserConsentController();
+export default new AdminUserConsentController();

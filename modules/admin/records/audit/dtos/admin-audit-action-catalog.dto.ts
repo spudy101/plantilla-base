@@ -25,4 +25,4 @@ const ActionListDTO = (item: { action: string; description: string; category: st
   module: item.module ?? null
 });
 
-export = { CategoryDTO, RiskDTO, ModuleDTO, ActionListDTO };
+export default { CategoryDTO, RiskDTO, ModuleDTO, ActionListDTO };

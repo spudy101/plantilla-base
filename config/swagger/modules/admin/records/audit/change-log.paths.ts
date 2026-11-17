@@ -1,4 +1,4 @@
-import commonResponses = require('../../../../responses/common.responses');
+import commonResponses from '../../../../responses/common.responses';
 
 /**
  * ============================================================
@@ -116,4 +116,4 @@ Registra: cambios de contraseña, email, national_id, rol, estado de cuenta, MFA
   }
 };
 
-export = { paths, schemas };
+export default { paths, schemas };

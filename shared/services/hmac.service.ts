@@ -12,10 +12,11 @@
 // Al leerlo, el hook lo descifra automáticamente — el service recibe
 // el valor en texto plano sin hacer nada especial.
 
+import { interopDefault } from '../utils/interop.util';
 import type { Request } from 'express';
-import EncryptionUtil = require('../utils/encryption.util');
-import AppError = require('../utils/app-error.util');
-import loggerUtilModule = require('../utils/logger.util');
+import EncryptionUtil from '../utils/encryption.util';
+import AppError from '../utils/app-error.util';
+import loggerUtilModule from '../utils/logger.util';
 const { logger } = loggerUtilModule;
 
 
@@ -43,7 +44,7 @@ class HmacService {
   }
 
   get trustedDeviceRepository(): TrustedDeviceLookup {
-    this._trustedDeviceRepository ??= require('../../modules/schemas/kyc/iam/repositories/auth-trusted-device.repository') as TrustedDeviceLookup;
+    this._trustedDeviceRepository ??= interopDefault(require('../../modules/schemas/kyc/iam/repositories/auth-trusted-device.repository') as typeof import('../../modules/schemas/kyc/iam/repositories/auth-trusted-device.repository')) as TrustedDeviceLookup;
     return this._trustedDeviceRepository;
   }
 
@@ -130,4 +131,4 @@ class HmacService {
   }
 }
 
-export = Object.assign(new HmacService(), { HmacService });
+export default Object.assign(new HmacService(), { HmacService });

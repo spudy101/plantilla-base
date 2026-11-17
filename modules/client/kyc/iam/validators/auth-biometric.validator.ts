@@ -2,9 +2,8 @@
 // auth-biometric.validator.ts
 // ============================================================
 
-import expressValidatorModule = require('express-validator');
-const { body } = expressValidatorModule;
-import BaseValidator = require('../../../../../shared/validators/base.validator');
+import { body } from 'express-validator';
+import BaseValidator from '../../../../../shared/validators/base.validator';
 
 class AuthBiometricValidator {
   /** POST /auth/biometric/register/start — solo requiere auth */
@@ -67,4 +66,4 @@ class AuthBiometricValidator {
   }
 }
 
-export = AuthBiometricValidator;
+export default AuthBiometricValidator;

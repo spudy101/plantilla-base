@@ -1,39 +1,40 @@
-import type defineUser = require('../../../../schemas/kyc/iam/models/user.model');
+import { interopDefault } from '../../../../../shared/utils/interop.util';
+import type defineUser from '../../../../schemas/kyc/iam/models/user.model';
 import type { RequestAuditContext } from '../../../../../shared/types/audit-context';
-import userRepository = require('../../../../schemas/kyc/iam/repositories/user.repository');
-import userLoginAttemptRepository = require('../../../../schemas/records/audit/repositories/user-login-attempt.repository');
-import verificationCodeRepository = require('../../../../schemas/notification/repositories/verification-code.repository');
-import userSessionRepository = require('../../../../schemas/kyc/iam/repositories/user-session.repository');
-import trustedDeviceRepository = require('../../../../schemas/kyc/iam/repositories/auth-trusted-device.repository');
-import privacyPolicyRepository = require('../../../../schemas/records/legal/repositories/privacy-policy.repository');
-import consentRecorder = require('../../../../schemas/records/legal/services/consent-recorder.service');
-import JwtUtil = require('../../../../../shared/utils/jwt.util');
-import TotpUtil = require('../../../../../shared/utils/totp.util');
-import EncryptionUtil = require('../../../../../shared/utils/encryption.util');
-import TokenBlacklistUtil = require('../../../../../shared/utils/token-blacklist.util');
-import NotificationUtil = require('../../../../schemas/notification/services/notification-creation.service');
-import SmsService = require('../../../../schemas/notification/services/sms.service');
-import AppError = require('../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import userRepository from '../../../../schemas/kyc/iam/repositories/user.repository';
+import userLoginAttemptRepository from '../../../../schemas/records/audit/repositories/user-login-attempt.repository';
+import verificationCodeRepository from '../../../../schemas/notification/repositories/verification-code.repository';
+import userSessionRepository from '../../../../schemas/kyc/iam/repositories/user-session.repository';
+import trustedDeviceRepository from '../../../../schemas/kyc/iam/repositories/auth-trusted-device.repository';
+import privacyPolicyRepository from '../../../../schemas/records/legal/repositories/privacy-policy.repository';
+import consentRecorder from '../../../../schemas/records/legal/services/consent-recorder.service';
+import JwtUtil from '../../../../../shared/utils/jwt.util';
+import TotpUtil from '../../../../../shared/utils/totp.util';
+import EncryptionUtil from '../../../../../shared/utils/encryption.util';
+import TokenBlacklistUtil from '../../../../../shared/utils/token-blacklist.util';
+import NotificationUtil from '../../../../schemas/notification/services/notification-creation.service';
+import SmsService from '../../../../schemas/notification/services/sms.service';
+import AppError from '../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import LoginRateLimiter = require('../../../../../shared/utils/login-rate-limiter.util');
-import constantsModule = require('../../../../../shared/constants');
+import LoginRateLimiter from '../../../../../shared/utils/login-rate-limiter.util';
+import constantsModule from '../../../../../shared/constants';
 const {
   LOGIN_RATE_LIMIT,
   CLIENT_ACCESS_ROLES,
   INTERNAL_ROLE_NAMES
 } = constantsModule;
-import authLoginDtoModule = require('../dtos/auth-login.dto');
+import authLoginDtoModule from '../dtos/auth-login.dto';
 const { LoginResponseDTO, MFARequiredResponseDTO } = authLoginDtoModule;
-import TokenRefreshService = require('./auth-login/token-refresh.service');
-import AuthLogoutService = require('./auth-login/auth-logout.service');
-import TrustedDeviceManagementService = require('./auth-login/trusted-device-management.service');
-import SessionControlService = require('./auth-login/session-control.service');
-import LoginDeviceService = require('./auth-login/login-device.service');
-import SmsLoginChallengeService = require('./auth-login/sms-login-challenge.service');
-import LoginPolicyGateService = require('./auth-login/login-policy-gate.service');
-import SessionIssuerService = require('./auth-login/session-issuer.service');
-import errorMessageModule = require('../../../../../shared/utils/error-message.util');
+import TokenRefreshService from './auth-login/token-refresh.service';
+import AuthLogoutService from './auth-login/auth-logout.service';
+import TrustedDeviceManagementService from './auth-login/trusted-device-management.service';
+import SessionControlService from './auth-login/session-control.service';
+import LoginDeviceService from './auth-login/login-device.service';
+import SmsLoginChallengeService from './auth-login/sms-login-challenge.service';
+import LoginPolicyGateService from './auth-login/login-policy-gate.service';
+import SessionIssuerService from './auth-login/session-issuer.service';
+import errorMessageModule from '../../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -508,12 +509,16 @@ class AuthLoginService {
    */
   async _registrarPushToken(userId: string, fcmToken: string, platform: string, deviceId: string | null = null) {
     try {
-      const pushService = require('../../../../schemas/notification/services/push-notification.service');
-      const userPushTokenRepo = require('../../../../schemas/notification/repositories/user-push-token.repository');
+      const pushService = interopDefault(require('../../../../schemas/notification/services/push-notification.service') as typeof import('../../../../schemas/notification/services/push-notification.service'));
+      const userPushTokenRepo = interopDefault(require('../../../../schemas/notification/repositories/user-push-token.repository') as typeof import('../../../../schemas/notification/repositories/user-push-token.repository'));
 
       // 1. Registrar en AWS SNS → devuelve el endpointArn
       //    Si el token FCM cambió, SNS lo actualiza internamente
       const endpointArn = await pushService.registrarDispositivo(fcmToken, platform, userId);
+      if (!endpointArn) {
+        // SNS no devolvió el endpoint: no hay nada que guardar (cae al catch de best-effort)
+        throw new Error('SNS no devolvió EndpointArn');
+      }
 
       // 2. Upsert en BD:
       //    - Busca por device_id primero, luego por token
@@ -632,4 +637,4 @@ namespace AuthLoginService {
   }
 }
 
-export = Object.assign(new AuthLoginService(), { AuthLoginService });
+export default Object.assign(new AuthLoginService(), { AuthLoginService });

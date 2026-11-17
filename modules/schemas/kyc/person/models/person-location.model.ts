@@ -1,19 +1,12 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../../shared/models/registry';
-import type defineCity = require('../../maintainers/models/city.model');
-import type defineCountry = require('../../maintainers/models/country.model');
-import type defineDepartment = require('../../maintainers/models/department.model');
-import type definePerson = require('./person.model');
-
-
-
-
-
-
+import type defineCity from '../../maintainers/models/city.model';
+import type defineCountry from '../../maintainers/models/country.model';
+import type defineDepartment from '../../maintainers/models/department.model';
+import type definePerson from './person.model';
 
 function definePersonLocation(sequelize: Sequelize): definePersonLocation.Static {
   const PersonLocation = sequelize.define<definePersonLocation.Instance>(
@@ -158,4 +151,4 @@ namespace definePersonLocation {
   };
 }
 
-export = definePersonLocation;
+export default definePersonLocation;

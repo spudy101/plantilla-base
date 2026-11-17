@@ -1,13 +1,13 @@
-import unitOfWork = require('../../../../../shared/database/unit-of-work');
-import AppError = require('../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import unitOfWork from '../../../../../shared/database/unit-of-work';
+import AppError from '../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
 // eslint-disable-next-line max-len
-import userNotificationPreferenceRepository = require('../../../../schemas/kyc/person/repositories/user-notification-preference.repository');
-import notificationCategoryRepository = require('../../../../schemas/notification/repositories/notification-category.repository');
-import notificationPreferenceDtoModule = require('../dtos/notification-preference.dto');
+import userNotificationPreferenceRepository from '../../../../schemas/kyc/person/repositories/user-notification-preference.repository';
+import notificationCategoryRepository from '../../../../schemas/notification/repositories/notification-category.repository';
+import notificationPreferenceDtoModule from '../dtos/notification-preference.dto';
 const { UpdatePreferenceResponseDTO, CategoryPreferencesViewDTO } = notificationPreferenceDtoModule;
-import componentsNotificationDtoModule = require('../../../../../shared/dtos/notification/components-notification.dto');
+import componentsNotificationDtoModule from '../../../../../shared/dtos/notification/components-notification.dto';
 const { UserNotificationPreferenceComponent } = componentsNotificationDtoModule;
 
 /** Extrae del body solo las keys de preferencia presentes (undefined => no se toca). */
@@ -201,4 +201,4 @@ namespace NotificationPreferenceService {
   }
 }
 
-export = Object.assign(new NotificationPreferenceService(), { NotificationPreferenceService });
+export default Object.assign(new NotificationPreferenceService(), { NotificationPreferenceService });

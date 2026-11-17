@@ -5,11 +5,11 @@
 // El repositorio público (kyc) maneja solo findActive() y createVersion().
 // Este repositorio es exclusivo del panel admin.
 
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import ReadRepository = require('../../../../../shared/repositories/read.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import ReadRepository from '../../../../../shared/repositories/read.repository';
+import modelsModule from '../../../../../shared/models';
 const { PrivacyPolicy } = modelsModule;
-import type definePrivacyPolicy = require('../models/privacy-policy.model');
+import type definePrivacyPolicy from '../models/privacy-policy.model';
 
 class PrivacyPolicyAdminRepository extends BaseRepository<definePrivacyPolicy.Instance> {
   constructor() {
@@ -45,4 +45,4 @@ class PrivacyPolicyAdminRepository extends BaseRepository<definePrivacyPolicy.In
   }
 }
 
-export = new PrivacyPolicyAdminRepository();
+export default new PrivacyPolicyAdminRepository();

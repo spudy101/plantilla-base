@@ -4,18 +4,18 @@ import type { UserRepositoryPort } from '../../../../../schemas/repository-ports
 // Consultas de cuentas de cliente para el panel admin: listado, eliminados,
 // opciones de rol y detalle. Extraído de PersonService (SOLID: S).
 
-import userRepository = require('../../../../../schemas/kyc/iam/repositories/user.repository');
-import roleRepository = require('../../../../../schemas/kyc/iam/repositories/role.repository');
-import AppError = require('../../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../../shared/utils/logger.util');
+import userRepository from '../../../../../schemas/kyc/iam/repositories/user.repository';
+import roleRepository from '../../../../../schemas/kyc/iam/repositories/role.repository';
+import AppError from '../../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
-import PaginationHelper = require('../../../../../../shared/utils/pagination.util');
-import componentsCatalogDtoModule = require('../../../../../../shared/dtos/kyc/components-catalog.dto');
+import PaginationHelper from '../../../../../../shared/utils/pagination.util';
+import componentsCatalogDtoModule from '../../../../../../shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
-import constantsModule = require('../../../../../../shared/constants');
+import constantsModule from '../../../../../../shared/constants';
 const { CLIENT_ROLE_NAMES } = constantsModule;
 
-import adminPersonDtoModule = require('../../dtos/admin-person.dto');
+import adminPersonDtoModule from '../../dtos/admin-person.dto';
 const { UserDTO, UserListItemDTO, RoleOptionDTO } = adminPersonDtoModule;
 
 class PersonQueryService {
@@ -184,4 +184,4 @@ namespace PersonQueryService {
   }
 }
 
-export = PersonQueryService;
+export default PersonQueryService;

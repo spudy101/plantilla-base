@@ -1,15 +1,8 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../../shared/models/registry';
-
-
-
-
-
-
 
 function defineGender(sequelize: Sequelize): defineGender.Static {
   const Gender = sequelize.define<defineGender.Instance>(
@@ -72,4 +65,4 @@ namespace defineGender {
   };
 }
 
-export = defineGender;
+export default defineGender;

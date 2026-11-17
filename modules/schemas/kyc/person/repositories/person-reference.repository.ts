@@ -1,9 +1,9 @@
 // modules/schemas/kyc/repositories/person-reference.repository.ts
 
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../../shared/models';
 const { PersonReference } = modelsModule;
-import type definePersonReference = require('../models/person-reference.model');
+import type definePersonReference from '../models/person-reference.model';
 
 class PersonReferenceRepository extends BaseRepository<definePersonReference.Instance> {
   constructor() {
@@ -26,4 +26,4 @@ class PersonReferenceRepository extends BaseRepository<definePersonReference.Ins
   }
 }
 
-export = new PersonReferenceRepository();
+export default new PersonReferenceRepository();

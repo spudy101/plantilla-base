@@ -1,19 +1,12 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../shared/constants';
 const { database } = constantsModule;
-import originSessionMixinModule = require('../../../../shared/models/mixins/origin-session.mixin');
+import originSessionMixinModule from '../../../../shared/models/mixins/origin-session.mixin';
 const { originSessionModelFields } = originSessionMixinModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../shared/models/registry';
-import type defineNotificationType = require('./notification-type.model');
-import type defineUser = require('../../kyc/iam/models/user.model');
-
-
-
-
-
-
+import type defineNotificationType from './notification-type.model';
+import type defineUser from '../../kyc/iam/models/user.model';
 
 function defineGlobalNotification(sequelize: Sequelize): defineGlobalNotification.Static {
   const GlobalNotification = sequelize.define<defineGlobalNotification.Instance>(
@@ -233,4 +226,4 @@ namespace defineGlobalNotification {
   };
 }
 
-export = defineGlobalNotification;
+export default defineGlobalNotification;

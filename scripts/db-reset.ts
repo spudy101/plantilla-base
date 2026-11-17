@@ -8,10 +8,10 @@
 // GUARDA DE SEGURIDAD: esta instancia Postgres puede compartirse entre varios esquemas (p. ej. el
 // template en `plantilla` y un proyecto real en otro). Por eso se niega a correr si DB_SCHEMA está
 // vacío o es `public`, para no arrastrar tablas de esquemas vecinos.
-import childProcessModule = require('node:child_process');
+import childProcessModule from 'node:child_process';
 const { execSync } = childProcessModule;
-import sequelize = require('../config/config');
-import constantsModule = require('../shared/constants');
+import sequelize from '../config/config';
+import constantsModule from '../shared/constants';
 const { database } = constantsModule;
 
 const SCHEMA = database.schema;

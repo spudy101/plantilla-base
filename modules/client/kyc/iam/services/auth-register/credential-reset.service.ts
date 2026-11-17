@@ -1,24 +1,24 @@
-import type defineUser = require('../../../../../schemas/kyc/iam/models/user.model');
-import type defineResetCredentials = require('../../../../../schemas/kyc/iam/models/reset-credentials.model');
+import type defineUser from '../../../../../schemas/kyc/iam/models/user.model';
+import type defineResetCredentials from '../../../../../schemas/kyc/iam/models/reset-credentials.model';
 // modules/client/kyc/iam/services/auth-register/credential-reset.service.ts
 //
 // Reset de credenciales (contraseña o MFA) por enlace de un solo uso enviado al email.
 // Extraído de AuthRegisterService (SOLID: S): el registro y el reset cambian por razones distintas.
 
 import type { Transaction } from 'sequelize';
-import crypto = require('node:crypto');
-import userRepository = require('../../../../../schemas/kyc/iam/repositories/user.repository');
-import personContactRepository = require('../../../../../schemas/kyc/person/repositories/person-contact.repository');
-import resetCredentialsRepository = require('../../../../../schemas/kyc/iam/repositories/reset-credentials.repository');
-import userSessionRepository = require('../../../../../schemas/kyc/iam/repositories/user-session.repository');
-import NotificationUtil = require('../../../../../schemas/notification/services/notification-creation.service');
-import KycSharedUtil = require('../../../../../schemas/kyc/person/utils/kyc-shared.util');
-import TokenBlacklistUtil = require('../../../../../../shared/utils/token-blacklist.util');
-import AppError = require('../../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../../shared/utils/logger.util');
+import crypto from 'node:crypto';
+import userRepository from '../../../../../schemas/kyc/iam/repositories/user.repository';
+import personContactRepository from '../../../../../schemas/kyc/person/repositories/person-contact.repository';
+import resetCredentialsRepository from '../../../../../schemas/kyc/iam/repositories/reset-credentials.repository';
+import userSessionRepository from '../../../../../schemas/kyc/iam/repositories/user-session.repository';
+import NotificationUtil from '../../../../../schemas/notification/services/notification-creation.service';
+import KycSharedUtil from '../../../../../schemas/kyc/person/utils/kyc-shared.util';
+import TokenBlacklistUtil from '../../../../../../shared/utils/token-blacklist.util';
+import AppError from '../../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import unitOfWork = require('../../../../../../shared/database/unit-of-work');
-import constantsModule = require('../../../../../../shared/constants');
+import unitOfWork from '../../../../../../shared/database/unit-of-work';
+import constantsModule from '../../../../../../shared/constants';
 const { frontend, SECURITY, notifications } = constantsModule;
 
 const RESET_TOKEN_BYTES = 32;
@@ -269,4 +269,4 @@ namespace CredentialResetService {
   }
 }
 
-export = CredentialResetService;
+export default CredentialResetService;

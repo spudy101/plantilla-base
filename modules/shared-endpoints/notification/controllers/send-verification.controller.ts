@@ -1,6 +1,6 @@
-import SendVerificationService = require('../services/send-verification.service');
-import ApiResponse = require('../../../../shared/utils/app-response.util');
-import errorMiddlewareModule = require('../../../../shared/middlewares/error.middleware');
+import SendVerificationService from '../services/send-verification.service';
+import ApiResponse from '../../../../shared/utils/app-response.util';
+import errorMiddlewareModule from '../../../../shared/middlewares/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
 
 class SendVerificationController {
@@ -17,4 +17,4 @@ class SendVerificationController {
   });
 }
 
-export = new SendVerificationController();
+export default new SendVerificationController();

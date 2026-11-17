@@ -1,5 +1,5 @@
-import componentsAudit = require('./components-audit.dto');
+import componentsAudit from './components-audit.dto';
 
-export = {
+export default {
   ...componentsAudit
 };

@@ -1,4 +1,4 @@
-import BaseValidator = require('../../../../shared/validators/base.validator');
+import BaseValidator from '../../../../shared/validators/base.validator';
 
 class NotificationValidator {
   /** GET / | GET /personal | GET /global */
@@ -7,4 +7,4 @@ class NotificationValidator {
   }
 }
 
-export = NotificationValidator;
+export default NotificationValidator;

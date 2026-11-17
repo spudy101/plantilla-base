@@ -1,4 +1,4 @@
-import BaseValidator = require('../../../../../shared/validators/base.validator');
+import BaseValidator from '../../../../../shared/validators/base.validator';
 
 class UserActivityValidator extends BaseValidator {
   /** GET /audit/recent-activity — solo paginación; sin filtros de entrada. */
@@ -7,4 +7,4 @@ class UserActivityValidator extends BaseValidator {
   }
 }
 
-export = UserActivityValidator;
+export default UserActivityValidator;

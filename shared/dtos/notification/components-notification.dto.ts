@@ -19,7 +19,7 @@
  *   globalNotification.creator            (User — solo en admin)
  */
 
-import MaskingUtil = require('../../utils/masking.util');
+import MaskingUtil from '../../utils/masking.util';
 import type { DbDate, Maybe } from '../../types/db-rows';
 
 /** Objeto de salida con campos opcionales que se agregan según las opciones de build. */
@@ -489,7 +489,7 @@ class UserNotificationPreferenceComponent {
 // EXPORTS
 // ============================================================
 
-export = {
+export default {
   NotificationCategoryComponent,
   NotificationTypeComponent,
   NotificationComponent,

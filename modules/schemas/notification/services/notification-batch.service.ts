@@ -1,20 +1,21 @@
+import { interopDefault } from '../../../../shared/utils/interop.util';
 import type { KeyValueCache } from '../../../../shared/types/cache';
 import type { UserRepositoryPort } from '../../repository-ports';
-import type defineUser = require('../../kyc/iam/models/user.model');
-import type defineNotificationType = require('../models/notification-type.model');
-import globalNotificationRepo = require('../repositories/global-notification.repository');
-import userNotificationPreferenceRepo = require('../../kyc/person/repositories/user-notification-preference.repository');
-import userPushTokenRepo = require('../repositories/user-push-token.repository');
-import redisClient = require('../../../../shared/utils/redis.util');
-import localCache = require('../../../../shared/utils/cache.util');
-import emailService = require('./email-notification.service');
-import pushService = require('./push-notification.service');
-import rateLimitService = require('./notification-rate-limit.service');
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import type defineUser from '../../kyc/iam/models/user.model';
+import type defineNotificationType from '../models/notification-type.model';
+import globalNotificationRepo from '../repositories/global-notification.repository';
+import userNotificationPreferenceRepo from '../../kyc/person/repositories/user-notification-preference.repository';
+import userPushTokenRepo from '../repositories/user-push-token.repository';
+import redisClient from '../../../../shared/utils/redis.util';
+import localCache from '../../../../shared/utils/cache.util';
+import emailService from './email-notification.service';
+import pushService from './push-notification.service';
+import rateLimitService from './notification-rate-limit.service';
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger } = loggerUtilModule;
-import constantsModule = require('../../../../shared/constants');
+import constantsModule from '../../../../shared/constants';
 const { CLIENT_ROLE_NAMES } = constantsModule;
-import errorMessageModule = require('../../../../shared/utils/error-message.util');
+import errorMessageModule from '../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -84,7 +85,7 @@ class NotificationBatchService {
   async procesarNotificacionGlobal(globalNotificationId: string, notificationType: defineNotificationType.Instance, title: string, body: string, metadata: Record<string, unknown>) {
     try {
       const cache: KeyValueCache = redisClient.isAvailable() ? redisClient : localCache;
-      const UserRepository = require('../../kyc/iam/repositories/user.repository') as UserRepositoryPort;
+      const UserRepository = interopDefault(require('../../kyc/iam/repositories/user.repository') as typeof import('../../kyc/iam/repositories/user.repository')) as UserRepositoryPort;
 
       // Las notificaciones globales solo se envían a clientes finales (CLIENTE /
       // CLIENTE_VERIFICADO), nunca a usuarios internos ni entidades externas.
@@ -206,7 +207,7 @@ class NotificationBatchService {
   }
 
   async _procesarLoteEmail(batch: defineUser.Instance[], notificationType: defineNotificationType.Instance, metadata: Record<string, unknown>, globalNotificationId: string) {
-    const EncryptionUtil = require('../../../../shared/utils/encryption.util') as typeof import('../../../../shared/utils/encryption.util');
+    const EncryptionUtil = interopDefault(require('../../../../shared/utils/encryption.util') as typeof import('../../../../shared/utils/encryption.util'));
     const GCM_PARTS_COUNT = 3;
 
     const promises = batch.map(user => {
@@ -375,4 +376,4 @@ namespace NotificationBatchService {
   }
 }
 
-export = Object.assign(new NotificationBatchService(), { NotificationBatchService });
+export default Object.assign(new NotificationBatchService(), { NotificationBatchService });

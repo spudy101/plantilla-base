@@ -3,13 +3,13 @@
 // Regresiones de bugs que destapó el tipado de modules/admin (fase 4 de la migración a TS).
 
 import { fixture } from 'tests/helpers/mock';
-import componentsApprovalDtoModule = require('shared/dtos/core/components-approval.dto');
+import componentsApprovalDtoModule from 'shared/dtos/core/components-approval.dto';
 const { ApprovalRequestComponent } = componentsApprovalDtoModule;
-import integrationMonitoringDtoModule = require('modules/admin/integration/dtos/integration-monitoring.dto');
+import integrationMonitoringDtoModule from 'modules/admin/integration/dtos/integration-monitoring.dto';
 const { IntegrationLogListItemDTO } = integrationMonitoringDtoModule;
-import adminAuditContextUtilModule = require('shared/utils/admin-audit-context.util');
+import adminAuditContextUtilModule from 'shared/utils/admin-audit-context.util';
 const { adminAuditContext } = adminAuditContextUtilModule;
-import PaginationHelper = require('shared/utils/pagination.util');
+import PaginationHelper from 'shared/utils/pagination.util';
 
 describe('Timestamps de modelos underscored', () => {
   // En una consulta normal Sequelize expone el atributo (createdAt), no la columna (created_at).

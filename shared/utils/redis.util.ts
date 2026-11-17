@@ -1,12 +1,12 @@
 // src/utils/redis.util.ts
 import { Redis } from 'ioredis';
 import type { RedisOptions } from 'ioredis';
-import loggerUtilModule = require('./logger.util');
+import loggerUtilModule from './logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import requestContext = require('./request-context.util');
-import constantsModule = require('../constants');
+import requestContext from './request-context.util';
+import constantsModule from '../constants';
 const { redis: redisConfig } = constantsModule;
-import errorMessageModule = require('./error-message.util');
+import errorMessageModule from './error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -306,4 +306,4 @@ class RedisClient {
   }
 }
 
-export = Object.assign(new RedisClient(), { RedisClient });
+export default Object.assign(new RedisClient(), { RedisClient });

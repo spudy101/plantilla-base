@@ -1,8 +1,7 @@
 // === RF-OPS-01: Pipeline DevSecOps, Infraestructura Base ===
 // src/middlewares/correlation.middleware.ts
 import type { NextFunction, Request, Response } from 'express';
-import uuidModule = require('uuid');
-const { v4: uuidv4 } = uuidModule;
+import { v4 as uuidv4 } from 'uuid';
 
 const CORRELATION_ID_SUFFIX_LENGTH = 8;
 
@@ -61,4 +60,4 @@ class CorrelationMiddleware {
   }
 }
 
-export = CorrelationMiddleware;
+export default CorrelationMiddleware;

@@ -1,4 +1,4 @@
-import componentsCatalogDtoModule = require('../../../../../shared/dtos/kyc/components-catalog.dto');
+import componentsCatalogDtoModule from '../../../../../shared/dtos/kyc/components-catalog.dto';
 const {
   CountryComponent,
   DepartmentComponent,
@@ -11,9 +11,9 @@ const {
   RoleComponent
 } = componentsCatalogDtoModule;
 
-import type definePrivacyPolicy = require('../../../../schemas/records/legal/models/privacy-policy.model');
-import type defineDocumentType = require('../../../../schemas/kyc/maintainers/models/document-type.model');
-import componentsNotificationDtoModule = require('../../../../../shared/dtos/notification/components-notification.dto');
+import type definePrivacyPolicy from '../../../../schemas/records/legal/models/privacy-policy.model';
+import type defineDocumentType from '../../../../schemas/kyc/maintainers/models/document-type.model';
+import componentsNotificationDtoModule from '../../../../../shared/dtos/notification/components-notification.dto';
 const { NotificationTypeComponent } = componentsNotificationDtoModule;
 
 /**
@@ -142,7 +142,7 @@ function ListDocumentTypesResponseDTO(
   }));
 }
 
-export = {
+export default {
   ListGendersResponseDTO,
   ListDocumentTypesResponseDTO,
   ListPhonePrefixesResponseDTO,

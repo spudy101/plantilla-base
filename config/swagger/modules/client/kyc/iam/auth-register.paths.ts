@@ -1,5 +1,5 @@
-import commonResponses = require('../../../../responses/common.responses');
-import piiMaskingDocModule = require('../../../../schemas/pii-masking.doc');
+import commonResponses from '../../../../responses/common.responses';
+import piiMaskingDocModule from '../../../../schemas/pii-masking.doc';
 const { UNMASKED_ROUTE_DESC } = piiMaskingDocModule;
 
 /**
@@ -236,4 +236,4 @@ El token tiene una validez de tiempo limitado y solo puede usarse una vez.`,
   }
 };
 
-export = { paths, schemas };
+export default { paths, schemas };

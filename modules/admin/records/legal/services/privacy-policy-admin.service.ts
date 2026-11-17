@@ -10,16 +10,16 @@
 //   5. Crear el registro en BD con la URL pública y marcarlo is_active = true
 //      (el repositorio desactiva automáticamente la versión anterior)
 
-import crypto = require('node:crypto');
-import privacyPolicyAdminRepository = require('../../../../schemas/records/legal/repositories/privacy-policy-admin.repository');
-import S3Util = require('../../../../../shared/utils/s3.util');
-import redisClient = require('../../../../../shared/utils/redis.util');
-import AppError = require('../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import crypto from 'node:crypto';
+import privacyPolicyAdminRepository from '../../../../schemas/records/legal/repositories/privacy-policy-admin.repository';
+import S3Util from '../../../../../shared/utils/s3.util';
+import redisClient from '../../../../../shared/utils/redis.util';
+import AppError from '../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import PaginationHelper = require('../../../../../shared/utils/pagination.util');
-import NotificationCreationService = require('../../../../schemas/notification/services/notification-creation.service');
-import privacyPolicyAdminDtoModule = require('../dtos/privacy-policy-admin.dto');
+import PaginationHelper from '../../../../../shared/utils/pagination.util';
+import NotificationCreationService from '../../../../schemas/notification/services/notification-creation.service';
+import privacyPolicyAdminDtoModule from '../dtos/privacy-policy-admin.dto';
 const {
   ListPrivacyPoliciesResponseDTO,
   PrivacyPolicyDetailResponseDTO,
@@ -214,4 +214,4 @@ namespace PrivacyPolicyAdminService {
   }
 }
 
-export = Object.assign(new PrivacyPolicyAdminService(), { PrivacyPolicyAdminService });
+export default Object.assign(new PrivacyPolicyAdminService(), { PrivacyPolicyAdminService });

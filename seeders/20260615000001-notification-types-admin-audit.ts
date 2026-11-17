@@ -11,10 +11,9 @@
 // IDEMPOTENCIA: filtra por code — se puede correr N veces sin duplicar.
 
 import type { Migration } from '../shared/types/migration';
-import constantsModule = require('../shared/constants');
+import constantsModule from '../shared/constants';
 const { database } = constantsModule;
-import uuidModule = require('uuid');
-const { v4: uuidv4 } = uuidModule;
+import { v4 as uuidv4 } from 'uuid';
 const TABLE = { tableName: 'notification_types', schema: database.schema };
 
 const CODES = [

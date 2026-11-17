@@ -1,8 +1,7 @@
 // src/utils/validators.js
-import expressValidatorModule = require('express-validator');
-const { validationResult } = expressValidatorModule;
+import { validationResult } from 'express-validator';
 import type { NextFunction, Request, Response } from 'express';
-import AppError = require('./app-error.util');
+import AppError from './app-error.util';
 
 class ValidatorUtil {
   /**
@@ -53,4 +52,4 @@ class ValidatorUtil {
   }
 }
 
-export = ValidatorUtil;
+export default ValidatorUtil;

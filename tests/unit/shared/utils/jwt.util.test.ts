@@ -5,9 +5,8 @@
 // claves PEM y AUTH_ERROR_CODES sin arrancar la validación de .env (que haría process.exit).
 // jose se transpila con babel-jest (ver transformIgnorePatterns), por eso carga bien en test.
 
-import crypto = require('node:crypto');
-import joseModule = require('jose');
-const { SignJWT } = joseModule;
+import crypto from 'node:crypto';
+import { SignJWT } from 'jose';
 
 // Par RSA de test (PKCS#8 privado / SPKI público, PEM). El prefijo `mock` habilita su uso
 // dentro del factory de jest.mock.
@@ -34,7 +33,7 @@ jest.mock('shared/constants', () => ({
   }
 }));
 
-import JwtUtil = require('shared/utils/jwt.util');
+import JwtUtil from 'shared/utils/jwt.util';
 
 // Usuario mínimo con asociaciones cargadas, como espera generateAccessToken.
 const buildUser = () => ({

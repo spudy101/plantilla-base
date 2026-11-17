@@ -1,33 +1,32 @@
 import type { RequestAuditContext } from '../../../../../shared/types/audit-context';
 import type { Transaction } from 'sequelize';
-import uuidModule = require('uuid');
-const { v4: uuidv4 } = uuidModule;
-import userRepository = require('../../../../schemas/kyc/iam/repositories/user.repository');
-import personRepository = require('../../../../schemas/kyc/person/repositories/person.repository');
-import personContactRepository = require('../../../../schemas/kyc/person/repositories/person-contact.repository');
-import documentTypeRepository = require('../../../../schemas/kyc/maintainers/repositories/document-type.repository');
+import { v4 as uuidv4 } from 'uuid';
+import userRepository from '../../../../schemas/kyc/iam/repositories/user.repository';
+import personRepository from '../../../../schemas/kyc/person/repositories/person.repository';
+import personContactRepository from '../../../../schemas/kyc/person/repositories/person-contact.repository';
+import documentTypeRepository from '../../../../schemas/kyc/maintainers/repositories/document-type.repository';
 // eslint-disable-next-line max-len
-import userNotificationPreferenceRepository = require('../../../../schemas/kyc/person/repositories/user-notification-preference.repository');
-import countryRepository = require('../../../../schemas/kyc/maintainers/repositories/country.repository');
-import privacyPolicyRepository = require('../../../../schemas/records/legal/repositories/privacy-policy.repository');
-import consentRecorder = require('../../../../schemas/records/legal/services/consent-recorder.service');
-import genderRepository = require('../../../../schemas/kyc/maintainers/repositories/gender.repository');
-import verificationCodeRepository = require('../../../../schemas/notification/repositories/verification-code.repository');
-import roleRepository = require('../../../../schemas/kyc/iam/repositories/role.repository');
-import userSessionRepository = require('../../../../schemas/kyc/iam/repositories/user-session.repository');
-import NotificationUtil = require('../../../../schemas/notification/services/notification-creation.service');
-import AppError = require('../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import userNotificationPreferenceRepository from '../../../../schemas/kyc/person/repositories/user-notification-preference.repository';
+import countryRepository from '../../../../schemas/kyc/maintainers/repositories/country.repository';
+import privacyPolicyRepository from '../../../../schemas/records/legal/repositories/privacy-policy.repository';
+import consentRecorder from '../../../../schemas/records/legal/services/consent-recorder.service';
+import genderRepository from '../../../../schemas/kyc/maintainers/repositories/gender.repository';
+import verificationCodeRepository from '../../../../schemas/notification/repositories/verification-code.repository';
+import roleRepository from '../../../../schemas/kyc/iam/repositories/role.repository';
+import userSessionRepository from '../../../../schemas/kyc/iam/repositories/user-session.repository';
+import NotificationUtil from '../../../../schemas/notification/services/notification-creation.service';
+import AppError from '../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import requestContext = require('../../../../../shared/utils/request-context.util');
-import unitOfWork = require('../../../../../shared/database/unit-of-work');
-import CredentialResetService = require('./auth-register/credential-reset.service');
-import SessionIssuerService = require('../../../../shared-endpoints/kyc/iam/services/auth-login/session-issuer.service');
-import authRegisterDtoModule = require('../dtos/auth-register.dto');
+import requestContext from '../../../../../shared/utils/request-context.util';
+import unitOfWork from '../../../../../shared/database/unit-of-work';
+import CredentialResetService from './auth-register/credential-reset.service';
+import SessionIssuerService from '../../../../shared-endpoints/kyc/iam/services/auth-login/session-issuer.service';
+import authRegisterDtoModule from '../dtos/auth-register.dto';
 const { RegisterResponseDTO } = authRegisterDtoModule;
-import constantsModule = require('../../../../../shared/constants');
+import constantsModule from '../../../../../shared/constants';
 const { RBAC_ROLES, notifications } = constantsModule;
-import errorMessageModule = require('../../../../../shared/utils/error-message.util');
+import errorMessageModule from '../../../../../shared/utils/error-message.util';
 
 const { errorMessage, isOperationalError } = errorMessageModule;
 
@@ -528,4 +527,4 @@ namespace AuthRegisterService {
   }
 }
 
-export = Object.assign(new AuthRegisterService(), { AuthRegisterService });
+export default Object.assign(new AuthRegisterService(), { AuthRegisterService });

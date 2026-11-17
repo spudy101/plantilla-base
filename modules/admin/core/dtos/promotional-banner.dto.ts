@@ -45,4 +45,4 @@ declare namespace PromotionalBannerAdminDto {
   type Stored = StoredBanner;
 }
 
-export = PromotionalBannerAdminDto;
+export default PromotionalBannerAdminDto;

@@ -1,18 +1,18 @@
-import type defineUser = require('../../../../../schemas/kyc/iam/models/user.model');
-import type definePrivacyPolicy = require('../../../../../schemas/records/legal/models/privacy-policy.model');
+import type defineUser from '../../../../../schemas/kyc/iam/models/user.model';
+import type definePrivacyPolicy from '../../../../../schemas/records/legal/models/privacy-policy.model';
 // modules/shared-endpoints/kyc/iam/services/auth-login/login-policy-gate.service.ts
 //
 // Compuerta de política de privacidad en el login. La comparten el login por contraseña y el
 // biométrico (antes estaba copiada en ambos). Extraído por SOLID: S.
 
-import userRepository = require('../../../../../schemas/kyc/iam/repositories/user.repository');
-import privacyPolicyRepository = require('../../../../../schemas/records/legal/repositories/privacy-policy.repository');
-import consentRecorder = require('../../../../../schemas/records/legal/services/consent-recorder.service');
-import loggerUtilModule = require('../../../../../../shared/utils/logger.util');
+import userRepository from '../../../../../schemas/kyc/iam/repositories/user.repository';
+import privacyPolicyRepository from '../../../../../schemas/records/legal/repositories/privacy-policy.repository';
+import consentRecorder from '../../../../../schemas/records/legal/services/consent-recorder.service';
+import loggerUtilModule from '../../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import constantsModule = require('../../../../../../shared/constants');
+import constantsModule from '../../../../../../shared/constants';
 const { INTERNAL_ROLE_NAMES } = constantsModule;
-import authLoginDtoModule = require('../../dtos/auth-login.dto');
+import authLoginDtoModule from '../../dtos/auth-login.dto';
 const { PolicyUpdateRequiredDTO } = authLoginDtoModule;
 
 class LoginPolicyGateService {
@@ -124,4 +124,4 @@ namespace LoginPolicyGateService {
   }
 }
 
-export = LoginPolicyGateService;
+export default LoginPolicyGateService;

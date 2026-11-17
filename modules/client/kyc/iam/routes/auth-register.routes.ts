@@ -1,12 +1,12 @@
-import express = require('express');
+import express from 'express';
 const router = express.Router();
-import AuthRegisterController = require('../controllers/auth-register.controller');
-import AuthRegisterValidator = require('../validators/auth-register.validator');
-import RateLimitMiddleware = require('../../../../../shared/middlewares/rate-limit.middleware');
-import RequestLockMiddleware = require('../../../../../shared/middlewares/request-lock.middleware');
-import ValidatorUtil = require('../../../../../shared/utils/validators.util');
-import AuditAction = require('../../../../../shared/middlewares/audit-action.middleware');
-import PiiMaskingMiddleware = require('../../../../../shared/middlewares/pii-masking.middleware');
+import AuthRegisterController from '../controllers/auth-register.controller';
+import AuthRegisterValidator from '../validators/auth-register.validator';
+import RateLimitMiddleware from '../../../../../shared/middlewares/rate-limit.middleware';
+import RequestLockMiddleware from '../../../../../shared/middlewares/request-lock.middleware';
+import ValidatorUtil from '../../../../../shared/utils/validators.util';
+import AuditAction from '../../../../../shared/middlewares/audit-action.middleware';
+import PiiMaskingMiddleware from '../../../../../shared/middlewares/pii-masking.middleware';
 
 // === RF-AUTH-01: Registro de Usuario (confirmación de correo y celular) ===
 
@@ -59,4 +59,4 @@ router.post(
   AuthRegisterController.confirmResetCredentials
 );
 
-export = router;
+export default router;

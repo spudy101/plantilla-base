@@ -1,6 +1,6 @@
 // config/swagger/modules/admin/kyc/iam/admin-rbac.paths.ts
 
-import commonResponses = require('../../../../responses/common.responses');
+import commonResponses from '../../../../responses/common.responses';
 
 /**
  * ============================================================
@@ -371,4 +371,4 @@ Los overrides complementan la matriz base definida en código. Requiere permiso 
   }
 };
 
-export = { paths, schemas };
+export default { paths, schemas };

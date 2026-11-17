@@ -1,16 +1,16 @@
-import express = require('express');
+import express from 'express';
 
 const router = express.Router();
-import AdminNotificationDeliveryController = require('../controllers/admin-notification-delivery.controller');
-import AdminNotificationDeliveryValidator = require('../validators/admin-notification-delivery.validator');
-import AuthMiddleware = require('../../../../shared/middlewares/auth.middleware');
-import RbacMiddleware = require('../../../../shared/middlewares/rbac.middleware');
-import RateLimitMiddleware = require('../../../../shared/middlewares/rate-limit.middleware');
-import RequestLockMiddleware = require('../../../../shared/middlewares/request-lock.middleware');
-import BaseValidator = require('../../../../shared/validators/base.validator');
-import ValidatorUtil = require('../../../../shared/utils/validators.util');
-import AuditAction = require('../../../../shared/middlewares/audit-action.middleware');
-import constantsModule = require('../../../../shared/constants');
+import AdminNotificationDeliveryController from '../controllers/admin-notification-delivery.controller';
+import AdminNotificationDeliveryValidator from '../validators/admin-notification-delivery.validator';
+import AuthMiddleware from '../../../../shared/middlewares/auth.middleware';
+import RbacMiddleware from '../../../../shared/middlewares/rbac.middleware';
+import RateLimitMiddleware from '../../../../shared/middlewares/rate-limit.middleware';
+import RequestLockMiddleware from '../../../../shared/middlewares/request-lock.middleware';
+import BaseValidator from '../../../../shared/validators/base.validator';
+import ValidatorUtil from '../../../../shared/utils/validators.util';
+import AuditAction from '../../../../shared/middlewares/audit-action.middleware';
+import constantsModule from '../../../../shared/constants';
 const { RBAC_MODULES, RBAC_ACTIONS } = constantsModule;
 
 // GET /api/notification-delivery
@@ -66,4 +66,4 @@ router.post(
   AdminNotificationDeliveryController.retry
 );
 
-export = router;
+export default router;

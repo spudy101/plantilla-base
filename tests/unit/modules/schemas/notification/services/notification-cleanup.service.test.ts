@@ -27,15 +27,15 @@ jest.mock('shared/utils/logger.util', () => ({
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import notificationRepoModule = require('modules/schemas/notification/repositories/notification.repository');
+import notificationRepoModule from 'modules/schemas/notification/repositories/notification.repository';
 const notificationRepo = mocked(notificationRepoModule);
-import userPushTokenRepoModule = require('modules/schemas/notification/repositories/user-push-token.repository');
+import userPushTokenRepoModule from 'modules/schemas/notification/repositories/user-push-token.repository';
 const userPushTokenRepo = mocked(userPushTokenRepoModule);
-import verificationCodeRepoModule = require('modules/schemas/notification/repositories/verification-code.repository');
+import verificationCodeRepoModule from 'modules/schemas/notification/repositories/verification-code.repository';
 const verificationCodeRepo = mocked(verificationCodeRepoModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logger } = mocked(loggerUtilModule);
-import cleanup = require('modules/schemas/notification/services/notification-cleanup.service');
+import cleanup from 'modules/schemas/notification/services/notification-cleanup.service';
 
 describe('NotificationCleanupService', () => {
   beforeEach(() => {

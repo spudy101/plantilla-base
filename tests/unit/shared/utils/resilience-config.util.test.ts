@@ -16,9 +16,9 @@ jest.mock('shared/utils/logger.util', () => ({
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logger } = mocked(loggerUtilModule);
-import ResilienceConfig = require('shared/utils/resilience-config.util');
+import ResilienceConfig from 'shared/utils/resilience-config.util';
 
 describe('ResilienceConfig', () => {
   beforeEach(() => {

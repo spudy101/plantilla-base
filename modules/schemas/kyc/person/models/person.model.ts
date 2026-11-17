@@ -1,24 +1,17 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../../shared/constants';
 const { database } = constantsModule;
-import EncryptionUtil = require('../../../../../shared/utils/encryption.util');
-import HashUtil = require('../../../../../shared/utils/hash.util');
+import EncryptionUtil from '../../../../../shared/utils/encryption.util';
+import HashUtil from '../../../../../shared/utils/hash.util';
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../../shared/models/registry';
-import type defineCountry = require('../../maintainers/models/country.model');
-import type defineDocumentType = require('../../maintainers/models/document-type.model');
-import type defineGender = require('../../maintainers/models/gender.model');
-import type definePersonContact = require('./person-contact.model');
-import type definePersonLocation = require('./person-location.model');
-import type definePersonReference = require('./person-reference.model');
-import type defineUser = require('../../iam/models/user.model');
-
-
-
-
-
-
+import type defineCountry from '../../maintainers/models/country.model';
+import type defineDocumentType from '../../maintainers/models/document-type.model';
+import type defineGender from '../../maintainers/models/gender.model';
+import type definePersonContact from './person-contact.model';
+import type definePersonLocation from './person-location.model';
+import type definePersonReference from './person-reference.model';
+import type defineUser from '../../iam/models/user.model';
 
 function definePerson(sequelize: Sequelize): definePerson.Static {
   const Person = sequelize.define<definePerson.Instance>(
@@ -280,4 +273,4 @@ namespace definePerson {
   };
 }
 
-export = definePerson;
+export default definePerson;

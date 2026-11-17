@@ -1,7 +1,7 @@
 // shared/middlewares/pii-masking.middleware.ts
 
 import type { NextFunction, Request, Response } from 'express';
-import MaskingUtil = require('../utils/masking.util');
+import MaskingUtil from '../utils/masking.util';
 
 /**
  * [RF-USR-01] | CA-06 | Red de seguridad de enmascaramiento PII.
@@ -43,4 +43,4 @@ class PiiMaskingMiddleware {
   }
 }
 
-export = PiiMaskingMiddleware;
+export default PiiMaskingMiddleware;

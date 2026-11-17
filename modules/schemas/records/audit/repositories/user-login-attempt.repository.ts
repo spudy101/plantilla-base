@@ -1,13 +1,12 @@
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../../shared/models';
 const { UserLoginAttempt } = modelsModule;
-import sequelizeModule = require('sequelize');
-const { Op } = sequelizeModule;
-import EncryptionUtil = require('../../../../../shared/utils/encryption.util');
-import HashUtil = require('../../../../../shared/utils/hash.util');
-import requestContext = require('../../../../../shared/utils/request-context.util');
+import { Op } from 'sequelize';
+import EncryptionUtil from '../../../../../shared/utils/encryption.util';
+import HashUtil from '../../../../../shared/utils/hash.util';
+import requestContext from '../../../../../shared/utils/request-context.util';
 import type { CreateOptions } from 'sequelize';
-import type defineUserLoginAttempt = require('../models/user-login-attempt.model');
+import type defineUserLoginAttempt from '../models/user-login-attempt.model';
 
 const MS_PER_MINUTE = 60 * 1000;
 
@@ -124,4 +123,4 @@ class UserLoginAttemptRepository extends BaseRepository<defineUserLoginAttempt.I
   }
 }
 
-export = new UserLoginAttemptRepository();
+export default new UserLoginAttemptRepository();

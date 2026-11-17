@@ -1,38 +1,38 @@
-import type defineUser = require('../../../../schemas/kyc/iam/models/user.model');
-import type defineUserBiometricCredential = require('../../../../schemas/kyc/iam/models/user-biometric-credential.model');
+import type defineUser from '../../../../schemas/kyc/iam/models/user.model';
+import type defineUserBiometricCredential from '../../../../schemas/kyc/iam/models/user-biometric-credential.model';
 import type { RequestAuditContext } from '../../../../../shared/types/audit-context';
-import crypto = require('node:crypto');
+import crypto from 'node:crypto';
 
-import userRepository = require('../../../../schemas/kyc/iam/repositories/user.repository');
-import userLoginAttemptRepository = require('../../../../schemas/records/audit/repositories/user-login-attempt.repository');
-import trustedDeviceRepository = require('../../../../schemas/kyc/iam/repositories/auth-trusted-device.repository');
-import privacyPolicyRepository = require('../../../../schemas/records/legal/repositories/privacy-policy.repository');
-import consentRecorder = require('../../../../schemas/records/legal/services/consent-recorder.service');
-import biometricRepositoryModule = require('../../../../schemas/kyc/iam/repositories/biometric.repository');
+import userRepository from '../../../../schemas/kyc/iam/repositories/user.repository';
+import userLoginAttemptRepository from '../../../../schemas/records/audit/repositories/user-login-attempt.repository';
+import trustedDeviceRepository from '../../../../schemas/kyc/iam/repositories/auth-trusted-device.repository';
+import privacyPolicyRepository from '../../../../schemas/records/legal/repositories/privacy-policy.repository';
+import consentRecorder from '../../../../schemas/records/legal/services/consent-recorder.service';
+import biometricRepositoryModule from '../../../../schemas/kyc/iam/repositories/biometric.repository';
 const {
   biometricCredentialRepository,
   biometricChallengeRepository
 } = biometricRepositoryModule;
-import userSessionRepository = require('../../../../schemas/kyc/iam/repositories/user-session.repository');
-import SessionControlService = require('../../../../shared-endpoints/kyc/iam/services/auth-login/session-control.service');
-import SessionIssuerService = require('../../../../shared-endpoints/kyc/iam/services/auth-login/session-issuer.service');
-import LoginPolicyGateService = require('../../../../shared-endpoints/kyc/iam/services/auth-login/login-policy-gate.service');
-import es256SignatureUtilModule = require('../../../../../shared/utils/es256-signature.util');
+import userSessionRepository from '../../../../schemas/kyc/iam/repositories/user-session.repository';
+import SessionControlService from '../../../../shared-endpoints/kyc/iam/services/auth-login/session-control.service';
+import SessionIssuerService from '../../../../shared-endpoints/kyc/iam/services/auth-login/session-issuer.service';
+import LoginPolicyGateService from '../../../../shared-endpoints/kyc/iam/services/auth-login/login-policy-gate.service';
+import es256SignatureUtilModule from '../../../../../shared/utils/es256-signature.util';
 const { verifyEs256Signature } = es256SignatureUtilModule;
-import NotificationUtil = require('../../../../schemas/notification/services/notification-creation.service');
-import AppError = require('../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import NotificationUtil from '../../../../schemas/notification/services/notification-creation.service';
+import AppError from '../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import constantsModule = require('../../../../../shared/constants');
+import constantsModule from '../../../../../shared/constants';
 const { notifications } = constantsModule;
-import authBiometricDtoModule = require('../dtos/auth-biometric.dto');
+import authBiometricDtoModule from '../dtos/auth-biometric.dto';
 const {
   BiometricRegisterStartDTO,
   BiometricRegisterFinishDTO,
   BiometricLoginStartDTO,
   BiometricCredentialListDTO
 } = authBiometricDtoModule;
-import authLoginDtoModule = require('../../../../shared-endpoints/kyc/iam/dtos/auth-login.dto');
+import authLoginDtoModule from '../../../../shared-endpoints/kyc/iam/dtos/auth-login.dto';
 const { LoginResponseDTO } = authLoginDtoModule;
 
 // ============================================================
@@ -541,4 +541,4 @@ namespace AuthBiometricService {
   }
 }
 
-export = Object.assign(new AuthBiometricService(), { AuthBiometricService });
+export default Object.assign(new AuthBiometricService(), { AuthBiometricService });

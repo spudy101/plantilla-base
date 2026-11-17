@@ -1,7 +1,7 @@
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../../shared/models';
 const { RolePermissionOverride } = modelsModule;
-import type defineRolePermissionOverride = require('../models/role-permission-override.model');
+import type defineRolePermissionOverride from '../models/role-permission-override.model';
 
 // Hereda findById / create / delete de BaseRepository (SOLID: L — misma firma que el padre).
 class RolePermissionOverrideRepository extends BaseRepository<defineRolePermissionOverride.Instance> {
@@ -51,4 +51,4 @@ class RolePermissionOverrideRepository extends BaseRepository<defineRolePermissi
   }
 }
 
-export = new RolePermissionOverrideRepository();
+export default new RolePermissionOverrideRepository();

@@ -1,4 +1,4 @@
-import BaseValidator = require('../../../../../shared/validators/base.validator');
+import BaseValidator from '../../../../../shared/validators/base.validator';
 
 /**
  * ============================================================
@@ -65,4 +65,4 @@ class MFAValidator {
   }
 }
 
-export = MFAValidator;
+export default MFAValidator;

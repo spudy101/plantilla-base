@@ -1,15 +1,15 @@
-import express = require('express');
+import express from 'express';
 
 const router = express.Router();
-import IntegrationMonitoringController = require('../controllers/integration-monitoring.controller');
-import IntegrationMonitoringValidator = require('../validators/integration-monitoring.validator');
-import AuthMiddleware = require('../../../../shared/middlewares/auth.middleware');
-import RbacMiddleware = require('../../../../shared/middlewares/rbac.middleware');
-import RateLimitMiddleware = require('../../../../shared/middlewares/rate-limit.middleware');
-import RequestLockMiddleware = require('../../../../shared/middlewares/request-lock.middleware');
-import ValidatorUtil = require('../../../../shared/utils/validators.util');
-import AuditAction = require('../../../../shared/middlewares/audit-action.middleware');
-import rbacModule = require('../../../../shared/constants/rbac');
+import IntegrationMonitoringController from '../controllers/integration-monitoring.controller';
+import IntegrationMonitoringValidator from '../validators/integration-monitoring.validator';
+import AuthMiddleware from '../../../../shared/middlewares/auth.middleware';
+import RbacMiddleware from '../../../../shared/middlewares/rbac.middleware';
+import RateLimitMiddleware from '../../../../shared/middlewares/rate-limit.middleware';
+import RequestLockMiddleware from '../../../../shared/middlewares/request-lock.middleware';
+import ValidatorUtil from '../../../../shared/utils/validators.util';
+import AuditAction from '../../../../shared/middlewares/audit-action.middleware';
+import rbacModule from '../../../../shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
 const DASHBOARD_ENTITY = { entityType: 'IntegrationApiLog', entityTable: 'integration_api_logs' };
@@ -78,4 +78,4 @@ router.get(
   IntegrationMonitoringController.fallbacks
 );
 
-export = router;
+export default router;

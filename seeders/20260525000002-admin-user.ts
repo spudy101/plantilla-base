@@ -9,13 +9,12 @@
 
 import type { QueryInterface } from 'sequelize';
 import type { Migration, SequelizeStatic } from '../shared/types/migration';
-import uuidModule = require('uuid');
-const { v4: uuidv4 } = uuidModule;
-import constantsModule = require('../shared/constants');
+import { v4 as uuidv4 } from 'uuid';
+import constantsModule from '../shared/constants';
 const { database, seeds } = constantsModule;
-import bcrypt = require('bcryptjs');
-import EncryptionUtil = require('../shared/utils/encryption.util');
-import HashUtil = require('../shared/utils/hash.util');
+import bcrypt from 'bcryptjs';
+import EncryptionUtil from '../shared/utils/encryption.util';
+import HashUtil from '../shared/utils/hash.util';
 
 const SCHEMA = database.schema;
 

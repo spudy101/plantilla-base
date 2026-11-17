@@ -1,20 +1,20 @@
 // === RF-AUTH-02, RF-AUTH-03: Login, Gestión de Sesión Segura y Recuperación de Contraseña ===
 // === RF-AUTH-03 (admin): Gestión de Dispositivos Autenticados y Control de Sesiones ===
 
-import userSessionRepository = require('../../../../schemas/kyc/iam/repositories/user-session.repository');
-import auditLogRepository = require('../../../../schemas/records/audit/repositories/audit-log.repository');
-import RefreshTokenStore = require('../../../../../shared/utils/refresh-token-store.util');
-import TokenBlacklistUtil = require('../../../../../shared/utils/token-blacklist.util');
-import AppError = require('../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import userSessionRepository from '../../../../schemas/kyc/iam/repositories/user-session.repository';
+import auditLogRepository from '../../../../schemas/records/audit/repositories/audit-log.repository';
+import RefreshTokenStore from '../../../../../shared/utils/refresh-token-store.util';
+import TokenBlacklistUtil from '../../../../../shared/utils/token-blacklist.util';
+import AppError from '../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import constantsModule = require('../../../../../shared/constants');
+import constantsModule from '../../../../../shared/constants';
 const { notifications } = constantsModule;
-import NotificationCreationService = require('../../../../schemas/notification/services/notification-creation.service');
-import PaginationHelper = require('../../../../../shared/utils/pagination.util');
-import domainEnumsModule = require('../../../../../shared/constants/domain-enums');
+import NotificationCreationService from '../../../../schemas/notification/services/notification-creation.service';
+import PaginationHelper from '../../../../../shared/utils/pagination.util';
+import domainEnumsModule from '../../../../../shared/constants/domain-enums';
 const { USER_SESSION_STATUS } = domainEnumsModule;
-import adminAuthSessionDtoModule = require('../dtos/admin-auth-session.dto');
+import adminAuthSessionDtoModule from '../dtos/admin-auth-session.dto';
 const { SessionListDTO, AuthAttemptListDTO } = adminAuthSessionDtoModule;
 
 const AUTH_CATEGORY = 'Autenticación';
@@ -253,4 +253,4 @@ namespace AdminAuthSessionService {
   }
 }
 
-export = Object.assign(new AdminAuthSessionService(), { AdminAuthSessionService });
+export default Object.assign(new AdminAuthSessionService(), { AdminAuthSessionService });

@@ -5,8 +5,8 @@
 jest.mock('shared/utils/logger.util', () => ({ logger: { info: jest.fn() } }));
 
 import { Loose } from 'tests/helpers/mock';
-import crypto = require('node:crypto');
-import es256SignatureUtilModule = require('shared/utils/es256-signature.util');
+import crypto from 'node:crypto';
+import es256SignatureUtilModule from 'shared/utils/es256-signature.util';
 const { verifyEs256Signature, rawToDer, derToPem } = es256SignatureUtilModule;
 
 const { publicKey, privateKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });

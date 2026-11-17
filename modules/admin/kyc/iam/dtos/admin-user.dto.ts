@@ -1,7 +1,7 @@
-import type defineRole = require('../../../../schemas/kyc/iam/models/role.model');
+import type defineRole from '../../../../schemas/kyc/iam/models/role.model';
 // modules/admin/users/dtos/admin-user.dto.ts
 
-import kycModule = require('../../../../../shared/dtos/kyc');
+import kycModule from '../../../../../shared/dtos/kyc';
 const {
   UserComponent,
   PersonComponent,
@@ -95,7 +95,7 @@ function RoleOptionDTO(role: Pick<defineRole.Attributes, 'role_id' | 'name' | 'd
   };
 }
 
-export = {
+export default {
   InternalUserDTO,
   InternalUserListDTO,
   InternalUserCreatedDTO,

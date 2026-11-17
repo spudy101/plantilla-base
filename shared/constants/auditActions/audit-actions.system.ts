@@ -9,10 +9,10 @@
 // el emisor define el outcome.
 // ================================================================
 
-import auditCatalogModule = require('./audit-catalog');
+import auditCatalogModule from './audit-catalog';
 const { AUDIT_CATEGORIES, AUDIT_RISKS } = auditCatalogModule;
 
-export = {
+export default {
   // ── AUTENTICACIÓN / AUTORIZACIÓN ──────────────────────────────
 
   AUTH_FAILURE: {

@@ -5,9 +5,9 @@
 jest.mock('shared/models', () => ({ sequelize: { transaction: jest.fn() } }));
 
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
-import modelsModule = require('shared/models');
+import modelsModule from 'shared/models';
 const { sequelize } = mocked(modelsModule);
-import unitOfWork = require('shared/database/unit-of-work');
+import unitOfWork from 'shared/database/unit-of-work';
 const { SequelizeUnitOfWork } = unitOfWork;
 
 describe('SequelizeUnitOfWork', () => {

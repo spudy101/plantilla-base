@@ -6,9 +6,9 @@
 jest.mock('shared/models', () => ({}));
 
 import { fixture } from 'tests/helpers/mock';
-import profileHelperModule = require('modules/schemas/kyc/person/helpers/profile.helper');
+import profileHelperModule from 'modules/schemas/kyc/person/helpers/profile.helper';
 const { ProfileHelper } = profileHelperModule;
-import KycSharedUtil = require('modules/schemas/kyc/person/utils/kyc-shared.util');
+import KycSharedUtil from 'modules/schemas/kyc/person/utils/kyc-shared.util';
 
 const TX = { id: 'tx-1' };
 const AUDIT = { ip: '1.2.3.4', userAgent: 'jest' };

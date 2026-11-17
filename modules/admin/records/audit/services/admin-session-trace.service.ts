@@ -1,4 +1,4 @@
-import type SessionTraceDto = require('../dtos/admin-session-trace.dto');
+import type SessionTraceDto from '../dtos/admin-session-trace.dto';
 // Fase 5 — API admin de sesiones (el consumidor de la trazabilidad).
 // Superficie forense: dada una sesión, reconstruye qué se hizo en ella y con qué filas de dominio.
 //
@@ -7,25 +7,25 @@ import type SessionTraceDto = require('../dtos/admin-session-trace.dto');
 // (índice inverso / cobertura / durabilidad), no la fuente. La hidratación es perezosa y por lote:
 // un findAll por tabla involucrada, agrupando los ids, reusando los DTOs admin que ya existen.
 
-import AppError = require('../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import AppError from '../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
-import PaginationHelper = require('../../../../../shared/utils/pagination.util');
+import PaginationHelper from '../../../../../shared/utils/pagination.util';
 
-import auditLogRepository = require('../../../../schemas/records/audit/repositories/audit-log.repository');
-import userSessionRepository = require('../../../../schemas/kyc/iam/repositories/user-session.repository');
-import userConsentRepository = require('../../../../schemas/records/legal/repositories/user-consent.repository');
+import auditLogRepository from '../../../../schemas/records/audit/repositories/audit-log.repository';
+import userSessionRepository from '../../../../schemas/kyc/iam/repositories/user-session.repository';
+import userConsentRepository from '../../../../schemas/records/legal/repositories/user-consent.repository';
 // eslint-disable-next-line max-len
-import notificationPreferenceRepo = require('../../../../schemas/kyc/person/repositories/user-notification-preference.repository');
-import trustedDeviceRepo = require('../../../../schemas/kyc/iam/repositories/auth-trusted-device.repository');
+import notificationPreferenceRepo from '../../../../schemas/kyc/person/repositories/user-notification-preference.repository';
+import trustedDeviceRepo from '../../../../schemas/kyc/iam/repositories/auth-trusted-device.repository';
 
-import componentsAuditDtoModule = require('../../../../../shared/dtos/audit/components-audit.dto');
+import componentsAuditDtoModule from '../../../../../shared/dtos/audit/components-audit.dto';
 const {
   UserConsentComponent,
   NotificationPreferenceComponent,
   TrustedDeviceComponent
 } = componentsAuditDtoModule;
-import adminSessionTraceDtoModule = require('../dtos/admin-session-trace.dto');
+import adminSessionTraceDtoModule from '../dtos/admin-session-trace.dto';
 const { SessionTraceListDTO, SessionTimelineDTO, SessionEntitiesDTO } = adminSessionTraceDtoModule;
 
 // ============================================================
@@ -215,4 +215,4 @@ namespace AdminSessionTraceService {
   }
 }
 
-export = Object.assign(new AdminSessionTraceService(), { AdminSessionTraceService });
+export default Object.assign(new AdminSessionTraceService(), { AdminSessionTraceService });

@@ -1,4 +1,4 @@
-import commonResponses = require('../../../../responses/common.responses');
+import commonResponses from '../../../../responses/common.responses';
 
 /**
  * ============================================================
@@ -230,4 +230,4 @@ A diferencia de los documentos de usuario, esta URL **no expira** — es una URL
   }
 };
 
-export = { paths, schemas };
+export default { paths, schemas };

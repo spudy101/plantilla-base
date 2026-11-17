@@ -6,7 +6,7 @@
  * Las constantes fijas de la aplicación viven en shared/constants/index.ts
  */
 
-import dotenv = require('dotenv');
+import dotenv from 'dotenv';
 
 dotenv.config();
 
@@ -328,4 +328,4 @@ try {
   throw error;
 }
 
-export = config;
+export default config;

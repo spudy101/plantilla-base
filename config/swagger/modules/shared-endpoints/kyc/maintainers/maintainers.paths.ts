@@ -1,4 +1,4 @@
-import commonResponses = require('../../../../responses/common.responses');
+import commonResponses from '../../../../responses/common.responses';
 
 // ─── Schemas propios del módulo ───────────────────────────────
 
@@ -280,4 +280,4 @@ const paths = {
   }
 };
 
-export = { paths, schemas };
+export default { paths, schemas };

@@ -7,18 +7,17 @@
 // Reutiliza el mismo patrón que auth-register.service, pero sin política de
 // privacidad ni notificaciones de bienvenida (no aplican a usuarios internos).
 
-import uuidModule = require('uuid');
-const { v4: uuidv4 } = uuidModule;
+import { v4 as uuidv4 } from 'uuid';
 
-import userRepository = require('../repositories/user.repository');
-import personRepository = require('../../person/repositories/person.repository');
-import personContactRepository = require('../../person/repositories/person-contact.repository');
-import AppError = require('../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import userRepository from '../repositories/user.repository';
+import personRepository from '../../person/repositories/person.repository';
+import personContactRepository from '../../person/repositories/person-contact.repository';
+import AppError from '../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger } = loggerUtilModule;
-import requestContext = require('../../../../../shared/utils/request-context.util');
-import unitOfWork = require('../../../../../shared/database/unit-of-work');
-import errorMessageModule = require('../../../../../shared/utils/error-message.util');
+import requestContext from '../../../../../shared/utils/request-context.util';
+import unitOfWork from '../../../../../shared/database/unit-of-work';
+import errorMessageModule from '../../../../../shared/utils/error-message.util';
 
 const { errorMessage, isOperationalError } = errorMessageModule;
 
@@ -127,4 +126,4 @@ namespace InternalUserHelper {
   }
 }
 
-export = InternalUserHelper;
+export default InternalUserHelper;

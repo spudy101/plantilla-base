@@ -13,8 +13,8 @@ jest.mock('shared/utils/logger.util', () => ({
 
 // Paginación determinista para no depender de su parsing interno.
 jest.mock('shared/utils/pagination.util', () => ({
-  stringParam: jest.requireActual('shared/utils/pagination.util').stringParam,
-  booleanParam: jest.requireActual('shared/utils/pagination.util').booleanParam,
+  stringParam: jest.requireActual('shared/utils/pagination.util').default.stringParam,
+  booleanParam: jest.requireActual('shared/utils/pagination.util').default.booleanParam,
   getPaginationParams: jest.fn().mockReturnValue({ page: 1, limit: 10, offset: 0, sortBy: 'created_at', order: 'DESC' })
 }));
 
@@ -32,13 +32,13 @@ jest.mock('modules/admin/records/legal/dtos/admin-user-consent.dto', () => ({
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import consentRepoModule = require('modules/schemas/records/legal/repositories/user-consent.repository');
+import consentRepoModule from 'modules/schemas/records/legal/repositories/user-consent.repository';
 const consentRepo = mocked(consentRepoModule);
-import componentsCatalogDtoModule = require('shared/dtos/kyc/components-catalog.dto');
+import componentsCatalogDtoModule from 'shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = mocked(componentsCatalogDtoModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import service = require('modules/admin/records/legal/services/admin-user-consent.service');
+import service from 'modules/admin/records/legal/services/admin-user-consent.service';
 
 const ADMIN = 'admin-1';
 

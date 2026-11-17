@@ -1,11 +1,10 @@
-import sequelizeModule = require('sequelize');
-const { Op } = sequelizeModule;
-import BaseRepository = require('../../../../shared/repositories/base.repository');
-import ReadRepository = require('../../../../shared/repositories/read.repository');
-import modelsModule = require('../../../../shared/models');
+import { Op } from 'sequelize';
+import BaseRepository from '../../../../shared/repositories/base.repository';
+import ReadRepository from '../../../../shared/repositories/read.repository';
+import modelsModule from '../../../../shared/models';
 const { ProviderFallbackEvent } = modelsModule;
-import type defineProviderFallbackEvent = require('../models/provider-fallback-event.model');
-import queryModule = require('../../../../shared/repositories/query');
+import type defineProviderFallbackEvent from '../models/provider-fallback-event.model';
+import * as queryModule from '../../../../shared/repositories/query';
 const { dateRange, toWhere } = queryModule;
 import type { WhereClause } from '../../../../shared/repositories/query';
 
@@ -114,4 +113,4 @@ class ProviderFallbackEventRepository extends BaseRepository<defineProviderFallb
   }
 }
 
-export = new ProviderFallbackEventRepository();
+export default new ProviderFallbackEventRepository();

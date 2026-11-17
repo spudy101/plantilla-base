@@ -1,18 +1,11 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../../shared/models/registry';
-import type defineConsentType = require('./consent-type.model');
-import type definePrivacyPolicy = require('./privacy-policy.model');
-import type defineUser = require('../../../kyc/iam/models/user.model');
-
-
-
-
-
-
+import type defineConsentType from './consent-type.model';
+import type definePrivacyPolicy from './privacy-policy.model';
+import type defineUser from '../../../kyc/iam/models/user.model';
 
 function defineUserConsent(sequelize: Sequelize): defineUserConsent.Static {
   const UserConsent = sequelize.define<defineUserConsent.Instance>(
@@ -149,4 +142,4 @@ namespace defineUserConsent {
   };
 }
 
-export = defineUserConsent;
+export default defineUserConsent;

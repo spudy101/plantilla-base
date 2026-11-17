@@ -29,13 +29,13 @@ jest.mock('modules/client/kyc/person/dtos/person-reference.dto', () => ({
 }));
 
 import { mocked, fixture } from 'tests/helpers/mock';
-import referenceRepoModule = require('modules/schemas/kyc/person/repositories/person-reference.repository');
+import referenceRepoModule from 'modules/schemas/kyc/person/repositories/person-reference.repository';
 const referenceRepo = mocked(referenceRepoModule);
-import requestContextModule = require('shared/utils/request-context.util');
+import requestContextModule from 'shared/utils/request-context.util';
 const requestContext = mocked(requestContextModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import service = require('modules/client/kyc/person/services/person-reference.service');
+import service from 'modules/client/kyc/person/services/person-reference.service';
 
 const PERSON_ID = 'person-1';
 const USER_ID = 'user-1';

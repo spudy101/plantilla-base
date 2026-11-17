@@ -1,8 +1,8 @@
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import AppError = require('../../../../../shared/utils/app-error.util');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import AppError from '../../../../../shared/utils/app-error.util';
+import modelsModule from '../../../../../shared/models';
 const { PrivacyPolicy } = modelsModule;
-import type definePrivacyPolicy = require('../models/privacy-policy.model');
+import type definePrivacyPolicy from '../models/privacy-policy.model';
 
 class PrivacyPolicyRepository extends BaseRepository<definePrivacyPolicy.Instance> {
   constructor() {
@@ -78,4 +78,4 @@ class PrivacyPolicyRepository extends BaseRepository<definePrivacyPolicy.Instanc
   }
 }
 
-export = new PrivacyPolicyRepository();
+export default new PrivacyPolicyRepository();

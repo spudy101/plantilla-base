@@ -1,16 +1,16 @@
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
-import PaginationHelper = require('../../../../../shared/utils/pagination.util');
-import componentsCatalogDtoModule = require('../../../../../shared/dtos/kyc/components-catalog.dto');
+import PaginationHelper from '../../../../../shared/utils/pagination.util';
+import componentsCatalogDtoModule from '../../../../../shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
-import auditactionsModule = require('../../../../../shared/constants/auditActions');
+import auditactionsModule from '../../../../../shared/constants/auditActions';
 const {
   AUDIT_ACTIONS,
   AUDIT_CATEGORIES,
   AUDIT_RISK_ORDER,
   AUDIT_MODULES
 } = auditactionsModule;
-import adminAuditActionCatalogDtoModule = require('../dtos/admin-audit-action-catalog.dto');
+import adminAuditActionCatalogDtoModule from '../dtos/admin-audit-action-catalog.dto';
 const { CategoryDTO, RiskDTO, ModuleDTO, ActionListDTO } = adminAuditActionCatalogDtoModule;
 
 /** Acción del catálogo de auditoría (clave + definición). */
@@ -133,4 +133,4 @@ function _countBy(field: 'category' | 'risk' | 'module'): Record<string, number>
   return counts;
 }
 
-export = Object.assign(new AdminAuditActionCatalogService(), { AdminAuditActionCatalogService });
+export default Object.assign(new AdminAuditActionCatalogService(), { AdminAuditActionCatalogService });

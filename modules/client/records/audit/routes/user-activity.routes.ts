@@ -1,12 +1,12 @@
-import express = require('express');
+import express from 'express';
 const router = express.Router();
-import UserActivityController = require('../controllers/user-activity.controller');
-import UserActivityValidator = require('../validators/user-activity.validator');
-import AuthMiddleware = require('../../../../../shared/middlewares/auth.middleware');
-import RateLimitMiddleware = require('../../../../../shared/middlewares/rate-limit.middleware');
-import ValidatorUtil = require('../../../../../shared/utils/validators.util');
-import AuditAction = require('../../../../../shared/middlewares/audit-action.middleware');
-import constantsModule = require('../../../../../shared/constants');
+import UserActivityController from '../controllers/user-activity.controller';
+import UserActivityValidator from '../validators/user-activity.validator';
+import AuthMiddleware from '../../../../../shared/middlewares/auth.middleware';
+import RateLimitMiddleware from '../../../../../shared/middlewares/rate-limit.middleware';
+import ValidatorUtil from '../../../../../shared/utils/validators.util';
+import AuditAction from '../../../../../shared/middlewares/audit-action.middleware';
+import constantsModule from '../../../../../shared/constants';
 const { CLIENT_ACCESS_ROLES } = constantsModule;
 
 // Feed de actividad reciente del PROPIO usuario (client-safe). Lectura: sin request lock.
@@ -20,4 +20,4 @@ router.get(
   UserActivityController.list
 );
 
-export = router;
+export default router;

@@ -18,11 +18,11 @@ jest.mock('modules/schemas/core/services/dual-approval.service', () => ({
 }));
 
 import { mocked, fixture } from 'tests/helpers/mock';
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import DualApprovalServiceModule = require('modules/schemas/core/services/dual-approval.service');
+import DualApprovalServiceModule from 'modules/schemas/core/services/dual-approval.service';
 const DualApprovalService = mocked(DualApprovalServiceModule);
-import service = require('modules/admin/core/services/approval-request.service');
+import service from 'modules/admin/core/services/approval-request.service';
 
 const ADMIN = 'admin-1';
 const ENTITY = { entityType: 'ApprovalRequest', entityTable: 'approval_requests' };

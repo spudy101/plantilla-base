@@ -1,18 +1,17 @@
-import clientSnsModule = require('@aws-sdk/client-sns');
-const { SNSClient, CreatePlatformEndpointCommand, DeleteEndpointCommand, PublishCommand } = clientSnsModule;
+import { SNSClient, CreatePlatformEndpointCommand, DeleteEndpointCommand, PublishCommand } from '@aws-sdk/client-sns';
 /** Lo único que se usa del cliente SNS (un doble de test solo necesita send). */
 type SnsSender = Pick<InstanceType<typeof SNSClient>, 'send'>;
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger } = loggerUtilModule;
-import AppError = require('../../../../shared/utils/app-error.util');
-import constantsModule = require('../../../../shared/constants');
+import AppError from '../../../../shared/utils/app-error.util';
+import constantsModule from '../../../../shared/constants';
 const { notifications, aws } = constantsModule;
-import retryUtilModule = require('../../../../shared/utils/retry.util');
+import retryUtilModule from '../../../../shared/utils/retry.util';
 const { withRetry } = retryUtilModule;
-import ProviderApiLogger = require('../../../../shared/utils/integration-api-logger.util');
-import awsProviderMetaUtilModule = require('../../../../shared/utils/aws-provider-meta.util');
+import ProviderApiLogger from '../../../../shared/utils/integration-api-logger.util';
+import awsProviderMetaUtilModule from '../../../../shared/utils/aws-provider-meta.util';
 const { resolveAwsGate, awsErrorCode } = awsProviderMetaUtilModule;
-import errorMessageModule = require('../../../../shared/utils/error-message.util');
+import errorMessageModule from '../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -237,4 +236,4 @@ namespace PushNotificationService {
   }
 }
 
-export = Object.assign(new PushNotificationService(), { PushNotificationService });
+export default Object.assign(new PushNotificationService(), { PushNotificationService });

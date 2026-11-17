@@ -558,8 +558,15 @@ module.exports = {
         'no-unused-vars': 'off',
         '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
         'no-use-before-define': 'off',
-        // `import x = require()` / `export =` son el puente CommonJS durante la migración
+        // require() solo queda para cargas diferidas (cortar ciclos), siempre vía interopDefault()
         '@typescript-eslint/no-require-imports': 'off',
+        // Imports/exports nativos: `export =` e `import x = require()` eran el puente CommonJS de la
+        // migración (la excepción es config/database.ts, que sequelize-cli carga con import()).
+        'no-restricted-syntax': [
+          'error',
+          { selector: 'TSExportAssignment', message: 'Usar `export default` / `export` (ver docs/typescript-migration.md).' },
+          { selector: 'TSImportEqualsDeclaration', message: "Usar `import x from 'm'` (ver docs/typescript-migration.md)." }
+        ],
         // Los números en anotaciones de tipo / enums no son "mágicos"
         'no-magic-numbers': 'off',
         '@typescript-eslint/no-magic-numbers': [
@@ -578,6 +585,11 @@ module.exports = {
         // `import type { X } from 'm'` junto a `import { y } from 'm'` es el patrón normal en TS
         'no-duplicate-imports': 'off'
       }
+    },
+    {
+      // sequelize-cli la carga con import(): un `export default` le llegaría como { default: … }
+      files: ['config/database.ts'],
+      rules: { 'no-restricted-syntax': 'off' }
     },
     {
       files: ['**/tests/**/*.ts', '**/*.test.ts'],

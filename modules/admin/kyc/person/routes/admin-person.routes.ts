@@ -1,17 +1,17 @@
 // modules/admin/kyc/routes/admin-person.routes.ts
 
-import express = require('express');
+import express from 'express';
 const router = express.Router();
-import PersonController = require('../controllers/admin-person.controller');
-import PersonValidator = require('../validators/admin-person.validator');
-import BaseValidator = require('../../../../../shared/validators/base.validator');
-import AuthMiddleware = require('../../../../../shared/middlewares/auth.middleware');
-import RateLimitMiddleware = require('../../../../../shared/middlewares/rate-limit.middleware');
-import RequestLockMiddleware = require('../../../../../shared/middlewares/request-lock.middleware');
-import RbacMiddleware = require('../../../../../shared/middlewares/rbac.middleware');
-import ValidatorUtil = require('../../../../../shared/utils/validators.util');
-import AuditAction = require('../../../../../shared/middlewares/audit-action.middleware');
-import rbacModule = require('../../../../../shared/constants/rbac');
+import PersonController from '../controllers/admin-person.controller';
+import PersonValidator from '../validators/admin-person.validator';
+import BaseValidator from '../../../../../shared/validators/base.validator';
+import AuthMiddleware from '../../../../../shared/middlewares/auth.middleware';
+import RateLimitMiddleware from '../../../../../shared/middlewares/rate-limit.middleware';
+import RequestLockMiddleware from '../../../../../shared/middlewares/request-lock.middleware';
+import RbacMiddleware from '../../../../../shared/middlewares/rbac.middleware';
+import ValidatorUtil from '../../../../../shared/utils/validators.util';
+import AuditAction from '../../../../../shared/middlewares/audit-action.middleware';
+import rbacModule from '../../../../../shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
 /**
@@ -257,4 +257,4 @@ router.delete(
   PersonController.deleteAccount
 );
 
-export = router;
+export default router;

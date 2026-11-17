@@ -15,12 +15,12 @@ jest.mock('shared/utils/logger.util', () => ({
 }));
 
 import { mocked, fixture } from 'tests/helpers/mock';
-import crypto = require('crypto');
+import crypto from 'crypto';
 import axiosModule from 'axios';
 const axios = mocked(axiosModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logger } = mocked(loggerUtilModule);
-import snsSignatureUtilModule = require('shared/utils/sns-signature.util');
+import snsSignatureUtilModule from 'shared/utils/sns-signature.util';
 const { verifySnsSignature, confirmSnsSubscription } = snsSignatureUtilModule;
 type SnsMessage = snsSignatureUtilModule.Message;
 

@@ -1,11 +1,11 @@
 // Controller del webhook inbound de bounces de SES (vía SNS). Lo llama SNS (no un usuario).
 // Responde 200 con un ack. Sin lógica de negocio.
 
-import EmailBounceWebhookService = require('../services/email-bounce-webhook.service');
-import emailBounceWebhookDtoModule = require('../dtos/email-bounce-webhook.dto');
+import EmailBounceWebhookService from '../services/email-bounce-webhook.service';
+import emailBounceWebhookDtoModule from '../dtos/email-bounce-webhook.dto';
 const { EmailBounceWebhookAckDTO } = emailBounceWebhookDtoModule;
-import ApiResponse = require('../../../../../shared/utils/app-response.util');
-import errorMiddlewareModule = require('../../../../../shared/middlewares/error.middleware');
+import ApiResponse from '../../../../../shared/utils/app-response.util';
+import errorMiddlewareModule from '../../../../../shared/middlewares/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
 
 class EmailBounceWebhookController {
@@ -16,4 +16,4 @@ class EmailBounceWebhookController {
   });
 }
 
-export = new EmailBounceWebhookController();
+export default new EmailBounceWebhookController();

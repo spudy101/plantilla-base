@@ -1,19 +1,12 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import domainEnumsModule = require('../../../../shared/constants/domain-enums');
+import { DataTypes } from 'sequelize';
+import domainEnumsModule from '../../../../shared/constants/domain-enums';
 const { NOTIFICATION_PROCESSING_STATUS } = domainEnumsModule;
-import constantsModule = require('../../../../shared/constants');
+import constantsModule from '../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../shared/models/registry';
-import type defineNotificationType = require('./notification-type.model');
-import type defineUser = require('../../kyc/iam/models/user.model');
-
-
-
-
-
-
+import type defineNotificationType from './notification-type.model';
+import type defineUser from '../../kyc/iam/models/user.model';
 
 function defineNotification(sequelize: Sequelize): defineNotification.Static {
   const Notification = sequelize.define<defineNotification.Instance>(
@@ -271,4 +264,4 @@ namespace defineNotification {
   };
 }
 
-export = defineNotification;
+export default defineNotification;

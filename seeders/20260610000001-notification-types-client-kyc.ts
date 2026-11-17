@@ -18,10 +18,9 @@
 // IDEMPOTENCIA: filtra por code antes de insertar — se puede correr N veces.
 
 import type { Migration } from '../shared/types/migration';
-import constantsModule = require('../shared/constants');
+import constantsModule from '../shared/constants';
 const { database, notifications } = constantsModule;
-import uuidModule = require('uuid');
-const { v4: uuidv4 } = uuidModule;
+import { v4 as uuidv4 } from 'uuid';
 
 const SCHEMA = database.schema;
 

@@ -1,22 +1,22 @@
 // shared/base/base.server.ts
 import type { Server } from 'node:http';
 import type { Express } from 'express';
-import db = require('../models');
-import redisClient = require('../utils/redis.util');
-import loggerUtilModule = require('../utils/logger.util');
+import db from '../models';
+import redisClient from '../utils/redis.util';
+import loggerUtilModule from '../utils/logger.util';
 const { logger } = loggerUtilModule;
-import NotificationWorker = require('../../modules/schemas/notification/workers/notification-worker');
-import SessionExpirationWorker = require('../../modules/schemas/kyc/iam/workers/session-expiration.worker');
-import AuditArchiveWorker = require('../../modules/schemas/records/audit/workers/audit-archive.worker');
-import DualApprovalExpirationWorker = require('../../modules/schemas/core/workers/dual-approval-expiration.worker');
-import dualApprovalBootstrapModule = require('../../modules/schemas/core/dual-approval.bootstrap');
+import NotificationWorker from '../../modules/schemas/notification/workers/notification-worker';
+import SessionExpirationWorker from '../../modules/schemas/kyc/iam/workers/session-expiration.worker';
+import AuditArchiveWorker from '../../modules/schemas/records/audit/workers/audit-archive.worker';
+import DualApprovalExpirationWorker from '../../modules/schemas/core/workers/dual-approval-expiration.worker';
+import dualApprovalBootstrapModule from '../../modules/schemas/core/dual-approval.bootstrap';
 const { registerDualApprovalHandlers } = dualApprovalBootstrapModule;
-import circuitBreakerBootstrapModule = require('./circuit-breaker.bootstrap');
+import circuitBreakerBootstrapModule from './circuit-breaker.bootstrap';
 const { registerCircuitBreakerCallbacks } = circuitBreakerBootstrapModule;
-import NotificationEmitter = require('../../modules/schemas/notification/utils/notification-emitter.util');
-import constantsModule = require('../constants');
+import NotificationEmitter from '../../modules/schemas/notification/utils/notification-emitter.util';
+import constantsModule from '../constants';
 const { server, workers } = constantsModule;
-import errorMessageModule = require('../utils/error-message.util');
+import errorMessageModule from '../utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -216,4 +216,4 @@ class BaseServer {
   }
 }
 
-export = BaseServer;
+export default BaseServer;

@@ -1,10 +1,10 @@
-import NotificationCategoryService = require('../services/admin-notification-category.service');
-import ApiResponse = require('../../../../shared/utils/app-response.util');
-import errorMiddlewareModule = require('../../../../shared/middlewares/error.middleware');
+import NotificationCategoryService from '../services/admin-notification-category.service';
+import ApiResponse from '../../../../shared/utils/app-response.util';
+import errorMiddlewareModule from '../../../../shared/middlewares/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
-import routeParamUtilModule = require('../../../../shared/utils/route-param.util');
+import routeParamUtilModule from '../../../../shared/utils/route-param.util';
 const { routeParam } = routeParamUtilModule;
-import authUserUtilModule = require('../../../../shared/utils/auth-user.util');
+import authUserUtilModule from '../../../../shared/utils/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
 
 class NotificationCategoryController {
@@ -39,4 +39,4 @@ class NotificationCategoryController {
   });
 }
 
-export = new NotificationCategoryController();
+export default new NotificationCategoryController();

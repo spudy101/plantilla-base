@@ -2,13 +2,14 @@
 // Test de humo mínimo para verificar que la infraestructura de test funciona
 // y que el catálogo de modelos carga sin errores de asociación.
 
+import { interopDefault } from 'shared/utils/interop.util';
 describe('smoke', () => {
   it('el entorno de test está activo', () => {
     expect(process.env.NODE_ENV).toBe('test');
   });
 
   it('el catálogo de modelos (shared/models) carga y expone los modelos core', () => {
-    const db = require('shared/models');
+    const db = interopDefault(require('shared/models') as typeof import('shared/models'));
     expect(db.User).toBeDefined();
     expect(db.Person).toBeDefined();
     expect(db.UserSession).toBeDefined();

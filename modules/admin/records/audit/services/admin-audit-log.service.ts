@@ -1,13 +1,13 @@
 import type { Response } from 'express';
-import ExcelJS = require('exceljs');
-import AppError = require('../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import ExcelJS from 'exceljs';
+import AppError from '../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import PaginationHelper = require('../../../../../shared/utils/pagination.util');
-import componentsCatalogDtoModule = require('../../../../../shared/dtos/kyc/components-catalog.dto');
+import PaginationHelper from '../../../../../shared/utils/pagination.util';
+import componentsCatalogDtoModule from '../../../../../shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
-import auditLogRepository = require('../../../../schemas/records/audit/repositories/audit-log.repository');
-import adminAuditLogDtoModule = require('../dtos/admin-audit-log.dto');
+import auditLogRepository from '../../../../schemas/records/audit/repositories/audit-log.repository';
+import adminAuditLogDtoModule from '../dtos/admin-audit-log.dto';
 const { AuditLogListDTO, AuditLogDTO } = adminAuditLogDtoModule;
 
 const EXPORT_LIMIT = 50000;
@@ -196,4 +196,4 @@ namespace AdminAuditLogService {
   }
 }
 
-export = Object.assign(new AdminAuditLogService(), { AdminAuditLogService });
+export default Object.assign(new AdminAuditLogService(), { AdminAuditLogService });

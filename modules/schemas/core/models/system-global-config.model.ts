@@ -1,15 +1,8 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../shared/models/registry';
-
-
-
-
-
-
 
 function defineSystemGlobalConfig(sequelize: Sequelize): defineSystemGlobalConfig.Static {
   const SystemGlobalConfig = sequelize.define<defineSystemGlobalConfig.Instance>(
@@ -155,4 +148,4 @@ namespace defineSystemGlobalConfig {
   };
 }
 
-export = defineSystemGlobalConfig;
+export default defineSystemGlobalConfig;

@@ -1,17 +1,17 @@
-import type SnsSignature = require('../../../../../shared/utils/sns-signature.util');
+import type SnsSignature from '../../../../../shared/utils/sns-signature.util';
 // Ingesta REAL del feed asíncrono de bounces de SES vía SNS. SES publica los rebotes
 // (Configuration Set → topic SNS); SNS hace POST a este webhook. Se verifica la firma del mensaje SNS
 // (obligatoria: un POST forjado suprimiría el correo de una víctima), se confirma la suscripción al
 // conectarse, y por cada rebote PERMANENTE se registra hacia el umbral de supresión. Los rebotes
 // transitorios (soft) y las quejas (complaint) se ignoran acá.
 
-import emailSuppressionService = require('../../../../schemas/notification/services/email-suppression.service');
-import snsSignatureUtilModule = require('../../../../../shared/utils/sns-signature.util');
+import emailSuppressionService from '../../../../schemas/notification/services/email-suppression.service';
+import snsSignatureUtilModule from '../../../../../shared/utils/sns-signature.util';
 const { verifySnsSignature, confirmSnsSubscription } = snsSignatureUtilModule;
-import AppError = require('../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import AppError from '../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import constantsModule = require('../../../../../shared/constants');
+import constantsModule from '../../../../../shared/constants';
 const { notifications } = constantsModule;
 
 const ENTITY = { entityType: 'EmailBounceSuppression', entityTable: 'email_bounce_suppressions' };
@@ -129,4 +129,4 @@ namespace EmailBounceWebhookService {
   }
 }
 
-export = Object.assign(new EmailBounceWebhookService(), { EmailBounceWebhookService });
+export default Object.assign(new EmailBounceWebhookService(), { EmailBounceWebhookService });

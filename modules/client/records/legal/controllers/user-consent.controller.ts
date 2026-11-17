@@ -1,11 +1,11 @@
 import type { Request, Response } from 'express';
-import UserConsentService = require('../services/user-consent.service');
-import ApiResponse = require('../../../../../shared/utils/app-response.util');
-import errorMiddlewareModule = require('../../../../../shared/middlewares/error.middleware');
+import UserConsentService from '../services/user-consent.service';
+import ApiResponse from '../../../../../shared/utils/app-response.util';
+import errorMiddlewareModule from '../../../../../shared/middlewares/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
-import routeParamUtilModule = require('../../../../../shared/utils/route-param.util');
+import routeParamUtilModule from '../../../../../shared/utils/route-param.util';
 const { routeParam } = routeParamUtilModule;
-import authUserUtilModule = require('../../../../../shared/utils/auth-user.util');
+import authUserUtilModule from '../../../../../shared/utils/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
 
 class UserConsentController {
@@ -35,4 +35,4 @@ function _clientCtx(req: Request, res: Response) {
   };
 }
 
-export = new UserConsentController();
+export default new UserConsentController();

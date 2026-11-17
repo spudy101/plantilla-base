@@ -1,8 +1,8 @@
-import type Types = require('../notification.types');
-import notificationRepo = require('../repositories/notification.repository');
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import type * as Types from '../notification.types';
+import notificationRepo from '../repositories/notification.repository';
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger } = loggerUtilModule;
-import errorMessageModule = require('../../../../shared/utils/error-message.util');
+import errorMessageModule from '../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -151,4 +151,4 @@ namespace NotificationSchedulerService {
   }
 }
 
-export = Object.assign(new NotificationSchedulerService(), { NotificationSchedulerService });
+export default Object.assign(new NotificationSchedulerService(), { NotificationSchedulerService });

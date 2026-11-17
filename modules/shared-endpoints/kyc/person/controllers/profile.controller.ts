@@ -1,8 +1,8 @@
-import ProfileService = require('../services/profile.service');
-import ApiResponse = require('../../../../../shared/utils/app-response.util');
-import errorMiddlewareModule = require('../../../../../shared/middlewares/error.middleware');
+import ProfileService from '../services/profile.service';
+import ApiResponse from '../../../../../shared/utils/app-response.util';
+import errorMiddlewareModule from '../../../../../shared/middlewares/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
-import authUserUtilModule = require('../../../../../shared/utils/auth-user.util');
+import authUserUtilModule from '../../../../../shared/utils/auth-user.util';
 const { requireAuthUser, requireAuthPerson } = authUserUtilModule;
 
 class ProfileController {
@@ -112,4 +112,4 @@ class ProfileController {
   });
 }
 
-export = new ProfileController();
+export default new ProfileController();

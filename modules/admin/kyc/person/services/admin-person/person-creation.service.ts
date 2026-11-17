@@ -1,4 +1,4 @@
-import type defineUser = require('../../../../../schemas/kyc/iam/models/user.model');
+import type defineUser from '../../../../../schemas/kyc/iam/models/user.model';
 // modules/admin/kyc/person/services/admin-person/person-creation.service.ts
 //
 // Alta de cuentas de cliente desde el panel admin (persona + contacto + usuario
@@ -6,24 +6,23 @@ import type defineUser = require('../../../../../schemas/kyc/iam/models/user.mod
 
 import type { Transaction } from 'sequelize';
 import type { AdminAuditContext } from '../../../../../../shared/types/audit-context';
-import uuidModule = require('uuid');
-const { v4: uuidv4 } = uuidModule;
-import unitOfWork = require('../../../../../../shared/database/unit-of-work');
-import userRepository = require('../../../../../schemas/kyc/iam/repositories/user.repository');
-import personRepository = require('../../../../../schemas/kyc/person/repositories/person.repository');
-import personContactRepository = require('../../../../../schemas/kyc/person/repositories/person-contact.repository');
-import roleRepository = require('../../../../../schemas/kyc/iam/repositories/role.repository');
-import KycSharedUtil = require('../../../../../schemas/kyc/person/utils/kyc-shared.util');
-import NotificationUtil = require('../../../../../schemas/notification/services/notification-creation.service');
-import AppError = require('../../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../../shared/utils/logger.util');
+import { v4 as uuidv4 } from 'uuid';
+import unitOfWork from '../../../../../../shared/database/unit-of-work';
+import userRepository from '../../../../../schemas/kyc/iam/repositories/user.repository';
+import personRepository from '../../../../../schemas/kyc/person/repositories/person.repository';
+import personContactRepository from '../../../../../schemas/kyc/person/repositories/person-contact.repository';
+import roleRepository from '../../../../../schemas/kyc/iam/repositories/role.repository';
+import KycSharedUtil from '../../../../../schemas/kyc/person/utils/kyc-shared.util';
+import NotificationUtil from '../../../../../schemas/notification/services/notification-creation.service';
+import AppError from '../../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import requestContext = require('../../../../../../shared/utils/request-context.util');
-import ProfileHelper = require('../../../../../schemas/kyc/person/helpers/profile.helper');
-import constantsModule = require('../../../../../../shared/constants');
+import requestContext from '../../../../../../shared/utils/request-context.util';
+import ProfileHelper from '../../../../../schemas/kyc/person/helpers/profile.helper';
+import constantsModule from '../../../../../../shared/constants';
 const { notifications, RBAC_ROLES } = constantsModule;
 
-import adminPersonDtoModule = require('../../dtos/admin-person.dto');
+import adminPersonDtoModule from '../../dtos/admin-person.dto';
 const { CreateUserDTO } = adminPersonDtoModule;
 
 class PersonCreationService {
@@ -202,4 +201,4 @@ namespace PersonCreationService {
   }
 }
 
-export = PersonCreationService;
+export default PersonCreationService;

@@ -1,12 +1,12 @@
-import express = require('express');
+import express from 'express';
 const router = express.Router();
-import AuthLoginController = require('../controllers/auth-login.controller');
-import AuthLoginValidator = require('../validators/auth-login.validator');
-import AuthMiddleware = require('../../../../../shared/middlewares/auth.middleware');
-import RateLimitMiddleware = require('../../../../../shared/middlewares/rate-limit.middleware');
-import RequestLockMiddleware = require('../../../../../shared/middlewares/request-lock.middleware');
-import ValidatorUtil = require('../../../../../shared/utils/validators.util');
-import AuditAction = require('../../../../../shared/middlewares/audit-action.middleware');
+import AuthLoginController from '../controllers/auth-login.controller';
+import AuthLoginValidator from '../validators/auth-login.validator';
+import AuthMiddleware from '../../../../../shared/middlewares/auth.middleware';
+import RateLimitMiddleware from '../../../../../shared/middlewares/rate-limit.middleware';
+import RequestLockMiddleware from '../../../../../shared/middlewares/request-lock.middleware';
+import ValidatorUtil from '../../../../../shared/utils/validators.util';
+import AuditAction from '../../../../../shared/middlewares/audit-action.middleware';
 
 // ============================================================
 // PUBLIC
@@ -191,4 +191,4 @@ router.post(
   AuthLoginController.unblockDevice
 );
 
-export = router;
+export default router;

@@ -1,15 +1,8 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../../shared/models/registry';
-
-
-
-
-
-
 
 function defineRole(sequelize: Sequelize): defineRole.Static {
   const Role = sequelize.define<defineRole.Instance>(
@@ -78,4 +71,4 @@ namespace defineRole {
   };
 }
 
-export = defineRole;
+export default defineRole;

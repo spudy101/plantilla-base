@@ -1,10 +1,10 @@
-import type Feed = require('../notification-feed.types');
-import componentsNotificationDtoModule = require('../../../../shared/dtos/notification/components-notification.dto');
+import type * as Feed from '../notification-feed.types';
+import componentsNotificationDtoModule from '../../../../shared/dtos/notification/components-notification.dto';
 const {
   NotificationComponent,
   GlobalNotificationComponent
 } = componentsNotificationDtoModule;
-import componentsCatalogDtoModule = require('../../../../shared/dtos/kyc/components-catalog.dto');
+import componentsCatalogDtoModule from '../../../../shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
 
 function _buildMixedItem(item: Feed.FeedItem, readIds: string[]) {
@@ -79,7 +79,7 @@ function UnreadCountResponseDTO(count: number) {
   return { count };
 }
 
-export = {
+export default {
   NotificationsListResponseDTO,
   PersonalNotificationsResponseDTO,
   GlobalNotificationsResponseDTO,

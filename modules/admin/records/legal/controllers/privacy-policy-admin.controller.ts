@@ -1,14 +1,14 @@
-import AppError = require('../../../../../shared/utils/app-error.util');
+import AppError from '../../../../../shared/utils/app-error.util';
 import type { Request } from 'express';
 // modules/admin/privacy-policy/controllers/privacy-policy-admin.controller.ts
 
-import PrivacyPolicyAdminService = require('../services/privacy-policy-admin.service');
-import ApiResponse = require('../../../../../shared/utils/app-response.util');
-import errorMiddlewareModule = require('../../../../../shared/middlewares/error.middleware');
+import PrivacyPolicyAdminService from '../services/privacy-policy-admin.service';
+import ApiResponse from '../../../../../shared/utils/app-response.util';
+import errorMiddlewareModule from '../../../../../shared/middlewares/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
-import routeParamUtilModule = require('../../../../../shared/utils/route-param.util');
+import routeParamUtilModule from '../../../../../shared/utils/route-param.util';
 const { routeParam } = routeParamUtilModule;
-import authUserUtilModule = require('../../../../../shared/utils/auth-user.util');
+import authUserUtilModule from '../../../../../shared/utils/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
 
 class PrivacyPolicyAdminController {
@@ -66,4 +66,4 @@ function _policyDocument(req: Request): Express.Multer.File {
   return file;
 }
 
-export = new PrivacyPolicyAdminController();
+export default new PrivacyPolicyAdminController();

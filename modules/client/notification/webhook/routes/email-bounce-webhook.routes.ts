@@ -5,15 +5,15 @@
 // service). SNS envía Content-Type text/plain → el express.json global NO lo parsea, por eso se captura
 // el body como texto crudo con express.text en la propia ruta.
 
-import express = require('express');
+import express from 'express';
 
 const router = express.Router();
-import EmailBounceWebhookController = require('../controllers/email-bounce-webhook.controller');
-import EmailBounceWebhookValidator = require('../validators/email-bounce-webhook.validator');
-import AuthMiddleware = require('../../../../../shared/middlewares/auth.middleware');
-import RateLimitMiddleware = require('../../../../../shared/middlewares/rate-limit.middleware');
-import ValidatorUtil = require('../../../../../shared/utils/validators.util');
-import AuditAction = require('../../../../../shared/middlewares/audit-action.middleware');
+import EmailBounceWebhookController from '../controllers/email-bounce-webhook.controller';
+import EmailBounceWebhookValidator from '../validators/email-bounce-webhook.validator';
+import AuthMiddleware from '../../../../../shared/middlewares/auth.middleware';
+import RateLimitMiddleware from '../../../../../shared/middlewares/rate-limit.middleware';
+import ValidatorUtil from '../../../../../shared/utils/validators.util';
+import AuditAction from '../../../../../shared/middlewares/audit-action.middleware';
 
 const WEBHOOK_BODY_LIMIT = '256kb';
 
@@ -32,4 +32,4 @@ router.post(
   EmailBounceWebhookController.process
 );
 
-export = router;
+export default router;

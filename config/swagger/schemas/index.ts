@@ -25,9 +25,9 @@
  *   // → swaggerSpec.components.schemas = { ...schemas, ...moduleSchemas }
  */
 
-import kycSchemas = require('./kyc.schema');
-import coreSchemas = require('./core.schema');
-import notificationSchemas = require('./notification.schema');
+import kycSchemas from './kyc.schema';
+import coreSchemas from './core.schema';
+import notificationSchemas from './notification.schema';
 
 // ─── Shared — Pagination / Sort / Metadata ───────────────────
 
@@ -90,7 +90,7 @@ const ErrorResponse = {
 
 // ─── Merge final ──────────────────────────────────────────────
 
-export = {
+export default {
   // Shared
   Pagination,
   Sort,

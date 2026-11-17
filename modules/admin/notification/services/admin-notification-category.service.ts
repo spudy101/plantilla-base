@@ -1,12 +1,12 @@
-import type defineNotificationCategory = require('../../../schemas/notification/models/notification-category.model');
-import notificationCategoryRepository = require('../../../schemas/notification/repositories/notification-category.repository');
-import notificationTypeRepository = require('../../../schemas/notification/repositories/notification-type.repository');
-import AppError = require('../../../../shared/utils/app-error.util');
-import PaginationHelper = require('../../../../shared/utils/pagination.util');
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import type defineNotificationCategory from '../../../schemas/notification/models/notification-category.model';
+import notificationCategoryRepository from '../../../schemas/notification/repositories/notification-category.repository';
+import notificationTypeRepository from '../../../schemas/notification/repositories/notification-type.repository';
+import AppError from '../../../../shared/utils/app-error.util';
+import PaginationHelper from '../../../../shared/utils/pagination.util';
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
-import unitOfWork = require('../../../../shared/database/unit-of-work');
-import adminNotificationCategoryDtoModule = require('../dtos/admin-notification-category.dto');
+import unitOfWork from '../../../../shared/database/unit-of-work';
+import adminNotificationCategoryDtoModule from '../dtos/admin-notification-category.dto';
 const {
   NotificationCategoryAdminDTO,
   ListNotificationCategoriesResponseDTO
@@ -181,4 +181,4 @@ namespace NotificationCategoryService {
   }
 }
 
-export = Object.assign(new NotificationCategoryService(), { NotificationCategoryService });
+export default Object.assign(new NotificationCategoryService(), { NotificationCategoryService });

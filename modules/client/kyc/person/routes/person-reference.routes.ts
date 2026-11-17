@@ -1,15 +1,15 @@
 // modules/client/kyc/routes/person-reference.routes.ts
 
-import express = require('express');
+import express from 'express';
 const router = express.Router();
-import PersonReferenceController = require('../controllers/person-reference.controller');
-import PersonReferenceValidator = require('../validators/person-reference.validator');
-import AuthMiddleware = require('../../../../../shared/middlewares/auth.middleware');
-import RateLimitMiddleware = require('../../../../../shared/middlewares/rate-limit.middleware');
-import RequestLockMiddleware = require('../../../../../shared/middlewares/request-lock.middleware');
-import ValidatorUtil = require('../../../../../shared/utils/validators.util');
-import AuditAction = require('../../../../../shared/middlewares/audit-action.middleware');
-import constantsModule = require('../../../../../shared/constants');
+import PersonReferenceController from '../controllers/person-reference.controller';
+import PersonReferenceValidator from '../validators/person-reference.validator';
+import AuthMiddleware from '../../../../../shared/middlewares/auth.middleware';
+import RateLimitMiddleware from '../../../../../shared/middlewares/rate-limit.middleware';
+import RequestLockMiddleware from '../../../../../shared/middlewares/request-lock.middleware';
+import ValidatorUtil from '../../../../../shared/utils/validators.util';
+import AuditAction from '../../../../../shared/middlewares/audit-action.middleware';
+import constantsModule from '../../../../../shared/constants';
 const { CLIENT_ACCESS_ROLES } = constantsModule;
 
 router.get(
@@ -53,4 +53,4 @@ router.delete(
   PersonReferenceController.remove
 );
 
-export = router;
+export default router;

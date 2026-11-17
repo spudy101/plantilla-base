@@ -1,17 +1,17 @@
 // shared/base/base.app.ts
 import type { Express, NextFunction, Request, Response } from 'express';
-import express = require('express');
-import compression = require('compression');
+import express from 'express';
+import compression from 'compression';
 
-import SecurityMiddleware = require('../middlewares/security.middleware');
-import CorrelationMiddleware = require('../middlewares/correlation.middleware');
-import ErrorMiddleware = require('../middlewares/error.middleware');
-import auditContextMiddleware = require('../middlewares/audit.middleware');
-import loggerUtilModule = require('../utils/logger.util');
+import SecurityMiddleware from '../middlewares/security.middleware';
+import CorrelationMiddleware from '../middlewares/correlation.middleware';
+import ErrorMiddleware from '../middlewares/error.middleware';
+import auditContextMiddleware from '../middlewares/audit.middleware';
+import loggerUtilModule from '../utils/logger.util';
 const { httpLogger } = loggerUtilModule;
-import redisClient = require('../utils/redis.util');
-import db = require('../models');
-import packageModule = require('../../package.json');
+import redisClient from '../utils/redis.util';
+import db from '../models';
+import packageModule from '../../package.json';
 const { version } = packageModule;
 
 /**
@@ -186,4 +186,4 @@ class BaseApp {
   }
 }
 
-export = BaseApp;
+export default BaseApp;

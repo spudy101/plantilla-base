@@ -1,4 +1,4 @@
-import type defineUser = require('../../../../schemas/kyc/iam/models/user.model');
+import type defineUser from '../../../../schemas/kyc/iam/models/user.model';
 // modules/shared-endpoints/kyc/iam/services/mfa.service.ts
 //
 // ============================================================
@@ -14,19 +14,19 @@ import type defineUser = require('../../../../schemas/kyc/iam/models/user.model'
 // ============================================================
 
 import type { RequestAuditContext } from '../../../../../shared/types/audit-context';
-import unitOfWork = require('../../../../../shared/database/unit-of-work');
-import userRepository = require('../../../../schemas/kyc/iam/repositories/user.repository');
-import verificationCodeRepository = require('../../../../schemas/notification/repositories/verification-code.repository');
-import NotificationUtil = require('../../../../schemas/notification/services/notification-creation.service');
-import SmsService = require('../../../../schemas/notification/services/sms.service');
-import AppError = require('../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import unitOfWork from '../../../../../shared/database/unit-of-work';
+import userRepository from '../../../../schemas/kyc/iam/repositories/user.repository';
+import verificationCodeRepository from '../../../../schemas/notification/repositories/verification-code.repository';
+import NotificationUtil from '../../../../schemas/notification/services/notification-creation.service';
+import SmsService from '../../../../schemas/notification/services/sms.service';
+import AppError from '../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
-import mfaDtoModule = require('../dtos/mfa.dto');
+import mfaDtoModule from '../dtos/mfa.dto';
 const { PasswordValidationResponseDTO, MFAStatusResponseDTO, PreferredMethodResponseDTO } = mfaDtoModule;
-import MfaAccount = require('./mfa/mfa-account');
-import TotpMfaService = require('./mfa/totp-mfa.service');
-import SmsMfaService = require('./mfa/sms-mfa.service');
+import MfaAccount from './mfa/mfa-account';
+import TotpMfaService from './mfa/totp-mfa.service';
+import SmsMfaService from './mfa/sms-mfa.service';
 
 const ENTITY = { entityType: 'User', entityTable: 'users' };
 
@@ -181,4 +181,4 @@ namespace MFAService {
   }
 }
 
-export = Object.assign(new MFAService(), { MFAService });
+export default Object.assign(new MFAService(), { MFAService });

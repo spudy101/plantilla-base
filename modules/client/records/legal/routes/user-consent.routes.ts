@@ -1,13 +1,13 @@
-import express = require('express');
+import express from 'express';
 const router = express.Router();
-import UserConsentController = require('../controllers/user-consent.controller');
-import UserConsentValidator = require('../validators/user-consent.validator');
-import AuthMiddleware = require('../../../../../shared/middlewares/auth.middleware');
-import RateLimitMiddleware = require('../../../../../shared/middlewares/rate-limit.middleware');
-import RequestLockMiddleware = require('../../../../../shared/middlewares/request-lock.middleware');
-import ValidatorUtil = require('../../../../../shared/utils/validators.util');
-import AuditAction = require('../../../../../shared/middlewares/audit-action.middleware');
-import constantsModule = require('../../../../../shared/constants');
+import UserConsentController from '../controllers/user-consent.controller';
+import UserConsentValidator from '../validators/user-consent.validator';
+import AuthMiddleware from '../../../../../shared/middlewares/auth.middleware';
+import RateLimitMiddleware from '../../../../../shared/middlewares/rate-limit.middleware';
+import RequestLockMiddleware from '../../../../../shared/middlewares/request-lock.middleware';
+import ValidatorUtil from '../../../../../shared/utils/validators.util';
+import AuditAction from '../../../../../shared/middlewares/audit-action.middleware';
+import constantsModule from '../../../../../shared/constants';
 const { CLIENT_ACCESS_ROLES } = constantsModule;
 
 router.get(
@@ -40,4 +40,4 @@ router.post(
   UserConsentController.revokeMarketing
 );
 
-export = router;
+export default router;

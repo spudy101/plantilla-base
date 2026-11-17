@@ -1,6 +1,6 @@
-import type defineUserNotificationPreference = require('../../../../schemas/kyc/person/models/user-notification-preference.model');
-import type defineNotificationCategory = require('../../../../schemas/notification/models/notification-category.model');
-import componentsNotificationDtoModule = require('../../../../../shared/dtos/notification/components-notification.dto');
+import type defineUserNotificationPreference from '../../../../schemas/kyc/person/models/user-notification-preference.model';
+import type defineNotificationCategory from '../../../../schemas/notification/models/notification-category.model';
+import componentsNotificationDtoModule from '../../../../../shared/dtos/notification/components-notification.dto';
 const {
   UserNotificationPreferenceComponent,
   NotificationCategoryComponent
@@ -87,7 +87,7 @@ class CategoryPreferencesViewDTO {
   }
 }
 
-export = {
+export default {
   // Alias retrocompatible: la respuesta global antes se llamaba UpdateGlobalPreferenceResponseDTO.
   UpdateGlobalPreferenceResponseDTO: UpdatePreferenceResponseDTO,
   UpdatePreferenceResponseDTO,

@@ -1,16 +1,9 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../../shared/models/registry';
-import type defineUser = require('./user.model');
-
-
-
-
-
-
+import type defineUser from './user.model';
 
 // Challenge de un solo uso para registro/login biométrico.
 function defineBiometricChallenge(sequelize: Sequelize): defineBiometricChallenge.Static {
@@ -93,4 +86,4 @@ namespace defineBiometricChallenge {
   };
 }
 
-export = defineBiometricChallenge;
+export default defineBiometricChallenge;

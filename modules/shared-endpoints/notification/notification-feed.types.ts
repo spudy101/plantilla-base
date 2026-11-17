@@ -2,9 +2,9 @@
 //
 // Feed de notificaciones del usuario: personales + globales mezcladas y ordenadas por fecha.
 // Lo arma NotificationService y lo serializan los DTOs. Solo tipos.
-import type defineNotification = require('../../schemas/notification/models/notification.model');
-import type defineGlobalNotification = require('../../schemas/notification/models/global-notification.model');
-import type PaginationHelper = require('../../../shared/utils/pagination.util');
+import type defineNotification from '../../schemas/notification/models/notification.model';
+import type defineGlobalNotification from '../../schemas/notification/models/global-notification.model';
+import type PaginationHelper from '../../../shared/utils/pagination.util';
 
 export type PaginationParams = ReturnType<typeof PaginationHelper.getPaginationParams>;
 

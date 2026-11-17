@@ -105,4 +105,4 @@ namespace AppError {
   export type Details = Record<string, unknown> | unknown[] | null;
 }
 
-export = AppError;
+export default AppError;

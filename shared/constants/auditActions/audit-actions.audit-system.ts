@@ -8,10 +8,10 @@
 // Acciones disparadas automáticamente por el worker — userId='system'.
 // ================================================================
 
-import auditCatalogModule = require('./audit-catalog');
+import auditCatalogModule from './audit-catalog';
 const { AUDIT_CATEGORIES, AUDIT_RISKS } = auditCatalogModule;
 
-export = {
+export default {
   BINDING_INTEGRITY_CHECK_COMPLETED: {
     description: 'Verificación diaria de integridad de expedientes de vinculación completada por el sistema',
     category: AUDIT_CATEGORIES.AUDIT,

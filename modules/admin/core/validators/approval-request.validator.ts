@@ -1,7 +1,6 @@
-import expressValidatorModule = require('express-validator');
-const { body, query } = expressValidatorModule;
-import BaseValidator = require('../../../../shared/validators/base.validator');
-import dualApprovalModule = require('../../../../shared/constants/dual-approval');
+import { body, query } from 'express-validator';
+import BaseValidator from '../../../../shared/validators/base.validator';
+import dualApprovalModule from '../../../../shared/constants/dual-approval';
 const { DUAL_APPROVAL_OPS } = dualApprovalModule;
 
 const OPERATION_KEYS = Object.keys(DUAL_APPROVAL_OPS);
@@ -55,4 +54,4 @@ class ApprovalRequestValidator {
   }
 }
 
-export = ApprovalRequestValidator;
+export default ApprovalRequestValidator;

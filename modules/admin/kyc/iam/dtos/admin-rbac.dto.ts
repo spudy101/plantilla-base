@@ -1,4 +1,4 @@
-import type defineRolePermissionOverride = require('../../../../schemas/kyc/iam/models/role-permission-override.model');
+import type defineRolePermissionOverride from '../../../../schemas/kyc/iam/models/role-permission-override.model';
 // modules/admin/rbac/dtos/admin-rbac.dto.ts
 
 // Construye el árbol de grupos para el front a partir del array plano de RBAC_MODULE_GROUPS.
@@ -98,7 +98,7 @@ function RolePermissionOverrideDTO(override: OverrideRow) {
   };
 }
 
-export = {
+export default {
   RbacCatalogDTO,
   RoleMatrixDTO,
   EffectivePermissionsDTO,

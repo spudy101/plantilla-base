@@ -7,4 +7,4 @@ class EmailBounceWebhookValidator {
   }
 }
 
-export = EmailBounceWebhookValidator;
+export default EmailBounceWebhookValidator;

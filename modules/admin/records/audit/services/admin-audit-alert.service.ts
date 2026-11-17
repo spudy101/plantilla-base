@@ -1,14 +1,14 @@
-import AppError = require('../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import AppError from '../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import PaginationHelper = require('../../../../../shared/utils/pagination.util');
-import constantsModule = require('../../../../../shared/constants');
+import PaginationHelper from '../../../../../shared/utils/pagination.util';
+import constantsModule from '../../../../../shared/constants';
 const { notifications } = constantsModule;
-import NotificationCreationService = require('../../../../schemas/notification/services/notification-creation.service');
-import componentsCatalogDtoModule = require('../../../../../shared/dtos/kyc/components-catalog.dto');
+import NotificationCreationService from '../../../../schemas/notification/services/notification-creation.service';
+import componentsCatalogDtoModule from '../../../../../shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
-import auditAlertRepository = require('../../../../schemas/records/audit/repositories/audit-alert.repository');
-import adminAuditAlertDtoModule = require('../dtos/admin-audit-alert.dto');
+import auditAlertRepository from '../../../../schemas/records/audit/repositories/audit-alert.repository';
+import adminAuditAlertDtoModule from '../dtos/admin-audit-alert.dto';
 const { AuditAlertListDTO } = adminAuditAlertDtoModule;
 
 class AdminAuditAlertService {
@@ -126,4 +126,4 @@ namespace AdminAuditAlertService {
   }
 }
 
-export = Object.assign(new AdminAuditAlertService(), { AdminAuditAlertService });
+export default Object.assign(new AdminAuditAlertService(), { AdminAuditAlertService });

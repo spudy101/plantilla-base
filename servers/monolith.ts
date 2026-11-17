@@ -1,15 +1,15 @@
 // servers/monolith.ts
-import express = require('express');
-import cookieParser = require('cookie-parser');
+import express from 'express';
+import cookieParser from 'cookie-parser';
 
-import constantsModule = require('../shared/constants');
+import constantsModule from '../shared/constants';
 const { server } = constantsModule;
-import BaseServer = require('../shared/base/base.server');
-import redisClient = require('../shared/utils/redis.util');
-import db = require('../shared/models');
-import clientApp = require('../modules/client/app');
-import adminApp = require('../modules/admin/app');
-import packageModule = require('../package.json');
+import BaseServer from '../shared/base/base.server';
+import redisClient from '../shared/utils/redis.util';
+import db from '../shared/models';
+import clientApp from '../modules/client/app';
+import adminApp from '../modules/admin/app';
+import packageModule from '../package.json';
 const { version } = packageModule;
 
 class MonolithServer extends BaseServer {
@@ -83,4 +83,4 @@ class MonolithServer extends BaseServer {
 const monolithServer = new MonolithServer();
 monolithServer.start();
 
-export = monolithServer;
+export default monolithServer;

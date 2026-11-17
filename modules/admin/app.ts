@@ -1,56 +1,56 @@
 // modules/admin/app.ts
-import BaseApp = require('../../shared/base/base.app');
-import swaggerClientDocs = require('../../config/swagger.admin');
+import BaseApp from '../../shared/base/base.app';
+import swaggerClientDocs from '../../config/swagger.admin';
 
 // ── Shared routes ──────────────────────────────────────────────────────────
-import sharedAuthRoutes = require('../shared-endpoints/kyc/iam/routes/auth-login.routes');
-import sharedMaintainersRoutes = require('../shared-endpoints/kyc/maintainers/routes/maintainers.routes');
-import sharedMfaRoutes = require('../shared-endpoints/kyc/iam/routes/mfa.routes');
-import notificationPreferenceRoutes = require('../shared-endpoints/kyc/person/routes/notification-preference.routes');
-import sharedProfileRoutes = require('../shared-endpoints/kyc/person/routes/profile.routes');
-import notificationRoutes = require('../shared-endpoints/notification/routes/notification.routes');
-import sendVerificationRoutes = require('../shared-endpoints/notification/routes/send-verification.routes');
+import sharedAuthRoutes from '../shared-endpoints/kyc/iam/routes/auth-login.routes';
+import sharedMaintainersRoutes from '../shared-endpoints/kyc/maintainers/routes/maintainers.routes';
+import sharedMfaRoutes from '../shared-endpoints/kyc/iam/routes/mfa.routes';
+import notificationPreferenceRoutes from '../shared-endpoints/kyc/person/routes/notification-preference.routes';
+import sharedProfileRoutes from '../shared-endpoints/kyc/person/routes/profile.routes';
+import notificationRoutes from '../shared-endpoints/notification/routes/notification.routes';
+import sendVerificationRoutes from '../shared-endpoints/notification/routes/send-verification.routes';
 
 // ── Admin — Auth Sessions ──────────────────────────────────────────────────
-import adminAuthSessionRoutes = require('./kyc/iam/routes/admin-auth-session.routes');
+import adminAuthSessionRoutes from './kyc/iam/routes/admin-auth-session.routes';
 
 // ── Admin — Privacy & Policy ───────────────────────────────────────────────
-import privacyPolicyAdminRoutes = require('./records/legal/routes/privacy-policy-admin.routes');
+import privacyPolicyAdminRoutes from './records/legal/routes/privacy-policy-admin.routes';
 
 // ── Admin — KYC (person) ───────────────────────────────────────────────────
-import personAdminRoutes = require('./kyc/person/routes/admin-person.routes');
-import changeLogAdminRoutes = require('./records/audit/routes/admin-change-log.routes');
-import notificationTypeAdminRoutes = require('./notification/routes/admin-notification-type.routes');
-import notificationCategoryAdminRoutes = require('./notification/routes/admin-notification-category.routes');
+import personAdminRoutes from './kyc/person/routes/admin-person.routes';
+import changeLogAdminRoutes from './records/audit/routes/admin-change-log.routes';
+import notificationTypeAdminRoutes from './notification/routes/admin-notification-type.routes';
+import notificationCategoryAdminRoutes from './notification/routes/admin-notification-category.routes';
 
 // ── Admin — Usuarios internos & RBAC ──────────────────────────────────────
-import adminUserRoutes = require('./kyc/iam/routes/admin-user.routes');
-import adminRbacRoutes = require('./kyc/iam/routes/admin-rbac.routes');
+import adminUserRoutes from './kyc/iam/routes/admin-user.routes';
+import adminRbacRoutes from './kyc/iam/routes/admin-rbac.routes';
 
 // ── Admin — Auditoría ──────────────────────────────────────────────────────
-import adminAuditLogRoutes = require('./records/audit/routes/admin-audit-log.routes');
-import adminAuditAlertRoutes = require('./records/audit/routes/admin-audit-alert.routes');
-import adminAuditActionCatalogRoutes = require('./records/audit/routes/admin-audit-action-catalog.routes');
-import adminSessionTraceRoutes = require('./records/audit/routes/admin-session-trace.routes');
+import adminAuditLogRoutes from './records/audit/routes/admin-audit-log.routes';
+import adminAuditAlertRoutes from './records/audit/routes/admin-audit-alert.routes';
+import adminAuditActionCatalogRoutes from './records/audit/routes/admin-audit-action-catalog.routes';
+import adminSessionTraceRoutes from './records/audit/routes/admin-session-trace.routes';
 
 // ── Admin — Entregas de notificaciones (email/push delivery) ───────────────
-import adminNotificationDeliveryRoutes = require('./notification/routes/admin-notification-delivery.routes');
+import adminNotificationDeliveryRoutes from './notification/routes/admin-notification-delivery.routes';
 
 // ── Admin — Consentimientos ────────────────────────────────────────────────
-import consentTypeAdminRoutes = require('./records/legal/routes/consent-type.routes');
-import adminUserConsentRoutes = require('./records/legal/routes/admin-user-consent.routes');
+import consentTypeAdminRoutes from './records/legal/routes/consent-type.routes';
+import adminUserConsentRoutes from './records/legal/routes/admin-user-consent.routes';
 
 // ── Admin — Configuración global (SystemGlobalConfig) ─────────────────────
-import systemGlobalConfigRoutes = require('./core/routes/system-global-config.routes');
+import systemGlobalConfigRoutes from './core/routes/system-global-config.routes';
 
 // ── Admin — Banners promocionales ─────────────────────────────────────────
-import promotionalBannerAdminRoutes = require('./core/routes/promotional-banner.routes');
+import promotionalBannerAdminRoutes from './core/routes/promotional-banner.routes';
 
 // ── Admin — Doble aprobación global (maker-checker) ───────────────────────
-import approvalRequestRoutes = require('./core/routes/approval-request.routes');
+import approvalRequestRoutes from './core/routes/approval-request.routes';
 
 // ── Admin — Monitoreo de integraciones externas (solo AWS) ────────────────
-import integrationMonitoringRoutes = require('./integration/routes/integration-monitoring.routes');
+import integrationMonitoringRoutes from './integration/routes/integration-monitoring.routes';
 
 class AdminApp extends BaseApp {
   constructor() {
@@ -123,4 +123,4 @@ class AdminApp extends BaseApp {
   }
 }
 
-export = new AdminApp().getApp();
+export default new AdminApp().getApp();

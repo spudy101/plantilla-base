@@ -1,5 +1,4 @@
-import expressValidatorModule = require('express-validator');
-const { body } = expressValidatorModule;
+import { body } from 'express-validator';
 
 const MIN_RETENTION_YEARS = 1;
 // Resiliencia homologada de integraciones (RF-INT-01 CA-6). Rangos amplios pero acotados por seguridad.
@@ -124,4 +123,4 @@ class SystemGlobalConfigValidator {
   }
 }
 
-export = SystemGlobalConfigValidator;
+export default SystemGlobalConfigValidator;

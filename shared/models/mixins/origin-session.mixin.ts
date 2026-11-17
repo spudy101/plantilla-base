@@ -18,10 +18,10 @@
 //     creado a mano, cuando el contexto todavía no lo tiene).
 //   - null en workers/sistema y en flujos sin sesión (registro público, "olvidé mi contraseña"):
 //     por eso las columnas son nullable.
-import sequelizeModule = require('sequelize');
+import sequelizeModule from 'sequelize';
 const { DataTypes } = sequelizeModule;
 import type { Model } from 'sequelize';
-import requestContext = require('../../utils/request-context.util');
+import requestContext from '../../utils/request-context.util';
 
 const ORIGIN_CORRELATION_MAX_LENGTH = 128;
 
@@ -76,7 +76,7 @@ function stampOriginSession(instance: Model): void {
   }
 }
 
-export = {
+export default {
   originSessionModelFields,
   originSessionMigrationColumns,
   stampOriginSession

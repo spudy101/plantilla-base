@@ -1,14 +1,13 @@
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../../shared/models';
 const { User } = modelsModule;
-import bcrypt = require('bcryptjs');
-import HashUtil = require('../../../../../shared/utils/hash.util');
-import AppError = require('../../../../../shared/utils/app-error.util');
-import sequelizeModule = require('sequelize');
-const { Op } = sequelizeModule;
+import bcrypt from 'bcryptjs';
+import HashUtil from '../../../../../shared/utils/hash.util';
+import AppError from '../../../../../shared/utils/app-error.util';
+import { Op } from 'sequelize';
 import type { CreateOptions, DestroyOptions, FindOptions, IncludeOptions, InstanceUpdateOptions } from 'sequelize';
-import type defineUser = require('../models/user.model');
-import ReadRepository = require('../../../../../shared/repositories/read.repository');
+import type defineUser from '../models/user.model';
+import ReadRepository from '../../../../../shared/repositories/read.repository';
 import type { WhereClause } from '../../../../../shared/repositories/query';
 
 class UserRepository extends BaseRepository<defineUser.Instance> {
@@ -421,4 +420,4 @@ namespace UserRepository {
   > & { password: string };
 }
 
-export = new UserRepository();
+export default new UserRepository();

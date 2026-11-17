@@ -15,12 +15,12 @@ jest.mock('modules/schemas/kyc/iam/repositories/role-permission-override.reposit
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import redisClientModule = require('shared/utils/redis.util');
+import redisClientModule from 'shared/utils/redis.util';
 const redisClient = mocked(redisClientModule);
-import overrideRepositoryModule = require('modules/schemas/kyc/iam/repositories/role-permission-override.repository');
+import overrideRepositoryModule from 'modules/schemas/kyc/iam/repositories/role-permission-override.repository';
 const overrideRepository = mocked(overrideRepositoryModule);
-import rbacService = require('shared/services/rbac.service');
-import rbacModule = require('shared/constants/rbac');
+import rbacService from 'shared/services/rbac.service';
+import rbacModule from 'shared/constants/rbac';
 const { RBAC_ROLES, RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
 describe('RbacService', () => {

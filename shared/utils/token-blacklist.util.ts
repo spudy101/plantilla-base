@@ -46,11 +46,11 @@
 //   Si Redis no está disponible, las lecturas retornan false y las escrituras
 //   fallan silenciosamente. El request pasa — priorizamos disponibilidad.
 
-import crypto = require('node:crypto');
-import redisClient = require('./redis.util');
-import loggerUtilModule = require('./logger.util');
+import crypto from 'node:crypto';
+import redisClient from './redis.util';
+import loggerUtilModule from './logger.util';
 const { logger } = loggerUtilModule;
-import constantsModule = require('../constants');
+import constantsModule from '../constants';
 const { SECURITY } = constantsModule;
 
 const KEY_ACCESS_PREFIX = 'token:blacklisted';
@@ -397,4 +397,4 @@ class TokenBlacklistUtil {
   }
 }
 
-export = TokenBlacklistUtil;
+export default TokenBlacklistUtil;

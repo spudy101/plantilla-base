@@ -7,7 +7,7 @@
 jest.mock('shared/models', () => ({}));
 
 import { fixture } from 'tests/helpers/mock';
-import consentRecorderServiceModule = require('modules/schemas/records/legal/services/consent-recorder.service');
+import consentRecorderServiceModule from 'modules/schemas/records/legal/services/consent-recorder.service';
 const { ConsentRecorderService } = consentRecorderServiceModule;
 
 const makeDeps = ({ consentType = { consent_type_id: 'ct-1' }, activePolicy = { privacy_policy_id: 'pp-9' } } = {}) => ({

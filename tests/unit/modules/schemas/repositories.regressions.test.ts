@@ -30,10 +30,10 @@ jest.mock('shared/utils/logger.util', () => ({
 }));
 
 import { fixture } from 'tests/helpers/mock';
-import userPushTokenRepository = require('modules/schemas/notification/repositories/user-push-token.repository');
-import auditLogRepository = require('modules/schemas/records/audit/repositories/audit-log.repository');
-import userChangeLogRepository = require('modules/schemas/records/audit/repositories/user-change-log.repository');
-import verificationCodeRepository = require('modules/schemas/notification/repositories/verification-code.repository');
+import userPushTokenRepository from 'modules/schemas/notification/repositories/user-push-token.repository';
+import auditLogRepository from 'modules/schemas/records/audit/repositories/audit-log.repository';
+import userChangeLogRepository from 'modules/schemas/records/audit/repositories/user-change-log.repository';
+import verificationCodeRepository from 'modules/schemas/notification/repositories/verification-code.repository';
 
 beforeEach(() => jest.clearAllMocks());
 

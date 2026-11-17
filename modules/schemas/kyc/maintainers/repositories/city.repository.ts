@@ -1,8 +1,8 @@
 // modules/schemas/kyc/src/repositories/city.repository.ts
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../../shared/models';
 const { City } = modelsModule;
-import type defineCity = require('../models/city.model');
+import type defineCity from '../models/city.model';
 
 // Rango de diacríticos combinantes — para comparar nombres sin acentos ni mayúsculas
 const DIACRITICS = /[̀-ͯ]/g;
@@ -76,4 +76,4 @@ class CityRepository extends BaseRepository<defineCity.Instance> {
   }
 }
 
-export = new CityRepository();
+export default new CityRepository();

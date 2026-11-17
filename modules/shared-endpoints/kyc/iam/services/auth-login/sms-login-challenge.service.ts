@@ -1,23 +1,23 @@
-import type defineUser = require('../../../../../schemas/kyc/iam/models/user.model');
+import type defineUser from '../../../../../schemas/kyc/iam/models/user.model';
 import type { RequestAuditContext } from '../../../../../../shared/types/audit-context';
 // modules/shared-endpoints/kyc/iam/services/auth-login/sms-login-challenge.service.ts
 //
 // Desafío MFA por SMS en el login: emisión y verificación del código.
 // Extraído de AuthLoginService (SOLID: S).
 
-import crypto = require('node:crypto');
-import userRepository = require('../../../../../schemas/kyc/iam/repositories/user.repository');
-import userLoginAttemptRepository = require('../../../../../schemas/records/audit/repositories/user-login-attempt.repository');
-import verificationCodeRepository = require('../../../../../schemas/notification/repositories/verification-code.repository');
-import SmsService = require('../../../../../schemas/notification/services/sms.service');
-import AppError = require('../../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../../shared/utils/logger.util');
+import crypto from 'node:crypto';
+import userRepository from '../../../../../schemas/kyc/iam/repositories/user.repository';
+import userLoginAttemptRepository from '../../../../../schemas/records/audit/repositories/user-login-attempt.repository';
+import verificationCodeRepository from '../../../../../schemas/notification/repositories/verification-code.repository';
+import SmsService from '../../../../../schemas/notification/services/sms.service';
+import AppError from '../../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import constantsModule = require('../../../../../../shared/constants');
+import constantsModule from '../../../../../../shared/constants';
 const { MOCKS } = constantsModule;
-import authLoginDtoModule = require('../../dtos/auth-login.dto');
+import authLoginDtoModule from '../../dtos/auth-login.dto';
 const { MFARequiredResponseDTO } = authLoginDtoModule;
-import errorMessageModule = require('../../../../../../shared/utils/error-message.util');
+import errorMessageModule from '../../../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -201,4 +201,4 @@ namespace SmsLoginChallengeService {
   }
 }
 
-export = SmsLoginChallengeService;
+export default SmsLoginChallengeService;

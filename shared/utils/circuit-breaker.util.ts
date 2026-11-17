@@ -20,11 +20,11 @@
  *   el ScreeningWorkerHelper registre las acciones de fallback sin acoplamiento circular.
  */
 
-import loggerUtilModule = require('./logger.util');
+import loggerUtilModule from './logger.util';
 const { logger } = loggerUtilModule;
-import redisClient = require('./redis.util');
-import ResilienceConfig = require('./resilience-config.util');
-import errorMessageModule = require('./error-message.util');
+import redisClient from './redis.util';
+import ResilienceConfig from './resilience-config.util';
+import errorMessageModule from './error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -287,4 +287,4 @@ class IntegrationCircuitBreaker {
   }
 }
 
-export = new IntegrationCircuitBreaker();
+export default new IntegrationCircuitBreaker();

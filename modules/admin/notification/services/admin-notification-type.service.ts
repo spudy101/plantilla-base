@@ -1,15 +1,15 @@
-import notificationTypeRepository = require('../../../schemas/notification/repositories/notification-type.repository');
-import notificationCategoryRepository = require('../../../schemas/notification/repositories/notification-category.repository');
-import userRepository = require('../../../schemas/kyc/iam/repositories/user.repository');
-import NotificationUtil = require('../../../schemas/notification/services/notification-creation.service');
-import AppError = require('../../../../shared/utils/app-error.util');
-import PaginationHelper = require('../../../../shared/utils/pagination.util');
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import notificationTypeRepository from '../../../schemas/notification/repositories/notification-type.repository';
+import notificationCategoryRepository from '../../../schemas/notification/repositories/notification-category.repository';
+import userRepository from '../../../schemas/kyc/iam/repositories/user.repository';
+import NotificationUtil from '../../../schemas/notification/services/notification-creation.service';
+import AppError from '../../../../shared/utils/app-error.util';
+import PaginationHelper from '../../../../shared/utils/pagination.util';
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
-import constantsModule = require('../../../../shared/constants');
+import constantsModule from '../../../../shared/constants';
 const { notifications } = constantsModule;
-import unitOfWork = require('../../../../shared/database/unit-of-work');
-import adminNotificationTypeDtoModule = require('../dtos/admin-notification-type.dto');
+import unitOfWork from '../../../../shared/database/unit-of-work';
+import adminNotificationTypeDtoModule from '../dtos/admin-notification-type.dto';
 const {
   ListNotificationTypesResponseDTO,
   UpdateNotificationTypeResponseDTO,
@@ -200,4 +200,4 @@ namespace NotificationTypeService {
   }
 }
 
-export = Object.assign(new NotificationTypeService(), { NotificationTypeService });
+export default Object.assign(new NotificationTypeService(), { NotificationTypeService });

@@ -1,9 +1,9 @@
-import BaseRepository = require('../../../../../shared/repositories/base.repository');
-import modelsModule = require('../../../../../shared/models');
+import BaseRepository from '../../../../../shared/repositories/base.repository';
+import modelsModule from '../../../../../shared/models';
 const { PersonLocation } = modelsModule;
-import requestContext = require('../../../../../shared/utils/request-context.util');
+import requestContext from '../../../../../shared/utils/request-context.util';
 import type { CreateOptions } from 'sequelize';
-import type definePersonLocation = require('../models/person-location.model');
+import type definePersonLocation from '../models/person-location.model';
 
 class PersonLocationRepository extends BaseRepository<definePersonLocation.Instance> {
   constructor() {
@@ -81,4 +81,4 @@ class PersonLocationRepository extends BaseRepository<definePersonLocation.Insta
   }
 }
 
-export = new PersonLocationRepository();
+export default new PersonLocationRepository();

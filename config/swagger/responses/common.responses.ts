@@ -263,7 +263,7 @@ const noContent = {
 
 // ─── Exports ──────────────────────────────────────────────────
 
-export = {
+export default {
   // Errores (usar con spread: ...commonResponses.BadRequest)
   BadRequest,
   Unauthorized,

@@ -1,14 +1,15 @@
 // === RF-OPS-01: Pipeline DevSecOps, Infraestructura Base ===
 // src/utils/logger.util.ts
+import { interopDefault } from './interop.util';
 import type { NextFunction, Request, Response } from 'express';
-import path = require('node:path');
-import winston = require('winston');
-import DailyRotateFile = require('winston-daily-rotate-file');
-import clientS3Module = require('@aws-sdk/client-s3');
-const { PutObjectCommand } = clientS3Module;
-import constantsModule = require('../constants');
+import path from 'node:path';
+import winston from 'winston';
+import DailyRotateFile from 'winston-daily-rotate-file';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
+import constantsModule from '../constants';
 const { logging, server } = constantsModule;
-import errorMessageModule = require('./error-message.util');
+import errorMessageModule from './error-message.util';
+import type defineAuditLog from '../../modules/schemas/records/audit/models/audit-log.model';
 
 // Se usa como errorMessageModule.errorMessage(…): logAudit recibe una opción llamada errorMessage.
 
@@ -96,7 +97,7 @@ const sanitizeForLog = (body: unknown, depth = 0): unknown => {
 // (loggers huérfanos de arranque, eventos de Redis, bootstrap) NO se estampa
 // correlationId — esos logs no pertenecen a ningún flujo.
 const correlationFormat = winston.format(info => {
-  const { get } = require('./request-context.util');
+  const { get } = interopDefault(require('./request-context.util') as typeof import('./request-context.util'));
   const ctx = get();
   if (ctx?.correlationId && !info.correlationId) {
     info.correlationId = ctx.correlationId;
@@ -236,6 +237,12 @@ interface AuditEntry {
   [contextField: string]: unknown;
 }
 
+type AuditRisk = defineAuditLog.Attributes['risk'];
+type AuditOutcome = defineAuditLog.Attributes['outcome'];
+
+// Los campos del contexto de la petición llegan como unknown: a la BD solo van si son string
+const _str = (value: unknown): string | null => (typeof value === 'string' ? value : null);
+
 // 'system' u otros ids no-UUID no van a la FK users.user_id
 const _toDbUserId = (userId: string | null | undefined): string | null =>
   userId && UUID_REGEX.test(userId) ? userId : null;
@@ -243,30 +250,31 @@ const _toDbUserId = (userId: string | null | undefined): string | null =>
 const _saveToDatabase = async (entry: AuditEntry): Promise<void> => {
   try {
     // Importación lazy para evitar dependencia circular con models
-    const { AuditLog } = require('../models');
+    const { AuditLog } = interopDefault(require('../models') as typeof import('../models'));
     await AuditLog.create({
       action: entry.action,
       description: entry.description,
       category: entry.category,
-      risk: entry.risk ?? 'unknown',
-      outcome: entry.outcome ?? 'success',
+      // risk/outcome vienen del catálogo AUDIT_ACTIONS (tipado como string); la columna es un ENUM
+      risk: (entry.risk ?? 'unknown') as AuditRisk,
+      outcome: (entry.outcome ?? 'success') as AuditOutcome,
       http_status: entry.httpStatus ?? null,
       error_code: entry.errorCode ?? null,
       error_message: entry.errorMessage ?? null,
       user_id: _toDbUserId(entry.userId),
-      session_id: entry.sessionId ?? null,
-      correlation_id: entry.correlationId,
-      ip: entry.ip,
-      user_agent: entry.userAgent,
-      fingerprint: entry.fingerprintHash,
-      method: entry.method,
-      path: entry.path,
+      session_id: _str(entry.sessionId),
+      correlation_id: _str(entry.correlationId),
+      ip: _str(entry.ip),
+      user_agent: _str(entry.userAgent),
+      fingerprint: _str(entry.fingerprintHash),
+      method: _str(entry.method),
+      path: _str(entry.path),
       details: entry.details,
       entity_id: entry.entityId ?? null,
       entity_type: entry.entityType ?? null,
       entity_table: entry.entityTable ?? null,
       module: entry.module ?? null,
-      source: entry.source ?? 'http'
+      source: _str(entry.source) ?? 'http'
     });
   } catch (err) {
     logger.warn('logAudit — error guardando en BD', {
@@ -284,7 +292,7 @@ const _saveToDatabase = async (entry: AuditEntry): Promise<void> => {
 const _saveToS3 = async (entry: AuditEntry): Promise<void> => {
   try {
     // Importación lazy para evitar inicializar S3 si no está configurado
-    const S3Util = require('./s3.util');
+    const S3Util = interopDefault(require('./s3.util') as typeof import('./s3.util'));
     const date = new Date().toISOString().split('T')[0];
     const category = (entry.category ?? 'general').toLowerCase().replaceAll(/\s+/g, '-');
     const fileName = `${entry.action}-${entry.correlationId ?? Date.now()}.json`;
@@ -314,12 +322,12 @@ const _saveToS3 = async (entry: AuditEntry): Promise<void> => {
 
 const _createAlert = async (entry: AuditEntry): Promise<void> => {
   try {
-    const auditAlertRepository = require('../../modules/schemas/records/audit/repositories/audit-alert.repository');
+    const auditAlertRepository = interopDefault(require('../../modules/schemas/records/audit/repositories/audit-alert.repository') as typeof import('../../modules/schemas/records/audit/repositories/audit-alert.repository'));
     await auditAlertRepository.create({
       audit_log_id: null,
       action: entry.action,
       category: entry.category ?? null,
-      risk: entry.risk ?? 'high',
+      risk: (entry.risk ?? 'high') as AuditRisk,
       user_id: _toDbUserId(entry.userId),
       entity_id: entry.entityId ?? null,
       entity_type: entry.entityType ?? null,
@@ -399,11 +407,12 @@ const logAudit = (
     entityTable = null
   } = opts;
 
-  const { getSafe } = require('./request-context.util');
+  const { getSafe } = interopDefault(require('./request-context.util') as typeof import('./request-context.util'));
   const auditContext = context ?? getSafe();
 
-  const { AUDIT_ACTIONS } = require('../constants/auditActions/index');
-  const actionMeta: { description: string; category: string; module?: string | null; risk: string } = AUDIT_ACTIONS[action] ?? {
+  const { AUDIT_ACTIONS } = interopDefault(require('../constants/auditActions/index') as typeof import('../constants/auditActions/index'));
+  type ActionMeta = { description: string; category: string; module?: string | null; risk: string };
+  const actionMeta: ActionMeta = (AUDIT_ACTIONS as Record<string, ActionMeta | undefined>)[action] ?? {
     description: action,
     category: 'Sin categoría',
     module: null,
@@ -434,7 +443,7 @@ const logAudit = (
   setImmediate(() => {
     const saves = [_saveToDatabase(auditEntry), _saveToS3(auditEntry)];
 
-    const { AUDIT_ALERT_TRIGGER_ACTIONS } = require('../constants/auditActions/audit-alert-triggers');
+    const { AUDIT_ALERT_TRIGGER_ACTIONS } = interopDefault(require('../constants/auditActions/audit-alert-triggers') as typeof import('../constants/auditActions/audit-alert-triggers'));
     if (AUDIT_ALERT_TRIGGER_ACTIONS.has(action)) {
       saves.push(_createAlert(auditEntry));
     }
@@ -484,7 +493,7 @@ const httpLogger = (req: Request, res: Response, next: NextFunction) => {
 // EXPORTS
 // ==============================================
 
-export = {
+export default {
   logger,
   logAudit,
   httpLogger,

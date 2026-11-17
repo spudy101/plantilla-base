@@ -4,7 +4,7 @@
 // middlewares, validators, dtos, repositories, constants, etc.). Ver la mecánica
 // y el porqué en tests/helpers/loadability.js.
 
-import loadabilityModule = require('tests/helpers/loadability');
+import loadabilityModule from 'tests/helpers/loadability';
 const { describeLoadability } = loadabilityModule;
 
 describeLoadability('shared');

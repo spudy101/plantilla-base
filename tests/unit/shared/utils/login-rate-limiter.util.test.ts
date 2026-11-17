@@ -33,9 +33,9 @@ jest.mock('shared/constants', () => ({
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import redisClientModule = require('shared/utils/redis.util');
+import redisClientModule from 'shared/utils/redis.util';
 const redisClient = mocked(redisClientModule);
-import LoginRateLimiter = require('shared/utils/login-rate-limiter.util');
+import LoginRateLimiter from 'shared/utils/login-rate-limiter.util';
 
 describe('LoginRateLimiterUtil', () => {
   beforeEach(() => {

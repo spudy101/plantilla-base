@@ -73,25 +73,25 @@ jest.mock('modules/shared-endpoints/kyc/iam/dtos/mfa.dto', () => ({
 }));
 
 import { mocked, Loose } from 'tests/helpers/mock';
-import modelsModule = require('shared/models');
+import modelsModule from 'shared/models';
 const { sequelize } = mocked(modelsModule);
-import userRepoModule = require('modules/schemas/kyc/iam/repositories/user.repository');
+import userRepoModule from 'modules/schemas/kyc/iam/repositories/user.repository';
 const userRepo = mocked(userRepoModule);
-import verificationCodeRepoModule = require('modules/schemas/notification/repositories/verification-code.repository');
+import verificationCodeRepoModule from 'modules/schemas/notification/repositories/verification-code.repository';
 const verificationCodeRepo = mocked(verificationCodeRepoModule);
-import KycSharedUtilModule = require('modules/schemas/kyc/person/utils/kyc-shared.util');
+import KycSharedUtilModule from 'modules/schemas/kyc/person/utils/kyc-shared.util';
 const KycSharedUtil = mocked(KycSharedUtilModule);
-import TotpUtilModule = require('shared/utils/totp.util');
+import TotpUtilModule from 'shared/utils/totp.util';
 const TotpUtil = mocked(TotpUtilModule);
-import NotificationUtilModule = require('modules/schemas/notification/services/notification-creation.service');
+import NotificationUtilModule from 'modules/schemas/notification/services/notification-creation.service';
 const NotificationUtil = mocked(NotificationUtilModule);
-import SmsServiceModule = require('modules/schemas/notification/services/sms.service');
+import SmsServiceModule from 'modules/schemas/notification/services/sms.service';
 const SmsService = mocked(SmsServiceModule);
-import constantsModule = require('shared/constants');
+import constantsModule from 'shared/constants';
 const constants = mocked(constantsModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import mfa = require('modules/shared-endpoints/kyc/iam/services/mfa.service');
+import mfa from 'modules/shared-endpoints/kyc/iam/services/mfa.service';
 
 const USER_ID = 'u-1';
 const AUDIT = { ip: '1.2.3.4', userAgent: 'jest' };

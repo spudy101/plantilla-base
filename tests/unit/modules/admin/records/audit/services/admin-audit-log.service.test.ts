@@ -22,8 +22,8 @@ jest.mock('shared/utils/logger.util', () => ({
 }));
 
 jest.mock('shared/utils/pagination.util', () => ({
-  stringParam: jest.requireActual('shared/utils/pagination.util').stringParam,
-  booleanParam: jest.requireActual('shared/utils/pagination.util').booleanParam,
+  stringParam: jest.requireActual('shared/utils/pagination.util').default.stringParam,
+  booleanParam: jest.requireActual('shared/utils/pagination.util').default.booleanParam,
   getPaginationParams: jest.fn().mockReturnValue({ page: 1, limit: 10, offset: 0, sortBy: 'createdAt', order: 'DESC' }),
   toSnakeCase: jest.fn(value => value),
   buildFilters: jest.fn().mockReturnValue({})
@@ -48,15 +48,15 @@ jest.mock('modules/admin/records/audit/dtos/admin-audit-log.dto', () => ({
 jest.mock('shared/models', () => ({}));
 
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
-import ExcelJSModule = require('exceljs');
+import ExcelJSModule from 'exceljs';
 const ExcelJS = mocked(ExcelJSModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit, logger } = mocked(loggerUtilModule);
-import PaginationHelperModule = require('shared/utils/pagination.util');
+import PaginationHelperModule from 'shared/utils/pagination.util';
 const PaginationHelper = mocked(PaginationHelperModule);
-import auditLogRepoModule = require('modules/schemas/records/audit/repositories/audit-log.repository');
+import auditLogRepoModule from 'modules/schemas/records/audit/repositories/audit-log.repository';
 const auditLogRepo = mocked(auditLogRepoModule);
-import service = require('modules/admin/records/audit/services/admin-audit-log.service');
+import service from 'modules/admin/records/audit/services/admin-audit-log.service';
 
 const ADMIN = 'admin-1';
 

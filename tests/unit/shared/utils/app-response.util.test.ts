@@ -29,8 +29,8 @@ jest.mock('shared/middlewares/pii-masking.middleware', () => ({
 }));
 
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
-import ApiResponse = require('shared/utils/app-response.util');
-import PiiMaskingMiddlewareModule = require('shared/middlewares/pii-masking.middleware');
+import ApiResponse from 'shared/utils/app-response.util';
+import PiiMaskingMiddlewareModule from 'shared/middlewares/pii-masking.middleware';
 const PiiMaskingMiddleware = mocked(PiiMaskingMiddlewareModule);
 
 // Construye un doble de `res` de Express con status/json/send encadenables.

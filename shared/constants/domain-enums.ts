@@ -50,4 +50,4 @@ declare namespace DomainEnums {
   type IntegrationResult = (typeof INTEGRATION_RESULTS)[number];
 }
 
-export = DomainEnums;
+export default DomainEnums;

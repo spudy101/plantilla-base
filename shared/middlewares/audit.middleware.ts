@@ -1,10 +1,10 @@
 // src/middlewares/audit.middleware.ts
 
 import type { NextFunction, Request, Response } from 'express';
-import loggerUtilModule = require('../utils/logger.util');
+import loggerUtilModule from '../utils/logger.util';
 const { sanitizeForLog } = loggerUtilModule;
-import DeviceFingerprintUtil = require('../utils/device-fingerprint.util');
-import requestContext = require('../utils/request-context.util');
+import DeviceFingerprintUtil from '../utils/device-fingerprint.util';
+import requestContext from '../utils/request-context.util';
 
 /**
  * Audit Middleware
@@ -44,4 +44,4 @@ const auditMiddleware = (req: Request, res: Response, next: NextFunction) => {
   requestContext.run(auditContext, next);
 };
 
-export = auditMiddleware;
+export default auditMiddleware;

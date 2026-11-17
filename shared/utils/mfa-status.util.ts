@@ -7,12 +7,13 @@
 // Fuente de verdad: totp_enabled || sms_mfa_enabled en la tabla `users`.
 
 // Lazy require: el repositorio vive en modules/ (evita ciclos de carga al arrancar). SOLID: D.
+import { interopDefault } from './interop.util';
 interface MfaFlags {
   totp_enabled?: boolean | null;
   sms_mfa_enabled?: boolean | null;
 }
 const userRepository = (): { findMfaFlags(userId: string): Promise<MfaFlags | null> } =>
-  require('../../modules/schemas/kyc/iam/repositories/user.repository');
+  interopDefault(require('../../modules/schemas/kyc/iam/repositories/user.repository') as typeof import('../../modules/schemas/kyc/iam/repositories/user.repository'));
 
 /**
  * @param {string} userId
@@ -29,4 +30,4 @@ async function isMfaActive(userId: string | null | undefined): Promise<boolean> 
   return user.totp_enabled === true || user.sms_mfa_enabled === true;
 }
 
-export = { isMfaActive };
+export default { isMfaActive };

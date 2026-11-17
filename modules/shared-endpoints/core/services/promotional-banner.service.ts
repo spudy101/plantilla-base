@@ -1,8 +1,8 @@
-import type PromotionalBannerDto = require('../dtos/promotional-banner.dto');
-import systemGlobalConfigRepository = require('../../../schemas/core/repositories/system-global-config.repository');
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import type PromotionalBannerDto from '../dtos/promotional-banner.dto';
+import systemGlobalConfigRepository from '../../../schemas/core/repositories/system-global-config.repository';
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
-import promotionalBannerDtoModule = require('../dtos/promotional-banner.dto');
+import promotionalBannerDtoModule from '../dtos/promotional-banner.dto';
 const { PublicPromotionalBannerListDTO } = promotionalBannerDtoModule;
 
 // Caché en memoria (TTL 60s, patrón del resolver de resiliencia): endpoint público sin auth, no
@@ -57,4 +57,4 @@ namespace PromotionalBannerPublicService {
   }
 }
 
-export = Object.assign(new PromotionalBannerPublicService(), { PromotionalBannerPublicService });
+export default Object.assign(new PromotionalBannerPublicService(), { PromotionalBannerPublicService });

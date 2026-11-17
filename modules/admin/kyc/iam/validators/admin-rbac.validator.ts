@@ -1,10 +1,9 @@
 // modules/admin/rbac/validators/admin-rbac.validator.ts
 
-import expressValidatorModule = require('express-validator');
-const { param, body } = expressValidatorModule;
-import constantsModule = require('../../../../../shared/constants');
+import { param, body } from 'express-validator';
+import constantsModule from '../../../../../shared/constants';
 const { RBAC_ROLES, RBAC_MODULES, RBAC_ACTIONS } = constantsModule;
-import BaseValidator = require('../../../../../shared/validators/base.validator');
+import BaseValidator from '../../../../../shared/validators/base.validator';
 
 const validRoleNames = Object.values(RBAC_ROLES);
 const validModuleNames = Object.values(RBAC_MODULES);
@@ -70,4 +69,4 @@ class AdminRbacValidator {
   }
 }
 
-export = AdminRbacValidator;
+export default AdminRbacValidator;

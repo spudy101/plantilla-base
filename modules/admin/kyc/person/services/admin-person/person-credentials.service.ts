@@ -1,24 +1,24 @@
-import type defineUser = require('../../../../../schemas/kyc/iam/models/user.model');
+import type defineUser from '../../../../../schemas/kyc/iam/models/user.model';
 // modules/admin/kyc/person/services/admin-person/person-credentials.service.ts
 //
 // Credenciales e identidad de una cuenta: reset de contraseña, cambio de email,
 // cambio de documento y desactivación de MFA. Extraído de PersonService (SOLID: S).
 
 import type { AdminAuditContext } from '../../../../../../shared/types/audit-context';
-import unitOfWork = require('../../../../../../shared/database/unit-of-work');
-import userRepository = require('../../../../../schemas/kyc/iam/repositories/user.repository');
-import KycSharedUtil = require('../../../../../schemas/kyc/person/utils/kyc-shared.util');
-import NotificationUtil = require('../../../../../schemas/notification/services/notification-creation.service');
-import AppError = require('../../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../../shared/utils/logger.util');
+import unitOfWork from '../../../../../../shared/database/unit-of-work';
+import userRepository from '../../../../../schemas/kyc/iam/repositories/user.repository';
+import KycSharedUtil from '../../../../../schemas/kyc/person/utils/kyc-shared.util';
+import NotificationUtil from '../../../../../schemas/notification/services/notification-creation.service';
+import AppError from '../../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import ProfileHelper = require('../../../../../schemas/kyc/person/helpers/profile.helper');
-import constantsModule = require('../../../../../../shared/constants');
+import ProfileHelper from '../../../../../schemas/kyc/person/helpers/profile.helper';
+import constantsModule from '../../../../../../shared/constants';
 const { notifications } = constantsModule;
 
-import adminPersonDtoModule = require('../../dtos/admin-person.dto');
+import adminPersonDtoModule from '../../dtos/admin-person.dto';
 const { ResetPasswordDTO, ChangeEmailDTO, ChangeNationalIdDTO, DisableMFADTO } = adminPersonDtoModule;
-import personGuardsModule = require('./person-guards');
+import personGuardsModule from './person-guards';
 const { assertNotDeleted, requirePerson } = personGuardsModule;
 
 class PersonCredentialsService {
@@ -428,4 +428,4 @@ namespace PersonCredentialsService {
   }
 }
 
-export = PersonCredentialsService;
+export default PersonCredentialsService;

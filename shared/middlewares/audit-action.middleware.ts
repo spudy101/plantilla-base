@@ -45,4 +45,4 @@ class AuditAction {
   }
 }
 
-export = AuditAction;
+export default AuditAction;

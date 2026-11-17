@@ -20,8 +20,8 @@ jest.mock('shared/utils/logger.util', () => ({
 }));
 
 jest.mock('shared/utils/pagination.util', () => ({
-  stringParam: jest.requireActual('shared/utils/pagination.util').stringParam,
-  booleanParam: jest.requireActual('shared/utils/pagination.util').booleanParam,
+  stringParam: jest.requireActual('shared/utils/pagination.util').default.stringParam,
+  booleanParam: jest.requireActual('shared/utils/pagination.util').default.booleanParam,
   getPaginationParams: jest.fn().mockReturnValue({ page: 1, limit: 10, offset: 0, sortBy: 'created_at', order: 'DESC' })
 }));
 
@@ -56,23 +56,23 @@ jest.mock('modules/schemas/notification/utils/notification-count.util', () => ({
 }));
 
 import { mocked, fixture } from 'tests/helpers/mock';
-import modelsModule = require('shared/models');
+import modelsModule from 'shared/models';
 const { sequelize } = mocked(modelsModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit, logger } = mocked(loggerUtilModule);
-import notificationRepoModule = require('modules/schemas/notification/repositories/notification.repository');
+import notificationRepoModule from 'modules/schemas/notification/repositories/notification.repository';
 const notificationRepo = mocked(notificationRepoModule);
-import globalNotificationRepoModule = require('modules/schemas/notification/repositories/global-notification.repository');
+import globalNotificationRepoModule from 'modules/schemas/notification/repositories/global-notification.repository';
 const globalNotificationRepo = mocked(globalNotificationRepoModule);
-import globalReadRepoModule = require('modules/schemas/notification/repositories/global-notification-read.repository');
+import globalReadRepoModule from 'modules/schemas/notification/repositories/global-notification-read.repository';
 const globalReadRepo = mocked(globalReadRepoModule);
-import creationServiceModule = require('modules/schemas/notification/services/notification-creation.service');
+import creationServiceModule from 'modules/schemas/notification/services/notification-creation.service';
 const creationService = mocked(creationServiceModule);
-import NotificationEmitterModule = require('modules/schemas/notification/utils/notification-emitter.util');
+import NotificationEmitterModule from 'modules/schemas/notification/utils/notification-emitter.util';
 const NotificationEmitter = mocked(NotificationEmitterModule);
-import NotificationCountUtilModule = require('modules/schemas/notification/utils/notification-count.util');
+import NotificationCountUtilModule from 'modules/schemas/notification/utils/notification-count.util';
 const NotificationCountUtil = mocked(NotificationCountUtilModule);
-import service = require('modules/shared-endpoints/notification/services/notification.service');
+import service from 'modules/shared-endpoints/notification/services/notification.service';
 
 const USER = 'u-1';
 const flush = () => new Promise(resolve => { setImmediate(resolve); });

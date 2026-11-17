@@ -1,6 +1,6 @@
 // modules/client/kyc/dtos/auth-biometric.dto.ts
 
-import kycModule = require('../../../../../shared/dtos/kyc');
+import kycModule from '../../../../../shared/dtos/kyc';
 const { BiometricCredentialComponent } = kycModule;
 
 /**
@@ -37,7 +37,7 @@ function BiometricCredentialListDTO(credentials: Parameters<typeof BiometricCred
   return { credentials: list, total: list.length };
 }
 
-export = {
+export default {
   BiometricRegisterStartDTO,
   BiometricRegisterFinishDTO,
   BiometricLoginStartDTO,

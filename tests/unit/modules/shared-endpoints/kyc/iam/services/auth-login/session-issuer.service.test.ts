@@ -7,8 +7,8 @@ jest.mock('shared/models', () => ({}));
 jest.mock('shared/utils/logger.util', () => ({ logger: { warn: jest.fn(), info: jest.fn() } }));
 
 import { mocked, fixture } from 'tests/helpers/mock';
-import SessionIssuerService = require('modules/shared-endpoints/kyc/iam/services/auth-login/session-issuer.service');
-import loggerUtilModule = require('shared/utils/logger.util');
+import SessionIssuerService from 'modules/shared-endpoints/kyc/iam/services/auth-login/session-issuer.service';
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logger } = mocked(loggerUtilModule);
 
 const USER = { user_id: 'u-1' };

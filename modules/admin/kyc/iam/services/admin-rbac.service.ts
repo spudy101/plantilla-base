@@ -1,4 +1,4 @@
-import type defineRolePermissionOverride = require('../../../../schemas/kyc/iam/models/role-permission-override.model');
+import type defineRolePermissionOverride from '../../../../schemas/kyc/iam/models/role-permission-override.model';
 // modules/admin/rbac/services/admin-rbac.service.ts
 //
 // Catálogo RBAC de solo lectura + gestión de overrides en runtime (RF-ADM-01).
@@ -9,15 +9,15 @@ import type defineRolePermissionOverride = require('../../../../schemas/kyc/iam/
 // Los overrides se escriben en BD vía role-permission-override.repository y se
 // invalida la caché Redis del rol afectado para que el cambio sea inmediato.
 
-import RbacService = require('../../../../../shared/services/rbac.service');
-import AppError = require('../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import RbacService from '../../../../../shared/services/rbac.service';
+import AppError from '../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import constantsModule = require('../../../../../shared/constants');
+import constantsModule from '../../../../../shared/constants';
 const { RBAC_ROLES, notifications } = constantsModule;
-import NotificationCreationService = require('../../../../schemas/notification/services/notification-creation.service');
-import rolePermissionOverrideRepository = require('../../../../schemas/kyc/iam/repositories/role-permission-override.repository');
-import adminRbacDtoModule = require('../dtos/admin-rbac.dto');
+import NotificationCreationService from '../../../../schemas/notification/services/notification-creation.service';
+import rolePermissionOverrideRepository from '../../../../schemas/kyc/iam/repositories/role-permission-override.repository';
+import adminRbacDtoModule from '../dtos/admin-rbac.dto';
 const {
   RbacCatalogDTO,
   RoleMatrixDTO,
@@ -188,4 +188,4 @@ namespace AdminRbacService {
   }
 }
 
-export = Object.assign(new AdminRbacService(), { AdminRbacService });
+export default Object.assign(new AdminRbacService(), { AdminRbacService });

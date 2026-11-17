@@ -3,7 +3,7 @@
 // buildAuditDiff: calcula el diff (before/after) entre el estado actual de una entidad (snake_case)
 // y los datos entrantes del request (camelCase), según un fieldMap. Lógica pura, sin dependencias.
 
-import auditDiffUtilModule = require('shared/utils/audit-diff.util');
+import auditDiffUtilModule from 'shared/utils/audit-diff.util';
 const { buildAuditDiff } = auditDiffUtilModule;
 
 describe('buildAuditDiff', () => {

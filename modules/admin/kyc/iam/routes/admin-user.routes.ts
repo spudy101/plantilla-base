@@ -7,18 +7,18 @@
 // SUPERADMIN / ADMIN_PRODUCTOS (y los roles legacy super_admin/admin) pasan
 // por wildcard en la matriz RBAC.
 
-import express = require('express');
+import express from 'express';
 const router = express.Router();
-import AdminUserController = require('../controllers/admin-user.controller');
-import AdminUserValidator = require('../validators/admin-user.validator');
-import BaseValidator = require('../../../../../shared/validators/base.validator');
-import AuthMiddleware = require('../../../../../shared/middlewares/auth.middleware');
-import RbacMiddleware = require('../../../../../shared/middlewares/rbac.middleware');
-import RateLimitMiddleware = require('../../../../../shared/middlewares/rate-limit.middleware');
-import RequestLockMiddleware = require('../../../../../shared/middlewares/request-lock.middleware');
-import ValidatorUtil = require('../../../../../shared/utils/validators.util');
-import AuditAction = require('../../../../../shared/middlewares/audit-action.middleware');
-import constantsModule = require('../../../../../shared/constants');
+import AdminUserController from '../controllers/admin-user.controller';
+import AdminUserValidator from '../validators/admin-user.validator';
+import BaseValidator from '../../../../../shared/validators/base.validator';
+import AuthMiddleware from '../../../../../shared/middlewares/auth.middleware';
+import RbacMiddleware from '../../../../../shared/middlewares/rbac.middleware';
+import RateLimitMiddleware from '../../../../../shared/middlewares/rate-limit.middleware';
+import RequestLockMiddleware from '../../../../../shared/middlewares/request-lock.middleware';
+import ValidatorUtil from '../../../../../shared/utils/validators.util';
+import AuditAction from '../../../../../shared/middlewares/audit-action.middleware';
+import constantsModule from '../../../../../shared/constants';
 const { RBAC_MODULES, RBAC_ACTIONS } = constantsModule;
 
 const M = RBAC_MODULES.INTERNAL_USERS;
@@ -187,4 +187,4 @@ router.get(
   AdminUserController.listChangeLogs
 );
 
-export = router;
+export default router;

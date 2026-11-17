@@ -1,6 +1,5 @@
-import expressValidatorModule = require('express-validator');
-const { body, param } = expressValidatorModule;
-import BaseValidator = require('../../../../../shared/validators/base.validator');
+import { body, param } from 'express-validator';
+import BaseValidator from '../../../../../shared/validators/base.validator';
 
 const TIME_REGEX = /^\d{2}:\d{2}(:\d{2})?$/;
 const EDITABLE_FIELDS = ['allowPush', 'allowEmail', 'allowSms', 'quietHoursStart', 'quietHoursEnd'];
@@ -69,4 +68,4 @@ class NotificationPreferenceValidator {
   }
 }
 
-export = NotificationPreferenceValidator;
+export default NotificationPreferenceValidator;

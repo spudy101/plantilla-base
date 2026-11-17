@@ -21,13 +21,13 @@
 // consume el front son solo para ocultar vistas, nunca la barrera de seguridad.
 
 import type { NextFunction, Request, Response } from 'express';
-import RbacService = require('../services/rbac.service');
-import AppError = require('../utils/app-error.util');
-import loggerUtilModule = require('../utils/logger.util');
+import RbacService from '../services/rbac.service';
+import AppError from '../utils/app-error.util';
+import loggerUtilModule from '../utils/logger.util';
 const { logger } = loggerUtilModule;
-import constantsModule = require('../constants');
+import constantsModule from '../constants';
 const { MFA_REQUIRED_ROLES, MFA_NOT_ACTIVE_LOG_MSG } = constantsModule;
-import mfaStatusUtilModule = require('../utils/mfa-status.util');
+import mfaStatusUtilModule from '../utils/mfa-status.util';
 const { isMfaActive } = mfaStatusUtilModule;
 
 class RbacMiddleware {
@@ -84,4 +84,4 @@ class RbacMiddleware {
   }
 }
 
-export = RbacMiddleware;
+export default RbacMiddleware;

@@ -1,7 +1,7 @@
 // config/swagger/modules/admin/kyc/iam/admin-user.paths.ts
 
-import commonResponses = require('../../../../responses/common.responses');
-import piiMaskingDocModule = require('../../../../schemas/pii-masking.doc');
+import commonResponses from '../../../../responses/common.responses';
+import piiMaskingDocModule from '../../../../schemas/pii-masking.doc';
 const { MASKED_EMAIL_DESC } = piiMaskingDocModule;
 
 /**
@@ -580,4 +580,4 @@ Un **superadministrador** (\`SUPERADMIN\`) no se puede eliminar (**403**). Una c
   }
 };
 
-export = { paths, schemas };
+export default { paths, schemas };

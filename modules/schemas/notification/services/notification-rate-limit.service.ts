@@ -9,7 +9,7 @@ const SNS_INCREMENT_PER_BATCH = 100;
 const SES_RATE_LIMIT_PER_MINUTE = 200;
 const SES_INCREMENT_PER_BATCH = 50;
 
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 import type { KeyValueCache } from '../../../../shared/types/cache';
 const { logger } = loggerUtilModule;
 
@@ -55,4 +55,4 @@ class NotificationRateLimitService {
   }
 }
 
-export = Object.assign(new NotificationRateLimitService(), { NotificationRateLimitService });
+export default Object.assign(new NotificationRateLimitService(), { NotificationRateLimitService });

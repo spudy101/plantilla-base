@@ -1,18 +1,11 @@
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../shared/models/registry';
-import type defineGlobalNotification = require('./global-notification.model');
-import type defineNotification = require('./notification.model');
-import type defineNotificationCategory = require('./notification-category.model');
-
-
-
-
-
-
+import type defineGlobalNotification from './global-notification.model';
+import type defineNotification from './notification.model';
+import type defineNotificationCategory from './notification-category.model';
 
 function defineNotificationType(sequelize: Sequelize): defineNotificationType.Static {
   const NotificationType = sequelize.define<defineNotificationType.Instance>(
@@ -154,4 +147,4 @@ namespace defineNotificationType {
   };
 }
 
-export = defineNotificationType;
+export default defineNotificationType;

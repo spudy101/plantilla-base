@@ -1,4 +1,4 @@
-import commonResponses = require('../../../../responses/common.responses');
+import commonResponses from '../../../../responses/common.responses';
 
 /**
  * ============================================================
@@ -225,4 +225,4 @@ Devuelve \`acknowledged\` (cuántas se marcaron) y \`requested\` (cuántas se en
   }
 };
 
-export = { paths, schemas };
+export default { paths, schemas };

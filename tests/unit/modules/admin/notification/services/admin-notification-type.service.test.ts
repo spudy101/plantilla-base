@@ -25,8 +25,8 @@ jest.mock('modules/schemas/notification/services/notification-creation.service',
 }));
 
 jest.mock('shared/utils/pagination.util', () => ({
-  stringParam: jest.requireActual('shared/utils/pagination.util').stringParam,
-  booleanParam: jest.requireActual('shared/utils/pagination.util').booleanParam,
+  stringParam: jest.requireActual('shared/utils/pagination.util').default.stringParam,
+  booleanParam: jest.requireActual('shared/utils/pagination.util').default.booleanParam,
   getPaginationParams: jest.fn().mockReturnValue({ limit: 10, offset: 0, page: 1, sortBy: 'created_at', order: 'DESC' }),
   buildFilters: jest.fn().mockReturnValue({})
 }));
@@ -52,19 +52,19 @@ jest.mock('modules/admin/notification/dtos/admin-notification-type.dto', () => (
 }));
 
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
-import typeRepoModule = require('modules/schemas/notification/repositories/notification-type.repository');
+import typeRepoModule from 'modules/schemas/notification/repositories/notification-type.repository';
 const typeRepo = mocked(typeRepoModule);
-import categoryRepoModule = require('modules/schemas/notification/repositories/notification-category.repository');
+import categoryRepoModule from 'modules/schemas/notification/repositories/notification-category.repository';
 const categoryRepo = mocked(categoryRepoModule);
-import userRepoModule = require('modules/schemas/kyc/iam/repositories/user.repository');
+import userRepoModule from 'modules/schemas/kyc/iam/repositories/user.repository';
 const userRepo = mocked(userRepoModule);
-import notificationCreationModule = require('modules/schemas/notification/services/notification-creation.service');
+import notificationCreationModule from 'modules/schemas/notification/services/notification-creation.service';
 const notificationCreation = mocked(notificationCreationModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import modelsModule = require('shared/models');
+import modelsModule from 'shared/models';
 const { sequelize } = mocked(modelsModule);
-import service = require('modules/admin/notification/services/admin-notification-type.service');
+import service from 'modules/admin/notification/services/admin-notification-type.service';
 
 const ADMIN = 'admin-1';
 

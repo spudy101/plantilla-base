@@ -1,9 +1,9 @@
-import notificationRepo = require('../repositories/notification.repository');
-import userPushTokenRepo = require('../repositories/user-push-token.repository');
-import verificationCodeRepo = require('../repositories/verification-code.repository');
-import loggerUtilModule = require('../../../../shared/utils/logger.util');
+import notificationRepo from '../repositories/notification.repository';
+import userPushTokenRepo from '../repositories/user-push-token.repository';
+import verificationCodeRepo from '../repositories/verification-code.repository';
+import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger } = loggerUtilModule;
-import errorMessageModule = require('../../../../shared/utils/error-message.util');
+import errorMessageModule from '../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -72,4 +72,4 @@ namespace NotificationCleanupService {
   }
 }
 
-export = Object.assign(new NotificationCleanupService(), { NotificationCleanupService });
+export default Object.assign(new NotificationCleanupService(), { NotificationCleanupService });

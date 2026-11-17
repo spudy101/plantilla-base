@@ -5,10 +5,10 @@
 // Acciones disparadas por workers — userId = 'system'.
 // ================================================================
 
-import auditCatalogModule = require('./audit-catalog');
+import auditCatalogModule from './audit-catalog';
 const { AUDIT_CATEGORIES, AUDIT_RISKS, AUDIT_MODULES } = auditCatalogModule;
 
-export = {
+export default {
   SESSION_EXPIRED_BY_WORKER: {
     description: 'Sesión cerrada por el worker de expiración por inactividad (last_access_at + 15 min)',
     category: AUDIT_CATEGORIES.AUTH,

@@ -1,23 +1,23 @@
-import genderRepository = require('../../../../schemas/kyc/maintainers/repositories/gender.repository');
-import documentTypeRepository = require('../../../../schemas/kyc/maintainers/repositories/document-type.repository');
-import phonePrefixRepository = require('../../../../schemas/kyc/maintainers/repositories/phone-prefix.repository');
-import avatarRepository = require('../../../../schemas/kyc/maintainers/repositories/avatar.repository');
-import avatarThemeRepository = require('../../../../schemas/kyc/maintainers/repositories/avatar-theme.repository');
-import countryRepository = require('../../../../schemas/kyc/maintainers/repositories/country.repository');
-import departmentRepository = require('../../../../schemas/kyc/maintainers/repositories/department.repository');
-import cityRepository = require('../../../../schemas/kyc/maintainers/repositories/city.repository');
-import privacyPolicyRepository = require('../../../../schemas/records/legal/repositories/privacy-policy.repository');
-import roleRepository = require('../../../../schemas/kyc/iam/repositories/role.repository');
-import notificationTypeRepository = require('../../../../schemas/notification/repositories/notification-type.repository');
-import AppError = require('../../../../../shared/utils/app-error.util');
-import loggerUtilModule = require('../../../../../shared/utils/logger.util');
+import genderRepository from '../../../../schemas/kyc/maintainers/repositories/gender.repository';
+import documentTypeRepository from '../../../../schemas/kyc/maintainers/repositories/document-type.repository';
+import phonePrefixRepository from '../../../../schemas/kyc/maintainers/repositories/phone-prefix.repository';
+import avatarRepository from '../../../../schemas/kyc/maintainers/repositories/avatar.repository';
+import avatarThemeRepository from '../../../../schemas/kyc/maintainers/repositories/avatar-theme.repository';
+import countryRepository from '../../../../schemas/kyc/maintainers/repositories/country.repository';
+import departmentRepository from '../../../../schemas/kyc/maintainers/repositories/department.repository';
+import cityRepository from '../../../../schemas/kyc/maintainers/repositories/city.repository';
+import privacyPolicyRepository from '../../../../schemas/records/legal/repositories/privacy-policy.repository';
+import roleRepository from '../../../../schemas/kyc/iam/repositories/role.repository';
+import notificationTypeRepository from '../../../../schemas/notification/repositories/notification-type.repository';
+import AppError from '../../../../../shared/utils/app-error.util';
+import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
-import PaginationHelper = require('../../../../../shared/utils/pagination.util');
-import type ReadRepository = require('../../../../../shared/repositories/read.repository');
-import componentsCatalogDtoModule = require('../../../../../shared/dtos/kyc/components-catalog.dto');
+import PaginationHelper from '../../../../../shared/utils/pagination.util';
+import type ReadRepository from '../../../../../shared/repositories/read.repository';
+import componentsCatalogDtoModule from '../../../../../shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
-import redisClient = require('../../../../../shared/utils/redis.util');
-import maintainersDtoModule = require('../dtos/maintainers.dto');
+import redisClient from '../../../../../shared/utils/redis.util';
+import maintainersDtoModule from '../dtos/maintainers.dto';
 const {
   ListGendersResponseDTO,
   ListDocumentTypesResponseDTO,
@@ -282,4 +282,4 @@ namespace MaintainersService {
   }
 }
 
-export = Object.assign(new MaintainersService(), { MaintainersService });
+export default Object.assign(new MaintainersService(), { MaintainersService });

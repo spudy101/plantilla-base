@@ -1,18 +1,11 @@
 // modules/schemas/kyc/models/person-reference.model.ts
 
-import sequelizeModule = require('sequelize');
-const { DataTypes } = sequelizeModule;
-import constantsModule = require('../../../../../shared/constants');
+import { DataTypes } from 'sequelize';
+import constantsModule from '../../../../../shared/constants';
 const { database } = constantsModule;
 import type { Model as SequelizeModel, ModelStatic, Optional, Sequelize } from 'sequelize';
 import type { ModelRegistry } from '../../../../../shared/models/registry';
-import type definePerson = require('./person.model');
-
-
-
-
-
-
+import type definePerson from './person.model';
 
 function definePersonReference(sequelize: Sequelize): definePersonReference.Static {
   const PersonReference = sequelize.define<definePersonReference.Instance>(
@@ -129,4 +122,4 @@ namespace definePersonReference {
   };
 }
 
-export = definePersonReference;
+export default definePersonReference;

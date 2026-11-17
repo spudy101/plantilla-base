@@ -46,4 +46,4 @@ const AUDIT_ALERT_TRIGGER_ACTIONS = new Set([
   'DUAL_APPROVAL_AUTO_APPROVED' // super_admin omitió cuatro ojos por rol — bypass auditado
 ]);
 
-export = { AUDIT_ALERT_TRIGGER_ACTIONS };
+export default { AUDIT_ALERT_TRIGGER_ACTIONS };

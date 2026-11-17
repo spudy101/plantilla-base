@@ -31,15 +31,15 @@ jest.mock('shared/constants', () => ({
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import retryUtilModule = require('shared/utils/retry.util');
+import retryUtilModule from 'shared/utils/retry.util';
 const { withRetry } = mocked(retryUtilModule);
-import ProviderApiLoggerModule = require('shared/utils/integration-api-logger.util');
+import ProviderApiLoggerModule from 'shared/utils/integration-api-logger.util';
 const ProviderApiLogger = mocked(ProviderApiLoggerModule);
-import awsProviderMetaUtilModule = require('shared/utils/aws-provider-meta.util');
+import awsProviderMetaUtilModule from 'shared/utils/aws-provider-meta.util';
 const { resolveAwsGate, awsErrorCode } = mocked(awsProviderMetaUtilModule);
-import loggerUtilModule = require('shared/utils/logger.util');
+import loggerUtilModule from 'shared/utils/logger.util';
 const { logger } = mocked(loggerUtilModule);
-import push = require('modules/schemas/notification/services/push-notification.service');
+import push from 'modules/schemas/notification/services/push-notification.service';
 
 const ENDPOINT_ARN = 'arn:aws:sns:endpoint:1';
 
