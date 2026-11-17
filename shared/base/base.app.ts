@@ -10,7 +10,7 @@ import auditContextMiddleware from '../middlewares/audit.middleware';
 import loggerUtilModule from '../utils/logger.util';
 const { httpLogger } = loggerUtilModule;
 import redisClient from '../utils/redis.util';
-import db from '../models';
+import databaseHealth from '../database/database-health';
 import packageModule from '../../package.json';
 const { version } = packageModule;
 
@@ -121,9 +121,10 @@ class BaseApp {
     const checks: Record<string, HealthCheck> = {};
 
     // ── Database ────────────────────────────────────────────────────────────
+    // Sequelize + Prisma mientras conviven (docs/prisma-migration.md): sana si responden los dos
     const dbStart = Date.now();
     try {
-      await db.sequelize.authenticate();
+      await databaseHealth.checkDatabase();
       checks.database = { status: 'healthy', responseTimeMs: Date.now() - dbStart };
     } catch {
       checks.database = { status: 'unhealthy', responseTimeMs: Date.now() - dbStart };

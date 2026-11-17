@@ -5,7 +5,7 @@
 > al final de cada fase la app arranca y los tests pasan. Durante la migración **Prisma y Sequelize
 > conviven contra la misma base**: cada repositorio cambia de ORM sin que los services se enteren.
 >
-> Estado: **fase 0 completa** (spike) en la rama `feat/prisma`; ver [Cómo funciona hoy](#cómo-funciona-hoy-fase-0).
+> Estado: **fases 0 y 1 completas** en la rama `feat/prisma`; ver [Cómo funciona hoy](#cómo-funciona-hoy).
 
 ## Punto de partida (medido)
 
@@ -38,7 +38,7 @@ Lo que hay que resolver (de mayor a menor riesgo):
 | camelCase en la API | **Sí**: todo lo que es TypeScript o JSON queda en camelCase. Hoy los DTOs ya responden casi todo en camelCase (694 claves) pero quedan **88 claves snake_case en 8 DTOs** (`admin-person`, `profile`, `admin-notification-type`, `user-activity`, `components-audit`, `components-approval`, `components-system-config`, `components-auth`): se normalizan, junto con su Swagger. Es un cambio de contrato para quien consuma esos endpoints; se anota en el changelog del PR. | decidida |
 | Columnas de Postgres | **Siguen en snake_case** (`@map`): es la convención de Postgres (un identificador camelCase hay que escribirlo entre comillas en todo SQL crudo, trigger, `psql` o herramienta de reportes) y lo que recomienda la documentación de Prisma; además evita renombrar las columnas de las bases existentes. Para el código es invisible. | decidida |
 | Transacciones | Contexto de transacción en `AsyncLocalStorage` (ya se usa para request-context): `unitOfWork.run(work)` abre `$transaction` y los repositorios toman el `tx` activo solos. Evita pasar `{ transaction }` por 35 archivos. `begin()` manual se elimina (Prisma no tiene commit/rollback manual): sus llamadores pasan a `run()`. | propuesta |
-| Base de test | Postgres real: service container en GitHub Actions y una base local para `npm test`. Se elimina el perfil SQLite. | propuesta |
+| Base de test | Postgres real en un **esquema aislado** (`TEST_DB_SCHEMA`, por defecto `test`) de la misma base de `.env`: `npm run db:test:prepare` lo recrea con las migraciones. En CI, service container `postgres:16-alpine`. Perfil SQLite y `sqlite3` eliminados. Los unitarios no se conectan (verificado: pasan con la base inalcanzable). | hecho (fase 1) |
 | Esquema (`DB_SCHEMA`) | App: opción `schema` de `PrismaPg`. CLI: `?schema=` en la URL que arma `shared/database/database-url.ts` desde las variables `DB_*` de siempre (no hace falta `DATABASE_URL`). | decidida (fase 0) |
 
 ## Convenciones de nombres
@@ -79,7 +79,7 @@ datos ni bloquea por mucho tiempo.
 | Fase | Alcance | Estado |
 |---|---|---|
 | **0. Spike** | Prisma 7 instalado; `prisma db pull` + `scripts/prisma-migration/prisma-names.ts` → `prisma/schema.prisma` (43 modelos, 14 enums) con las convenciones de nombres; cliente CommonJS; `PrismaRepository` (paginación con el mismo contrato que `ReadRepository`); `gender.repository` sobre Prisma y sus 3 consumidores en camelCase. Verificado contra Postgres real, también desde `dist/`. | ✅ |
-| **1. Infraestructura** | `shared/database/prisma.ts` (cliente único, logging, cierre en el shutdown), config/env, `typecheck`, Postgres de test local y en CI, perfil SQLite fuera. | ⏳ |
+| **1. Infraestructura** | Logs de Prisma por el logger de la app (consultas solo con `DB_LOGGING=true`); `shared/database/database-health.ts`: `/health`, el arranque y el shutdown verifican/cierran Sequelize **y** Prisma; `tests/test-env.ts` (entorno de test compartido por Jest y `db:test:prepare`); perfil `test` sobre Postgres; CI con Postgres, typecheck y `db:test:prepare`. | ✅ |
 | **2. Unit of Work** | `unitOfWork.run()` sobre `$transaction` + contexto en `AsyncLocalStorage`; los repositorios Sequelize y Prisma leen el mismo contexto durante la convivencia; llamadores de `begin()` → `run()`. | ⏳ |
 | **3. Instancias vivas** | Las ~40 llamadas `record.update()`/`reload()` en services y workers → métodos de repositorio. Todavía sobre Sequelize: deja los services listos para objetos planos. | ⏳ |
 | **4. PII** | Extensiones de Prisma para cifrado/hash/descifrado (person, person-contact, trusted-device) y `origin-session`. Tests que comparan con lo que escribe hoy Sequelize: **los datos existentes tienen que seguir leyéndose** (mismo formato de `EncryptionUtil`/`HashUtil`). | ⏳ |
@@ -92,7 +92,7 @@ datos ni bloquea por mucho tiempo.
 Orden: lo que más riesgo tiene (transacciones, PII) se resuelve antes de tocar los repositorios en masa,
 y la fase 3 desacopla los services del ORM **antes** del cambio, así la fase 5 queda acotada a `repositories/`.
 
-## Cómo funciona hoy (fase 0)
+## Cómo funciona hoy
 
 | Pieza | Dónde |
 |---|---|
@@ -102,6 +102,8 @@ y la fase 3 desacopla los services del ORM **antes** del cambio, así la fase 5 
 | CLI | `prisma.config.ts`: URL desde `DB_*`; sin `DB_HOST` (CI) no la necesita `generate`. `npm run prisma:pull`, `npm run prisma:studio`. |
 | Repositorios | `shared/repositories/prisma.repository.ts` (`db`, `paginationArgs`, `searchWhere`). `sortBy` acepta el nombre de columna (`created_at`, lo que mandan hoy los clientes) o el campo (`createdAt`); solo campos del modelo. |
 | Guardas | La de arquitectura acepta `extends PrismaRepository`; `generated/` queda fuera de la guarda, de loadability y de ESLint. |
+| Salud y cierre | `shared/database/database-health.ts`: `checkDatabase()` (arranque y `/health`: sano solo si responden los dos ORMs) y `closeDatabase()` (graceful shutdown). |
+| Tests | `npm run db:test:prepare` (una vez y al cambiar migraciones) + `npm test`. Entorno en `tests/test-env.ts`: Postgres, esquema `TEST_DB_SCHEMA` (por defecto `test`), sin TLS; `db:reset` se niega a tocar `public`. |
 
 ### Hallazgos de la fase 0
 
