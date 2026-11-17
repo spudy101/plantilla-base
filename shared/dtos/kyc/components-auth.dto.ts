@@ -2,13 +2,14 @@ import EncryptionUtil from '../../utils/encryption.util';
 import MaskingUtil from '../../utils/masking.util';
 import type { DbDate, Maybe, UserRefRow } from '../../types/db-rows';
 
+/** Fila de Prisma (verification_codes migró en la fase 5, grupo 3). */
 interface VerificationCodeRow {
-  verification_code_id: string;
+  verificationCodeId: string;
   type: string;
-  contact_value?: Maybe<string>;
+  contactValue?: Maybe<string>;
   attempts?: Maybe<number>;
-  expires_at: DbDate;
-  verified_at?: Maybe<DbDate>;
+  expiresAt: DbDate;
+  verifiedAt?: Maybe<DbDate>;
   createdAt?: Maybe<DbDate>;
 }
 
@@ -128,15 +129,15 @@ class VerificationCodeComponent {
       return null;
     }
     return {
-      verificationCodeId: verificationCode.verification_code_id,
+      verificationCodeId: verificationCode.verificationCodeId,
       type: verificationCode.type,
       // [RF-USR-01] | CA-06 | Destino del OTP: correo o celular según el tipo → máscara por forma.
-      contactValue: MaskingUtil.maskAuto(verificationCode.contact_value),
+      contactValue: MaskingUtil.maskAuto(verificationCode.contactValue),
       attempts: verificationCode.attempts,
-      expiresAt: verificationCode.expires_at,
-      verifiedAt: verificationCode.verified_at || null,
-      isVerified: !!verificationCode.verified_at,
-      isExpired: new Date() > new Date(verificationCode.expires_at),
+      expiresAt: verificationCode.expiresAt,
+      verifiedAt: verificationCode.verifiedAt || null,
+      isVerified: !!verificationCode.verifiedAt,
+      isExpired: new Date() > new Date(verificationCode.expiresAt),
       createdAt: verificationCode.createdAt
     };
   }

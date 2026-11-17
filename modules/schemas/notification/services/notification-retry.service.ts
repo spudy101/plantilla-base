@@ -1,4 +1,4 @@
-import type defineNotification from '../models/notification.model';
+import type { Notification } from '../../../../shared/database/generated/prisma/client';
 import notificationRepo from '../repositories/notification.repository';
 import notificationTypeRepo from '../repositories/notification-type.repository';
 import integrationApiLogRepo from '../../integration/repositories/integration-api-log.repository';
@@ -45,26 +45,26 @@ class NotificationRetryService {
    * @private
    */
   // eslint-disable-next-line class-methods-use-this
-  async _esHardBounceYCerrar(notification: Pick<defineNotification.Instance, 'notification_id'>, channel: string) {
+  async _esHardBounceYCerrar(notification: Pick<Notification, 'notificationId'>, channel: string) {
     const product = CHANNEL_PRODUCT[channel];
     if (!product) {
       return false;
     }
 
-    const lastLog = await this.integrationApiLogRepo.findLatestByNotification(notification.notification_id, product);
+    const lastLog = await this.integrationApiLogRepo.findLatestByNotification(notification.notificationId, product);
     if (!lastLog || !isHardBounce(channel, lastLog.error_code)) {
       return false;
     }
 
     const reason = `hard_bounce:${lastLog.error_code}`;
     if (channel === 'email') {
-      await this.notificationRepo.markEmailPermanentFailure(notification.notification_id, reason);
+      await this.notificationRepo.markEmailPermanentFailure(notification.notificationId, reason);
     } else {
-      await this.notificationRepo.markPushPermanentFailure(notification.notification_id, reason);
+      await this.notificationRepo.markPushPermanentFailure(notification.notificationId, reason);
     }
 
     logger.info('Canal cerrado por hard bounce', {
-      notificationId: notification.notification_id,
+      notificationId: notification.notificationId,
       channel,
       errorCode: lastLog.error_code
     });
@@ -87,11 +87,11 @@ class NotificationRetryService {
           continue;
         }
         await this.notificationSendingService.enviarPushIndividual(
-          notification.user_id,
+          notification.userId,
           notification.title,
           notification.body,
           (notification.metadata as Record<string, unknown> | null) || {},
-          notification.notification_id
+          notification.notificationId
         );
         reintentadas++;
       }
@@ -119,13 +119,13 @@ class NotificationRetryService {
           cerradas++;
           continue;
         }
-        const notificationType = await this.notificationTypeRepo.findById(notification.notification_type_id);
+        const notificationType = notification.notificationTypeId ? await this.notificationTypeRepo.findById(notification.notificationTypeId) : null;
         if (notificationType) {
           await this.notificationSendingService.enviarEmailIndividual(
-            notification.user_id,
+            notification.userId,
             notificationType,
             (notification.metadata as Record<string, unknown> | null) || {},
-            notification.notification_id
+            notification.notificationId
           );
           reintentadas++;
         }
@@ -155,10 +155,10 @@ class NotificationRetryService {
           continue;
         }
         await this.notificationSendingService.enviarSmsIndividual(
-          notification.user_id,
+          notification.userId,
           notification.body,
           (notification.metadata as Record<string, unknown> | null) || {},
-          notification.notification_id
+          notification.notificationId
         );
         reintentadas++;
       }

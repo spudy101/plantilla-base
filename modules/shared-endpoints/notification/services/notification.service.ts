@@ -1,5 +1,4 @@
 import type * as Feed from '../notification-feed.types';
-import type { Transaction } from 'sequelize';
 import unitOfWork from '../../../../shared/database/unit-of-work';
 import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
@@ -70,7 +69,7 @@ class NotificationService {
     const searchConfig = searchTerm ? { searchTerm, searchFields: ['title', 'body'] } : {};
     const { rows, count } = await this.notificationRepository.findByUserPaginated(userId, paginationParams, searchConfig);
 
-    const unreadIds = rows.filter(n => !n.is_read).map(n => n.notification_id);
+    const unreadIds = rows.filter(n => !n.isRead).map(n => n.notificationId);
     await this._markPersonalAsRead(unreadIds);
     if (unreadIds.length > 0) {
       setImmediate(() => NotificationCountUtil.emitCountUpdate(userId));
@@ -95,8 +94,8 @@ class NotificationService {
     const paginatedRows = rows.slice(paginationParams.offset, paginationParams.offset + paginationParams.limit);
 
     const unreadIds = paginatedRows
-      .filter(item => !readIds.includes(item.__instance.global_notification_id))
-      .map(item => item.__instance.global_notification_id);
+      .filter(item => !readIds.includes(item.__instance.globalNotificationId))
+      .map(item => item.__instance.globalNotificationId);
 
     if (unreadIds.length > 0) {
       await this.globalNotificationReadRepository.bulkMarkAsRead(unreadIds, userId);
@@ -140,12 +139,8 @@ class NotificationService {
     return personalCount + (Array.isArray(globalUnread) ? globalUnread.length : 0);
   }
 
-  async createNotification(
-    data: NotificationService.CreateInput,
-    metadata: { transaction?: Transaction | null } = {},
-    externalService: string | null | undefined = null
-  ) {
-    const result = await this.notificationCreationService.crearNotificacion(data, metadata.transaction ?? null);
+  async createNotification(data: NotificationService.CreateInput, externalService: string | null | undefined = null) {
+    const result = await this.notificationCreationService.crearNotificacion(data);
 
     logger.info('Notificación creada por servicio externo', {
       tipoNotificacion: data.tipoNotificacion,
@@ -179,19 +174,13 @@ class NotificationService {
   // ── Privados ───────────────────────────────────────────────────────────────
 
   async _getPersonalRaw(userId: string) {
-    const rows = await this.notificationRepository.findAll(
-      { user_id: userId },
-      {
-        order: [['created_at', 'DESC']],
-        include: [{ association: 'notification_type' }]
-      }
-    );
+    const rows = await this.notificationRepository.findAllByUser(userId);
 
     return rows.map((n): Feed.FeedItem => ({
       __type: 'personal',
       __instance: n,
       createdAt: n.createdAt,
-      is_read: n.is_read
+      isRead: n.isRead
     }));
   }
 
@@ -205,7 +194,7 @@ class NotificationService {
       __type: 'global',
       __instance: gn,
       createdAt: gn.createdAt,
-      is_read: readIds.includes(gn.global_notification_id)
+      isRead: readIds.includes(gn.globalNotificationId)
     }));
 
     return { rows: tagged, readIds };
@@ -219,21 +208,24 @@ class NotificationService {
 
   async _markPageAsRead(userId: string, paginatedMixed: Feed.FeedItem[], readIds: string[]) {
     try {
-  const { personalUnread, globalUnread } = await this.unitOfWork.run(async transaction => {
+  const { personalUnread, globalUnread } = await this.unitOfWork.run(async () => {
         const personalUnread = paginatedMixed.flatMap(item =>
-          item.__type === 'personal' && !item.is_read ? [item.__instance.notification_id] : []
+          item.__type === 'personal' && !item.isRead ? [item.__instance.notificationId] : []
         );
 
         const globalUnread = paginatedMixed.flatMap(item =>
-          item.__type === 'global' && !readIds.includes(item.__instance.global_notification_id)
-            ? [item.__instance.global_notification_id]
+          item.__type === 'global' && !readIds.includes(item.__instance.globalNotificationId)
+            ? [item.__instance.globalNotificationId]
             : []
         );
 
-        await Promise.all([
-          personalUnread.length > 0 ? this._markPersonalAsRead(personalUnread, { transaction }) : Promise.resolve(),
-          globalUnread.length > 0 ? this.globalNotificationReadRepository.bulkMarkAsRead(globalUnread, userId) : Promise.resolve()
-        ]);
+        // En secuencia: comparten la transacción interactiva de Prisma (una conexión)
+        if (personalUnread.length > 0) {
+          await this._markPersonalAsRead(personalUnread);
+        }
+        if (globalUnread.length > 0) {
+          await this.globalNotificationReadRepository.bulkMarkAsRead(globalUnread, userId);
+        }
         return { personalUnread, globalUnread };
       });
 
@@ -246,11 +238,11 @@ class NotificationService {
     }
   }
 
-  _markPersonalAsRead(notificationIds: string[], options: Parameters<NotificationService['notificationRepository']['markAsReadByIds']>[1] = {}) {
+  _markPersonalAsRead(notificationIds: string[]) {
     if (!notificationIds || notificationIds.length === 0) {
       return undefined;
     }
-    return this.notificationRepository.markAsReadByIds(notificationIds, options);
+    return this.notificationRepository.markAsReadByIds(notificationIds);
   }
 }
 

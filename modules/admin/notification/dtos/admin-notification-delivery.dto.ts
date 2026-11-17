@@ -1,42 +1,55 @@
-import type defineNotification from '../../../schemas/notification/models/notification.model';
+import type { Notification } from '../../../../shared/database/generated/prisma/client';
 import type { NotificationRepositoryPort } from '../../../schemas/repository-ports';
 import MaskingUtil from '../../../../shared/utils/masking.util';
 
 /** Notificación con su tipo y categoría (listado/detalle de entregas del admin). */
-type DeliveryRecord = defineNotification.Instance & { retry_count?: number | null };
+type DeliveryRecord = Notification & {
+  notificationType: {
+    code: string;
+    name: string;
+    category: {
+      code: string;
+      name: string;
+      supportsEmail: boolean;
+      supportsPush: boolean;
+      supportsSms: boolean;
+      isCritical: boolean;
+    } | null;
+  } | null;
+};
 /** Fila agregada por categoría (NotificationRepository.deliveryMetrics). */
 type MetricsRow = Awaited<ReturnType<NotificationRepositoryPort['deliveryMetrics']>>[number];
 
 function NotificationDeliveryListDTO(record: DeliveryRecord) {
   return {
-    notificationId: record.notification_id,
-    userId: record.user_id,
+    notificationId: record.notificationId,
+    userId: record.userId,
     title: record.title,
     body: record.body,
-    processingStatus: record.processing_status,
-    emailSent: record.email_sent,
-    emailError: record.email_error || null,
-    emailRetryCount: record.email_retry_count,
-    pushSent: record.push_sent,
-    pushError: record.push_error || null,
-    pushRetryCount: record.push_retry_count,
-    smsSent: record.sms_sent,
-    smsError: record.sms_error || null,
-    smsRetryCount: record.sms_retry_count,
-    retryCount: record.retry_count,
-    notificationType: record.notification_type
+    processingStatus: record.processingStatus,
+    emailSent: record.emailSent,
+    emailError: record.emailError || null,
+    emailRetryCount: record.emailRetryCount,
+    pushSent: record.pushSent,
+    pushError: record.pushError || null,
+    pushRetryCount: record.pushRetryCount,
+    smsSent: record.smsSent,
+    smsError: record.smsError || null,
+    smsRetryCount: record.smsRetryCount,
+    retryCount: record.retryCount,
+    notificationType: record.notificationType
       ? {
-          code: record.notification_type.code,
-          name: record.notification_type.name,
+          code: record.notificationType.code,
+          name: record.notificationType.name,
           // Canales y criticidad viven en la categoría del tipo (fuente de verdad).
-          category: record.notification_type.category
+          category: record.notificationType.category
             ? {
-                code: record.notification_type.category.code,
-                name: record.notification_type.category.name,
-                supportsEmail: record.notification_type.category.supports_email,
-                supportsPush: record.notification_type.category.supports_push,
-                supportsSms: record.notification_type.category.supports_sms,
-                isCritical: record.notification_type.category.is_critical
+                code: record.notificationType.category.code,
+                name: record.notificationType.category.name,
+                supportsEmail: record.notificationType.category.supportsEmail,
+                supportsPush: record.notificationType.category.supportsPush,
+                supportsSms: record.notificationType.category.supportsSms,
+                isCritical: record.notificationType.category.isCritical
               }
             : null
         }
@@ -52,15 +65,15 @@ function NotificationDeliveryDetailDTO(record: DeliveryRecord) {
     // [RF-USR-01] | CA-06 | El metadata de la notificación lleva el correo real del titular
     // (crearNotificacion lo recibe de los services) → redactor profundo por key.
     metadata: MaskingUtil.redactPayload(record.metadata) || null,
-    relatedEntityType: record.related_entity_type || null,
-    relatedEntityId: record.related_entity_id || null,
-    scheduledFor: record.scheduled_for || null,
-    emailSentAt: record.email_sent_at || null,
-    emailNextRetryAt: record.email_next_retry_at || null,
-    pushSentAt: record.push_sent_at || null,
-    pushNextRetryAt: record.push_next_retry_at || null,
-    smsSentAt: record.sms_sent_at || null,
-    smsNextRetryAt: record.sms_next_retry_at || null
+    relatedEntityType: record.relatedEntityType || null,
+    relatedEntityId: record.relatedEntityId || null,
+    scheduledFor: record.scheduledFor || null,
+    emailSentAt: record.emailSentAt || null,
+    emailNextRetryAt: record.emailNextRetryAt || null,
+    pushSentAt: record.pushSentAt || null,
+    pushNextRetryAt: record.pushNextRetryAt || null,
+    smsSentAt: record.smsSentAt || null,
+    smsNextRetryAt: record.smsNextRetryAt || null
   };
 }
 

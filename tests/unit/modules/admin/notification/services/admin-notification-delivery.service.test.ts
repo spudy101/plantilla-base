@@ -42,8 +42,8 @@ jest.mock('shared/dtos/kyc/components-catalog.dto', () => ({
 }));
 
 jest.mock('modules/admin/notification/dtos/admin-notification-delivery.dto', () => ({
-  NotificationDeliveryListDTO: (row: Loose) => ({ dto: 'list', id: row.notification_id }),
-  NotificationDeliveryDetailDTO: (row: Loose) => ({ dto: 'detail', id: row.notification_id }),
+  NotificationDeliveryListDTO: (row: Loose) => ({ dto: 'list', id: row.notificationId }),
+  NotificationDeliveryDetailDTO: (row: Loose) => ({ dto: 'detail', id: row.notificationId }),
   NotificationDeliveryMetricsDTO: (rows: Loose, range: Loose) => ({ dto: 'metrics', total: rows.length, range })
 }));
 
@@ -82,7 +82,7 @@ describe('AdminNotificationDeliveryService', () => {
   describe('list', () => {
     it('mapea filas, deja solo filtros activos en metadata y audita', async () => {
       notificationRepo.findAllForAdmin.mockResolvedValue({
-        rows: [{ notification_id: 'n-1' }, { notification_id: 'n-2' }],
+        rows: [{ notificationId: 'n-1' }, { notificationId: 'n-2' }],
         count: 2
       });
 
@@ -138,7 +138,7 @@ describe('AdminNotificationDeliveryService', () => {
     });
 
     it('devuelve el detalle DTO y audita la vista', async () => {
-      notificationRepo.findByIdWithType.mockResolvedValue({ notification_id: 'n-1' });
+      notificationRepo.findByIdWithType.mockResolvedValue({ notificationId: 'n-1' });
 
       const result = await service.getById('n-1', ADMIN);
 
@@ -160,15 +160,15 @@ describe('AdminNotificationDeliveryService', () => {
     });
 
     it('lanza badRequest si ya fue entregada (COMPLETED)', async () => {
-      notificationRepo.findByIdWithType.mockResolvedValue({ processing_status: 'completed' });
+      notificationRepo.findByIdWithType.mockResolvedValue({ processingStatus: 'completed' });
 
       await expect(service.retry('n-1', 'all', ADMIN)).rejects.toMatchObject({ statusCode: 400 });
     });
 
     it('lanza badRequest si ningún canal es reintentable', async () => {
       notificationRepo.findByIdWithType.mockResolvedValue({
-        processing_status: 'partial_failure',
-        email_sent: true, push_sent: true, sms_sent: true
+        processingStatus: 'partial_failure',
+        emailSent: true, pushSent: true, smsSent: true
       });
 
       await expect(service.retry('n-1', 'all', ADMIN)).rejects.toMatchObject({ statusCode: 400 });
@@ -177,16 +177,16 @@ describe('AdminNotificationDeliveryService', () => {
 
     it('camino feliz (email): resetea, audita, responde retry_initiated y reenvía en setImmediate', async () => {
       const notification = {
-        notification_id: 'n-1',
-        user_id: 'u-1',
-        processing_status: 'partial_failure',
+        notificationId: 'n-1',
+        userId: 'u-1',
+        processingStatus: 'partial_failure',
         // email falló de forma reintentable (tiene error y fecha de próximo reintento)
-        email_sent: false, email_error: 'timeout', email_next_retry_at: new Date(),
-        push_sent: true, push_error: null, push_next_retry_at: null,
-        sms_sent: true, sms_error: null, sms_next_retry_at: null,
+        emailSent: false, emailError: 'timeout', emailNextRetryAt: new Date(),
+        pushSent: true, pushError: null, pushNextRetryAt: null,
+        smsSent: true, smsError: null, smsNextRetryAt: null,
         metadata: { foo: 'bar' },
         title: 'T', body: 'B',
-        notification_type: { code: 'X', category: { supports_email: true } }
+        notificationType: { code: 'X', category: { supportsEmail: true } }
       };
       notificationRepo.findByIdWithType.mockResolvedValue(notification);
 
@@ -205,20 +205,20 @@ describe('AdminNotificationDeliveryService', () => {
       expect(notificationCreation.crearNotificacion).toHaveBeenCalledWith(
         expect.objectContaining({ tipoNotificacion: 'NOTIFICATION_RETRY_REQUESTED' })
       );
-      expect(sendingService.enviarEmailIndividual).toHaveBeenCalledWith('u-1', notification.notification_type, { foo: 'bar' }, 'n-1');
+      expect(sendingService.enviarEmailIndividual).toHaveBeenCalledWith('u-1', notification.notificationType, { foo: 'bar' }, 'n-1');
       expect(sendingService.enviarPushIndividual).not.toHaveBeenCalled();
-      expect(sendingService.actualizarEstadoEntrega).toHaveBeenCalledWith('n-1', notification.notification_type);
+      expect(sendingService.actualizarEstadoEntrega).toHaveBeenCalledWith('n-1', notification.notificationType);
     });
 
     it('marca FAILED si el reenvío en setImmediate lanza error', async () => {
       const notification = {
-        notification_id: 'n-2',
-        user_id: 'u-2',
-        processing_status: 'partial_failure',
-        email_sent: false, email_error: 'timeout', email_next_retry_at: new Date(),
-        push_sent: true, sms_sent: true,
+        notificationId: 'n-2',
+        userId: 'u-2',
+        processingStatus: 'partial_failure',
+        emailSent: false, emailError: 'timeout', emailNextRetryAt: new Date(),
+        pushSent: true, smsSent: true,
         metadata: null,
-        notification_type: { code: 'X', category: { supports_email: true } }
+        notificationType: { code: 'X', category: { supportsEmail: true } }
       };
       notificationRepo.findByIdWithType.mockResolvedValue(notification);
       sendingService.enviarEmailIndividual.mockRejectedValueOnce(new Error('send fail'));
@@ -231,25 +231,25 @@ describe('AdminNotificationDeliveryService', () => {
 
     it('resuelve la categoría desde el repo si el tipo no la trae embebida', async () => {
       const notification = {
-        notification_id: 'n-3',
-        user_id: 'u-3',
-        processing_status: 'failed',
+        notificationId: 'n-3',
+        userId: 'u-3',
+        processingStatus: 'failed',
         // nada explícito falló pero processing_status=failed y sin canales cerrados → 'all'
-        email_sent: false, push_sent: false, sms_sent: false,
-        email_error: null, push_error: null, sms_error: null,
-        email_next_retry_at: null, push_next_retry_at: null, sms_next_retry_at: null,
+        emailSent: false, pushSent: false, smsSent: false,
+        emailError: null, pushError: null, smsError: null,
+        emailNextRetryAt: null, pushNextRetryAt: null, smsNextRetryAt: null,
         metadata: {},
         title: 'T', body: 'B',
-        notification_type: null,
-        notification_type_id: 'nt-1'
+        notificationType: null,
+        notificationTypeId: 'nt-1'
       };
       notificationRepo.findByIdWithType.mockResolvedValue(notification);
-      notificationTypeRepo.findById.mockResolvedValue({ code: 'Y', category: { supports_email: true, supports_sms: false } });
+      notificationTypeRepo.findById.mockResolvedValue({ code: 'Y', category: { supportsEmail: true, supportsSms: false } });
 
       const result = await service.retry('n-3', 'all', ADMIN);
 
       expect(result.channel).toBe('all');
-      expect(notificationTypeRepo.findById).toHaveBeenCalledWith('nt-1', expect.any(Object));
+      expect(notificationTypeRepo.findById).toHaveBeenCalledWith('nt-1');
 
       await flush();
       expect(sendingService.enviarEmailIndividual).toHaveBeenCalled();

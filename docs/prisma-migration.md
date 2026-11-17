@@ -5,7 +5,7 @@
 > al final de cada fase la app arranca y los tests pasan. Durante la migración **Prisma y Sequelize
 > conviven contra la misma base**: cada repositorio cambia de ORM sin que los services se enteren.
 >
-> Estado: **fases 0 a 4 completas; fase 5 en curso** (grupos 1 y 2 de 6) en la rama `feat/prisma`; ver [Cómo funciona hoy](#cómo-funciona-hoy).
+> Estado: **fases 0 a 4 completas; fase 5 en curso** (grupos 1 a 3 de 6) en la rama `feat/prisma`; ver [Cómo funciona hoy](#cómo-funciona-hoy).
 
 ## Punto de partida (medido)
 
@@ -117,10 +117,10 @@ filas de Prisma (camelCase) y de Sequelize (snake_case) a la vez.
 |---|---|---|
 | 1. Catálogos | gender, country, department, city, phone-prefix, document-type, avatar-theme, avatar | ✅ |
 | 2. Legal | consent-type, privacy-policy, privacy-policy-admin, user-consent | ✅ |
-| 3. Notificaciones | notification-category, notification-type, notification, global-notification, global-notification-read, user-notification-preference, user-push-token, verification-code, sms-delivery-attempt, email-bounce-suppression | ⏳ |
+| 3. Notificaciones | notification-category, notification-type, notification, global-notification, global-notification-read, user-notification-preference, user-push-token, verification-code, sms-delivery-attempt, email-bounce-suppression | ✅ |
 | 4. Integraciones y config | system-global-config, integration-api-log, provider-fallback-event, approval-request | ⏳ |
 | 5. Auditoría | audit-log, audit-alert, user-change-log, user-login-attempt | ⏳ |
-| 6. Núcleo de identidad | user, person, person-contact, person-location, person-reference, role, role-permission-override, user-session, auth-trusted-device, biometric, reset-credentials (al migrar: devolver los consentimientos del registro a la transacción del alta, ver grupo 2) | ⏳ |
+| 6. Núcleo de identidad | user, person, person-contact, person-location, person-reference, role, role-permission-override, user-session, auth-trusted-device, biometric, reset-credentials (al migrar: devolver los consentimientos y la preferencia de notificación del registro a la transacción del alta, ver grupos 2 y 3) | ⏳ |
 
 Receta por repositorio:
 
@@ -134,6 +134,32 @@ Receta por repositorio:
 4. Tests: los fixtures de los mocks a camelCase. Un test que pasa igual con el fixture viejo prueba algo
    equivocado: agregar el caso positivo (ver `profile.helper.test.ts`).
 5. Verificar contra la base de desarrollo los listados y búsquedas del grupo (totales iguales a Sequelize).
+
+#### Hallazgos del grupo 3
+
+- **Misma FK entre ORMs que en el grupo 2**: el registro creaba la preferencia global de notificación
+  dentro de la transacción del alta. Pasa a después del commit, best-effort: sin la fila rigen los mismos
+  valores (`findByUserAndCategory` → null → todo permitido) y la primera edición desde el perfil la crea.
+  Es el único flujo del grupo que escribía junto a `users`/`persons` en una unidad.
+- **Columnas `TIME`** (horario de no molestar): Sequelize las devolvía como `'HH:MM:SS'` y así las comparan
+  el programador y la API; Prisma las mapea a `Date`. `shared/database/prisma-time.ts` convierte en el
+  borde del repositorio, así que hacia afuera siguen siendo texto.
+- **Contadores leer-y-escribir**: `record*Error` (reintentos por canal), `registerHardBounce` (rebotes) y
+  `increment*SentCount` se hacían leyendo y escribiendo; dos errores simultáneos perdían uno. Ahora
+  incrementan en la base (`{ increment }`); los de varios pasos (`upsertToken`, upserts de preferencia,
+  `registerHardBounce`) son atómicos con `PrismaRepository#atomic`.
+- **Upsert de la preferencia global**: la UNIQUE `(user_id, notification_category_code)` no sirve con la
+  global (en Postgres NULL ≠ NULL), así que no se usa `upsert` de Prisma: buscar + crear/actualizar atómico.
+- `global_notifications.starts_at` tenía el DEFAULT now() en el modelo de Sequelize y no en el schema de
+  Prisma: el repositorio lo pone al crear (sin eso la global no aparecía como vigente).
+- Unidades de trabajo alrededor de una sola escritura (categorías, tipos, preferencias, códigos de
+  verificación) se quitaron: una sentencia ya es atómica y la unidad abría una transacción de Prisma
+  innecesaria. `crearNotificacion` ya no recibe transacción (nadie se la pasaba): dentro de
+  `unitOfWork.run()` la toma del contexto.
+- Las respuestas de la API no cambian: las claves `notification_id` / `global_notification_id` /
+  `estado_solicitud` de `crearNotificacion` y las filas de `deliveryMetrics` (SQL crudo) siguen en snake_case.
+- Verificado contra la base de desarrollo: totales de categorías, tipos (con búsqueda), entregas (con
+  filtros por canal y criticidad), métricas por categoría, no leídas, preferencias y tokens iguales a Sequelize.
 
 #### Hallazgos del grupo 2
 

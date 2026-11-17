@@ -1,4 +1,4 @@
-import type defineNotification from '../../../schemas/notification/models/notification.model';
+import type { Notification } from '../../../../shared/database/generated/prisma/client';
 // NOTA DE UBICACIÓN (cross-dominio): este panel vive en modules/admin/notification/ pero NO tiene
 // modelo/tabla propia: es una vista de auditoría/observabilidad de ENTREGAS de notificaciones
 // (delivery status, fallos, reintentos, métricas) respaldada por la tabla `notifications` del
@@ -50,7 +50,7 @@ class AdminNotificationDeliveryService {
   async list(query: Record<string, unknown>, adminUserId: string) {
     const paginationParams = PaginationHelper.getPaginationParams(query);
     const filters = {
-      processingStatus: PaginationHelper.stringParam(query, 'processingStatus') as defineNotification.Attributes['processing_status'] | null,
+      processingStatus: PaginationHelper.stringParam(query, 'processingStatus') as string | null,
       channel: _channelParam(PaginationHelper.stringParam(query, 'channel')),
       userId: PaginationHelper.stringParam(query, 'userId'),
       from: PaginationHelper.stringParam(query, 'from'),
@@ -125,7 +125,7 @@ class AdminNotificationDeliveryService {
       throw AppError.notFound('Notificación no encontrada');
     }
 
-    if (notification.processing_status === NOTIFICATION_PROCESSING_STATUS.COMPLETED) {
+    if (notification.processingStatus === NOTIFICATION_PROCESSING_STATUS.COMPLETED) {
       throw AppError.badRequest('La notificación ya fue entregada exitosamente en todos los canales');
     }
 
@@ -155,10 +155,8 @@ class AdminNotificationDeliveryService {
     });
 
     const notificationType =
-      notification.notification_type ||
-      (await this.notificationTypeRepo.findById(notification.notification_type_id, {
-        include: [{ association: 'category' }]
-      }));
+      notification.notificationType ||
+      (notification.notificationTypeId ? await this.notificationTypeRepo.findById(notification.notificationTypeId) : null);
     if (!notificationType) {
       throw AppError.notFound('Tipo de notificación no encontrado');
     }
@@ -170,26 +168,26 @@ class AdminNotificationDeliveryService {
     // Reenvío inmediato ignorando quiet hours (override de admin)
     setImmediate(async () => {
       try {
-        if ((effectiveChannel === 'email' || effectiveChannel === 'all') && (category?.supports_email ?? true)) {
+        if ((effectiveChannel === 'email' || effectiveChannel === 'all') && (category?.supportsEmail ?? true)) {
           await this.notificationSendingService.enviarEmailIndividual(
-            notification.user_id,
+            notification.userId,
             notificationType,
             metadata,
             notificationId
           );
         }
-        if ((effectiveChannel === 'push' || effectiveChannel === 'all') && (category?.supports_push ?? true)) {
+        if ((effectiveChannel === 'push' || effectiveChannel === 'all') && (category?.supportsPush ?? true)) {
           await this.notificationSendingService.enviarPushIndividual(
-            notification.user_id,
+            notification.userId,
             notification.title,
             notification.body,
             metadata,
             notificationId
           );
         }
-        if ((effectiveChannel === 'sms' || effectiveChannel === 'all') && (category?.supports_sms ?? false)) {
+        if ((effectiveChannel === 'sms' || effectiveChannel === 'all') && (category?.supportsSms ?? false)) {
           await this.notificationSendingService.enviarSmsIndividual(
-            notification.user_id,
+            notification.userId,
             notification.body,
             metadata,
             notificationId
@@ -231,14 +229,14 @@ function _channelParam(value: string | null): (typeof CHANNELS)[number] | null {
  * *_next_retry_at === null. resetForRetry y el estado inicial dejan *_error = null, así que
  * (*_error && *_next_retry_at === null) identifica unívocamente el cierre por hard bounce.
  */
-function _resolverCanal(notification: defineNotification.Instance, requestedChannel: 'email' | 'push' | 'sms' | 'all'): 'email' | 'push' | 'sms' | 'all' | null {
-  const emailClosed = !!notification.email_error && notification.email_next_retry_at === null;
-  const pushClosed = !!notification.push_error && notification.push_next_retry_at === null;
-  const smsClosed = !!notification.sms_error && notification.sms_next_retry_at === null;
+function _resolverCanal(notification: Notification, requestedChannel: 'email' | 'push' | 'sms' | 'all'): 'email' | 'push' | 'sms' | 'all' | null {
+  const emailClosed = !!notification.emailError && notification.emailNextRetryAt === null;
+  const pushClosed = !!notification.pushError && notification.pushNextRetryAt === null;
+  const smsClosed = !!notification.smsError && notification.smsNextRetryAt === null;
 
-  const emailFailed = !notification.email_sent && !!notification.email_error && !emailClosed;
-  const pushFailed = !notification.push_sent && !!notification.push_error && !pushClosed;
-  const smsFailed = !notification.sms_sent && !!notification.sms_error && !smsClosed;
+  const emailFailed = !notification.emailSent && !!notification.emailError && !emailClosed;
+  const pushFailed = !notification.pushSent && !!notification.pushError && !pushClosed;
+  const smsFailed = !notification.smsSent && !!notification.smsError && !smsClosed;
 
   if (requestedChannel === 'email') {
     return emailFailed ? 'email' : null;
@@ -268,7 +266,7 @@ function _resolverCanal(notification: defineNotification.Instance, requestedChan
   // Nada falló explícitamente pero processing_status es failed — reintentar todo, salvo que algún
   // canal esté cerrado por hard bounce (no re-abrir un buzón muerto vía el fallback).
   if (
-    notification.processing_status === NOTIFICATION_PROCESSING_STATUS.FAILED &&
+    notification.processingStatus === NOTIFICATION_PROCESSING_STATUS.FAILED &&
     !emailClosed &&
     !pushClosed &&
     !smsClosed

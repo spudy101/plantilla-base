@@ -95,7 +95,7 @@ import service from 'modules/schemas/notification/services/notification-batch.se
 const GID = 'g-1';
 
 function pushCategoryType(overrides = {}) {
-  return { category: { code: 'CAT', supports_push: true, supports_email: true, ...overrides } };
+  return { category: { code: 'CAT', supportsPush: true, supportsEmail: true, ...overrides } };
 }
 
 describe('NotificationBatchService', () => {
@@ -126,7 +126,7 @@ describe('NotificationBatchService', () => {
       // Total de usuarios objetivo y arranque del procesamiento.
       expect(globalNotificationRepo.update).toHaveBeenCalledWith(
         GID,
-        expect.objectContaining({ total_target_users: 1 })
+        expect.objectContaining({ totalTargetUsers: 1 })
       );
       // Estados push: processing → completed.
       expect(globalNotificationRepo.updatePushProcessingStatus).toHaveBeenNthCalledWith(1, GID, 'processing');
@@ -139,7 +139,7 @@ describe('NotificationBatchService', () => {
       // Cierre del procesamiento y persistencia del estado de lotes.
       expect(globalNotificationRepo.update).toHaveBeenCalledWith(
         GID,
-        expect.objectContaining({ processing_completed_at: expect.any(Date) })
+        expect.objectContaining({ processingCompletedAt: expect.any(Date) })
       );
       expect(localCache.set).toHaveBeenCalledWith(
         `global_notif:${GID}:batch_state`,
@@ -153,7 +153,7 @@ describe('NotificationBatchService', () => {
         { user_id: 'u-1', person: { contact: { email: 'a@b.cl' } } }
       ]);
 
-      await service.procesarNotificacionGlobal(GID, fixture(pushCategoryType({ supports_push: false })), 'T', 'B', {});
+      await service.procesarNotificacionGlobal(GID, fixture(pushCategoryType({ supportsPush: false })), 'T', 'B', {});
 
       expect(globalNotificationRepo.updatePushProcessingStatus).not.toHaveBeenCalled();
       expect(pushService.enviarPushMasivo).not.toHaveBeenCalled();
@@ -169,7 +169,7 @@ describe('NotificationBatchService', () => {
       expect(logger.warn).toHaveBeenCalledWith('Error en procesamiento global', expect.objectContaining({ error: 'db down' }));
       expect(globalNotificationRepo.update).toHaveBeenCalledWith(
         GID,
-        expect.objectContaining({ push_processing_status: 'failed', email_processing_status: 'failed' })
+        expect.objectContaining({ pushProcessingStatus: 'failed', emailProcessingStatus: 'failed' })
       );
     });
   });

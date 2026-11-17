@@ -52,9 +52,9 @@ import retry from 'modules/schemas/notification/services/notification-retry.serv
 
 function notif(overrides = {}) {
   return {
-    notification_id: 'n-1',
-    notification_type_id: 't-1',
-    user_id: 'u-1',
+    notificationId: 'n-1',
+    notificationTypeId: 't-1',
+    userId: 'u-1',
     title: 'Título',
     body: 'Cuerpo',
     metadata: { foo: 'bar' },
@@ -70,7 +70,7 @@ describe('NotificationRetryService', () => {
 
   describe('reintentarEnviosPush', () => {
     it('reenvía los pendientes que no son hard bounce y cuenta las reintentadas', async () => {
-      notificationRepo.findPendingPushRetries.mockResolvedValue([notif({ notification_id: 'n-1' }), notif({ notification_id: 'n-2' })]);
+      notificationRepo.findPendingPushRetries.mockResolvedValue([notif({ notificationId: 'n-1' }), notif({ notificationId: 'n-2' })]);
 
       const result = await retry.reintentarEnviosPush();
 
@@ -80,7 +80,7 @@ describe('NotificationRetryService', () => {
     });
 
     it('cierra el canal por hard bounce (no reenvía) y lo cuenta como cerrada', async () => {
-      notificationRepo.findPendingPushRetries.mockResolvedValue([notif({ notification_id: 'n-1' })]);
+      notificationRepo.findPendingPushRetries.mockResolvedValue([notif({ notificationId: 'n-1' })]);
       integrationApiLogRepo.findLatestByNotification.mockResolvedValue({ error_code: 'EndpointDisabled' });
       isHardBounce.mockReturnValue(true);
 
@@ -113,7 +113,7 @@ describe('NotificationRetryService', () => {
   describe('reintentarEnviosEmail', () => {
     it('reenvía cuando el tipo de notificación existe', async () => {
       notificationRepo.findPendingEmailRetries.mockResolvedValue([notif()]);
-      notificationTypeRepo.findById.mockResolvedValue({ notification_type_id: 't-1' });
+      notificationTypeRepo.findById.mockResolvedValue({ notificationTypeId: 't-1' });
 
       const result = await retry.reintentarEnviosEmail();
 
@@ -132,7 +132,7 @@ describe('NotificationRetryService', () => {
     });
 
     it('cierra el canal email por hard bounce', async () => {
-      notificationRepo.findPendingEmailRetries.mockResolvedValue([notif({ notification_id: 'n-9' })]);
+      notificationRepo.findPendingEmailRetries.mockResolvedValue([notif({ notificationId: 'n-9' })]);
       integrationApiLogRepo.findLatestByNotification.mockResolvedValue({ error_code: 'Bounce' });
       isHardBounce.mockReturnValue(true);
 

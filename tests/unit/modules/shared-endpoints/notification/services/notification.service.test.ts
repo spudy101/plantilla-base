@@ -27,9 +27,9 @@ jest.mock('shared/utils/pagination.util', () => ({
 
 jest.mock('modules/schemas/notification/repositories/notification.repository', () => ({
   findByUserPaginated: jest.fn(),
-  findAll: jest.fn(),
+  findAllByUser: jest.fn(),
   countUnreadByUser: jest.fn(),
-  markAsReadByIds: jest.fn().mockResolvedValue([1])
+  markAsReadByIds: jest.fn().mockResolvedValue(1)
 }));
 
 jest.mock('modules/schemas/notification/repositories/global-notification.repository', () => ({
@@ -56,7 +56,7 @@ jest.mock('modules/schemas/notification/utils/notification-count.util', () => ({
 }));
 
 import { managedTransaction } from 'tests/helpers/transaction';
-import { mocked, fixture } from 'tests/helpers/mock';
+import { mocked } from 'tests/helpers/mock';
 import modelsModule from 'shared/models';
 const { sequelize } = mocked(modelsModule);
 import loggerUtilModule from 'shared/utils/logger.util';
@@ -85,21 +85,21 @@ function fakeTransaction() {
 describe('NotificationService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    notificationRepo.markAsReadByIds.mockResolvedValue([1]);
+    notificationRepo.markAsReadByIds.mockResolvedValue(1);
     globalNotificationRepo.findActiveNotifications.mockResolvedValue([]);
     globalReadRepo.getReadIdsByUser.mockResolvedValue([]);
     sequelize.transaction.mockImplementation(managedTransaction(fakeTransaction()));
   });
 
   describe('getNotificationsList', () => {
-    it('mezcla y ordena DESC, marca la página como leída en transacción y audita', async () => {
+    it('mezcla y ordena DESC, marca la página como leída y audita', async () => {
       const tx = fakeTransaction();
       sequelize.transaction.mockImplementation(managedTransaction(tx));
-      notificationRepo.findAll.mockResolvedValue([
-        { notification_id: 'n-1', createdAt: new Date('2024-01-02'), is_read: false }
+      notificationRepo.findAllByUser.mockResolvedValue([
+        { notificationId: 'n-1', createdAt: new Date('2024-01-02'), isRead: false }
       ]);
       globalNotificationRepo.findActiveNotifications.mockResolvedValue([
-        { global_notification_id: 'g-1', createdAt: new Date('2024-01-01') }
+        { globalNotificationId: 'g-1', createdAt: new Date('2024-01-01') }
       ]);
       globalReadRepo.getReadIdsByUser.mockResolvedValue([]);
 
@@ -124,11 +124,11 @@ describe('NotificationService', () => {
       expect(NotificationCountUtil.emitCountUpdate).toHaveBeenCalledWith(USER);
     });
 
-    it('hace rollback y loguea error si la escritura de marcado falla (sin propagar)', async () => {
+    it('loguea error si la escritura de marcado falla (sin propagar)', async () => {
       const tx = fakeTransaction();
       sequelize.transaction.mockImplementation(managedTransaction(tx));
-      notificationRepo.findAll.mockResolvedValue([
-        { notification_id: 'n-1', createdAt: new Date('2024-01-02'), is_read: false }
+      notificationRepo.findAllByUser.mockResolvedValue([
+        { notificationId: 'n-1', createdAt: new Date('2024-01-02'), isRead: false }
       ]);
       globalNotificationRepo.findActiveNotifications.mockResolvedValue([]);
       globalReadRepo.getReadIdsByUser.mockResolvedValue([]);
@@ -150,8 +150,8 @@ describe('NotificationService', () => {
     it('marca las no leídas, emite el contador y audita', async () => {
       notificationRepo.findByUserPaginated.mockResolvedValue({
         rows: [
-          { notification_id: 'n-1', is_read: false },
-          { notification_id: 'n-2', is_read: true }
+          { notificationId: 'n-1', isRead: false },
+          { notificationId: 'n-2', isRead: true }
         ],
         count: 2
       });
@@ -159,7 +159,7 @@ describe('NotificationService', () => {
       const result = await service.getPersonalNotifications(USER, {});
 
       // solo las no leídas; el WHERE con IN lo arma el repositorio
-      expect(notificationRepo.markAsReadByIds).toHaveBeenCalledWith(['n-1'], expect.any(Object));
+      expect(notificationRepo.markAsReadByIds).toHaveBeenCalledWith(['n-1']);
       expect(logAudit).toHaveBeenCalledWith(
         'NOTIFICATION_PERSONAL_LIST_VIEWED',
         USER,
@@ -174,7 +174,7 @@ describe('NotificationService', () => {
 
     it('no marca ni emite cuando no hay no leídas', async () => {
       notificationRepo.findByUserPaginated.mockResolvedValue({
-        rows: [{ notification_id: 'n-1', is_read: true }],
+        rows: [{ notificationId: 'n-1', isRead: true }],
         count: 1
       });
 
@@ -189,7 +189,7 @@ describe('NotificationService', () => {
   describe('getGlobalNotifications', () => {
     it('marca las globales no leídas de la página y audita', async () => {
       globalNotificationRepo.findActiveNotifications.mockResolvedValue([
-        { global_notification_id: 'g-1', createdAt: new Date('2024-01-01') }
+        { globalNotificationId: 'g-1', createdAt: new Date('2024-01-01') }
       ]);
       globalReadRepo.getReadIdsByUser.mockResolvedValue([]);
 
@@ -210,7 +210,7 @@ describe('NotificationService', () => {
 
     it('no marca nada si todas las globales ya están leídas', async () => {
       globalNotificationRepo.findActiveNotifications.mockResolvedValue([
-        { global_notification_id: 'g-1', createdAt: new Date('2024-01-01') }
+        { globalNotificationId: 'g-1', createdAt: new Date('2024-01-01') }
       ]);
       globalReadRepo.getReadIdsByUser.mockResolvedValue(['g-1']);
 
@@ -258,16 +258,9 @@ describe('NotificationService', () => {
     it('delega en el servicio de creación, loguea y audita', async () => {
       creationService.crearNotificacion.mockResolvedValue({ notification_id: 'n-1' });
 
-      const result = await service.createNotification(
-        { tipoNotificacion: 'WELCOME', userId: 'u-9' },
-        fixture({ transaction: 'tx' }),
-        'externo-x'
-      );
+      const result = await service.createNotification({ tipoNotificacion: 'WELCOME', userId: 'u-9' }, 'externo-x');
 
-      expect(creationService.crearNotificacion).toHaveBeenCalledWith(
-        { tipoNotificacion: 'WELCOME', userId: 'u-9' },
-        'tx'
-      );
+      expect(creationService.crearNotificacion).toHaveBeenCalledWith({ tipoNotificacion: 'WELCOME', userId: 'u-9' });
       expect(logger.info).toHaveBeenCalled();
       expect(logAudit).toHaveBeenCalledWith(
         'NOTIFICATION_CREATED',

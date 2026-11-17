@@ -66,7 +66,7 @@ import sending from 'modules/schemas/notification/services/notification-sending.
 
 const NID = 'notif-1';
 const UID = 'user-1';
-const ALL_CHANNELS = { category: { supports_push: true, supports_email: true, supports_sms: true } };
+const ALL_CHANNELS = { category: { supportsPush: true, supportsEmail: true, supportsSms: true } };
 
 describe('NotificationSendingService', () => {
   beforeEach(() => {
@@ -74,25 +74,25 @@ describe('NotificationSendingService', () => {
   });
 
   describe('_resolverEstadoEntrega', () => {
-    const type = { category: { supports_push: true, supports_email: true, supports_sms: false } };
+    const type = { category: { supportsPush: true, supportsEmail: true, supportsSms: false } };
 
     it('todos los canales intentados entregados → completed', () => {
-      const n = { push_sent: true, push_error: null, email_sent: true, email_error: null };
+      const n = { pushSent: true, pushError: null, emailSent: true, emailError: null };
       expect(sending._resolverEstadoEntrega(fixture(n), fixture(type))).toBe('completed');
     });
 
     it('uno entregado y uno fallido → partial_failure', () => {
-      const n = { push_sent: true, push_error: null, email_sent: false, email_error: 'boom' };
+      const n = { pushSent: true, pushError: null, emailSent: false, emailError: 'boom' };
       expect(sending._resolverEstadoEntrega(fixture(n), fixture(type))).toBe('partial_failure');
     });
 
     it('todos los canales intentados fallidos → failed', () => {
-      const n = { push_sent: false, push_error: 'x', email_sent: false, email_error: 'y' };
+      const n = { pushSent: false, pushError: 'x', emailSent: false, emailError: 'y' };
       expect(sending._resolverEstadoEntrega(fixture(n), fixture(type))).toBe('failed');
     });
 
     it('ningún canal intentado (diferido/sin destino) → completed', () => {
-      const n = { push_sent: false, push_error: null, email_sent: false, email_error: null };
+      const n = { pushSent: false, pushError: null, emailSent: false, emailError: null };
       expect(sending._resolverEstadoEntrega(fixture(n), fixture(type))).toBe('completed');
     });
   });
@@ -105,7 +105,7 @@ describe('NotificationSendingService', () => {
     });
 
     it('persiste el estado resuelto', async () => {
-      notificationRepo.findById.mockResolvedValue({ push_sent: true, email_sent: true });
+      notificationRepo.findById.mockResolvedValue({ pushSent: true, emailSent: true });
       const status = await sending.actualizarEstadoEntrega(NID, fixture(ALL_CHANNELS));
       expect(status).toBe('completed');
       expect(notificationRepo.updateProcessingStatus).toHaveBeenCalledWith(NID, 'completed');
@@ -156,12 +156,12 @@ describe('NotificationSendingService', () => {
     });
 
     it('respeta que la categoría no soporte SMS (default) y la preferencia que desactiva push', async () => {
-      const type = { category: { supports_push: true, supports_email: true } }; // supports_sms ausente → false
-      const pref = { allow_push: false, allow_email: true, allow_sms: true };
+      const type = { category: { supportsPush: true, supportsEmail: true } }; // supports_sms ausente → false
+      const pref = { allowPush: false, allowEmail: true, allowSms: true };
 
       await sending.procesarEnviosIndividuales(NID, UID, fixture(type), 't', 'b', {}, pref, false, false);
 
-      expect(pushSpy).not.toHaveBeenCalled(); // pref.allow_push=false
+      expect(pushSpy).not.toHaveBeenCalled(); // pref.allowPush=false
       expect(emailSpy).toHaveBeenCalled();
       expect(smsSpy).not.toHaveBeenCalled(); // categoría no soporta SMS
     });
@@ -205,7 +205,7 @@ describe('NotificationSendingService', () => {
   });
 
   describe('enviarEmailIndividual', () => {
-    const type = { notification_type_id: 't-1' };
+    const type = { notificationTypeId: 't-1' };
 
     it('usa metadata.email (descifrado) y marca email enviado', async () => {
       await sending.enviarEmailIndividual(UID, fixture(type), { email: 'a@b.com' }, NID);
@@ -259,7 +259,7 @@ describe('NotificationSendingService', () => {
     it('marca PROCESSING y aborta si el tipo no existe', async () => {
       notificationTypeRepo.findById.mockResolvedValue(null);
 
-      await sending.procesarNotificacionProgramada(fixture({ notification_id: NID, notification_type_id: 't-x' }));
+      await sending.procesarNotificacionProgramada(fixture({ notificationId: NID, notificationTypeId: 't-x' }));
 
       expect(notificationRepo.updateProcessingStatus).toHaveBeenCalledWith(NID, 'processing');
       // No se resuelve estado final porque no hay tipo.
@@ -274,15 +274,15 @@ describe('NotificationSendingService', () => {
       const estadoSpy = jest.spyOn(sending, 'actualizarEstadoEntrega').mockResolvedValue('completed');
 
       await sending.procesarNotificacionProgramada(fixture({
-        notification_id: NID,
-        notification_type_id: 't-1',
-        user_id: UID,
+        notificationId: NID,
+        notificationTypeId: 't-1',
+        userId: UID,
         title: 't',
         body: 'b',
         metadata: {},
-        push_sent: true, // ya enviado → no se reintenta
-        email_sent: false,
-        sms_sent: false
+        pushSent: true, // ya enviado → no se reintenta
+        emailSent: false,
+        smsSent: false
       }));
 
       expect(pushSpy).not.toHaveBeenCalled();
@@ -321,11 +321,11 @@ describe('NotificationSendingService — canales extensibles (Open/Closed)', () 
 
   it('envía por un canal nuevo inyectado cuando la categoría y la preferencia lo permiten', async () => {
     const whatsapp = whatsappChannel();
-    const repo = makeFakeRepo({ whatsapp_sent: true, whatsapp_error: null });
+    const repo = makeFakeRepo({ whatsappSent: true, whatsappError: null });
     const service = new NotificationSendingService(fixture({ notificationRepo: repo, channels: [whatsapp] }));
-    const type = { category: { supports_whatsapp: true } };
+    const type = { category: { supportsWhatsapp: true } };
 
-    await service.procesarEnviosIndividuales(NID, UID, fixture(type), 'T', 'B', {}, fixture({ allow_whatsapp: true }), false, false);
+    await service.procesarEnviosIndividuales(NID, UID, fixture(type), 'T', 'B', {}, fixture({ allowWhatsapp: true }), false, false);
 
     expect(whatsapp.send).toHaveBeenCalledWith(expect.objectContaining({ notificationId: NID, userId: UID, body: 'B' }));
     expect(whatsapp.schedule).not.toHaveBeenCalled();
@@ -336,7 +336,7 @@ describe('NotificationSendingService — canales extensibles (Open/Closed)', () 
     const whatsapp = whatsappChannel();
     const service = new NotificationSendingService(fixture({ notificationRepo: makeFakeRepo({}), channels: [whatsapp] }));
 
-    await service.procesarEnviosIndividuales(NID, UID, fixture({ category: { supports_whatsapp: true } }), 'T', 'B', {}, {}, true, false);
+    await service.procesarEnviosIndividuales(NID, UID, fixture({ category: { supportsWhatsapp: true } }), 'T', 'B', {}, {}, true, false);
 
     expect(whatsapp.schedule).toHaveBeenCalled();
     expect(whatsapp.send).not.toHaveBeenCalled();
@@ -353,9 +353,9 @@ describe('NotificationSendingService — canales extensibles (Open/Closed)', () 
 
   it('el estado de entrega considera los flags <canal>_sent / <canal>_error del canal nuevo', () => {
     const service = new NotificationSendingService(fixture({ notificationRepo: makeFakeRepo({}), channels: [whatsappChannel()] }));
-    const type = { category: { supports_whatsapp: true } };
+    const type = { category: { supportsWhatsapp: true } };
 
-    expect(service._resolverEstadoEntrega(fixture({ whatsapp_sent: false, whatsapp_error: 'timeout' }), fixture(type))).toBe('failed');
-    expect(service._resolverEstadoEntrega(fixture({ whatsapp_sent: true }), fixture(type))).toBe('completed');
+    expect(service._resolverEstadoEntrega(fixture({ whatsappSent: false, whatsappError: 'timeout' }), fixture(type))).toBe('failed');
+    expect(service._resolverEstadoEntrega(fixture({ whatsappSent: true }), fixture(type))).toBe('completed');
   });
 });

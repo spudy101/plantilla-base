@@ -380,7 +380,7 @@ describe('AuthLoginService', () => {
         person: { contact: { phone_primary: '911112222', phone_primary_prefix_id: 'pref-1' } }
       });
       verificationCodeRepository.canRequestNewCode.mockResolvedValue(true);
-      verificationCodeRepository.create.mockResolvedValue({ verification_code_id: 'vc-1' });
+      verificationCodeRepository.create.mockResolvedValue({ verificationCodeId: 'vc-1' });
 
       const result = await service.login({ nationalId: '111', password: 'pw' }, AUDIT);
       expect(result).toMatchObject({ __dto: 'mfa', challengeType: 'SMS_OTP', session: 'vc-1' });
@@ -479,10 +479,10 @@ describe('AuthLoginService', () => {
         person: { contact: { phone_primary: '911112222' } }
       });
       verificationCodeRepository.findActiveByContact.mockResolvedValue({
-        verification_code_id: 'vc-1',
+        verificationCodeId: 'vc-1',
         attempts: 0,
         code: '123456',
-        verified_at: null
+        verifiedAt: null
       });
 
       const result: Loose = await service.verifyMFA(
@@ -501,10 +501,10 @@ describe('AuthLoginService', () => {
         person: { contact: { phone_primary: '911112222' } }
       });
       verificationCodeRepository.findActiveByContact.mockResolvedValue({
-        verification_code_id: 'vc-1',
+        verificationCodeId: 'vc-1',
         attempts: 1,
         code: '123456',
-        verified_at: null
+        verifiedAt: null
       });
 
       await expect(

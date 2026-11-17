@@ -1,19 +1,16 @@
-import type defineUserNotificationPreference from '../../../../schemas/kyc/person/models/user-notification-preference.model';
-import type defineNotificationCategory from '../../../../schemas/notification/models/notification-category.model';
+import type { PreferenceRow } from '../../../../schemas/kyc/person/repositories/user-notification-preference.repository';
+import type { NotificationCategoryRow } from '../../../../schemas/notification/repositories/notification-category.repository';
 import componentsNotificationDtoModule from '../../../../../shared/dtos/notification/components-notification.dto';
 const {
   UserNotificationPreferenceComponent,
   NotificationCategoryComponent
 } = componentsNotificationDtoModule;
 
-type Preference = Pick<
-  defineUserNotificationPreference.Attributes,
-  'allow_push' | 'allow_email' | 'allow_sms' | 'quiet_hours_start' | 'quiet_hours_end'
->;
+type Preference = Pick<PreferenceRow, 'allowPush' | 'allowEmail' | 'allowSms' | 'quietHoursStart' | 'quietHoursEnd'>;
 type PreferenceField = keyof Preference;
 /** Categoría (lo que pide NotificationCategoryComponent + los flags de silencio). */
 type Category = Parameters<typeof NotificationCategoryComponent.build>[0] &
-  Pick<defineNotificationCategory.Attributes, 'code' | 'allow_dnd' | 'is_critical'>;
+  Pick<NotificationCategoryRow, 'code' | 'allowDnd' | 'isCritical'>;
 
 /** Respuesta al crear/actualizar una preferencia (global o por categoría). */
 class UpdatePreferenceResponseDTO {
@@ -46,11 +43,11 @@ class CategoryPreferencesViewDTO {
   }
 
   static build(category: Category, override: Preference | null = null, global: Preference | null = null) {
-    const allowPush = CategoryPreferencesViewDTO._resolve(override, global, 'allow_push', true);
-    const allowEmail = CategoryPreferencesViewDTO._resolve(override, global, 'allow_email', true);
-    const allowSms = CategoryPreferencesViewDTO._resolve(override, global, 'allow_sms', true);
-    const quietStart = CategoryPreferencesViewDTO._resolve(override, global, 'quiet_hours_start', null);
-    const quietEnd = CategoryPreferencesViewDTO._resolve(override, global, 'quiet_hours_end', null);
+    const allowPush = CategoryPreferencesViewDTO._resolve(override, global, 'allowPush', true);
+    const allowEmail = CategoryPreferencesViewDTO._resolve(override, global, 'allowEmail', true);
+    const allowSms = CategoryPreferencesViewDTO._resolve(override, global, 'allowSms', true);
+    const quietStart = CategoryPreferencesViewDTO._resolve(override, global, 'quietHoursStart', null);
+    const quietEnd = CategoryPreferencesViewDTO._resolve(override, global, 'quietHoursEnd', null);
 
     // Fuente predominante de la preferencia efectiva: si hay override de categoría manda 'category',
     // si no pero hay global manda 'global', si no 'default'.
@@ -65,7 +62,7 @@ class CategoryPreferencesViewDTO {
       ...NotificationCategoryComponent.build(category),
       // silenciable = la categoría permite DND y no es crítica; si es false el front debe ocultar
       // los quiet hours (siempre se envía, ignora la config del usuario).
-      isSilenceable: category.allow_dnd === true && category.is_critical !== true,
+      isSilenceable: category.allowDnd === true && category.isCritical !== true,
       preference: {
         source,
         allowPush: allowPush.value,

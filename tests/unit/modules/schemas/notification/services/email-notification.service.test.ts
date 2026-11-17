@@ -74,13 +74,13 @@ describe('EmailNotificationService', () => {
   describe('enviarNotificacion', () => {
     const notificationType = {
       code: 'WELCOME',
-      email_subject_template: 'Hola {{nombre}}',
-      email_body_template: 'Bienvenido {{nombre}}',
-      category: { supports_email: true }
+      emailSubjectTemplate: 'Hola {{nombre}}',
+      emailBodyTemplate: 'Bienvenido {{nombre}}',
+      category: { supportsEmail: true }
     };
 
     it('retorna null si la categoría no soporta email', async () => {
-      const nt = { ...notificationType, category: { supports_email: false } };
+      const nt = { ...notificationType, category: { supportsEmail: false } };
 
       const result = await service.enviarNotificacion(DEST, fixture(nt), { nombre: 'Ana' });
 
@@ -88,7 +88,7 @@ describe('EmailNotificationService', () => {
     });
 
     it('retorna null si faltan los templates de email', async () => {
-      const nt = { code: 'X', category: { supports_email: true } };
+      const nt = { code: 'X', category: { supportsEmail: true } };
 
       const result = await service.enviarNotificacion(DEST, fixture(nt), {});
 
@@ -131,7 +131,7 @@ describe('EmailNotificationService', () => {
 
     it('trata la ausencia de categoría como que sí soporta email (default true)', async () => {
       const spy = jest.spyOn(service, 'enviarEmail').mockResolvedValue(fixture({ MessageId: 'x' }));
-      const nt = { code: 'W', email_subject_template: 'S', email_body_template: 'B', category: null };
+      const nt = { code: 'W', emailSubjectTemplate: 'S', emailBodyTemplate: 'B', category: null };
 
       await service.enviarNotificacion(DEST, nt, {});
 
@@ -271,12 +271,12 @@ describe('EmailNotificationService', () => {
 
     it('devuelve el contenido tal cual si ya es un documento HTML completo', () => {
       const doc = '<html><body>x</body></html>';
-      const category = { email_layout_template: '<div>{{content}}</div>' };
+      const category = { emailLayoutTemplate: '<div>{{content}}</div>' };
       expect(service._envolverEnLayout(doc, category, {})).toBe(doc);
     });
 
     it('envuelve el contenido en el layout y resuelve variables restantes', () => {
-      const category = { email_layout_template: '<div>{{content}} - {{logoUrl}}</div>' };
+      const category = { emailLayoutTemplate: '<div>{{content}} - {{logoUrl}}</div>' };
       const result = service._envolverEnLayout('cuerpo', category, { logoUrl: 'L' });
       expect(result).toBe('<div>cuerpo - L</div>');
     });

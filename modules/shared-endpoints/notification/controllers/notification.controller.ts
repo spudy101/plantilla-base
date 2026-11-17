@@ -81,7 +81,7 @@ class NotificationController {
 
   /** POST / — autenticación externa (X-API-Key) */
   createNotification = asyncHandler(async (req, res) => {
-    const result = await NotificationService.createNotification(req.body, {}, req.externalService);
+    const result = await NotificationService.createNotification(req.body, req.externalService);
     return ApiResponse.success(res, 'Notificación creada exitosamente', result, 201);
   });
 

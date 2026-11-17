@@ -284,7 +284,7 @@ describe('MFAService', () => {
       userRepo.findById.mockResolvedValue(userWithPhone());
       userRepo.verifyPassword.mockResolvedValue(true);
       verificationCodeRepo.canRequestNewCode.mockResolvedValue(true);
-      verificationCodeRepo.create.mockResolvedValue({ verification_code_id: 'vc-1' });
+      verificationCodeRepo.create.mockResolvedValue({ verificationCodeId: 'vc-1' });
 
       const result = await mfa.requestSMSActivation('pw', USER_ID, 'juan');
 
@@ -308,13 +308,13 @@ describe('MFAService', () => {
 
     it('lanza forbidden si se agotaron los intentos', async () => {
       userRepo.findById.mockResolvedValue(PHONE_USER());
-      verificationCodeRepo.findActiveByContact.mockResolvedValue({ verification_code_id: 'vc-1', attempts: 5, code: '123456' });
+      verificationCodeRepo.findActiveByContact.mockResolvedValue({ verificationCodeId: 'vc-1', attempts: 5, code: '123456' });
       await expect(mfa.confirmSMSActivation('123456', USER_ID, 'juan', 'Juan', AUDIT)).rejects.toMatchObject({ statusCode: 403 });
     });
 
     it('con código incorrecto incrementa intentos y lanza badRequest con los restantes', async () => {
       userRepo.findById.mockResolvedValue(PHONE_USER());
-      verificationCodeRepo.findActiveByContact.mockResolvedValue({ verification_code_id: 'vc-1', attempts: 1, code: '123456' });
+      verificationCodeRepo.findActiveByContact.mockResolvedValue({ verificationCodeId: 'vc-1', attempts: 1, code: '123456' });
 
       await expect(mfa.confirmSMSActivation('000000', USER_ID, 'juan', 'Juan', AUDIT)).rejects.toMatchObject({ statusCode: 400 });
       expect(verificationCodeRepo.incrementAttempts).toHaveBeenCalledWith('vc-1');
@@ -322,11 +322,11 @@ describe('MFAService', () => {
 
     it('con código correcto marca verificado, activa SMS MFA y lo fija como preferido si era none', async () => {
       userRepo.findById.mockResolvedValue(PHONE_USER());
-      verificationCodeRepo.findActiveByContact.mockResolvedValue({ verification_code_id: 'vc-1', attempts: 0, code: '123456' });
+      verificationCodeRepo.findActiveByContact.mockResolvedValue({ verificationCodeId: 'vc-1', attempts: 0, code: '123456' });
 
       const result = await mfa.confirmSMSActivation('123456', USER_ID, 'juan', 'Juan', AUDIT);
 
-      expect(verificationCodeRepo.markAsVerified).toHaveBeenCalledWith('vc-1', { transaction: tx });
+      expect(verificationCodeRepo.markAsVerified).toHaveBeenCalledWith('vc-1');
       expect(userRepo.update).toHaveBeenCalledWith(USER_ID, { sms_mfa_enabled: true, preferred_mfa_method: 'sms' }, { transaction: tx });
       expect(tx.commit).toHaveBeenCalled();
       expect(result).toMatchObject({ smsMfaEnabled: true });

@@ -1,7 +1,7 @@
 // tests/unit/modules/schemas/repositories/orm-encapsulation.test.ts
 //
 // Fase 3 de docs/prisma-migration.md: lo que antes hacían services y workers sobre instancias o modelos
-// de Sequelize (`request.update()` + `reload()`, `AuditLog.destroy`, `SmsDeliveryAttempt.count`) vive
+// de Sequelize (`request.update()` + `reload()`, `AuditLog.destroy`) vive
 // ahora en métodos con nombre de negocio del repositorio. Acá se cubre su traducción a Sequelize.
 
 import { Op } from 'sequelize';
@@ -23,17 +23,15 @@ const mockMakeModel = (extra: Record<string, unknown> = {}) => ({
 jest.mock('shared/models', () => ({
   ApprovalRequest: mockMakeModel({ STATUS: { PENDING: 'pending', APPROVED: 'approved', REJECTED: 'rejected', EXPIRED: 'expired' } }),
   AuditLog: mockMakeModel(),
-  SmsDeliveryAttempt: mockMakeModel(),
   User: mockMakeModel(),
   Person: mockMakeModel()
 }));
 
 import { mocked } from 'tests/helpers/mock';
 import modelsModule from 'shared/models';
-const { ApprovalRequest, AuditLog, SmsDeliveryAttempt } = mocked(modelsModule);
+const { ApprovalRequest, AuditLog } = mocked(modelsModule);
 import approvalRequestRepository from 'modules/schemas/core/repositories/approval-request.repository';
 import auditLogRepository from 'modules/schemas/records/audit/repositories/audit-log.repository';
-import smsDeliveryAttemptRepository from 'modules/schemas/notification/repositories/sms-delivery-attempt.repository';
 
 describe('ApprovalRequestRepository — cierre y vencimiento', () => {
   beforeEach(() => jest.clearAllMocks());
@@ -88,17 +86,3 @@ describe('AuditLogRepository — retención', () => {
   });
 });
 
-describe('SmsDeliveryAttemptRepository — countFailedBetween', () => {
-  beforeEach(() => jest.clearAllMocks());
-
-  it('con inicio cuenta en la ventana; sin inicio, todo hasta el fin', async () => {
-    const from = new Date('2026-01-01T00:00:00Z');
-    const to = new Date('2026-01-01T01:00:00Z');
-    SmsDeliveryAttempt.count.mockResolvedValue(2);
-
-    await expect(smsDeliveryAttemptRepository.countFailedBetween(from, to)).resolves.toBe(2);
-    expect(SmsDeliveryAttempt.count).toHaveBeenLastCalledWith({ where: { status: 'failed', createdAt: { [Op.between]: [from, to] } } });
-    await smsDeliveryAttemptRepository.countFailedBetween(null, to);
-    expect(SmsDeliveryAttempt.count).toHaveBeenLastCalledWith({ where: { status: 'failed', createdAt: { [Op.lte]: to } } });
-  });
-});

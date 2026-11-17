@@ -1,4 +1,4 @@
-import type defineNotificationType from '../../../schemas/notification/models/notification-type.model';
+import type { NotificationTypeWithCategory } from '../../../schemas/notification/repositories/notification-type.repository';
 // modules/admin/kyc/dtos/admin-notification-type.dto.ts
 
 import componentsNotificationDtoModule from '../../../../shared/dtos/notification/components-notification.dto';
@@ -14,28 +14,28 @@ const { MetadataDTO } = componentsCatalogDtoModule;
  * Admin ve los templates completos — campos que el cliente nunca ve.
  */
 
-function NotificationTypeAdminDTO(nt: defineNotificationType.Instance) {
+function NotificationTypeAdminDTO(nt: NotificationTypeWithCategory) {
   const base = NotificationTypeComponent.build(nt);
   return {
     ...base,
     // Campos adicionales solo para admin
-    titleTemplate: nt.title_template,
-    bodyTemplate: nt.body_template,
-    emailSubjectTemplate: nt.email_subject_template,
-    emailBodyTemplate: nt.email_body_template,
-    isActive: nt.is_active,
+    titleTemplate: nt.titleTemplate,
+    bodyTemplate: nt.bodyTemplate,
+    emailSubjectTemplate: nt.emailSubjectTemplate,
+    emailBodyTemplate: nt.emailBodyTemplate,
+    isActive: nt.isActive,
     updatedAt: nt.updatedAt
   };
 }
 
-function ListNotificationTypesResponseDTO(rows: defineNotificationType.Instance[], metadata: Parameters<typeof MetadataDTO.build>[0]) {
+function ListNotificationTypesResponseDTO(rows: NotificationTypeWithCategory[], metadata: Parameters<typeof MetadataDTO.build>[0]) {
   return {
     data: Array.isArray(rows) ? rows.map(r => NotificationTypeAdminDTO(r)) : [],
     metadata: MetadataDTO.build(metadata)
   };
 }
 
-function UpdateNotificationTypeResponseDTO(nt: defineNotificationType.Instance) {
+function UpdateNotificationTypeResponseDTO(nt: NotificationTypeWithCategory) {
   return NotificationTypeAdminDTO(nt);
 }
 

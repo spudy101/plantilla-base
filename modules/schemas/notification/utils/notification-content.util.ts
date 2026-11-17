@@ -1,4 +1,4 @@
-import type defineNotificationType from '../models/notification-type.model';
+import type { NotificationType } from '../../../../shared/database/generated/prisma/client';
 // ============================================================
 // NOTIFICATION CONTENT UTIL
 // ============================================================
@@ -28,23 +28,23 @@ class NotificationContentUtil {
    */
   static generarContenido(
     notificationType: Pick<
-      defineNotificationType.Attributes,
-      'title_template' | 'body_template' | 'email_subject_template' | 'email_body_template'
+      NotificationType,
+      'titleTemplate' | 'bodyTemplate' | 'emailSubjectTemplate' | 'emailBodyTemplate'
     >,
     metadata: unknown
   ) {
-    const title = this.reemplazarVariables(notificationType.title_template, metadata);
-    const body = this.reemplazarVariables(notificationType.body_template, metadata);
+    const title = this.reemplazarVariables(notificationType.titleTemplate, metadata);
+    const body = this.reemplazarVariables(notificationType.bodyTemplate, metadata);
 
     let emailSubject = '';
     let emailBody = '';
 
-    if (notificationType.email_subject_template) {
-      emailSubject = this.reemplazarVariables(notificationType.email_subject_template, metadata);
+    if (notificationType.emailSubjectTemplate) {
+      emailSubject = this.reemplazarVariables(notificationType.emailSubjectTemplate, metadata);
     }
 
-    if (notificationType.email_body_template) {
-      emailBody = this.reemplazarVariables(notificationType.email_body_template, metadata);
+    if (notificationType.emailBodyTemplate) {
+      emailBody = this.reemplazarVariables(notificationType.emailBodyTemplate, metadata);
     }
 
     return { title, body, emailSubject, emailBody };

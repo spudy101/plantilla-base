@@ -1,4 +1,4 @@
-import type defineNotificationCategory from '../../../schemas/notification/models/notification-category.model';
+import type { NotificationCategoryRow } from '../../../schemas/notification/repositories/notification-category.repository';
 import componentsNotificationDtoModule from '../../../../shared/dtos/notification/components-notification.dto';
 const { NotificationCategoryComponent } = componentsNotificationDtoModule;
 import componentsCatalogDtoModule from '../../../../shared/dtos/kyc/components-catalog.dto';
@@ -6,7 +6,7 @@ const { MetadataDTO } = componentsCatalogDtoModule;
 
 // El admin ve el layout de email completo (includeLayout = true).
 
-function NotificationCategoryAdminDTO(category: defineNotificationCategory.Instance, extra: Record<string, unknown> = {}) {
+function NotificationCategoryAdminDTO(category: NotificationCategoryRow, extra: Record<string, unknown> = {}) {
   return {
     ...NotificationCategoryComponent.build(category, true),
     ...extra,
@@ -14,7 +14,7 @@ function NotificationCategoryAdminDTO(category: defineNotificationCategory.Insta
   };
 }
 
-function ListNotificationCategoriesResponseDTO(rows: defineNotificationCategory.Instance[], metadata: Parameters<typeof MetadataDTO.build>[0]) {
+function ListNotificationCategoriesResponseDTO(rows: NotificationCategoryRow[], metadata: Parameters<typeof MetadataDTO.build>[0]) {
   return {
     data: Array.isArray(rows) ? rows.map(r => NotificationCategoryAdminDTO(r)) : [],
     metadata: MetadataDTO.build(metadata)

@@ -71,9 +71,9 @@ class SmsMfaService {
 
     const verificationCode = await this.verificationCodeRepository.create({
       type: 'phone',
-      contact_value: phone,
+      contactValue: phone,
       code,
-      expires_at: expiresAt
+      expiresAt
     });
 
     this._sendActivationSms(userId, phone, user.person?.contact?.phone_primary_prefix_id ?? null, code);
@@ -82,7 +82,7 @@ class SmsMfaService {
 
     const truncatedCode = `****${code.slice(-MASKED_CODE_VISIBLE_DIGITS)}`;
     return SMSActivationRequestResponseDTO({
-      verificationCodeId: verificationCode.verification_code_id,
+      verificationCodeId: verificationCode.verificationCodeId,
       expiresAt,
       truncatedCode
     });
@@ -98,7 +98,7 @@ class SmsMfaService {
     const verificationCode = await this._assertValidCode(phone, code);
 
     await this.unitOfWork.run(async transaction => {
-      await this.verificationCodeRepository.markAsVerified(verificationCode.verification_code_id, { transaction });
+      await this.verificationCodeRepository.markAsVerified(verificationCode.verificationCodeId);
       // SMS MFA gestionado íntegramente en nuestra BD
       const updates: Partial<defineUser.Attributes> = { sms_mfa_enabled: true };
       // Primer MFA activado → queda como método preferido para que el login dispare el SMS
@@ -180,7 +180,7 @@ class SmsMfaService {
     if (!verificationCode) {
       throw AppError.notFound('Código de verificación no encontrado o expirado');
     }
-    if (verificationCode.verified_at) {
+    if (verificationCode.verifiedAt) {
       throw AppError.badRequest('Este código ya fue utilizado');
     }
     const attempts = verificationCode.attempts ?? 0;
@@ -188,7 +188,7 @@ class SmsMfaService {
       throw AppError.forbidden('Excediste el número máximo de intentos. Solicita un nuevo código');
     }
     if (verificationCode.code !== code) {
-      await this.verificationCodeRepository.incrementAttempts(verificationCode.verification_code_id);
+      await this.verificationCodeRepository.incrementAttempts(verificationCode.verificationCodeId);
       const remaining = MAX_OTP_ATTEMPTS - (attempts + 1);
       throw AppError.badRequest(`Código inválido. Te quedan ${remaining} intento${remaining !== 1 ? 's' : ''}`);
     }
