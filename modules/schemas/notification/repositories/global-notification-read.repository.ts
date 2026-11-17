@@ -1,111 +1,27 @@
-import BaseRepository from '../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../shared/models';
-const { GlobalNotificationRead } = modelsModule;
-import requestContext from '../../../../shared/utils/request-context.util';
-import { Op } from 'sequelize';
-import type defineGlobalNotificationRead from '../models/global-notification-read.model';
+// modules/schemas/notification/repositories/global-notification-read.repository.ts
+//
+// Lecturas de notificaciones globales (PK compuesta: notificación + usuario). origin_session_id lo
+// completa la extensión de Prisma al crear; una segunda marca de lectura no lo pisa (skipDuplicates).
+import PrismaRepository from '../../../../shared/repositories/prisma.repository';
 
-class GlobalNotificationReadRepository extends BaseRepository<defineGlobalNotificationRead.Instance> {
-  constructor() {
-    super(GlobalNotificationRead);
-  }
-
-  /**
-   * Marca una notificación global como leída para un usuario
-   * @param {string} globalNotificationId
-   * @param {string} userId
-   * @returns {Promise<GlobalNotificationRead>}
-   */
-  async markAsRead(globalNotificationId: string, userId: string) {
-    const [record] = await this.model.findOrCreate({
-      where: {
-        global_notification_id: globalNotificationId,
-        user_id: userId
-      },
-      defaults: {
-        global_notification_id: globalNotificationId,
-        user_id: userId,
-        read_at: new Date(),
-        // `defaults` solo se aplica cuando findOrCreate CREA: una segunda marca de lectura no lo pisa.
-        ...requestContext.originFromContext()
-      }
-    });
-
-    return record;
-  }
-
-  /**
-   * Marca múltiples notificaciones globales como leídas para un usuario
-   * @param {Array<string>} globalNotificationIds
-   * @param {string} userId
-   * @returns {Promise<Array>}
-   */
-  bulkMarkAsRead(globalNotificationIds: string[], userId: string) {
-    if (!globalNotificationIds || globalNotificationIds.length === 0) {
-      return [];
+class GlobalNotificationReadRepository extends PrismaRepository {
+  /** Marca como leídas para el usuario las notificaciones indicadas; las ya leídas no cambian. */
+  async bulkMarkAsRead(globalNotificationIds: string[], userId: string): Promise<number> {
+    if (globalNotificationIds.length === 0) {
+      return 0;
     }
-
-    const origin = requestContext.originFromContext();
-    const records = globalNotificationIds.map((globalNotificationId: string) => ({
-      global_notification_id: globalNotificationId,
-      user_id: userId,
-      read_at: new Date(),
-      ...origin
-    }));
-
-    // bulkCreate con ignoreDuplicates para evitar errores si ya existe
-    return this.bulkCreate(records, {
-      ignoreDuplicates: true
+    const readAt = new Date();
+    const { count } = await (await this.db()).globalNotificationRead.createMany({
+      data: globalNotificationIds.map(globalNotificationId => ({ globalNotificationId, userId, readAt })),
+      skipDuplicates: true
     });
+    return count;
   }
 
-  /**
-   * Verifica si un usuario ha leído una notificación global
-   * @param {string} globalNotificationId
-   * @param {string} userId
-   * @returns {Promise<boolean>}
-   */
-  async hasUserRead(globalNotificationId: string, userId: string) {
-    const count = await this.count({
-      global_notification_id: globalNotificationId,
-      user_id: userId
-    });
-
-    return count > 0;
-  }
-
-  /**
-   * Obtiene todas las notificaciones globales leídas por un usuario
-   * @param {string} userId
-   * @returns {Promise<Array<string>>} Array de global_notification_ids
-   */
-  async getReadIdsByUser(userId: string) {
-    const records = await this.findAll({ user_id: userId }, { attributes: ['global_notification_id'], raw: true });
-
-    return records.map(r => r.global_notification_id);
-  }
-
-  /**
-   * Cuenta cuántos usuarios han leído una notificación global
-   * @param {string} globalNotificationId
-   * @returns {Promise<number>}
-   */
-  countReaders(globalNotificationId: string) {
-    return this.count({ global_notification_id: globalNotificationId });
-  }
-
-  /**
-   * Elimina registros de lectura de notificaciones globales antiguas (limpieza)
-   * @param {number} daysOld - Días de antigüedad
-   * @returns {Promise<number>} Cantidad eliminada
-   */
-  deleteOldReads(daysOld = 90) {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - daysOld);
-
-    return this.bulkDelete({
-      read_at: { [Op.lt]: cutoffDate }
-    });
+  /** Ids de las notificaciones globales que el usuario leyó. */
+  async getReadIdsByUser(userId: string): Promise<string[]> {
+    const rows = await (await this.db()).globalNotificationRead.findMany({ where: { userId }, select: { globalNotificationId: true } });
+    return rows.map(r => r.globalNotificationId);
   }
 }
 

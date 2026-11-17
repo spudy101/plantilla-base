@@ -3,8 +3,9 @@
 // NotificationCategoryService — CRUD de categorías de notificación (admin). Probamos list
 // (paginación + filtros + auditoría), getById (404 vs DTO), create (código duplicado, camino feliz
 // con commit y rollback ante error), update (404, sin cambios → rollback + DTO, camino feliz con
-// commit) y remove (404, bloqueo si hay tipos asignados, borrado feliz). Repos, paginación, DTOs y
-// la transacción de Sequelize se mockean; AppError es el real para conservar statusCode.
+// commit) y remove (404, bloqueo si hay tipos asignados, borrado feliz). Repos (Prisma), paginación y
+// DTOs se mockean; AppError es el real para conservar statusCode. Las escrituras son de una sola
+// sentencia: no abren unidad de trabajo.
 
 jest.mock('modules/schemas/notification/repositories/notification-category.repository', () => ({
   findAllPaginated: jest.fn(),
@@ -16,7 +17,7 @@ jest.mock('modules/schemas/notification/repositories/notification-category.repos
 }));
 
 jest.mock('modules/schemas/notification/repositories/notification-type.repository', () => ({
-  count: jest.fn()
+  countByCategory: jest.fn()
 }));
 
 jest.mock('shared/utils/pagination.util', () => ({
@@ -31,16 +32,11 @@ jest.mock('shared/utils/logger.util', () => ({
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
 
-jest.mock('shared/models', () => ({
-  sequelize: { transaction: jest.fn() }
-}));
-
 jest.mock('modules/admin/notification/dtos/admin-notification-category.dto', () => ({
-  NotificationCategoryAdminDTO: (cat: Loose) => ({ dto: 'category', id: cat.notification_category_id, code: cat.code }),
+  NotificationCategoryAdminDTO: (cat: Loose) => ({ dto: 'category', id: cat.notificationCategoryId, code: cat.code }),
   ListNotificationCategoriesResponseDTO: (rows: Loose, metadata: Loose) => ({ data: rows, metadata })
 }));
 
-import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked, Loose } from 'tests/helpers/mock';
 import categoryRepoModule from 'modules/schemas/notification/repositories/notification-category.repository';
 const categoryRepo = mocked(categoryRepoModule);
@@ -48,24 +44,18 @@ import typeRepoModule from 'modules/schemas/notification/repositories/notificati
 const typeRepo = mocked(typeRepoModule);
 import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
-import modelsModule from 'shared/models';
-const { sequelize } = mocked(modelsModule);
 import service from 'modules/admin/notification/services/admin-notification-category.service';
 
 const ADMIN = 'admin-1';
 
 describe('NotificationCategoryService', () => {
-  let transaction: Loose;
-
   beforeEach(() => {
     jest.clearAllMocks();
-    transaction = { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn().mockResolvedValue(undefined) };
-    sequelize.transaction.mockImplementation(managedTransaction(transaction));
   });
 
   describe('list', () => {
     it('pagina, filtra, audita y responde vía DTO de lista', async () => {
-      categoryRepo.findAllPaginated.mockResolvedValue({ rows: [{ notification_category_id: 'c-1' }], count: 1 });
+      categoryRepo.findAllPaginated.mockResolvedValue({ rows: [{ notificationCategoryId: 'c-1' }], count: 1 });
 
       const result = await service.list({ search: 'foo' }, ADMIN);
 
@@ -83,7 +73,7 @@ describe('NotificationCategoryService', () => {
     });
 
     it('devuelve DTO y audita la vista', async () => {
-      categoryRepo.findById.mockResolvedValue({ notification_category_id: 'c-1', code: 'ALERTS' });
+      categoryRepo.findById.mockResolvedValue({ notificationCategoryId: 'c-1', code: 'ALERTS' });
 
       const result = await service.getById('c-1', ADMIN);
 
@@ -97,67 +87,59 @@ describe('NotificationCategoryService', () => {
       categoryRepo.codeExists.mockResolvedValue(true);
 
       await expect(service.create({ code: 'alerts' }, ADMIN)).rejects.toMatchObject({ statusCode: 400 });
-      expect(sequelize.transaction).not.toHaveBeenCalled();
+      expect(categoryRepo.create).not.toHaveBeenCalled();
     });
 
-    it('normaliza el código, crea en transacción, commitea y audita', async () => {
+    it('normaliza el código, crea solo con los campos editables y audita', async () => {
       categoryRepo.codeExists.mockResolvedValue(false);
-      categoryRepo.create.mockResolvedValue({ notification_category_id: 'c-9', code: 'ALERTS' });
+      categoryRepo.create.mockResolvedValue({ notificationCategoryId: 'c-9', code: 'ALERTS' });
 
-      const result = await service.create({ code: '  alerts  ', name: 'Alertas', supportsEmail: true }, ADMIN);
+      const result = await service.create({ code: '  alerts  ', name: 'Alertas', supportsEmail: true, campoAjeno: 1 }, ADMIN);
 
-      expect(categoryRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ code: 'ALERTS', name: 'Alertas', supports_email: true }),
-        { transaction }
-      );
-      expect(transaction.commit).toHaveBeenCalled();
+      expect(categoryRepo.create).toHaveBeenCalledWith({ code: 'ALERTS', name: 'Alertas', supportsEmail: true });
       expect(result).toMatchObject({ dto: 'category', code: 'ALERTS' });
       expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_CATEGORY_CREATED', ADMIN, { code: 'ALERTS' }, expect.objectContaining({ entityId: 'c-9' }));
     });
 
-    it('hace rollback y re-lanza si la creación falla', async () => {
+    it('re-lanza si la creación falla y no audita', async () => {
       categoryRepo.codeExists.mockResolvedValue(false);
       categoryRepo.create.mockRejectedValue(new Error('db error'));
 
       await expect(service.create({ code: 'alerts' }, ADMIN)).rejects.toThrow('db error');
-      expect(transaction.rollback).toHaveBeenCalled();
-      expect(transaction.commit).not.toHaveBeenCalled();
+      expect(logAudit).not.toHaveBeenCalled();
     });
   });
 
   describe('update', () => {
-    it('lanza 404 si no existe, sin abrir transacción (la lectura y la validación van antes)', async () => {
+    it('lanza 404 si no existe, sin escribir', async () => {
       categoryRepo.findById.mockResolvedValue(null);
 
       await expect(service.update('c-x', { name: 'X' }, ADMIN)).rejects.toMatchObject({ statusCode: 404 });
-      expect(sequelize.transaction).not.toHaveBeenCalled();
+      expect(categoryRepo.update).not.toHaveBeenCalled();
     });
 
-    it('sin campos a actualizar devuelve el DTO actual sin abrir transacción', async () => {
-      const category = { notification_category_id: 'c-1', code: 'ALERTS', update: jest.fn() };
-      categoryRepo.findById.mockResolvedValue(category);
+    it('sin campos a actualizar devuelve el DTO actual sin escribir', async () => {
+      categoryRepo.findById.mockResolvedValue({ notificationCategoryId: 'c-1', code: 'ALERTS' });
 
       const result = await service.update('c-1', { campoNoMapeado: 1 }, ADMIN);
 
-      expect(category.update).not.toHaveBeenCalled();
-      expect(sequelize.transaction).not.toHaveBeenCalled();
+      expect(categoryRepo.update).not.toHaveBeenCalled();
       expect(result).toMatchObject({ dto: 'category', code: 'ALERTS' });
     });
 
-    it('actualiza columnas mapeadas, commitea y audita', async () => {
-      const updated = { notification_category_id: 'c-1', code: 'ALERTS' };
-      categoryRepo.findById.mockResolvedValue({ notification_category_id: 'c-1', code: 'ALERTS' });
+    it('actualiza solo los campos editables y audita', async () => {
+      const updated = { notificationCategoryId: 'c-1', code: 'ALERTS' };
+      categoryRepo.findById.mockResolvedValue({ notificationCategoryId: 'c-1', code: 'ALERTS' });
       categoryRepo.update.mockResolvedValue(updated);
 
       const result = await service.update('c-1', { name: 'Nuevo', isActive: false }, ADMIN);
 
-      expect(categoryRepo.update).toHaveBeenCalledWith('c-1', { name: 'Nuevo', is_active: false }, { transaction });
-      expect(transaction.commit).toHaveBeenCalled();
+      expect(categoryRepo.update).toHaveBeenCalledWith('c-1', { name: 'Nuevo', isActive: false });
       expect(result).toMatchObject({ dto: 'category' });
       expect(logAudit).toHaveBeenCalledWith(
         'NOTIFICATION_CATEGORY_UPDATED',
         ADMIN,
-        expect.objectContaining({ updatedFields: ['name', 'is_active'] }),
+        expect.objectContaining({ updatedFields: ['name', 'isActive'] }),
         expect.objectContaining({ entityId: 'c-1' })
       );
     });
@@ -170,16 +152,16 @@ describe('NotificationCategoryService', () => {
     });
 
     it('lanza badRequest si la categoría tiene tipos asignados', async () => {
-      categoryRepo.findById.mockResolvedValue({ notification_category_id: 'c-1', code: 'ALERTS' });
-      typeRepo.count.mockResolvedValue(3);
+      categoryRepo.findById.mockResolvedValue({ notificationCategoryId: 'c-1', code: 'ALERTS' });
+      typeRepo.countByCategory.mockResolvedValue(3);
 
       await expect(service.remove('c-1', ADMIN)).rejects.toMatchObject({ statusCode: 400 });
       expect(categoryRepo.delete).not.toHaveBeenCalled();
     });
 
     it('borra, audita y responde deleted:true', async () => {
-      categoryRepo.findById.mockResolvedValue({ notification_category_id: 'c-1', code: 'ALERTS' });
-      typeRepo.count.mockResolvedValue(0);
+      categoryRepo.findById.mockResolvedValue({ notificationCategoryId: 'c-1', code: 'ALERTS' });
+      typeRepo.countByCategory.mockResolvedValue(0);
 
       const result = await service.remove('c-1', ADMIN);
 

@@ -57,7 +57,7 @@ const ENTITY_REGISTRY: Record<string, RegistryEntry<unknown> | undefined> = {
   }),
   user_notification_preferences: _entry({
     repository: notificationPreferenceRepo,
-    pk: 'user_notification_preference_id',
+    pk: 'userNotificationPreferenceId',
     entityType: 'UserNotificationPreference',
     dto: r => NotificationPreferenceComponent.build(r)
   }),

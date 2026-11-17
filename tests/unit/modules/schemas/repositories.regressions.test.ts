@@ -17,10 +17,8 @@ const fakeModel = (extra: Record<string, unknown> = {}) => ({
 });
 
 const mockModels = {
-  UserPushToken: fakeModel(),
   AuditLog: fakeModel(),
   UserChangeLog: fakeModel(),
-  VerificationCode: fakeModel(),
   UserTrustedDevice: fakeModel()
 };
 
@@ -29,42 +27,10 @@ jest.mock('shared/utils/logger.util', () => ({
   logger: { error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() }
 }));
 
-import { fixture } from 'tests/helpers/mock';
-import userPushTokenRepository from 'modules/schemas/notification/repositories/user-push-token.repository';
 import auditLogRepository from 'modules/schemas/records/audit/repositories/audit-log.repository';
 import userChangeLogRepository from 'modules/schemas/records/audit/repositories/user-change-log.repository';
-import verificationCodeRepository from 'modules/schemas/notification/repositories/verification-code.repository';
 
 beforeEach(() => jest.clearAllMocks());
-
-describe('UserPushTokenRepository.upsertToken', () => {
-  // Antes: findByDeviceId/findByToken sin await → `existing` era una Promise (truthy) y
-  // existing.update() lanzaba TypeError; el login lo tragaba y el token nunca se guardaba.
-  it('actualiza el token existente del dispositivo', async () => {
-    const existing = { update: jest.fn().mockResolvedValue('updated') };
-    mockModels.UserPushToken.findOne.mockResolvedValueOnce(existing);
-
-    const result = await userPushTokenRepository.upsertToken('u-1', 'arn:token', 'android', 'dev-1');
-
-    expect(result).toBe('updated');
-    expect(existing.update).toHaveBeenCalledWith(expect.objectContaining({ user_id: 'u-1', token: 'arn:token', device_id: 'dev-1' }));
-    expect(mockModels.UserPushToken.create).not.toHaveBeenCalled();
-  });
-
-  it('cae a la búsqueda por token y, si no hay registro, crea uno nuevo', async () => {
-    mockModels.UserPushToken.findOne.mockResolvedValue(null);
-    mockModels.UserPushToken.create.mockResolvedValue('created');
-
-    const result = await userPushTokenRepository.upsertToken('u-1', 'arn:token', 'ios', 'dev-1');
-
-    expect(result).toBe('created');
-    expect(mockModels.UserPushToken.findOne).toHaveBeenCalledTimes(2);
-    expect(mockModels.UserPushToken.create).toHaveBeenCalledWith(
-      expect.objectContaining({ user_id: 'u-1', token: 'arn:token', platform: 'ios' }),
-      {}
-    );
-  });
-});
 
 describe('AuditLogRepository.register', () => {
   // Antes: el try/catch envolvía una Promise sin await → el rechazo escapaba al llamador pese a
@@ -100,17 +66,3 @@ describe('UserChangeLogRepository: filtros de los atajos', () => {
   });
 });
 
-describe('VerificationCodeRepository.incrementAttempts', () => {
-  // Antes no aceptaba opciones: el incremento corría fuera de la transacción del llamador.
-  it('propaga la transacción al update', async () => {
-    mockModels.VerificationCode.update.mockResolvedValue([1]);
-    const tx = { id: 'tx' };
-
-    await verificationCodeRepository.incrementAttempts('vc-1', fixture({ transaction: tx }));
-
-    expect(mockModels.VerificationCode.update).toHaveBeenCalledWith(
-      expect.any(Object),
-      expect.objectContaining({ transaction: tx, where: expect.objectContaining({ verification_code_id: 'vc-1' }) })
-    );
-  });
-});

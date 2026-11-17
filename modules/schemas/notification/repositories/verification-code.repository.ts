@@ -1,153 +1,88 @@
-import BaseRepository from '../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../shared/models';
-const { VerificationCode } = modelsModule;
-import { Op, literal } from 'sequelize';
-import loggerUtilModule from '../../../../shared/utils/logger.util';
-const { logger } = loggerUtilModule;
-import requestContext from '../../../../shared/utils/request-context.util';
-import type { CreateOptions, DestroyOptions, UpdateOptions } from 'sequelize';
-import type defineVerificationCode from '../models/verification-code.model';
+// modules/schemas/notification/repositories/verification-code.repository.ts
+//
+// Códigos OTP (email, teléfono, firma de contrato). origin_session_id lo completa la extensión de
+// Prisma al crear: null en los OTP de onboarding y en el challenge SMS de login (rutas públicas,
+// pre-sesión); con valor al activar MFA y al firmar contrato, que sí son autenticados.
+import PrismaRepository from '../../../../shared/repositories/prisma.repository';
+import type { VerificationCode, VerificationCodeType } from '../../../../shared/database/generated/prisma/client';
 
-class VerificationCodeRepository extends BaseRepository<defineVerificationCode.Instance> {
-  constructor() {
-    super(VerificationCode);
+const RATE_LIMIT_SECONDS = 60;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+class VerificationCodeRepository extends PrismaRepository {
+  static RATE_LIMIT_SECONDS = RATE_LIMIT_SECONDS;
+
+  async findById(verificationCodeId: string): Promise<VerificationCode | null> {
+    return (await this.db()).verificationCode.findUnique({ where: { verificationCodeId } });
   }
 
-  static RATE_LIMIT_SECONDS = 60;
-
-  findActiveByContact(type: defineVerificationCode.Attributes['type'], contactValue: string) {
-    return this.findOne(
-      {
-        type,
-        contact_value: contactValue,
-        expires_at: { [Op.gt]: new Date() },
-        verified_at: null
-      },
-      { order: [['created_at', 'DESC']] }
-    );
-  }
-
-  findVerifiedByContact(type: defineVerificationCode.Attributes['type'], contactValue: string) {
-    return this.findOne(
-      {
-        type,
-        contact_value: contactValue,
-        verified_at: { [Op.ne]: null }
-      },
-      { order: [['verified_at', 'DESC']] }
-    );
-  }
-
-  deleteVerifiedByContact(
-    type: defineVerificationCode.Attributes['type'],
-    contactValue: string,
-    options: Omit<DestroyOptions<defineVerificationCode.Attributes>, 'where'> = {}
-  ) {
-    return this.model.destroy({
-      where: {
-        type,
-        contact_value: contactValue,
-        verified_at: { [Op.ne]: null }
-      },
-      ...options
+  /** Último código vigente y sin verificar del contacto. */
+  async findActiveByContact(type: VerificationCodeType, contactValue: string): Promise<VerificationCode | null> {
+    return (await this.db()).verificationCode.findFirst({
+      where: { type, contactValue, expiresAt: { gt: new Date() }, verifiedAt: null },
+      orderBy: { createdAt: 'desc' }
     });
   }
 
-  override create(
-    codeData: Pick<defineVerificationCode.CreationAttributes, 'type' | 'contact_value' | 'code' | 'expires_at'>,
-    options: CreateOptions<defineVerificationCode.Attributes> = {}
-  ) {
-    return super.create(
-      {
-        type: codeData.type,
-        contact_value: codeData.contact_value,
-        code: codeData.code,
-        expires_at: codeData.expires_at,
-        verified_at: null,
-        // Whitelist estricta: si no se listan acá, se descartan en silencio (como ya pasa con `attempts`).
-        // Null en los OTP de onboarding y en el challenge SMS de login (rutas públicas, pre-sesión);
-        // con valor al activar MFA y al firmar contrato, que sí son autenticados.
-        ...requestContext.originFromContext()
-      },
-      options
-    );
-  }
-
-  markAsVerified(verificationCodeId: string, options = {}, verifiedAt = new Date()) {
-    const dateToUse = verifiedAt || new Date();
-
-    // Validación adicional por seguridad
-    if (!(dateToUse instanceof Date) || Number.isNaN(dateToUse.getTime())) {
-      logger.warn('Invalid date provided to markAsVerified, using current date', {
-        verificationCodeId,
-        providedDate: verifiedAt
-      });
-      return this.update(verificationCodeId, { verified_at: new Date() }, options);
-    }
-
-    return this.update(verificationCodeId, { verified_at: dateToUse }, options);
-  }
-
-  /**
-   * Verifica rate limiting (1 código por minuto)
-   */
-  async canRequestNewCode(type: defineVerificationCode.Attributes['type'], contactValue: string) {
-    const threshold = new Date(Date.now() - VerificationCodeRepository.RATE_LIMIT_SECONDS * 1000);
-
-    const recentCode = await this.findOne(
-      {
-        type,
-        contact_value: contactValue,
-        createdAt: { [Op.gte]: threshold },
-        verified_at: null
-      },
-      { order: [['created_at', 'DESC']] }
-    );
-
-    return !recentCode;
-  }
-
-  /**
-   * Incrementa contador de intentos
-   */
-  // options: { transaction } (antes no se aceptaba y el incremento corría fuera de la transacción del llamador)
-  async incrementAttempts(verificationCodeId: string, options: Omit<UpdateOptions<defineVerificationCode.Attributes>, 'where'> = {}) {
-    const [affectedRows] = await this.model.update(
-      { attempts: literal('attempts + 1') },
-      {
-        where: {
-          verification_code_id: verificationCodeId,
-          verified_at: null,
-          expires_at: { [Op.gt]: new Date() }
-        },
-        ...options
-      }
-    );
-
-    return affectedRows;
-  }
-
-  deleteExpired() {
-    return this.model.destroy({
-      where: {
-        verified_at: null,
-        expires_at: { [Op.lt]: new Date() }
-      }
+  /** Último código verificado del contacto. */
+  async findVerifiedByContact(type: VerificationCodeType, contactValue: string): Promise<VerificationCode | null> {
+    return (await this.db()).verificationCode.findFirst({
+      where: { type, contactValue, verifiedAt: { not: null } },
+      orderBy: { verifiedAt: 'desc' }
     });
   }
 
-  deleteOldVerified(retentionDays: number) {
-    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-    return this.model.destroy({
-      where: {
-        verified_at: { [Op.lt]: cutoff }
-      }
-    });
+  async deleteVerifiedByContact(type: VerificationCodeType, contactValue: string): Promise<number> {
+    return (await (await this.db()).verificationCode.deleteMany({ where: { type, contactValue, verifiedAt: { not: null } } })).count;
   }
 
-  // Override para usar verification_code_id
-  override findById(verificationCodeId: string, options = {}) {
-    return this.model.findByPk(verificationCodeId, options);
+  async create({
+    type,
+    contactValue,
+    code,
+    expiresAt
+  }: {
+    type: VerificationCodeType;
+    contactValue: string;
+    code: string;
+    expiresAt: Date;
+  }): Promise<VerificationCode> {
+    // Whitelist estricta de campos: nadie puede sembrar un código ya verificado o con intentos.
+    return (await this.db()).verificationCode.create({ data: { type, contactValue, code, expiresAt, verifiedAt: null } });
+  }
+
+  /** Marca el código como verificado; una fecha inválida se reemplaza por ahora. Null si no existe. */
+  async markAsVerified(verificationCodeId: string, verifiedAt: Date = new Date()): Promise<VerificationCode | null> {
+    const date = verifiedAt instanceof Date && !Number.isNaN(verifiedAt.getTime()) ? verifiedAt : new Date();
+    const [row] = await (await this.db()).verificationCode.updateManyAndReturn({ where: { verificationCodeId }, data: { verifiedAt: date } });
+    return row ?? null;
+  }
+
+  /** Rate limiting: false si el contacto pidió un código sin verificar en el último minuto. */
+  async canRequestNewCode(type: VerificationCodeType, contactValue: string): Promise<boolean> {
+    const threshold = new Date(Date.now() - RATE_LIMIT_SECONDS * 1000);
+    const recent = await (await this.db()).verificationCode.count({
+      where: { type, contactValue, createdAt: { gte: threshold }, verifiedAt: null }
+    });
+    return recent === 0;
+  }
+
+  /** Suma un intento si el código sigue vigente y sin verificar; devuelve las filas afectadas (0 o 1). */
+  async incrementAttempts(verificationCodeId: string): Promise<number> {
+    const { count } = await (await this.db()).verificationCode.updateMany({
+      where: { verificationCodeId, verifiedAt: null, expiresAt: { gt: new Date() } },
+      data: { attempts: { increment: 1 } }
+    });
+    return count;
+  }
+
+  async deleteExpired(): Promise<number> {
+    return (await (await this.db()).verificationCode.deleteMany({ where: { verifiedAt: null, expiresAt: { lt: new Date() } } })).count;
+  }
+
+  async deleteOldVerified(retentionDays: number): Promise<number> {
+    const cutoff = new Date(Date.now() - retentionDays * MS_PER_DAY);
+    return (await (await this.db()).verificationCode.deleteMany({ where: { verifiedAt: { lt: cutoff } } })).count;
   }
 }
 

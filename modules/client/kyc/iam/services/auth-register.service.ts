@@ -133,10 +133,11 @@ class AuthRegisterService {
       comunicacionesComerciales: comunicacionesComerciales === true
     });
 
-    // Después del commit del alta: user_consents ya migró a Prisma y users sigue en Sequelize, así que
-    // dentro de la misma unidad de trabajo el INSERT iría por otra conexión y su FK no vería al usuario
-    // sin confirmar (docs/prisma-migration.md, grupo 2). Es best-effort con alerta (ver abajo); vuelve a
-    // la transacción del alta cuando users migre (grupo 6).
+    // Después del commit del alta: user_consents y user_notification_preferences ya migraron a Prisma y
+    // users sigue en Sequelize, así que dentro de la misma unidad de trabajo el INSERT iría por otra
+    // conexión y su FK no vería al usuario sin confirmar (docs/prisma-migration.md, grupos 2 y 3).
+    // Vuelven a la transacción del alta cuando users migre (grupo 6).
+    await this._createDefaultNotificationPreference(dbResult.user.user_id);
     await this._recordRegistrationConsents(dbResult.user.user_id, {
       privacyPolicyVersion,
       privacyPolicyAcceptedIp: auditContext?.ip || null,
@@ -385,21 +386,25 @@ class AuthRegisterService {
       { transaction }
     );
 
-    await this.userNotificationPreferenceRepository.create(
-      {
-        user_id: user.user_id,
-        notification_category_code: null,
-        allow_push: true,
-        allow_email: true,
-        allow_sms: true,
-        quiet_hours_start: null,
-        quiet_hours_end: null,
-        ...requestContext.originFromContext()
-      },
-      { transaction }
-    );
 
     return { user, person, personContact, role: defaultRole };
+  }
+
+  /**
+   * Preferencia global de notificaciones del usuario nuevo: todos los canales, sin horario de no
+   * molestar. Best-effort: sin la fila rigen los mismos valores (findByUserAndCategory → null →
+   * todo permitido) y la primera edición desde el perfil la crea.
+   * @private
+   */
+  async _createDefaultNotificationPreference(userId: string) {
+    await this.userNotificationPreferenceRepository
+      .createGlobal(userId, { allowPush: true, allowEmail: true, allowSms: true, quietHoursStart: null, quietHoursEnd: null })
+      .catch(err =>
+        logger.warn('auth-register: no se pudo crear la preferencia de notificación por defecto', {
+          userId,
+          error: errorMessage(err)
+        })
+      );
   }
 
   /**

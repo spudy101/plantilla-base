@@ -1,5 +1,8 @@
-import type defineNotification from '../models/notification.model';
+import type { Notification } from '../../../../shared/database/generated/prisma/client';
 import type * as Types from '../notification.types';
+
+/** 'email' → 'Email': sufijo de los campos supports<Canal> / allow<Canal> / <canal>Sent. */
+const cap = <K extends string>(key: K) => (key.charAt(0).toUpperCase() + key.slice(1)) as Capitalize<K>;
 import notificationRepo from '../repositories/notification.repository';
 import notificationTypeRepo from '../repositories/notification-type.repository';
 import userRepo from '../../kyc/iam/repositories/user.repository';
@@ -87,7 +90,7 @@ class NotificationSendingService {
 
   /** @private — ¿la categoría del tipo soporta este canal? */
   _categorySupports(category: NotificationSendingService.CategoryChannels | null | undefined, channel: NotificationSendingService.Channel) {
-    return category?.[`supports_${channel.key}` as const] ?? channel.supportedByDefault;
+    return category?.[`supports${cap(channel.key)}` as const] ?? channel.supportedByDefault;
   }
 
   async _procesarCanal(isQuietHours: boolean, isHighPriority: boolean, schedulerFn: () => Promise<unknown>, enviarFn: () => Promise<unknown>) {
@@ -130,7 +133,7 @@ class NotificationSendingService {
       const ctx: NotificationSendingService.ChannelContext = { notificationId, userId, notificationType, title, body, metadata, userPreference };
 
       for (const channel of this.channels) {
-        const allowedByUser = userPreference?.[`allow_${channel.key}` as const] ?? true;
+        const allowedByUser = userPreference?.[`allow${cap(channel.key)}` as const] ?? true;
         if (this._categorySupports(category, channel) && allowedByUser) {
           await this._procesarCanal(
             isQuietHours,
@@ -170,11 +173,11 @@ class NotificationSendingService {
   }
 
   /** @private */
-  _resolverEstadoEntrega(notification: defineNotification.Instance, notificationType: NotificationSendingService.NotificationTypeSource) {
+  _resolverEstadoEntrega(notification: Notification, notificationType: NotificationSendingService.NotificationTypeSource) {
     const category = notificationType.category || null;
     const channels = this.channels
       .filter(channel => this._categorySupports(category, channel))
-      .map(channel => ({ sent: notification[`${channel.key}_sent` as const], error: notification[`${channel.key}_error` as const] }));
+      .map(channel => ({ sent: notification[`${channel.key}Sent` as const], error: notification[`${channel.key}Error` as const] }));
 
     // Solo cuentan los canales realmente intentados (entregados o con error registrado).
     // Los diferidos por quiet hours aún no se intentaron → se ignoran.
@@ -375,26 +378,23 @@ class NotificationSendingService {
    * Procesa una notificación programada (llamado por el scheduler)
    * @param {Object} notification - Notificación de BD
    */
-  async procesarNotificacionProgramada(notification: defineNotification.Instance) {
+  async procesarNotificacionProgramada(notification: Notification) {
     try {
-      // FIX: notification.notification_id en vez de notification.id
-      await this.notificationRepo.updateProcessingStatus(notification.notification_id, NOTIFICATION_PROCESSING_STATUS.PROCESSING);
+      await this.notificationRepo.updateProcessingStatus(notification.notificationId, NOTIFICATION_PROCESSING_STATUS.PROCESSING);
 
-      const notificationType = await this.notificationTypeRepo.findById(notification.notification_type_id, {
-        include: [{ association: 'category' }]
-      });
+      const notificationType = notification.notificationTypeId ? await this.notificationTypeRepo.findById(notification.notificationTypeId) : null;
 
       if (!notificationType) {
         logger.warn('Tipo de notificación no encontrado', {
-          notification_type_id: notification.notification_type_id
+          notification_type_id: notification.notificationTypeId
         });
         return;
       }
 
       const category = notificationType.category || null;
       const ctx: NotificationSendingService.ChannelContext = {
-        notificationId: notification.notification_id,
-        userId: notification.user_id,
+        notificationId: notification.notificationId,
+        userId: notification.userId,
         notificationType,
         title: notification.title,
         body: notification.body,
@@ -403,21 +403,18 @@ class NotificationSendingService {
 
       // Reenvía solo los canales soportados que aún no se entregaron.
       for (const channel of this.channels) {
-        if (this._categorySupports(category, channel) && !notification[`${channel.key}_sent` as const]) {
+        if (this._categorySupports(category, channel) && !notification[`${channel.key}Sent` as const]) {
           await channel.send(ctx);
         }
       }
 
-      // FIX: notification.notification_id en vez de notification.id
-      await this.actualizarEstadoEntrega(notification.notification_id, notificationType);
+      await this.actualizarEstadoEntrega(notification.notificationId, notificationType);
     } catch (error) {
       logger.warn('Error procesando notificación programada', {
         error: errorMessage(error),
-        // FIX: notification.notification_id en vez de notification.id
-        notification_id: notification.notification_id
+        notification_id: notification.notificationId
       });
-      // FIX: notification.notification_id en vez de notification.id
-      await this.notificationRepo.updateProcessingStatus(notification.notification_id, NOTIFICATION_PROCESSING_STATUS.FAILED);
+      await this.notificationRepo.updateProcessingStatus(notification.notificationId, NOTIFICATION_PROCESSING_STATUS.FAILED);
     }
   }
 }
@@ -442,7 +439,7 @@ namespace NotificationSendingService {
   /** Descriptor de canal (SOLID: O): agregar un canal = agregar un descriptor. */
   export interface Channel {
     key: ChannelKey;
-    /** valor si la categoría no declara supports_<key> */
+    /** valor si la categoría no declara supports<Key> */
     supportedByDefault: boolean;
     send(ctx: ChannelContext): Promise<unknown>;
     schedule(ctx: ChannelContext): Promise<unknown>;

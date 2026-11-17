@@ -1,16 +1,24 @@
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../../shared/models';
-const { UserNotificationPreference } = modelsModule;
-import requestContext from '../../../../../shared/utils/request-context.util';
-import { Op } from 'sequelize';
-import * as queryModule from '../../../../../shared/repositories/query';
-const { toWhere } = queryModule;
-import type { WhereClause } from '../../../../../shared/repositories/query';
-import type { CreateOptions, DestroyOptions } from 'sequelize';
-import type defineUserNotificationPreference from '../models/user-notification-preference.model';
+// modules/schemas/kyc/person/repositories/user-notification-preference.repository.ts
+//
+// Preferencias de notificación del usuario: una global (notificationCategoryCode = null) y overrides
+// por categoría. El horario de no molestar (TIME) entra y sale como texto 'HH:MM:SS' (prisma-time).
+// origin_session_id lo completa la extensión de Prisma al crear.
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import type { NotificationCategory, Prisma, UserNotificationPreference } from '../../../../../shared/database/generated/prisma/client';
+import { fromTime, toTime } from '../../../../../shared/database/prisma-time';
+import { toCategoryRow } from '../../../notification/repositories/notification-category.repository';
+import type { NotificationCategoryRow } from '../../../notification/repositories/notification-category.repository';
 
-/** Preferencias tal como llegan del DTO de entrada (camelCase). */
-interface PreferenceInput {
+type TimeFields = 'quietHoursStart' | 'quietHoursEnd';
+/** Preferencia con el horario de no molestar como texto. */
+export type PreferenceRow = Omit<UserNotificationPreference, TimeFields> & {
+  quietHoursStart: string | null;
+  quietHoursEnd: string | null;
+};
+export type PreferenceWithCategoryRow = PreferenceRow & { notificationCategory: NotificationCategoryRow | null };
+
+/** Preferencias tal como llegan del DTO de entrada; undefined = no se toca. */
+export interface PreferenceInput {
   allowPush?: boolean;
   allowEmail?: boolean;
   allowSms?: boolean;
@@ -18,205 +26,100 @@ interface PreferenceInput {
   quietHoursEnd?: string | null;
 }
 
-/**
- * Mapea las keys camelCase del DTO de entrada a las columnas snake_case del modelo.
- * Solo incluye los campos presentes (undefined => no se toca la columna).
- */
-function _toColumns(data: PreferenceInput = {}) {
-  const columns: Partial<defineUserNotificationPreference.Attributes> = {};
-  if (data.allowPush !== undefined) {
-    columns.allow_push = data.allowPush;
-  }
-  if (data.allowEmail !== undefined) {
-    columns.allow_email = data.allowEmail;
-  }
-  if (data.allowSms !== undefined) {
-    columns.allow_sms = data.allowSms;
-  }
-  if (data.quietHoursStart !== undefined) {
-    columns.quiet_hours_start = data.quietHoursStart;
-  }
-  if (data.quietHoursEnd !== undefined) {
-    columns.quiet_hours_end = data.quietHoursEnd;
-  }
-  return columns;
+function toRow(row: UserNotificationPreference): PreferenceRow {
+  return { ...row, quietHoursStart: fromTime(row.quietHoursStart), quietHoursEnd: fromTime(row.quietHoursEnd) };
 }
 
-class UserNotificationPreferenceRepository extends BaseRepository<defineUserNotificationPreference.Instance> {
-  constructor() {
-    super(UserNotificationPreference);
+function toData({ quietHoursStart, quietHoursEnd, ...flags }: PreferenceInput) {
+  return {
+    ...flags,
+    ...(quietHoursStart !== undefined ? { quietHoursStart: toTime(quietHoursStart) } : {}),
+    ...(quietHoursEnd !== undefined ? { quietHoursEnd: toTime(quietHoursEnd) } : {})
+  };
+}
+
+class UserNotificationPreferenceRepository extends PrismaRepository {
+  private async findOne(userId: string, notificationCategoryCode: string | null): Promise<PreferenceRow | null> {
+    const row = await (await this.db()).userNotificationPreference.findFirst({ where: { userId, notificationCategoryCode } });
+    return row && toRow(row);
   }
 
-  /**
-   * Busca la preferencia del usuario para una categoría específica.
-   * Primero busca la preferencia de esa categoría; si no existe, cae a la global (code = null).
-   */
-  async findByUserAndCategory(userId: string, notificationCategoryCode: string | null) {
-    const specific = await this.findOne({
-      user_id: userId,
-      notification_category_code: notificationCategoryCode
+  /** Preferencia de la categoría; si no hay, la global. */
+  async findByUserAndCategory(userId: string, notificationCategoryCode: string | null): Promise<PreferenceRow | null> {
+    return (await this.findOne(userId, notificationCategoryCode)) ?? this.findOne(userId, null);
+  }
+
+  findGlobalByUser(userId: string): Promise<PreferenceRow | null> {
+    return this.findOne(userId, null);
+  }
+
+  /** Todas las del usuario (global + por categoría), con su categoría. */
+  async findAllByUser(userId: string): Promise<PreferenceWithCategoryRow[]> {
+    const rows = await (await this.db()).userNotificationPreference.findMany({
+      where: { userId },
+      include: { notificationCategory: true },
+      // Igual que Sequelize: ASC deja la global (null) al final en Postgres
+      orderBy: { notificationCategoryCode: { sort: 'asc', nulls: 'last' } }
     });
+    return rows.map(r => ({
+      ...toRow(r),
+      notificationCategory: r.notificationCategory && toCategoryRow(r.notificationCategory as NotificationCategory)
+    }));
+  }
 
-    if (specific) {
-      return specific;
+  /** Filas por id (hidratación del session-trace). */
+  async findByIds(ids: readonly string[]): Promise<PreferenceRow[]> {
+    if (ids.length === 0) {
+      return [];
     }
+    const rows = await (await this.db()).userNotificationPreference.findMany({ where: { userNotificationPreferenceId: { in: [...ids] } } });
+    return rows.map(toRow);
+  }
 
-    return this.findOne({
-      user_id: userId,
-      notification_category_code: null
+  /** Crea la preferencia global con valores explícitos (alta de usuario). */
+  async createGlobal(userId: string, data: PreferenceInput): Promise<PreferenceRow> {
+    const row = await (await this.db()).userNotificationPreference.create({
+      data: { userId, notificationCategoryCode: null, ...toData(data) } as Prisma.UserNotificationPreferenceUncheckedCreateInput
+    });
+    return toRow(row);
+  }
+
+  /** Crea o actualiza la preferencia global del usuario. */
+  upsertGlobalPreference(userId: string, data: PreferenceInput): Promise<PreferenceRow> {
+    return this.upsert(userId, null, data);
+  }
+
+  /** Crea o actualiza la preferencia de una categoría. */
+  upsertCategoryPreference(userId: string, notificationCategoryCode: string, data: PreferenceInput): Promise<PreferenceRow> {
+    return this.upsert(userId, notificationCategoryCode, data);
+  }
+
+  // La UNIQUE (user_id, notification_category_code) no sirve para upsert con la global: en Postgres
+  // NULL ≠ NULL. Se busca y luego se actualiza o crea, de forma atómica.
+  private upsert(userId: string, notificationCategoryCode: string | null, input: PreferenceInput): Promise<PreferenceRow> {
+    const data = toData(input);
+    return this.atomic(async db => {
+      const existing = await db.userNotificationPreference.findFirst({ where: { userId, notificationCategoryCode } });
+      const row = existing
+        ? await db.userNotificationPreference.update({ where: { userNotificationPreferenceId: existing.userNotificationPreferenceId }, data })
+        : await db.userNotificationPreference.create({
+            data: { userId, notificationCategoryCode, ...data } as Prisma.UserNotificationPreferenceUncheckedCreateInput
+          });
+      return toRow(row);
     });
   }
 
-  /**
-   * Obtiene la preferencia global del usuario
-   */
-  findGlobalByUser(userId: string) {
-    return this.findOne({
-      user_id: userId,
-      notification_category_code: null
-    });
+  /** Elimina el override de una categoría (vuelve a regir la global); devuelve cuántas filas borró. */
+  async deleteCategoryPreference(userId: string, notificationCategoryCode: string): Promise<number> {
+    return (await (await this.db()).userNotificationPreference.deleteMany({ where: { userId, notificationCategoryCode } })).count;
   }
 
-  /**
-   * Obtiene todas las preferencias de un usuario (global + por categoría)
-   */
-  findAllByUser(userId: string) {
-    return this.findAll(
-      { user_id: userId },
-      {
-        order: [['notification_category_code', 'ASC']],
-        include: [{ association: 'notification_category' }]
-      }
-    );
+  async userAllowsPush(userId: string, notificationCategoryCode: string | null): Promise<boolean> {
+    return (await this.findByUserAndCategory(userId, notificationCategoryCode))?.allowPush ?? true;
   }
 
-  /**
-   * Crea o actualiza la preferencia global del usuario
-   */
-  async upsertGlobalPreference(userId: string, data: PreferenceInput, options: CreateOptions<defineUserNotificationPreference.Attributes> = {}) {
-    const columns = _toColumns(data);
-    const existing = await this.findGlobalByUser(userId);
-
-    if (existing) {
-      return existing.update(columns, options);
-    }
-
-    return this.create(
-      {
-        user_id: userId,
-        notification_category_code: null,
-        ...columns,
-        ...requestContext.originFromContext()
-      },
-      options
-    );
-  }
-
-  /**
-   * Crea o actualiza la preferencia de una categoría
-   */
-  async upsertCategoryPreference(
-    userId: string,
-    notificationCategoryCode: string,
-    data: PreferenceInput,
-    options: CreateOptions<defineUserNotificationPreference.Attributes> = {}
-  ) {
-    const columns = _toColumns(data);
-    const existing = await this.findOne({
-      user_id: userId,
-      notification_category_code: notificationCategoryCode
-    });
-
-    if (existing) {
-      return existing.update(columns, options);
-    }
-
-    return this.create(
-      {
-        user_id: userId,
-        notification_category_code: notificationCategoryCode,
-        ...columns,
-        ...requestContext.originFromContext()
-      },
-      options
-    );
-  }
-
-  /**
-   * Elimina la preferencia de una categoría (vuelve a usar la global)
-   */
-  deleteCategoryPreference(
-    userId: string,
-    notificationCategoryCode: string,
-    options: Omit<DestroyOptions<defineUserNotificationPreference.Attributes>, 'where'> = {}
-  ) {
-    return this.bulkDelete(
-      {
-        user_id: userId,
-        notification_category_code: notificationCategoryCode
-      },
-      options
-    );
-  }
-
-  /**
-   * Verifica si el usuario permite push para una categoría
-   */
-  async userAllowsPush(userId: string, notificationCategoryCode: string | null) {
-    const preference = await this.findByUserAndCategory(userId, notificationCategoryCode);
-    return preference?.allow_push ?? true;
-  }
-
-  /**
-   * Verifica si el usuario permite email para una categoría
-   */
-  async userAllowsEmail(userId: string, notificationCategoryCode: string | null) {
-    const preference = await this.findByUserAndCategory(userId, notificationCategoryCode);
-    return preference?.allow_email ?? true;
-  }
-
-  /**
-   * Verifica si el usuario permite SMS para una categoría
-   */
-  async userAllowsSms(userId: string, notificationCategoryCode: string | null) {
-    const preference = await this.findByUserAndCategory(userId, notificationCategoryCode);
-    return preference?.allow_sms ?? true;
-  }
-
-  /**
-   * Obtiene usuarios que permiten push para una categoría
-   */
-  findUsersAllowingPush(notificationCategoryCode: string | null, userIds: string[] | null = null) {
-    const where: WhereClause = {
-      [Op.or]: [
-        { notification_category_code: notificationCategoryCode, allow_push: true },
-        { notification_category_code: null, allow_push: true }
-      ]
-    };
-
-    if (userIds) {
-      where.user_id = { [Op.in]: userIds };
-    }
-
-    return this.findAll(toWhere(where));
-  }
-
-  /**
-   * Obtiene usuarios que permiten email para una categoría
-   */
-  findUsersAllowingEmail(notificationCategoryCode: string | null, userIds: string[] | null = null) {
-    const where: WhereClause = {
-      [Op.or]: [
-        { notification_category_code: notificationCategoryCode, allow_email: true },
-        { notification_category_code: null, allow_email: true }
-      ]
-    };
-
-    if (userIds) {
-      where.user_id = { [Op.in]: userIds };
-    }
-
-    return this.findAll(toWhere(where));
+  async userAllowsEmail(userId: string, notificationCategoryCode: string | null): Promise<boolean> {
+    return (await this.findByUserAndCategory(userId, notificationCategoryCode))?.allowEmail ?? true;
   }
 }
 

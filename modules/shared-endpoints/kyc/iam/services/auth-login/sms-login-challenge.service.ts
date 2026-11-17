@@ -80,9 +80,9 @@ class SmsLoginChallengeService {
 
     const verificationCode = await this.verificationCodeRepository.create({
       type: 'phone',
-      contact_value: phone,
+      contactValue: phone,
       code,
-      expires_at: expiresAt
+      expiresAt
     });
 
     // SMS por AWS SNS — envío no bloqueante (no debe demorar/tumbar el flujo de login).
@@ -112,7 +112,7 @@ class SmsLoginChallengeService {
 
     return MFARequiredResponseDTO({
       username: user.auth_username,
-      session: verificationCode.verification_code_id,
+      session: verificationCode.verificationCodeId,
       challengeType: 'SMS_OTP',
       preferredMfaMethod: 'sms'
     });
@@ -141,7 +141,7 @@ class SmsLoginChallengeService {
     }
 
     const verificationCode = await this.verificationCodeRepository.findActiveByContact('phone', phone);
-    if (!verificationCode || verificationCode.verified_at) {
+    if (!verificationCode || verificationCode.verifiedAt) {
       throw AppError.badRequest('Código SMS inválido o expirado');
     }
 
@@ -151,7 +151,7 @@ class SmsLoginChallengeService {
     }
 
     if (verificationCode.code !== code) {
-      await this.verificationCodeRepository.incrementAttempts(verificationCode.verification_code_id);
+      await this.verificationCodeRepository.incrementAttempts(verificationCode.verificationCodeId);
 
       await this.userLoginAttemptRepository.recordAttempt({
         user_id: user.user_id,
@@ -178,7 +178,7 @@ class SmsLoginChallengeService {
       throw AppError.badRequest(`Código SMS incorrecto. Te quedan ${remaining} intento(s)`);
     }
 
-    await this.verificationCodeRepository.markAsVerified(verificationCode.verification_code_id);
+    await this.verificationCodeRepository.markAsVerified(verificationCode.verificationCodeId);
   }
 
   /** @private */

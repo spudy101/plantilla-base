@@ -3,7 +3,7 @@
 // SendVerificationService — envío y verificación de códigos OTP por email/SMS. Se prueba la lógica de
 // orquestación con repos/servicios mockeados y AppError real (para assertar statusCode):
 //   sendVerificationCode: (1) 429 si no se puede pedir nuevo código; (2) camino feliz email → crea la
-//   fila en transacción, audita y despacha el email en background; (3) camino feliz phone →
+//   fila, audita y despacha el email en background; (3) camino feliz phone →
 //   truncatedCode enmascarado y despacho por SMS; (4) fallo del SMS en background solo loguea warn;
 //   (5) rollback + rethrow si falla la creación.
 //   verifyCode: not-found (404), reutilizado (400), bloqueado por intentos (403), código incorrecto
@@ -98,24 +98,20 @@ describe('SendVerificationService', () => {
       expect(verificationCodeRepo.create).not.toHaveBeenCalled();
     });
 
-    it('email — crea el código en transacción, audita y despacha el email en background', async () => {
-      const tx = fakeTransaction();
-      sequelize.transaction.mockImplementation(managedTransaction(tx));
+    it('email — crea el código, audita y despacha el email en background', async () => {
       verificationCodeRepo.canRequestNewCode.mockResolvedValue(true);
-      verificationCodeRepo.create.mockResolvedValue({ verification_code_id: 'vc-1' });
+      verificationCodeRepo.create.mockResolvedValue({ verificationCodeId: 'vc-1' });
 
       const result = await service.sendVerificationCode({ type: 'email', contact: 'a@b.cl' });
 
       expect(verificationCodeRepo.create).toHaveBeenCalledWith(
         // attempts no se envía: el repositorio no lo acepta y la columna arranca en 0
-        expect.objectContaining({ type: 'email', contact_value: 'a@b.cl' }),
-        { transaction: tx }
+        expect.objectContaining({ type: 'email', contactValue: 'a@b.cl' })
       );
-      expect(tx.commit).toHaveBeenCalled();
       expect(logAudit).toHaveBeenCalledWith('VERIFICATION_CODE_SENT', null, expect.any(Object), expect.any(Object));
       // Email → sin truncatedCode (MOCKS off).
       expect(SendVerificationResponseDTO).toHaveBeenCalledWith(
-        expect.objectContaining({ verificationCode: { verification_code_id: 'vc-1' }, truncatedCode: null })
+        expect.objectContaining({ verificationCode: { verificationCodeId: 'vc-1' }, truncatedCode: null })
       );
       expect(result).toMatchObject({ dto: 'send' });
 
@@ -128,7 +124,7 @@ describe('SendVerificationService', () => {
     it('phone — enmascara el código y despacha por SMS en background', async () => {
       constants.MOCKS.EXTERNAL_PROVIDERS = true; // código determinista '123456'
       verificationCodeRepo.canRequestNewCode.mockResolvedValue(true);
-      verificationCodeRepo.create.mockResolvedValue({ verification_code_id: 'vc-2' });
+      verificationCodeRepo.create.mockResolvedValue({ verificationCodeId: 'vc-2' });
 
       await service.sendVerificationCode({ type: 'phone', contact: '911112222', phonePrefixId: 'pref-1' });
 
@@ -145,7 +141,7 @@ describe('SendVerificationService', () => {
     it('phone — si el SMS falla en background, solo loguea warn (no rompe la respuesta)', async () => {
       constants.MOCKS.EXTERNAL_PROVIDERS = true;
       verificationCodeRepo.canRequestNewCode.mockResolvedValue(true);
-      verificationCodeRepo.create.mockResolvedValue({ verification_code_id: 'vc-3' });
+      verificationCodeRepo.create.mockResolvedValue({ verificationCodeId: 'vc-3' });
       SmsService.enviarSmsOtp.mockResolvedValue({ success: false, error: 'SNS caído' });
 
       await service.sendVerificationCode({ type: 'phone', contact: '911112222', phonePrefixId: 'pref-1' });
@@ -157,15 +153,12 @@ describe('SendVerificationService', () => {
       );
     });
 
-    it('hace rollback y propaga si falla la creación del código', async () => {
-      const tx = fakeTransaction();
-      sequelize.transaction.mockImplementation(managedTransaction(tx));
+    it('propaga si falla la creación del código', async () => {
       verificationCodeRepo.canRequestNewCode.mockResolvedValue(true);
       verificationCodeRepo.create.mockRejectedValue(new Error('db down'));
 
       await expect(service.sendVerificationCode({ type: 'email', contact: 'a@b.cl' })).rejects.toThrow('db down');
-      expect(tx.rollback).toHaveBeenCalled();
-      expect(tx.commit).not.toHaveBeenCalled();
+      expect(logAudit).not.toHaveBeenCalled();
     });
   });
 
@@ -180,8 +173,8 @@ describe('SendVerificationService', () => {
 
     it('lanza 400 si el código ya fue utilizado', async () => {
       verificationCodeRepo.findActiveByContact.mockResolvedValue({
-        verification_code_id: 'vc-1',
-        verified_at: new Date(),
+        verificationCodeId: 'vc-1',
+        verifiedAt: new Date(),
         attempts: 0,
         code: '123456'
       });
@@ -193,8 +186,8 @@ describe('SendVerificationService', () => {
 
     it('lanza 403 si se excedió el máximo de intentos', async () => {
       verificationCodeRepo.findActiveByContact.mockResolvedValue({
-        verification_code_id: 'vc-1',
-        verified_at: null,
+        verificationCodeId: 'vc-1',
+        verifiedAt: null,
         attempts: 5,
         code: '123456'
       });
@@ -205,11 +198,9 @@ describe('SendVerificationService', () => {
     });
 
     it('código incorrecto — incrementa intentos, audita failure y lanza 400 con intentos restantes', async () => {
-      const tx = fakeTransaction();
-      sequelize.transaction.mockImplementation(managedTransaction(tx));
       verificationCodeRepo.findActiveByContact.mockResolvedValue({
-        verification_code_id: 'vc-1',
-        verified_at: null,
+        verificationCodeId: 'vc-1',
+        verifiedAt: null,
         attempts: 1,
         code: '123456'
       });
@@ -218,8 +209,7 @@ describe('SendVerificationService', () => {
         statusCode: 400
       });
 
-      expect(verificationCodeRepo.incrementAttempts).toHaveBeenCalledWith('vc-1', { transaction: tx });
-      expect(tx.commit).toHaveBeenCalled();
+      expect(verificationCodeRepo.incrementAttempts).toHaveBeenCalledWith('vc-1');
       expect(logAudit).toHaveBeenCalledWith(
         'VERIFICATION_CODE_FAILED',
         null,
@@ -229,19 +219,16 @@ describe('SendVerificationService', () => {
     });
 
     it('código correcto — marca verificado, audita y devuelve el DTO { verified: true }', async () => {
-      const tx = fakeTransaction();
-      sequelize.transaction.mockImplementation(managedTransaction(tx));
       verificationCodeRepo.findActiveByContact.mockResolvedValue({
-        verification_code_id: 'vc-1',
-        verified_at: null,
+        verificationCodeId: 'vc-1',
+        verifiedAt: null,
         attempts: 0,
         code: '123456'
       });
 
       const result = await service.verifyCode({ type: 'email', contact: 'a@b.cl', code: '123456' });
 
-      expect(verificationCodeRepo.markAsVerified).toHaveBeenCalledWith('vc-1', { transaction: tx });
-      expect(tx.commit).toHaveBeenCalled();
+      expect(verificationCodeRepo.markAsVerified).toHaveBeenCalledWith('vc-1');
       expect(logAudit).toHaveBeenCalledWith('VERIFICATION_CODE_VERIFIED', null, expect.any(Object), expect.any(Object));
       expect(result).toEqual({ verified: true });
     });

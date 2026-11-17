@@ -41,38 +41,38 @@ describe('NotificationSchedulerService', () => {
     it('sin ventana configurada (start/end ausentes) devuelve false', () => {
       expect(scheduler.isInQuietHours(null)).toBe(false);
       expect(scheduler.isInQuietHours({})).toBe(false);
-      expect(scheduler.isInQuietHours({ quiet_hours_start: '22:00:00' })).toBe(false);
-      expect(scheduler.isInQuietHours({ quiet_hours_end: '08:00:00' })).toBe(false);
+      expect(scheduler.isInQuietHours({ quietHoursStart: '22:00:00' })).toBe(false);
+      expect(scheduler.isInQuietHours({ quietHoursEnd: '08:00:00' })).toBe(false);
     });
 
     it('ventana dentro del mismo día: dentro del rango es true', () => {
       // 23:30 ∈ [22:00, 23:59)
-      expect(scheduler.isInQuietHours({ quiet_hours_start: '22:00:00', quiet_hours_end: '23:59:00' })).toBe(true);
+      expect(scheduler.isInQuietHours({ quietHoursStart: '22:00:00', quietHoursEnd: '23:59:00' })).toBe(true);
     });
 
     it('ventana dentro del mismo día: antes del inicio es false', () => {
       // 23:30 ∉ [08:00, 09:00)
-      expect(scheduler.isInQuietHours({ quiet_hours_start: '08:00:00', quiet_hours_end: '09:00:00' })).toBe(false);
+      expect(scheduler.isInQuietHours({ quietHoursStart: '08:00:00', quietHoursEnd: '09:00:00' })).toBe(false);
     });
 
     it('ventana dentro del mismo día: el fin es exclusivo', () => {
       jest.setSystemTime(new Date(2026, 5, 15, 23, 59, 0)); // exactamente el end
-      expect(scheduler.isInQuietHours({ quiet_hours_start: '22:00:00', quiet_hours_end: '23:59:00' })).toBe(false);
+      expect(scheduler.isInQuietHours({ quietHoursStart: '22:00:00', quietHoursEnd: '23:59:00' })).toBe(false);
     });
 
     it('ventana que cruza medianoche: en la parte nocturna (>= start) es true', () => {
       // 23:30 con ventana [22:00, 08:00) → true por currentTime >= start
-      expect(scheduler.isInQuietHours({ quiet_hours_start: '22:00:00', quiet_hours_end: '08:00:00' })).toBe(true);
+      expect(scheduler.isInQuietHours({ quietHoursStart: '22:00:00', quietHoursEnd: '08:00:00' })).toBe(true);
     });
 
     it('ventana que cruza medianoche: en la madrugada (< end) es true', () => {
       jest.setSystemTime(new Date(2026, 5, 15, 3, 0, 0)); // 03:00
-      expect(scheduler.isInQuietHours({ quiet_hours_start: '22:00:00', quiet_hours_end: '08:00:00' })).toBe(true);
+      expect(scheduler.isInQuietHours({ quietHoursStart: '22:00:00', quietHoursEnd: '08:00:00' })).toBe(true);
     });
 
     it('ventana que cruza medianoche: en pleno día está fuera de la ventana', () => {
       jest.setSystemTime(new Date(2026, 5, 15, 12, 0, 0)); // 12:00
-      expect(scheduler.isInQuietHours({ quiet_hours_start: '22:00:00', quiet_hours_end: '08:00:00' })).toBe(false);
+      expect(scheduler.isInQuietHours({ quietHoursStart: '22:00:00', quietHoursEnd: '08:00:00' })).toBe(false);
     });
   });
 
@@ -85,7 +85,7 @@ describe('NotificationSchedulerService', () => {
 
     it('si la hora de fin ya pasó hoy, programa para mañana', () => {
       // Son las 23:30; fin 08:00 ya pasó → mañana 08:00 local.
-      const result = scheduler.calcularFinQuietHours({ quiet_hours_end: '08:00' });
+      const result = scheduler.calcularFinQuietHours({ quietHoursEnd: '08:00' });
       const esperado = new Date(FIXED_NOW);
       esperado.setHours(8, 0, 0, 0);
       esperado.setDate(esperado.getDate() + 1);
@@ -94,7 +94,7 @@ describe('NotificationSchedulerService', () => {
 
     it('si la hora de fin aún no pasa hoy, programa para hoy', () => {
       // Son las 23:30; fin 23:59 aún no pasa → hoy 23:59 local.
-      const result = scheduler.calcularFinQuietHours({ quiet_hours_end: '23:59' });
+      const result = scheduler.calcularFinQuietHours({ quietHoursEnd: '23:59' });
       const esperado = new Date(FIXED_NOW);
       esperado.setHours(23, 59, 0, 0);
       expect(result.getTime()).toBe(esperado.getTime());
@@ -103,49 +103,49 @@ describe('NotificationSchedulerService', () => {
 
   describe('programarEnvioPush', () => {
     it('persiste la fecha calculada en scheduled_for y push_next_retry_at', async () => {
-      const pref = { quiet_hours_end: '08:00' };
+      const pref = { quietHoursEnd: '08:00' };
       const esperado = scheduler.calcularFinQuietHours(pref);
 
       await scheduler.programarEnvioPush('n-1', pref);
 
       expect(notificationRepo.update).toHaveBeenCalledWith('n-1', {
-        scheduled_for: esperado,
-        push_next_retry_at: esperado
+        scheduledFor: esperado,
+        pushNextRetryAt: esperado
       });
     });
   });
 
   describe('programarEnvioEmail', () => {
     it('persiste la fecha calculada en scheduled_for y email_next_retry_at', async () => {
-      const pref = { quiet_hours_end: '08:00' };
+      const pref = { quietHoursEnd: '08:00' };
       const esperado = scheduler.calcularFinQuietHours(pref);
 
       await scheduler.programarEnvioEmail('n-2', pref);
 
       expect(notificationRepo.update).toHaveBeenCalledWith('n-2', {
-        scheduled_for: esperado,
-        email_next_retry_at: esperado
+        scheduledFor: esperado,
+        emailNextRetryAt: esperado
       });
     });
   });
 
   describe('programarEnvioSms', () => {
     it('persiste la fecha calculada en scheduled_for y sms_next_retry_at', async () => {
-      const pref = { quiet_hours_end: '08:00' };
+      const pref = { quietHoursEnd: '08:00' };
       const esperado = scheduler.calcularFinQuietHours(pref);
 
       await scheduler.programarEnvioSms('n-3', pref);
 
       expect(notificationRepo.update).toHaveBeenCalledWith('n-3', {
-        scheduled_for: esperado,
-        sms_next_retry_at: esperado
+        scheduledFor: esperado,
+        smsNextRetryAt: esperado
       });
     });
   });
 
   describe('procesarNotificacionesProgramadas', () => {
     it('devuelve las notificaciones programadas listas para enviar', async () => {
-      const listas = [{ notification_id: 'n-1' }, { notification_id: 'n-2' }];
+      const listas = [{ notificationId: 'n-1' }, { notificationId: 'n-2' }];
       notificationRepo.findScheduledReady.mockResolvedValue(listas);
 
       const result = await scheduler.procesarNotificacionesProgramadas();

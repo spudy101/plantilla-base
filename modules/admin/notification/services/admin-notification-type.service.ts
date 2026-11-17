@@ -8,7 +8,6 @@ import loggerUtilModule from '../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
 import constantsModule from '../../../../shared/constants';
 const { notifications } = constantsModule;
-import unitOfWork from '../../../../shared/database/unit-of-work';
 import adminNotificationTypeDtoModule from '../dtos/admin-notification-type.dto';
 const {
   ListNotificationTypesResponseDTO,
@@ -18,7 +17,6 @@ const {
 } = adminNotificationTypeDtoModule;
 
 class NotificationTypeService {
-  unitOfWork: typeof unitOfWork;
   notificationTypeRepository: typeof notificationTypeRepository;
   notificationCategoryRepository: typeof notificationCategoryRepository;
   userRepository: typeof userRepository;
@@ -27,11 +25,10 @@ class NotificationTypeService {
   /**
    * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
    * reales; en tests u otros contextos se pueden reemplazar:
-   *   new NotificationTypeService({ unitOfWork: fake })
+   *   new NotificationTypeService({ notificationTypeRepository: fake })
    * @param {object} [deps]
    */
   constructor(deps: NotificationTypeService.Deps = {}) {
-    this.unitOfWork = deps.unitOfWork ?? unitOfWork;
     this.notificationTypeRepository = deps.notificationTypeRepository ?? notificationTypeRepository;
     this.notificationCategoryRepository = deps.notificationCategoryRepository ?? notificationCategoryRepository;
     this.userRepository = deps.userRepository ?? userRepository;
@@ -75,7 +72,7 @@ class NotificationTypeService {
     }
 
     // Si se reasigna la categoría, validar que exista (además del FK) para dar un error claro.
-    if (data.notificationCategoryId) {
+    if (typeof data.notificationCategoryId === 'string' && data.notificationCategoryId) {
       const category = await this.notificationCategoryRepository.findById(data.notificationCategoryId);
       if (!category) {
         throw AppError.badRequest('La categoría indicada no existe');
@@ -83,17 +80,11 @@ class NotificationTypeService {
     }
 
     // Los templates no se incluyen: son read-only vía API. Los canales/DND viven en la categoría.
-    const FIELD_MAP = {
-      name: 'name',
-      description: 'description',
-      priority: 'priority',
-      notificationCategoryId: 'notification_category_id'
-    };
-
+    const EDITABLE = ['name', 'description', 'priority', 'notificationCategoryId'] as const;
     const updateData: Record<string, unknown> = {};
-    for (const [camel, snake] of Object.entries(FIELD_MAP)) {
-      if (data[camel] !== undefined) {
-        updateData[snake] = data[camel];
+    for (const key of EDITABLE) {
+      if (data[key] !== undefined) {
+        updateData[key] = data[key];
       }
     }
 
@@ -101,9 +92,7 @@ class NotificationTypeService {
       return UpdateNotificationTypeResponseDTO(nt);
     }
 
-    const updated = await this.unitOfWork.run(transaction =>
-      this.notificationTypeRepository.update(notificationTypeId, updateData, { transaction })
-    );
+    const updated = await this.notificationTypeRepository.update(notificationTypeId, updateData);
     if (!updated) {
       throw AppError.notFound('Tipo de notificación no encontrado');
     }
@@ -188,7 +177,6 @@ class NotificationTypeService {
 namespace NotificationTypeService {
   /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
   export interface Deps {
-    unitOfWork?: typeof unitOfWork;
     notificationTypeRepository?: typeof notificationTypeRepository;
     notificationCategoryRepository?: typeof notificationCategoryRepository;
     userRepository?: typeof userRepository;

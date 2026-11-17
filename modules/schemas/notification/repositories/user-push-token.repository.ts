@@ -1,151 +1,39 @@
-import BaseRepository from '../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../shared/models';
-const { UserPushToken } = modelsModule;
-import { Op, fn, col } from 'sequelize';
-import type defineUserPushToken from '../models/user-push-token.model';
+// modules/schemas/notification/repositories/user-push-token.repository.ts
+//
+// Tokens push por dispositivo. origin_session_id lo completa la extensión de Prisma al crear.
+import PrismaRepository from '../../../../shared/repositories/prisma.repository';
+import type { UserPushToken } from '../../../../shared/database/generated/prisma/client';
 
-class UserPushTokenRepository extends BaseRepository<defineUserPushToken.Instance> {
-  constructor() {
-    super(UserPushToken);
+class UserPushTokenRepository extends PrismaRepository {
+  async findActiveByUser(userId: string): Promise<UserPushToken[]> {
+    return (await this.db()).userPushToken.findMany({ where: { userId, isActive: true } });
+  }
+
+  async findActiveByUsers(userIds: string[]): Promise<UserPushToken[]> {
+    return (await this.db()).userPushToken.findMany({ where: { userId: { in: userIds }, isActive: true } });
   }
 
   /**
-   * Obtiene todos los tokens activos de un usuario
+   * Registra el token del dispositivo: si ya existe uno con ese deviceId (o, si no, con ese token) lo
+   * reasigna y reactiva; si no, lo crea. Atómico.
    */
-  findActiveByUser(userId: string) {
-    return this.findAll({
-      user_id: userId,
-      is_active: true
+  upsertToken(userId: string, token: string, platform: string, deviceId: string | null = null): Promise<UserPushToken> {
+    return this.atomic(async db => {
+      const existing =
+        (deviceId ? await db.userPushToken.findFirst({ where: { deviceId } }) : null) ??
+        (await db.userPushToken.findFirst({ where: { token } }));
+      const data = { userId, token, platform, deviceId, isActive: true, lastUsedAt: new Date() };
+      return existing
+        ? db.userPushToken.update({ where: { userPushTokenId: existing.userPushTokenId }, data })
+        : db.userPushToken.create({ data });
     });
   }
 
-  /**
-   * Obtiene todos los tokens activos del sistema
-   */
-  findAllActive() {
-    return this.findAll({ is_active: true }, { order: [['last_used_at', 'DESC']] });
-  }
-
-  /**
-   * Busca token por el token string
-   */
-  findByToken(token: string) {
-    return this.findOne({ token });
-  }
-
-  /**
-   * Busca token por device_id
-   */
-  findByDeviceId(deviceId: string) {
-    return this.findOne({ device_id: deviceId });
-  }
-
-  /**
-   * Crea o actualiza un token (upsert por device_id)
-   */
-  async upsertToken(
-    userId: string,
-    token: string,
-    platform: defineUserPushToken.Attributes['platform'],
-    deviceId: string | null = null
-  ) {
-    // Antes faltaban los await: existing era siempre una Promise (truthy) y existing.update() reventaba.
-    let existing: defineUserPushToken.Instance | null = null;
-
-    if (deviceId) {
-      existing = await this.findByDeviceId(deviceId);
-    }
-
-    if (!existing) {
-      existing = await this.findByToken(token);
-    }
-
-    if (existing) {
-      return existing.update({
-        user_id: userId,
-        token,
-        platform,
-        device_id: deviceId,
-        is_active: true,
-        last_used_at: new Date()
-      });
-    }
-
-    return this.create({
-      user_id: userId,
-      token,
-      platform,
-      device_id: deviceId,
-      is_active: true,
-      last_used_at: new Date()
-    });
-  }
-
-  /**
-   * Desactiva un token
-   */
-  deactivateToken(tokenId: string) {
-    return this.update(tokenId, { is_active: false });
-  }
-
-  /**
-   * Desactiva todos los tokens de un usuario
-   */
-  deactivateAllByUser(userId: string) {
-    return this.bulkUpdate({ is_active: false }, { user_id: userId });
-  }
-
-  /**
-   * Desactiva tokens por device_id
-   */
-  deactivateByDeviceId(deviceId: string) {
-    return this.bulkUpdate({ is_active: false }, { device_id: deviceId });
-  }
-
-  /**
-   * Actualiza last_used_at de un token
-   */
-  updateLastUsed(tokenId: string) {
-    return this.update(tokenId, {
-      last_used_at: new Date()
-    });
-  }
-
-  /**
-   * Elimina tokens inactivos antiguos (limpieza)
-   */
-  deleteOldInactive(daysOld = 90) {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - daysOld);
-
-    return this.bulkDelete({
-      is_active: false,
-      updatedAt: { [Op.lt]: cutoffDate }
-    });
-  }
-
-  /**
-   * Cuenta tokens activos por plataforma
-   */
-  countByPlatform() {
-    const result = this.model.findAll({
-      where: { is_active: true },
-      attributes: ['platform', [fn('COUNT', col('user_push_token_id')), 'count']],
-      group: ['platform'],
-      raw: true
-    });
-
-    return result;
-  }
-
-  /**
-   * Obtiene tokens activos de múltiples usuarios
-   */
-  findActiveByUsers(userIds: string[]) {
-    return this.findAll({
-      user_id: { [Op.in]: userIds },
-      is_active: true
-    });
+  /** Elimina tokens inactivos sin cambios hace más de `daysOld` días; devuelve cuántos. */
+  async deleteOldInactive(daysOld = 90): Promise<number> {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - daysOld);
+    return (await (await this.db()).userPushToken.deleteMany({ where: { isActive: false, updatedAt: { lt: cutoff } } })).count;
   }
 }
 

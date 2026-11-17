@@ -39,7 +39,7 @@ jest.mock('modules/schemas/kyc/iam/repositories/reset-credentials.repository', (
   markAsUsed: jest.fn()
 }));
 jest.mock('modules/schemas/kyc/person/repositories/user-notification-preference.repository', () => ({
-  create: jest.fn()
+  createGlobal: jest.fn()
 }));
 jest.mock('modules/schemas/kyc/maintainers/repositories/country.repository', () => ({
   findByCode: jest.fn()
@@ -191,7 +191,7 @@ function armHappyRegister() {
   personRepository.create.mockResolvedValue({ person_id: 'p-1' });
   personContactRepository.create.mockResolvedValue({ person_contact_id: 'pc-1' });
   userRepository.createWithPassword.mockResolvedValue({ user_id: 'u-1' });
-  userNotificationPreferenceRepository.create.mockResolvedValue({});
+  userNotificationPreferenceRepository.createGlobal.mockResolvedValue({});
   consentTypeRepository.findByCode.mockResolvedValue({ consentTypeId: 'ct-1' });
   userConsentRepository.grant.mockResolvedValue({ userConsentId: 'uc-1' });
 
@@ -251,6 +251,32 @@ describe('AuthRegisterService', () => {
         expect.objectContaining({ userId: 'u-1', consentTypeId: 'ct-1', privacyPolicyId: 'pp-1', ip: '9.9.9.9' })
       );
       expect(tx.commit.mock.invocationCallOrder[0]).toBeLessThan(userConsentRepository.grant.mock.invocationCallOrder[0]!);
+    });
+
+    // Mismo motivo para user_notification_preferences (grupo 3).
+    it('crea la preferencia de notificación por defecto DESPUÉS del commit del alta', async () => {
+      armHappyRegister();
+      const tx = { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn() };
+      sequelize.transaction.mockImplementation(managedTransaction(tx));
+
+      await service.register(VALID_USER_DATA, {});
+
+      expect(userNotificationPreferenceRepository.createGlobal).toHaveBeenCalledWith('u-1', {
+        allowPush: true,
+        allowEmail: true,
+        allowSms: true,
+        quietHoursStart: null,
+        quietHoursEnd: null
+      });
+      expect(tx.commit.mock.invocationCallOrder[0]).toBeLessThan(userNotificationPreferenceRepository.createGlobal.mock.invocationCallOrder[0]!);
+    });
+
+    it('si falla la preferencia por defecto, el alta sigue (sin la fila rige "todo permitido")', async () => {
+      armHappyRegister();
+      userNotificationPreferenceRepository.createGlobal.mockRejectedValue(new Error('db down'));
+
+      await expect(service.register(VALID_USER_DATA, {})).resolves.toMatchObject({ userId: 'u-1' });
+      expect(userConsentRepository.grant).toHaveBeenCalled();
     });
 
     it('si falla el registro del consentimiento, el alta sigue y se emite la alerta CONSENT_RECORD_FAILED', async () => {

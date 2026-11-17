@@ -1,95 +1,66 @@
-import BaseRepository from '../../../../shared/repositories/base.repository';
-import ReadRepository from '../../../../shared/repositories/read.repository';
-import type { WhereClause } from '../../../../shared/repositories/query';
-import modelsModule from '../../../../shared/models';
-const { NotificationType } = modelsModule;
-import type defineNotificationType from '../models/notification-type.model';
+// modules/schemas/notification/repositories/notification-type.repository.ts
+import PrismaRepository from '../../../../shared/repositories/prisma.repository';
+import { Prisma } from '../../../../shared/database/generated/prisma/client';
+import type { NotificationType } from '../../../../shared/database/generated/prisma/client';
+import { toCategoryRow } from './notification-category.repository';
+import type { NotificationCategoryRow } from './notification-category.repository';
 
-class NotificationTypeRepository extends BaseRepository<defineNotificationType.Instance> {
-  constructor() {
-    super(NotificationType);
+/** Tipo con su categoría (canales, DND y layout de email viven en la categoría). */
+export type NotificationTypeWithCategory = NotificationType & { category: NotificationCategoryRow | null };
+
+const WITH_CATEGORY = { category: true } satisfies Prisma.NotificationTypeInclude;
+
+function withCategory<T extends NotificationType & { category: Parameters<typeof toCategoryRow>[0] | null }>(row: T) {
+  return { ...row, category: row.category && toCategoryRow(row.category) };
+}
+
+const LIST = { sortable: Object.values(Prisma.NotificationTypeScalarFieldEnum), searchFields: ['name', 'code', 'description'] };
+
+class NotificationTypeRepository extends PrismaRepository {
+  /** Tipo activo por código, con su categoría. */
+  async findByCode(code: string): Promise<NotificationTypeWithCategory | null> {
+    const row = await (await this.db()).notificationType.findFirst({ where: { code, isActive: true }, include: WITH_CATEGORY });
+    return row && withCategory(row);
   }
 
-  /**
-   * Busca un tipo de notificación por su código, con su categoría incluida.
-   * La categoría es la fuente de verdad de canales (email/sms/push), DND y layout de email.
-   */
-  findByCode(code: string) {
-    return this.findOne({ code, is_active: true }, { include: [{ association: 'category' }] });
+  async findById(notificationTypeId: string): Promise<NotificationTypeWithCategory | null> {
+    const row = await (await this.db()).notificationType.findUnique({ where: { notificationTypeId }, include: WITH_CATEGORY });
+    return row && withCategory(row);
   }
 
-  /**
-   * Obtiene todos los tipos activos
-   */
-  findAllActive() {
-    return this.findAll({ is_active: true }, { order: [['name', 'ASC']] });
+  async countByCategory(notificationCategoryId: string): Promise<number> {
+    return (await this.db()).notificationType.count({ where: { notificationCategoryId } });
   }
 
-  /**
-   * Obtiene tipos por prioridad
-   */
-  findByPriority(priority: defineNotificationType.Attributes['priority']) {
-    return this.findAll({ is_active: true, priority }, { order: [['name', 'ASC']] });
-  }
-
-  /**
-   * Verifica si un código existe
-   */
-  codeExists(code: string) {
-    return this.exists({ code });
-  }
-
-  /**
-   * Busca tipos de notificación con paginación y búsqueda
-   * @param {Object} filters - { isActive, priority, notificationCategoryId }
-   * @param {Object} paginationParams - { page, limit, offset, sortBy, order }
-   * @param {string} searchTerm - Término de búsqueda (opcional)
-   * @returns {Promise<{ rows: Array, count: number }>}
-   */
-  override findAllPaginated(
-    filters: ReadRepository.Filters = {},
-    paginationParams: ReadRepository.PaginationParams = {},
+  /** Listado paginado para el admin. Filtros: isActive, priority, notificationCategoryId. */
+  async findAllPaginated(
+    filters: PrismaRepository.Filters = {},
+    pagination: PrismaRepository.PaginationParams = {},
     searchTerm: string | null = null
-  ) {
-    const criteria: WhereClause = {};
-
-    if (filters.isActive !== undefined) {
-      criteria.is_active = filters.isActive;
-    }
-
-    if (filters.priority) {
-      criteria.priority = filters.priority;
-    }
-
-    if (filters.notificationCategoryId) {
-      criteria.notification_category_id = filters.notificationCategoryId;
-    }
-
-    // El base findAllPaginated solo inyecta al WHERE las keys conocidas (isActive / filterId)
-    // o lo que llegue en _extraFilters. Por eso los filtros van por _extraFilters, y los campos
-    // de búsqueda por _searchFields. La categoría (canales/DND/layout) se incluye asociada.
-    return super.findAllPaginated({}, paginationParams, searchTerm, {
-      _extraFilters: criteria,
-      _searchFields: ['name', 'code', 'description'],
-      include: [{ association: 'category' }],
-      attributes: [
-        'notification_type_id',
-        'code',
-        'name',
-        'description',
-        'notification_category_id',
-        'priority',
-        // Templates: el admin los ve completos (DTO NotificationTypeAdminDTO los expone).
-        // El email_body_template es el fragmento que se inyecta en el layout de la categoría.
-        'title_template',
-        'body_template',
-        'email_subject_template',
-        'email_body_template',
-        'is_active',
-        'createdAt',
-        'updatedAt'
-      ]
+  ): Promise<PrismaRepository.Page<NotificationTypeWithCategory>> {
+    const { where, page } = this.listQuery(filters, pagination, searchTerm, {
+      ...LIST,
+      filterId: { key: 'notificationCategoryId', field: 'notificationCategoryId' }
     });
+    if (filters.priority) {
+      where.priority = filters.priority;
+    }
+    const db = await this.db();
+    const [rows, count] = await Promise.all([
+      db.notificationType.findMany({ where: where as Prisma.NotificationTypeWhereInput, include: WITH_CATEGORY, ...page }),
+      db.notificationType.count({ where: where as Prisma.NotificationTypeWhereInput })
+    ]);
+    return { rows: rows.map(withCategory), count };
+  }
+
+  /** null si la fila ya no existe. Devuelve el tipo con su categoría (para la respuesta del admin). */
+  async update(
+    notificationTypeId: string,
+    data: Pick<Prisma.NotificationTypeUncheckedUpdateInput, 'name' | 'description' | 'priority' | 'notificationCategoryId'>
+  ): Promise<NotificationTypeWithCategory | null> {
+    const db = await this.db();
+    const { count } = await db.notificationType.updateMany({ where: { notificationTypeId }, data });
+    return count === 0 ? null : this.findById(notificationTypeId);
   }
 }
 

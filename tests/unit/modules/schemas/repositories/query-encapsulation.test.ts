@@ -29,18 +29,16 @@ const mockMakeModel = () => ({
 
 jest.mock('shared/models', () => ({
   AuditLog: mockMakeModel(),
-  Role: mockMakeModel(),
-  Notification: mockMakeModel()
+  Role: mockMakeModel()
 }));
 
 import { mocked, fixture } from 'tests/helpers/mock';
 import sequelizeModule from 'sequelize';
 const { Op } = mocked(sequelizeModule);
 import modelsModule from 'shared/models';
-const { AuditLog, Role, Notification } = mocked(modelsModule);
+const { AuditLog, Role } = mocked(modelsModule);
 import auditLogRepository from 'modules/schemas/records/audit/repositories/audit-log.repository';
 import roleRepository from 'modules/schemas/kyc/iam/repositories/role.repository';
-import notificationRepository from 'modules/schemas/notification/repositories/notification.repository';
 
 describe('AuditLogRepository — filtros de negocio a WHERE', () => {
   it('buildSearchWhere mapea filtros a columnas y rango de fechas', () => {
@@ -123,12 +121,3 @@ describe('RoleRepository.findByNames', () => {
   });
 });
 
-describe('NotificationRepository.markAsReadByIds', () => {
-  it('marca como leídas solo las no leídas de los IDs indicados', async () => {
-    await notificationRepository.markAsReadByIds(['n-1', 'n-2'], fixture({ transaction: 'tx' }));
-    expect(Notification.update).toHaveBeenCalledWith(
-      { is_read: true, read_at: expect.any(Date) },
-      { where: { notification_id: { [Op.in]: ['n-1', 'n-2'] }, is_read: false }, transaction: 'tx' }
-    );
-  });
-});

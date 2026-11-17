@@ -2,29 +2,28 @@
 //
 // Formas compartidas entre los services de notificación (creación, envío, email, lotes). Solo tipos.
 // Los services exportan instancias (`export =`), así que los tipos que cruzan archivos viven aquí.
-import type defineNotificationType from './models/notification-type.model';
-import type defineNotificationCategory from './models/notification-category.model';
-import type defineUserNotificationPreference from '../kyc/person/models/user-notification-preference.model';
+// Filas de Prisma (camelCase): el dominio de notificaciones migró en la fase 5 (grupo 3).
+import type { NotificationType } from '../../../shared/database/generated/prisma/client';
+import type { NotificationCategoryRow } from './repositories/notification-category.repository';
 
 export type ChannelKey = 'push' | 'email' | 'sms';
 
-/** Flags supports_<canal> de la categoría (fuente de verdad de los canales del tipo). */
-export type CategoryChannels = Partial<Record<`supports_${ChannelKey}`, boolean | null>>;
+/** Flags supports<Canal> de la categoría (fuente de verdad de los canales del tipo). */
+export type CategoryChannels = Partial<Record<`supports${Capitalize<ChannelKey>}`, boolean | null>>;
 
-/** Lo que el email lee del notification_type: templates y la categoría (canal + layout). */
-export type EmailTemplateSource = Pick<defineNotificationType.Instance, 'code' | 'email_subject_template' | 'email_body_template'> & {
-  category?: Pick<defineNotificationCategory.Instance, 'supports_email' | 'email_layout_template'> | null;
+/** Lo que el email lee del tipo de notificación: templates y la categoría (canal + layout). */
+export type EmailTemplateSource = Pick<NotificationType, 'code' | 'emailSubjectTemplate' | 'emailBodyTemplate'> & {
+  category?: Pick<NotificationCategoryRow, 'supportsEmail' | 'emailLayoutTemplate'> | null;
 };
 
-/** notification_type con su categoría, tal como lo consumen el envío individual y el masivo. */
+/** Tipo de notificación con su categoría, tal como lo consumen el envío individual y el masivo. */
 export type NotificationTypeSource = Omit<EmailTemplateSource, 'category'> & {
-  priority?: defineNotificationType.Attributes['priority'];
+  priority?: NotificationType['priority'];
   category?: (CategoryChannels & NonNullable<EmailTemplateSource['category']>) | null;
 };
 
-/** Preferencias del usuario: quiet hours + allow_<canal>. null/undefined → todo permitido. */
+/** Preferencias del usuario: horario de no molestar ('HH:MM:SS') + allow<Canal>. null/undefined → todo permitido. */
 export type UserPreference =
-  | (Partial<Pick<defineUserNotificationPreference.Attributes, 'quiet_hours_start' | 'quiet_hours_end'>> &
-      Partial<Record<`allow_${ChannelKey}`, boolean | null>>)
+  | ({ quietHoursStart?: string | null; quietHoursEnd?: string | null } & Partial<Record<`allow${Capitalize<ChannelKey>}`, boolean | null>>)
   | null
   | undefined;

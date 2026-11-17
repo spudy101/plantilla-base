@@ -2,7 +2,7 @@ import { interopDefault } from '../../../../shared/utils/interop.util';
 import type { KeyValueCache } from '../../../../shared/types/cache';
 import type { UserRepositoryPort } from '../../repository-ports';
 import type defineUser from '../../kyc/iam/models/user.model';
-import type defineNotificationType from '../models/notification-type.model';
+import type { NotificationTypeWithCategory } from '../repositories/notification-type.repository';
 import globalNotificationRepo from '../repositories/global-notification.repository';
 import userNotificationPreferenceRepo from '../../kyc/person/repositories/user-notification-preference.repository';
 import userPushTokenRepo from '../repositories/user-push-token.repository';
@@ -82,7 +82,7 @@ class NotificationBatchService {
    * @param {string} body
    * @param {Object} metadata
    */
-  async procesarNotificacionGlobal(globalNotificationId: string, notificationType: defineNotificationType.Instance, title: string, body: string, metadata: Record<string, unknown>) {
+  async procesarNotificacionGlobal(globalNotificationId: string, notificationType: NotificationTypeWithCategory, title: string, body: string, metadata: Record<string, unknown>) {
     try {
       const cache: KeyValueCache = redisClient.isAvailable() ? redisClient : localCache;
       const UserRepository = interopDefault(require('../../kyc/iam/repositories/user.repository') as typeof import('../../kyc/iam/repositories/user.repository')) as UserRepositoryPort;
@@ -95,8 +95,8 @@ class NotificationBatchService {
       const totalUsers = allUsers.length;
 
       await this.globalNotificationRepo.update(globalNotificationId, {
-        total_target_users: totalUsers,
-        processing_started_at: new Date()
+        totalTargetUsers: totalUsers,
+        processingStartedAt: new Date()
       });
 
       await this._initBatchState(cache, globalNotificationId, totalUsers);
@@ -105,27 +105,27 @@ class NotificationBatchService {
       // usuario también es por categoría (o global).
       const categoryCode = notificationType.category?.code ?? null;
 
-      if (notificationType.category?.supports_push ?? true) {
+      if (notificationType.category?.supportsPush ?? true) {
         await this.globalNotificationRepo.updatePushProcessingStatus(globalNotificationId, 'processing');
         await this.enviarPushGlobalPorLotes(globalNotificationId, allUsers, title, body, metadata, categoryCode, cache);
         await this.globalNotificationRepo.updatePushProcessingStatus(globalNotificationId, 'completed');
       }
 
-      if (notificationType.category?.supports_email ?? true) {
+      if (notificationType.category?.supportsEmail ?? true) {
         await this.globalNotificationRepo.updateEmailProcessingStatus(globalNotificationId, 'processing');
         await this.enviarEmailGlobalPorLotes(globalNotificationId, allUsers, notificationType, metadata, categoryCode, cache);
         await this.globalNotificationRepo.updateEmailProcessingStatus(globalNotificationId, 'completed');
       }
 
       await this.globalNotificationRepo.update(globalNotificationId, {
-        processing_completed_at: new Date()
+        processingCompletedAt: new Date()
       });
       this._scheduleCacheCleanup(cache, globalNotificationId);
     } catch (error) {
       logger.warn('Error en procesamiento global', { error: errorMessage(error), globalNotificationId });
       await this.globalNotificationRepo.update(globalNotificationId, {
-        push_processing_status: 'failed',
-        email_processing_status: 'failed'
+        pushProcessingStatus: 'failed',
+        emailProcessingStatus: 'failed'
       });
     }
   }
@@ -206,7 +206,7 @@ class NotificationBatchService {
     }
   }
 
-  async _procesarLoteEmail(batch: defineUser.Instance[], notificationType: defineNotificationType.Instance, metadata: Record<string, unknown>, globalNotificationId: string) {
+  async _procesarLoteEmail(batch: defineUser.Instance[], notificationType: NotificationTypeWithCategory, metadata: Record<string, unknown>, globalNotificationId: string) {
     const EncryptionUtil = interopDefault(require('../../../../shared/utils/encryption.util') as typeof import('../../../../shared/utils/encryption.util'));
     const GCM_PARTS_COUNT = 3;
 
@@ -243,7 +243,7 @@ class NotificationBatchService {
   async enviarEmailGlobalPorLotes(
     globalNotificationId: string,
     users: defineUser.Instance[],
-    notificationType: defineNotificationType.Instance,
+    notificationType: NotificationTypeWithCategory,
     metadata: Record<string, unknown>,
     notificationTypeCode: string | null,
     cache: KeyValueCache

@@ -94,16 +94,17 @@ interface UserConsentRow {
   createdAt?: Maybe<DbDate>;
 }
 
+/** Fila de Prisma (fase 5, grupo 3); el horario de no molestar llega como 'HH:MM:SS'. */
 interface NotificationPreferenceRow {
-  user_notification_preference_id: string;
-  user_id: string;
-  notification_category_code?: Maybe<string>;
-  allow_push?: Maybe<boolean>;
-  allow_email?: Maybe<boolean>;
-  allow_sms?: Maybe<boolean>;
-  quiet_hours_start?: Maybe<string>;
-  quiet_hours_end?: Maybe<string>;
-  origin_session_id?: Maybe<string>;
+  userNotificationPreferenceId: string;
+  userId: string;
+  notificationCategoryCode?: Maybe<string>;
+  allowPush?: Maybe<boolean>;
+  allowEmail?: Maybe<boolean>;
+  allowSms?: Maybe<boolean>;
+  quietHoursStart?: Maybe<string>;
+  quietHoursEnd?: Maybe<string>;
+  originSessionId?: Maybe<string>;
   createdAt?: Maybe<DbDate>;
   updatedAt?: Maybe<DbDate>;
 }
@@ -387,16 +388,16 @@ class NotificationPreferenceComponent {
       return null;
     }
     return {
-      userNotificationPreferenceId: record.user_notification_preference_id,
-      userId: record.user_id,
+      userNotificationPreferenceId: record.userNotificationPreferenceId,
+      userId: record.userId,
       // null = preferencia global; con valor = override de esa categoría.
-      notificationCategoryCode: record.notification_category_code ?? null,
-      allowPush: record.allow_push,
-      allowEmail: record.allow_email,
-      allowSms: record.allow_sms,
-      quietHoursStart: record.quiet_hours_start ?? null,
-      quietHoursEnd: record.quiet_hours_end ?? null,
-      originSessionId: record.origin_session_id ?? null,
+      notificationCategoryCode: record.notificationCategoryCode ?? null,
+      allowPush: record.allowPush,
+      allowEmail: record.allowEmail,
+      allowSms: record.allowSms,
+      quietHoursStart: record.quietHoursStart ?? null,
+      quietHoursEnd: record.quietHoursEnd ?? null,
+      originSessionId: record.originSessionId ?? null,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt
     };
