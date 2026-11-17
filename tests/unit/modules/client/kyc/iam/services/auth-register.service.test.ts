@@ -175,11 +175,11 @@ const VALID_USER_DATA = {
 
 // Configura todas las dependencias para un register() por el camino feliz.
 function armHappyRegister() {
-  countryRepository.findByCode.mockResolvedValue({ country_id: 'co-1' });
+  countryRepository.findByCode.mockResolvedValue({ countryId: 'co-1' });
   privacyPolicyRepository.findActive.mockResolvedValue({ version: 'v1', privacy_policy_id: 'pp-1' });
   verificationCodeRepository.findVerifiedByContact.mockResolvedValue({ verified: true });
   verificationCodeRepository.deleteVerifiedByContact.mockResolvedValue(undefined);
-  documentTypeRepository.findById.mockResolvedValue({ document_type_id: 'dt-1', is_active: true, is_visible_to_client: true });
+  documentTypeRepository.findById.mockResolvedValue({ documentTypeId: 'dt-1', isActive: true, isVisibleToClient: true });
   personContactRepository.findByEmail.mockResolvedValue(null);
   personRepository.findByNationalId.mockResolvedValue(null);
 
@@ -267,13 +267,13 @@ describe('AuthRegisterService', () => {
 
     it('lanza notFound si el tipo de documento no existe o está inactivo', async () => {
       armHappyRegister();
-      documentTypeRepository.findById.mockResolvedValue({ is_active: false });
+      documentTypeRepository.findById.mockResolvedValue({ isActive: false });
       await expect(service.register(VALID_USER_DATA, {})).rejects.toMatchObject({ statusCode: 404 });
     });
 
     it('lanza forbidden si el tipo de documento no es visible al cliente', async () => {
       armHappyRegister();
-      documentTypeRepository.findById.mockResolvedValue({ document_type_id: 'dt-1', is_active: true, is_visible_to_client: false });
+      documentTypeRepository.findById.mockResolvedValue({ documentTypeId: 'dt-1', isActive: true, isVisibleToClient: false });
       await expect(service.register(VALID_USER_DATA, {})).rejects.toMatchObject({ statusCode: 403 });
     });
   });

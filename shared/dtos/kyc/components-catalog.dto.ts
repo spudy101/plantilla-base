@@ -5,18 +5,11 @@
  * Bloques reutilizables para entidades de catálogo/maestras.
  * Usado en cualquier módulo que necesite estos datos — nunca duplicar.
  *
- * Convención de PKs: se mapean al nombre real de la BD en camelCase.
- *   country.country_id     → countryId
- *   department.department_id → departmentId
- *   city.city_id           → cityId
- *   gender.gender_id       → genderId
- *   role.role_id           → roleId
- *   avatar_theme.avatar_theme_id → avatarThemeId
- *   avatar.avatar_id       → avatarId
- *   phone_prefix.phone_prefix_id → phonePrefixId
+ * Entradas: filas de Prisma (camelCase) para los catálogos ya migrados — country, department, city,
+ * phonePrefix, gender, avatarTheme, avatar — y de Sequelize (snake_case) para role, que migra con el
+ * núcleo de usuarios (docs/prisma-migration.md, fase 5). La salida es siempre camelCase.
  *
- * Convención de asociaciones esperadas en Sequelize:
- *   country  (sin asociaciones propias en catálogo)
+ * Relaciones esperadas (las incluyen los repositorios):
  *   department.country     (Country)
  *   city.department        (Department → department.country)
  *   phonePrefix.country    (Country)
@@ -24,63 +17,63 @@
  */
 import type { DbDate, Maybe } from '../../types/db-rows';
 
-/** Campos comunes de las tablas de catálogo. */
+/** Campos comunes de las tablas de catálogo (filas de Prisma). */
 interface CatalogRow {
-  name?: Maybe<string>;
-  is_active?: Maybe<boolean>;
-  createdAt?: Maybe<DbDate>;
-  updatedAt?: Maybe<DbDate>;
-}
-
-interface CountryRow extends CatalogRow {
-  country_id: string;
-  code?: Maybe<string>;
-  icon_url?: Maybe<string>;
-}
-
-interface DepartmentRow extends CatalogRow {
-  department_id: string;
-  dane_code?: Maybe<string>;
-  country_id?: Maybe<string>;
-  country?: Maybe<CountryRow>;
-}
-
-interface CityRow extends CatalogRow {
-  city_id: string;
-  dane_code?: Maybe<string>;
-  department_id?: Maybe<string>;
-  department?: Maybe<DepartmentRow>;
-}
-
-interface PhonePrefixRow extends CatalogRow {
-  phone_prefix_id: string;
-  prefix?: Maybe<string>;
-  country_id?: Maybe<string>;
-  country?: Maybe<CountryRow>;
-}
-
-// Ya sobre Prisma (camelCase): docs/prisma-migration.md
-interface GenderRow {
-  genderId: string;
   name?: Maybe<string>;
   isActive?: Maybe<boolean>;
   createdAt?: Maybe<DbDate>;
   updatedAt?: Maybe<DbDate>;
 }
 
-interface RoleRow extends CatalogRow {
+interface CountryRow extends CatalogRow {
+  countryId: string;
+  code?: Maybe<string>;
+  iconUrl?: Maybe<string>;
+}
+
+interface DepartmentRow extends CatalogRow {
+  departmentId: string;
+  daneCode?: Maybe<string>;
+  countryId?: Maybe<string>;
+  country?: Maybe<CountryRow>;
+}
+
+interface CityRow extends CatalogRow {
+  cityId: string;
+  daneCode?: Maybe<string>;
+  departmentId?: Maybe<string>;
+  department?: Maybe<DepartmentRow>;
+}
+
+interface PhonePrefixRow extends CatalogRow {
+  phonePrefixId: string;
+  prefix?: Maybe<string>;
+  countryId?: Maybe<string>;
+  country?: Maybe<CountryRow>;
+}
+
+interface GenderRow extends CatalogRow {
+  genderId: string;
+}
+
+/** Todavía de Sequelize (snake_case): role migra con el núcleo de usuarios. */
+interface RoleRow {
   role_id: string;
+  name?: Maybe<string>;
   description?: Maybe<string>;
+  is_active?: Maybe<boolean>;
+  createdAt?: Maybe<DbDate>;
+  updatedAt?: Maybe<DbDate>;
 }
 
 interface AvatarThemeRow extends CatalogRow {
-  avatar_theme_id: string;
+  avatarThemeId: string;
 }
 
 interface AvatarRow extends CatalogRow {
-  avatar_id: string;
-  image_url?: Maybe<string>;
-  avatar_theme_id?: Maybe<string>;
+  avatarId: string;
+  imageUrl?: Maybe<string>;
+  avatarThemeId?: Maybe<string>;
   theme?: Maybe<AvatarThemeRow>;
 }
 
@@ -94,11 +87,11 @@ class CountryComponent {
       return null;
     }
     return {
-      countryId: country.country_id,
+      countryId: country.countryId,
       name: country.name,
       code: country.code,
-      iconUrl: country.icon_url || null,
-      isActive: country.is_active,
+      iconUrl: country.iconUrl || null,
+      isActive: country.isActive,
       createdAt: country.createdAt,
       updatedAt: country.updatedAt
     };
@@ -128,11 +121,11 @@ class DepartmentComponent {
       updatedAt: Maybe<DbDate>;
       country?: ReturnType<typeof CountryComponent.build>;
     } = {
-      departmentId: department.department_id,
+      departmentId: department.departmentId,
       name: department.name,
-      daneCode: department.dane_code || null,
-      countryId: department.country_id,
-      isActive: department.is_active,
+      daneCode: department.daneCode || null,
+      countryId: department.countryId,
+      isActive: department.isActive,
       createdAt: department.createdAt,
       updatedAt: department.updatedAt
     };
@@ -168,11 +161,11 @@ class CityComponent {
       updatedAt: Maybe<DbDate>;
       department?: ReturnType<typeof DepartmentComponent.build>;
     } = {
-      cityId: city.city_id,
+      cityId: city.cityId,
       name: city.name,
-      daneCode: city.dane_code || null,
-      departmentId: city.department_id,
-      isActive: city.is_active,
+      daneCode: city.daneCode || null,
+      departmentId: city.departmentId,
+      isActive: city.isActive,
       createdAt: city.createdAt,
       updatedAt: city.updatedAt
     };
@@ -207,10 +200,10 @@ class PhonePrefixComponent {
       updatedAt: Maybe<DbDate>;
       country?: ReturnType<typeof CountryComponent.build>;
     } = {
-      phonePrefixId: phonePrefix.phone_prefix_id,
+      phonePrefixId: phonePrefix.phonePrefixId,
       prefix: phonePrefix.prefix,
-      countryId: phonePrefix.country_id,
-      isActive: phonePrefix.is_active,
+      countryId: phonePrefix.countryId,
+      isActive: phonePrefix.isActive,
       createdAt: phonePrefix.createdAt,
       updatedAt: phonePrefix.updatedAt
     };
@@ -272,9 +265,9 @@ class AvatarThemeComponent {
       return null;
     }
     return {
-      avatarThemeId: theme.avatar_theme_id,
+      avatarThemeId: theme.avatarThemeId,
       name: theme.name,
-      isActive: theme.is_active,
+      isActive: theme.isActive,
       createdAt: theme.createdAt,
       updatedAt: theme.updatedAt
     };
@@ -304,11 +297,11 @@ class AvatarComponent {
       updatedAt: Maybe<DbDate>;
       theme?: ReturnType<typeof AvatarThemeComponent.build>;
     } = {
-      avatarId: avatar.avatar_id,
+      avatarId: avatar.avatarId,
       name: avatar.name,
-      imageUrl: avatar.image_url || null,
-      avatarThemeId: avatar.avatar_theme_id,
-      isActive: avatar.is_active,
+      imageUrl: avatar.imageUrl || null,
+      avatarThemeId: avatar.avatarThemeId,
+      isActive: avatar.isActive,
       createdAt: avatar.createdAt,
       updatedAt: avatar.updatedAt
     };

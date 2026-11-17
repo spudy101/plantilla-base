@@ -121,9 +121,9 @@ class AuthRegisterService {
       lastName,
       secondLastName,
       nationalId,
-      documentTypeId: documentType.document_type_id,
+      documentTypeId: documentType.documentTypeId,
       genderId: genderId || null,
-      countryId: colombia.country_id,
+      countryId: colombia.countryId,
       authUsername,
       birthDate,
       // Política de privacidad — capturar en el momento exacto del registro
@@ -183,10 +183,10 @@ class AuthRegisterService {
     }
 
     const documentType = await this.documentTypeRepository.findById(documentTypeId);
-    if (!documentType || !documentType.is_active) {
+    if (!documentType || !documentType.isActive) {
       throw AppError.notFound('Tipo de documento no encontrado');
     }
-    if (!documentType.is_visible_to_client) {
+    if (!documentType.isVisibleToClient) {
       throw AppError.forbidden('Tipo de documento no permitido para registro');
     }
 

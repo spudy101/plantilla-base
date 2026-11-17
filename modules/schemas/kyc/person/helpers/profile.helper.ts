@@ -165,7 +165,7 @@ class ProfileHelper {
     if (!avatar) {
       throw AppError.notFound('Avatar no encontrado');
     }
-    if (!avatar.is_active) {
+    if (!avatar.isActive) {
       throw AppError.badRequest('Avatar no disponible');
     }
     return true;
@@ -195,7 +195,7 @@ class ProfileHelper {
     if (!documentType) {
       throw AppError.notFound('Tipo de documento no encontrado');
     }
-    if (!documentType.is_active) {
+    if (!documentType.isActive) {
       throw AppError.badRequest('Tipo de documento no disponible');
     }
     return true;
@@ -268,7 +268,7 @@ class ProfileHelper {
     if (!city) {
       throw AppError.notFound('La ciudad especificada no existe');
     }
-    if (city.department_id !== departmentId) {
+    if (city.departmentId !== departmentId) {
       throw AppError.badRequest('La ciudad no pertenece al departamento especificado');
     }
   }

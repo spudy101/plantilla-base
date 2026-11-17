@@ -27,7 +27,8 @@ const IGNORED = new Set(['SequelizeMeta', 'SequelizeData']);
 const camel = (s: string): string => s.replace(/_([a-z0-9])/g, (_m, c: string) => c.toUpperCase());
 const pascal = (s: string): string => camel(s).replace(/^[a-z]/, c => c.toUpperCase());
 // Plural en inglés para los nombres de lista (city → cities, resetCredentials → resetCredentials)
-const plural = (s: string): string => (/s$/.test(s) ? s : /[^aeiou]y$/.test(s) ? `${s.slice(0, -1)}ies` : `${s}s`);
+const plural = (s: string): string =>
+  /s$/.test(s) ? s : /(x|z|ch|sh)$/.test(s) ? `${s}es` : /[^aeiou]y$/.test(s) ? `${s.slice(0, -1)}ies` : `${s}s`;
 
 // ── Metadatos de Sequelize: tabla → modelo y asociaciones ──
 interface Assoc { as: string; type: string; targetTable: string; foreignKey: string }

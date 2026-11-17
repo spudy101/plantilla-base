@@ -1,8 +1,7 @@
-// modules/schemas/kyc/src/repositories/city.repository.ts
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../../shared/models';
-const { City } = modelsModule;
-import type defineCity from '../models/city.model';
+// modules/schemas/kyc/maintainers/repositories/city.repository.ts
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import { Prisma } from '../../../../../shared/database/generated/prisma/client';
+import type { City } from '../../../../../shared/database/generated/prisma/client';
 
 // Rango de diacríticos combinantes — para comparar nombres sin acentos ni mayúsculas
 const DIACRITICS = /[̀-ͯ]/g;
@@ -31,20 +30,36 @@ function containsCityToken(haystack: string, cityName: string) {
   return ` ${haystack} `.includes(` ${cityName} `);
 }
 
-class CityRepository extends BaseRepository<defineCity.Instance> {
-  constructor() {
-    super(City, {
-      searchFields: ['name'],
-      filterIdField: 'department_id',
-      filterIdKey: 'departmentId',
-      defaultInclude: [
-        {
-          association: 'department',
-          attributes: ['department_id', 'name'],
-          include: [{ association: 'country', attributes: ['country_id', 'name', 'code'] }]
-        }
-      ]
-    });
+// Mismo include por defecto que en Sequelize: departamento (id, nombre) con su país
+const WITH_DEPARTMENT = {
+  department: {
+    select: { departmentId: true, name: true, country: { select: { countryId: true, name: true, code: true } } }
+  }
+} satisfies Prisma.CityInclude;
+
+const LIST = {
+  sortable: Object.values(Prisma.CityScalarFieldEnum),
+  searchFields: ['name'],
+  filterId: { key: 'departmentId', field: 'departmentId' }
+};
+
+class CityRepository extends PrismaRepository {
+  async findById(cityId: string): Promise<City | null> {
+    return (await this.db()).city.findUnique({ where: { cityId } });
+  }
+
+  async findAllPaginated(
+    filters: PrismaRepository.Filters = {},
+    pagination: PrismaRepository.PaginationParams = {},
+    searchTerm: string | null = null
+  ) {
+    const { where, page } = this.listQuery(filters, pagination, searchTerm, LIST);
+    const db = await this.db();
+    const [rows, count] = await Promise.all([
+      db.city.findMany({ where: where as Prisma.CityWhereInput, include: WITH_DEPARTMENT, ...page }),
+      db.city.count({ where: where as Prisma.CityWhereInput })
+    ]);
+    return { rows, count };
   }
 
   /**
@@ -52,19 +67,18 @@ class CityRepository extends BaseRepository<defineCity.Instance> {
    * el bureau, ej: 'BOGOTA ( BOGOTA DISTRITO CA ) '. Limpia el paréntesis, compara
    * sin acentos ni mayúsculas, y si no hay match exacto cae a coincidencia por
    * token. El catálogo es acotado; se compara en memoria (sin depender de unaccent).
-   * El department_id se obtiene de la misma fila.
+   * El departmentId se obtiene de la misma fila.
    *
    * @param {string} name - Nombre de ciudad del bureau (ej: 'BOGOTA ( ... )', 'PACORA')
-   * @returns {Promise<City|null>}
    */
   async findActiveByNormalizedName(name: string) {
     const target = cleanCityName(name);
     if (!target) {
       return null;
     }
-    const cities = await City.findAll({
-      where: { is_active: true },
-      attributes: ['city_id', 'name', 'department_id']
+    const cities = await (await this.db()).city.findMany({
+      where: { isActive: true },
+      select: { cityId: true, name: true, departmentId: true }
     });
     // 1) Match exacto sobre el nombre limpio
     const exact = cities.find(city => normalizeName(city.name) === target);

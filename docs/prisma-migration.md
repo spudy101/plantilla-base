@@ -5,7 +5,7 @@
 > al final de cada fase la app arranca y los tests pasan. Durante la migración **Prisma y Sequelize
 > conviven contra la misma base**: cada repositorio cambia de ORM sin que los services se enteren.
 >
-> Estado: **fases 0 a 4 completas** en la rama `feat/prisma`; ver [Cómo funciona hoy](#cómo-funciona-hoy).
+> Estado: **fases 0 a 4 completas; fase 5 en curso** (grupo 1 de 6) en la rama `feat/prisma`; ver [Cómo funciona hoy](#cómo-funciona-hoy).
 
 ## Punto de partida (medido)
 
@@ -83,7 +83,7 @@ datos ni bloquea por mucho tiempo.
 | **2. Unit of Work** | `run()` coordina una transacción de cada ORM (la de Prisma, perezosa) con el contexto en `AsyncLocalStorage`; `PrismaRepository#db()` toma la transacción activa; los 35 `begin()` → `run()` (32 con el codemod `scripts/prisma-migration/begin-to-run.js`, 3 a mano); test de integración contra Postgres (commit y rollback juntos, aislamiento). | ✅ |
 | **3. Instancias vivas** | 10 llamadas a instancias (`update`/`reload` en 5 services de admin, doble aprobación y su worker) → `repository.update(id, …)` o métodos de negocio (`approvalRequestRepository.resolve` / `markExpired`). 4 archivos que usaban modelos directo → repositorios: `audit-archive.worker` (`countCreatedUpTo`/`countCreatedBefore`/`purgeCreatedBefore`), `circuit-breaker.bootstrap` (`countFailedBetween`), `logger.util` e `integration-api-logger.util` (la allowlist de la guarda queda vacía). Guardas: solo repositorios, modelos y `shared/database` importan `shared/models`; `npm run check:orm` (type checker, en CI) rechaza llamadas a instancias fuera de los repositorios. | ✅ |
 | **4. PII** | `shared/database/pii-fields.ts` (qué se cifra, una sola declaración, con las mismas `EncryptionUtil`/`HashUtil` de los hooks) y `piiExtension` (`shared/database/prisma-extensions.ts`) en el cliente único: cifra + hash al escribir (también anidado), descifra al leer (también en `include`), rechaza `where` sobre campos cifrados y estampa `originSessionId`. Metadatos de relaciones generados del schema (`scripts/gen-prisma-metadata.ts`). Compatibilidad verificada contra Postgres en los dos sentidos (Sequelize ↔ Prisma, hashes iguales, también dentro del Unit of Work) y, solo lectura, sobre los datos reales del esquema de desarrollo. | ✅ |
-| **5. Repositorios** (por dominio, un commit cada uno) | `BaseRepository` / `ReadRepository` / `AppendOnlyRepository` sobre Prisma (genéricos por modelo), y los 44 repositorios: `Op.*` → filtros Prisma, `include` por nombre de relación. Los tipos de services/DTOs pasan a los de Prisma. | ⏳ |
+| **5. Repositorios** (por grupo, un commit cada uno; ver [Fase 5](#fase-5-repositorios)) | Los 44 repositorios a `PrismaRepository` con su contrato actual; `Op.*` → filtros de Prisma, `include` por nombre de relación; services y DTOs que los consumen, a camelCase en el mismo commit. | 🔄 1/6 |
 | **6. Migraciones y seeders** | Prisma Migrate con una migración base (`0_init`, marcada como aplicada en las bases existentes con `prisma migrate resolve --applied`); triggers como SQL crudo dentro de la migración; seeders → `prisma db seed` (TS). Se van `sequelize-cli`, `.sequelizerc`, `db:tracking` y `migrations/` de Sequelize. | ⏳ |
 | **6b. API en camelCase** | Las 88 claves snake_case de los 8 DTOs que quedan → camelCase, con su Swagger y tests. | ⏳ |
 | **6c. Nombres en la base** | Primera migración de Prisma después de la base: quitar las columnas `deletedAt` residuales (users, persons, reset_credentials), `DEFAULT now()` en `created_at`, `ON DELETE RESTRICT` en las FK NOT NULL de `person_locations`, índices → `idx_…`, constraints → `pk_`/`uq_`/`fk_`/`ck_`. Schema con los `map:` explícitos y `prisma migrate diff` en cero contra la base. Enums del dominio como `enum` de Prisma; `auditActions/` → `audit-actions/`. | ⏳ |
@@ -106,6 +106,41 @@ y la fase 3 desacopla los services del ORM **antes** del cambio, así la fase 5 
 | Metadatos | `npm run prisma:generate` también escribe `shared/database/generated/prisma-metadata.ts` (escalares y relaciones por modelo) para que la extensión recorra anidados. |
 | Salud y cierre | `shared/database/database-health.ts`: `checkDatabase()` (arranque y `/health`: sano solo si responden los dos ORMs) y `closeDatabase()` (graceful shutdown). |
 | Tests | `npm run db:test:prepare` (una vez y al cambiar migraciones) + `npm test`. Entorno en `tests/test-env.ts`: Postgres, esquema `TEST_DB_SCHEMA` (por defecto `test`), sin TLS; `db:reset` se niega a tocar `public`. |
+
+### Fase 5: repositorios
+
+Orden por grupos. Un grupo se migra junto cuando (a) comparte transacciones que tocan las mismas filas
+(regla de la convivencia) o (b) sus filas llegan a los mismos DTOs: un componente de DTO no puede recibir
+filas de Prisma (camelCase) y de Sequelize (snake_case) a la vez.
+
+| Grupo | Repositorios | Estado |
+|---|---|---|
+| 1. Catálogos | gender, country, department, city, phone-prefix, document-type, avatar-theme, avatar | ✅ |
+| 2. Legal | consent-type, privacy-policy, privacy-policy-admin, user-consent | ⏳ |
+| 3. Notificaciones | notification-category, notification-type, notification, global-notification, global-notification-read, user-notification-preference, user-push-token, verification-code, sms-delivery-attempt, email-bounce-suppression | ⏳ |
+| 4. Integraciones y config | system-global-config, integration-api-log, provider-fallback-event, approval-request | ⏳ |
+| 5. Auditoría | audit-log, audit-alert, user-change-log, user-login-attempt | ⏳ |
+| 6. Núcleo de identidad | user, person, person-contact, person-location, person-reference, role, role-permission-override, user-session, auth-trusted-device, biometric, reset-credentials | ⏳ |
+
+Receta por repositorio:
+
+1. `extends PrismaRepository` y los métodos que usan sus consumidores (`grep` del nombre del repositorio;
+   lo heredado de BaseRepository que nadie usa no se reescribe). `await this.db()` en cada método.
+2. Listados: `this.listQuery(filters, pagination, searchTerm, { sortable, searchFields, filterId })` y
+   `findMany` + `count`. Los `include` por defecto se copian con los mismos campos (`select`), así la
+   respuesta no cambia.
+3. `node scripts/ts-migration/gen-repository-ports.js` y `npx tsc`: cada consumidor que todavía lee
+   snake_case es un error de tipos → camelCase (services, helpers, DTOs y sus tipos de fila).
+4. Tests: los fixtures de los mocks a camelCase. Un test que pasa igual con el fixture viejo prueba algo
+   equivocado: agregar el caso positivo (ver `profile.helper.test.ts`).
+5. Verificar contra la base de desarrollo los listados y búsquedas del grupo (totales iguales a Sequelize).
+
+#### Hallazgos del grupo 1
+
+- Nombres de relación heredados mal pluralizados (`phonePrefixs`): `prisma-names.ts` pluraliza bien
+  `x/z/ch/sh` → `phonePrefixes`.
+- `profile.helper.test` ("ciudad de otro departamento → 400") seguía pasando con el campo mal leído:
+  `city.departmentId` era `undefined` y también daba distinto. Se agregó el caso positivo.
 
 ### Reglas de la convivencia (fase 2)
 
