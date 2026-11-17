@@ -281,7 +281,7 @@ class AuthRegisterService {
       throw AppError.conflict('El número de documento ya está registrado');
     }
     if (genderId) {
-      const genderExists = await this.genderRepository.exists({ gender_id: genderId });
+      const genderExists = await this.genderRepository.exists({ genderId });
       if (!genderExists) {
         throw AppError.notFound('El género seleccionado no existe');
       }

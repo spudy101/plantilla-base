@@ -241,7 +241,7 @@ describe('AuthRegisterService', () => {
       armHappyRegister();
       genderRepository.exists.mockResolvedValue(true);
       await service.register({ ...VALID_USER_DATA, genderId: 'g-1' }, {});
-      expect(genderRepository.exists).toHaveBeenCalledWith({ gender_id: 'g-1' });
+      expect(genderRepository.exists).toHaveBeenCalledWith({ genderId: 'g-1' });
     });
   });
 

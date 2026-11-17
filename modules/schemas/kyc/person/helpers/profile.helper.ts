@@ -180,7 +180,7 @@ class ProfileHelper {
     if (!gender) {
       throw AppError.notFound('Gender no encontrado');
     }
-    if (!gender.is_active) {
+    if (!gender.isActive) {
       throw AppError.badRequest('Gender no disponible');
     }
     return true;

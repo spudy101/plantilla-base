@@ -46,7 +46,7 @@ module.exports = {
   // Archivos/carpetas que ESLint ignora completamente.
   // Migrations y seeders son código generado o de un solo uso — no hace falta
   // que cumplan los estándares del proyecto.
-  ignorePatterns: ['dist/**', 'coverage/**', '**/migrations/**', '**/seeders/**', '**/migrate/**', '**/seeder/**', '**/scripts/**', '.eslintrc.js'],
+  ignorePatterns: ['dist/**', 'coverage/**', '**/generated/**', '**/migrations/**', '**/seeders/**', '**/migrate/**', '**/seeder/**', '**/scripts/**', '.eslintrc.js'],
 
   // Declara los globals disponibles según el entorno para que ESLint
   // no los marque como "variable no definida".

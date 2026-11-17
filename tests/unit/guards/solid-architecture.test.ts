@@ -13,7 +13,8 @@ function walk(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      return entry.name === 'node_modules' ? [] : walk(full);
+      // generated/: cliente de Prisma generado (no es código del proyecto)
+      return entry.name === 'node_modules' || entry.name === 'generated' ? [] : walk(full);
     }
     // los .d.ts solo declaran tipos
     return entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts') ? [full] : [];
@@ -63,10 +64,10 @@ describe('SOLID — guardas de arquitectura', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('todo repositorio pertenece a la jerarquía Read/Base/AppendOnly (L)', () => {
+  it('todo repositorio pertenece a la jerarquía Read/Base/AppendOnly o a PrismaRepository (L)', () => {
     const offenders = sourceFiles
       .filter(f => isRepository(f) && !rel(f).startsWith('shared/repositories/'))
-      .filter(f => !/extends\s+(ReadRepository|BaseRepository|AppendOnlyRepository)\b/.test(read(f)))
+      .filter(f => !/extends\s+(ReadRepository|BaseRepository|AppendOnlyRepository|PrismaRepository)\b/.test(read(f)))
       .map(rel);
     expect(offenders).toEqual([]);
   });

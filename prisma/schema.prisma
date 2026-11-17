@@ -1,0 +1,1150 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../shared/database/generated/prisma"
+  previewFeatures = ["partialIndexes"]
+  moduleFormat    = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+
+model SequelizeData {
+  name String @id @db.VarChar(255)
+
+  @@ignore
+}
+
+model SequelizeMeta {
+  name String @id @db.VarChar(255)
+
+  @@ignore
+}
+
+model ApprovalRequest {
+  approvalRequestId   String                @id @default(dbgenerated("gen_random_uuid()")) @map("approval_request_id") @db.Uuid
+  operationKey        String                @map("operation_key") @db.VarChar(100)
+  entityType          String?               @map("entity_type") @db.VarChar(100)
+  entityId            String?               @map("entity_id") @db.Uuid
+  payload             Json                  @default("{}")
+  requestedBy         String                @map("requested_by") @db.Uuid
+  requestedAt         DateTime              @default(now()) @map("requested_at") @db.Timestamptz(6)
+  status              ApprovalRequestStatus @default(pending)
+  secondApproverId    String?               @map("second_approver_id") @db.Uuid
+  resolvedAt          DateTime?             @map("resolved_at") @db.Timestamptz(6)
+  resolutionNotes     String?               @map("resolution_notes")
+  expiresAt           DateTime?             @map("expires_at") @db.Timestamptz(6)
+  result              Json?
+  originSessionId     String?               @map("origin_session_id") @db.Uuid
+  originCorrelationId String?               @map("origin_correlation_id") @db.VarChar(128)
+  createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  requester           User                  @relation("ApprovalRequest_requester", fields: [requestedBy], references: [userId])
+  secondApprover      User?                 @relation("ApprovalRequest_secondApprover", fields: [secondApproverId], references: [userId])
+
+  @@unique([entityType, entityId, operationKey], map: "uq_approval_requests_pending_entity_op", where: raw("(status = 'pending'::enum_approval_requests_status)"))
+  @@index([entityType, entityId], map: "idx_approval_requests_entity")
+  @@index([expiresAt], map: "idx_approval_requests_expires_at")
+  @@index([operationKey], map: "idx_approval_requests_operation_key")
+  @@index([originSessionId], map: "idx_approval_requests_origin_session_id")
+  @@index([requestedBy], map: "idx_approval_requests_requested_by")
+  @@index([status], map: "idx_approval_requests_status")
+  @@map("approval_requests")
+}
+
+model AuditAlert {
+  alertId        String         @id @default(uuid()) @map("alert_id") @db.Uuid
+  auditLogId     String?        @map("audit_log_id") @db.Uuid
+  action         String         @db.VarChar(100)
+  category       String?        @db.VarChar(50)
+  risk           AuditAlertRisk @default(high)
+  userId         String?        @map("user_id") @db.Uuid
+  entityId       String?        @map("entity_id") @db.VarChar(255)
+  entityType     String?        @map("entity_type") @db.VarChar(100)
+  message        String?
+  acknowledged   Boolean        @default(false)
+  acknowledgedBy String?        @map("acknowledged_by") @db.Uuid
+  acknowledgedAt DateTime?      @map("acknowledged_at") @db.Timestamptz(6)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([action], map: "audit_alerts_action")
+  @@index([createdAt], map: "audit_alerts_created_at")
+  @@index([userId], map: "audit_alerts_user_id")
+  @@index([acknowledged, createdAt], map: "idx_audit_alerts_pending")
+  @@map("audit_alerts")
+}
+
+model AuditLog {
+  auditLogId    String          @id @default(uuid()) @map("audit_log_id") @db.Uuid
+  action        String          @db.VarChar(100)
+  description   String?         @db.VarChar(255)
+  category      String?         @db.VarChar(50)
+  risk          AuditLogRisk    @default(unknown)
+  outcome       AuditLogOutcome @default(success)
+  httpStatus    Int?            @map("http_status") @db.SmallInt
+  errorCode     String?         @map("error_code") @db.VarChar(100)
+  errorMessage  String?         @map("error_message")
+  userId        String?         @map("user_id") @db.Uuid
+  correlationId String?         @map("correlation_id") @db.VarChar(100)
+  ip            String?         @db.VarChar(45)
+  userAgent     String?         @map("user_agent")
+  fingerprint   String?         @db.VarChar(64)
+  method        String?         @db.VarChar(10)
+  path          String?
+  details       Json?
+  source        String          @default("http") @db.VarChar(50)
+  entityId      String?         @map("entity_id") @db.VarChar(255)
+  entityType    String?         @map("entity_type") @db.VarChar(100)
+  entityTable   String?         @map("entity_table") @db.VarChar(150)
+  module        String?         @db.VarChar(50)
+  sessionId     String?         @map("session_id") @db.Uuid
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([action], map: "audit_logs_action")
+  @@index([category], map: "audit_logs_category")
+  @@index([correlationId], map: "audit_logs_correlation_id")
+  @@index([createdAt], map: "audit_logs_created_at")
+  @@index([ip], map: "audit_logs_ip")
+  @@index([risk], map: "audit_logs_risk")
+  @@index([source], map: "audit_logs_source")
+  @@index([userId], map: "audit_logs_user_id")
+  @@index([category, risk, createdAt], map: "idx_audit_logs_category_risk_date")
+  @@index([entityId], map: "idx_audit_logs_entity_id")
+  @@index([entityTable], map: "idx_audit_logs_entity_table")
+  @@index([module], map: "idx_audit_logs_module")
+  @@index([outcome], map: "idx_audit_logs_outcome")
+  @@index([outcome, createdAt], map: "idx_audit_logs_outcome_date")
+  @@index([sessionId, createdAt], map: "idx_audit_logs_session_date")
+  @@index([sessionId], map: "idx_audit_logs_session_id")
+  @@index([userId, createdAt], map: "idx_audit_logs_user_date")
+  @@map("audit_logs")
+}
+
+model AvatarTheme {
+  avatarThemeId String   @id @default(uuid()) @map("avatar_theme_id") @db.Uuid
+  name          String   @unique @db.VarChar(100)
+  isActive      Boolean? @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  avatars       Avatar[]
+
+  @@index([isActive], map: "avatar_themes_is_active")
+  @@map("avatar_themes")
+}
+
+model Avatar {
+  avatarId      String      @id @default(uuid()) @map("avatar_id") @db.Uuid
+  name          String      @db.VarChar(100)
+  avatarThemeId String      @map("avatar_theme_id") @db.Uuid
+  imageUrl      String?     @map("image_url") @db.VarChar(255)
+  isActive      Boolean?    @default(true) @map("is_active")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  theme         AvatarTheme @relation(fields: [avatarThemeId], references: [avatarThemeId])
+  users         User[]
+
+  @@index([avatarThemeId], map: "avatars_avatar_theme_id")
+  @@index([isActive], map: "avatars_is_active")
+  @@map("avatars")
+}
+
+model BiometricChallenge {
+  challengeId String   @id @default(uuid()) @map("challenge_id") @db.Uuid
+  userId      String?  @map("user_id") @db.Uuid
+  challenge   String   @unique
+  type        String   @db.VarChar(20)
+  used        Boolean  @default(false)
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user        User?    @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([expiresAt], map: "idx_biometric_challenges_expires_at")
+  @@index([userId], map: "idx_biometric_challenges_user_id")
+  @@map("biometric_challenges")
+}
+
+model City {
+  cityId          String           @id @default(uuid()) @map("city_id") @db.Uuid
+  name            String           @db.VarChar(100)
+  daneCode        String?          @map("dane_code") @db.VarChar(3)
+  departmentId    String           @map("department_id") @db.Uuid
+  isActive        Boolean?         @default(true) @map("is_active")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  department      Department       @relation(fields: [departmentId], references: [departmentId])
+  personLocations PersonLocation[]
+
+  @@index([departmentId], map: "cities_department_id")
+  @@index([departmentId, name], map: "cities_department_id_name")
+  @@index([isActive], map: "cities_is_active")
+  @@index([name], map: "cities_name")
+  @@map("cities")
+}
+
+model ConsentType {
+  consentTypeId String        @id @default(uuid()) @map("consent_type_id") @db.Uuid
+  code          String        @unique @db.VarChar(50)
+  name          String        @db.VarChar(200)
+  description   String?
+  isMandatory   Boolean       @default(true) @map("is_mandatory")
+  isRevocable   Boolean       @default(false) @map("is_revocable")
+  isActive      Boolean       @default(true) @map("is_active")
+  scope         String        @default("ONBOARDING") @db.VarChar(20)
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  userConsents  UserConsent[]
+
+  @@index([code])
+  @@index([isActive])
+  @@map("consent_types")
+}
+
+model Country {
+  countryId       String           @id @default(uuid()) @map("country_id") @db.Uuid
+  name            String           @unique @db.VarChar(100)
+  code            String           @unique @db.VarChar(3)
+  iconUrl         String?          @map("icon_url") @db.VarChar(255)
+  isActive        Boolean?         @default(true) @map("is_active")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  departments     Department[]
+  personLocations PersonLocation[]
+  persons         Person[]
+  phonePrefixs    PhonePrefix[]
+
+  @@index([code], map: "countries_code")
+  @@index([isActive], map: "countries_is_active")
+  @@map("countries")
+}
+
+model Department {
+  departmentId    String           @id @default(uuid()) @map("department_id") @db.Uuid
+  name            String           @db.VarChar(100)
+  daneCode        String?          @map("dane_code") @db.VarChar(2)
+  countryId       String           @map("country_id") @db.Uuid
+  isActive        Boolean?         @default(true) @map("is_active")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  cities          City[]
+  country         Country          @relation(fields: [countryId], references: [countryId])
+  personLocations PersonLocation[]
+
+  @@index([countryId], map: "departments_country_id")
+  @@index([countryId, name], map: "departments_country_id_name")
+  @@index([isActive], map: "departments_is_active")
+  @@index([name], map: "departments_name")
+  @@map("departments")
+}
+
+model DocumentType {
+  documentTypeId    String   @id @default(uuid()) @map("document_type_id") @db.Uuid
+  code              String   @unique(map: "document_types_code") @db.VarChar(20)
+  name              String   @db.VarChar(100)
+  isVisibleToClient Boolean  @default(true) @map("is_visible_to_client")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  persons           Person[]
+
+  @@index([isActive], map: "document_types_is_active")
+  @@index([isVisibleToClient], map: "document_types_is_visible_to_client")
+  @@map("document_types")
+}
+
+model EmailBounceSuppression {
+  emailBounceSuppressionId String                       @id @default(uuid()) @map("email_bounce_suppression_id") @db.Uuid
+  emailHash                String                       @unique @map("email_hash") @db.VarChar(64)
+  userId                   String?                      @map("user_id") @db.Uuid
+  bounceCount              Int                          @default(0) @map("bounce_count")
+  status                   EmailBounceSuppressionStatus @default(active)
+  lastErrorCode            String?                      @map("last_error_code") @db.VarChar(100)
+  lastBounceAt             DateTime?                    @map("last_bounce_at") @db.Timestamptz(6)
+  suppressedAt             DateTime?                    @map("suppressed_at") @db.Timestamptz(6)
+  createdAt                DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                     User?                        @relation(fields: [userId], references: [userId])
+
+  @@index([lastBounceAt], map: "email_bounce_suppressions_last_bounce_at")
+  @@index([status], map: "email_bounce_suppressions_status")
+  @@map("email_bounce_suppressions")
+}
+
+model Gender {
+  genderId  String   @id @default(uuid()) @map("gender_id") @db.Uuid
+  name      String   @unique @db.VarChar(50)
+  isActive  Boolean? @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  persons   Person[]
+
+  @@index([isActive], map: "genders_is_active")
+  @@map("genders")
+}
+
+model GlobalNotificationRead {
+  globalNotificationId String             @map("global_notification_id") @db.Uuid
+  userId               String             @map("user_id") @db.Uuid
+  readAt               DateTime?          @map("read_at") @db.Timestamptz(6)
+  originSessionId      String?            @map("origin_session_id") @db.Uuid
+  originCorrelationId  String?            @map("origin_correlation_id") @db.VarChar(128)
+  global_notification  GlobalNotification @relation(fields: [globalNotificationId], references: [globalNotificationId], onDelete: Cascade)
+  user                 User               @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@id([globalNotificationId, userId])
+  @@index([globalNotificationId], map: "global_notification_reads_global_notification_id")
+  @@index([readAt], map: "global_notification_reads_read_at")
+  @@index([userId], map: "global_notification_reads_user_id")
+  @@index([originSessionId], map: "idx_global_notification_reads_origin_session_id")
+  @@map("global_notification_reads")
+}
+
+model GlobalNotification {
+  globalNotificationId    String                   @id @default(uuid()) @map("global_notification_id") @db.Uuid
+  notificationTypeId      String?                  @map("notification_type_id") @db.Uuid
+  title                   String
+  body                    String
+  metadata                Json?
+  sendPush                Boolean?                 @default(false) @map("send_push")
+  sendEmail               Boolean?                 @default(false) @map("send_email")
+  sendInApp               Boolean?                 @default(true) @map("send_in_app")
+  pushProcessingStatus    String?                  @default("pending") @map("push_processing_status") @db.VarChar(20)
+  emailProcessingStatus   String?                  @default("pending") @map("email_processing_status") @db.VarChar(20)
+  pushSentCount           Int?                     @default(0) @map("push_sent_count")
+  emailSentCount          Int?                     @default(0) @map("email_sent_count")
+  isActive                Boolean?                 @default(true) @map("is_active")
+  startsAt                DateTime?                @map("starts_at") @db.Timestamptz(6)
+  endsAt                  DateTime?                @map("ends_at") @db.Timestamptz(6)
+  targetUserRole          String?                  @map("target_user_role") @db.VarChar(50)
+  targetConditions        Json?                    @map("target_conditions")
+  createdBy               String?                  @map("created_by") @db.Uuid
+  batchSize               Int?                     @default(100) @map("batch_size")
+  processingStartedAt     DateTime?                @map("processing_started_at") @db.Timestamptz(6)
+  processingCompletedAt   DateTime?                @map("processing_completed_at") @db.Timestamptz(6)
+  totalTargetUsers        Int?                     @default(0) @map("total_target_users")
+  originSessionId         String?                  @map("origin_session_id") @db.Uuid
+  originCorrelationId     String?                  @map("origin_correlation_id") @db.VarChar(128)
+  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  globalNotificationReads GlobalNotificationRead[]
+  creator                 User?                    @relation(fields: [createdBy], references: [userId])
+  notification_type       NotificationType?        @relation(fields: [notificationTypeId], references: [notificationTypeId])
+
+  @@index([createdBy], map: "global_notifications_created_by")
+  @@index([emailProcessingStatus], map: "global_notifications_email_processing_status")
+  @@index([isActive, startsAt, endsAt], map: "global_notifications_is_active_starts_at_ends_at")
+  @@index([notificationTypeId], map: "global_notifications_notification_type_id")
+  @@index([pushProcessingStatus], map: "global_notifications_push_processing_status")
+  @@index([originSessionId], map: "idx_global_notifications_origin_session_id")
+  @@map("global_notifications")
+}
+
+model IntegrationApiLog {
+  apiLogId        String                   @id @default(uuid()) @map("api_log_id") @db.Uuid
+  product         IntegrationApiLogProduct
+  endpoint        String                   @db.VarChar(500)
+  userId          String?                  @map("user_id") @db.Uuid
+  sessionId       String?                  @map("session_id") @db.Uuid
+  result          IntegrationApiLogResult
+  responseTimeMs  Int?                     @map("response_time_ms")
+  errorCode       String?                  @map("error_code") @db.VarChar(50)
+  errorMessage    String?                  @map("error_message")
+  requestPayload  Json?                    @map("request_payload")
+  responsePayload Json?                    @map("response_payload")
+  isSystemError   Boolean                  @default(false) @map("is_system_error")
+  notificationId  String?                  @map("notification_id") @db.Uuid
+  createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([createdAt], map: "integration_api_logs_created_at")
+  @@index([notificationId], map: "integration_api_logs_notification_id")
+  @@index([product], map: "integration_api_logs_product")
+  @@index([product, result, createdAt], map: "integration_api_logs_product_result_created_at")
+  @@index([result], map: "integration_api_logs_result")
+  @@index([sessionId], map: "integration_api_logs_session_id")
+  @@index([userId], map: "integration_api_logs_user_id")
+  @@map("integration_api_logs")
+}
+
+model NotificationCategory {
+  notificationCategoryId String                       @id @default(uuid()) @map("notification_category_id") @db.Uuid
+  code                   String                       @unique(map: "idx_notification_categories_code") @db.VarChar(100)
+  name                   String                       @db.VarChar(200)
+  description            String?
+  supportsPush           Boolean                      @default(true) @map("supports_push")
+  supportsEmail          Boolean                      @default(true) @map("supports_email")
+  supportsSms            Boolean                      @default(false) @map("supports_sms")
+  allowDnd               Boolean                      @default(true) @map("allow_dnd")
+  isCritical             Boolean                      @default(false) @map("is_critical")
+  defaultQuietHoursStart DateTime?                    @map("default_quiet_hours_start") @db.Time(6)
+  defaultQuietHoursEnd   DateTime?                    @map("default_quiet_hours_end") @db.Time(6)
+  priority               String                       @default("normal") @db.VarChar(20)
+  emailLayoutTemplate    String?                      @map("email_layout_template")
+  sortOrder              Int                          @default(0) @map("sort_order")
+  isActive               Boolean                      @default(true) @map("is_active")
+  createdAt              DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  notification_types     NotificationType[]
+  user_preferences       UserNotificationPreference[]
+
+  @@index([isActive], map: "idx_notification_categories_is_active")
+  @@map("notification_categories")
+}
+
+model NotificationType {
+  notificationTypeId     String                @id @default(uuid()) @map("notification_type_id") @db.Uuid
+  code                   String                @unique(map: "notification_types_code") @db.VarChar(100)
+  name                   String                @db.VarChar(200)
+  description            String?
+  priority               String?               @default("normal") @db.VarChar(20)
+  titleTemplate          String                @map("title_template")
+  bodyTemplate           String                @map("body_template")
+  emailSubjectTemplate   String?               @map("email_subject_template")
+  emailBodyTemplate      String?               @map("email_body_template")
+  isActive               Boolean?              @default(true) @map("is_active")
+  createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  notificationCategoryId String?               @map("notification_category_id") @db.Uuid
+  global_notifications   GlobalNotification[]
+  category               NotificationCategory? @relation(fields: [notificationCategoryId], references: [notificationCategoryId])
+  notifications          Notification[]
+
+  @@index([notificationCategoryId], map: "idx_notification_types_category_id")
+  @@index([isActive], map: "notification_types_is_active")
+  @@index([priority], map: "notification_types_priority")
+  @@map("notification_types")
+}
+
+model Notification {
+  notificationId     String            @id @default(uuid()) @map("notification_id") @db.Uuid
+  userId             String            @map("user_id") @db.Uuid
+  notificationTypeId String?           @map("notification_type_id") @db.Uuid
+  title              String
+  body               String
+  relatedEntityType  String?           @map("related_entity_type") @db.VarChar(50)
+  relatedEntityId    String?           @map("related_entity_id") @db.Uuid
+  metadata           Json?
+  isRead             Boolean?          @default(false) @map("is_read")
+  readAt             DateTime?         @map("read_at") @db.Timestamptz(6)
+  pushSent           Boolean?          @default(false) @map("push_sent")
+  pushSentAt         DateTime?         @map("push_sent_at") @db.Timestamptz(6)
+  pushError          String?           @map("push_error")
+  pushRetryCount     Int?              @default(0) @map("push_retry_count")
+  pushNextRetryAt    DateTime?         @map("push_next_retry_at") @db.Timestamptz(6)
+  emailSent          Boolean?          @default(false) @map("email_sent")
+  emailSentAt        DateTime?         @map("email_sent_at") @db.Timestamptz(6)
+  emailError         String?           @map("email_error")
+  emailRetryCount    Int?              @default(0) @map("email_retry_count")
+  emailNextRetryAt   DateTime?         @map("email_next_retry_at") @db.Timestamptz(6)
+  scheduledFor       DateTime?         @map("scheduled_for") @db.Timestamptz(6)
+  priority           Int?              @default(5)
+  processingStatus   String?           @default("pending") @map("processing_status") @db.VarChar(20)
+  retryCount         Int               @default(0) @map("retry_count")
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  smsSent            Boolean?          @default(false) @map("sms_sent")
+  smsSentAt          DateTime?         @map("sms_sent_at") @db.Timestamptz(6)
+  smsError           String?           @map("sms_error")
+  smsRetryCount      Int?              @default(0) @map("sms_retry_count")
+  smsNextRetryAt     DateTime?         @map("sms_next_retry_at") @db.Timestamptz(6)
+  notification_type  NotificationType? @relation(fields: [notificationTypeId], references: [notificationTypeId])
+  user               User              @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([emailNextRetryAt], map: "notifications_email_next_retry_at")
+  @@index([notificationTypeId], map: "notifications_notification_type_id")
+  @@index([pushNextRetryAt], map: "notifications_push_next_retry_at")
+  @@index([relatedEntityType, relatedEntityId], map: "notifications_related_entity_type_related_entity_id")
+  @@index([userId], map: "notifications_user_id")
+  @@index([userId, createdAt], map: "notifications_user_id_created_at")
+  @@index([userId, isRead, createdAt], map: "notifications_user_id_is_read_created_at")
+  @@map("notifications")
+}
+
+model PersonContact {
+  personContactId          String       @id @default(uuid()) @map("person_contact_id") @db.Uuid
+  personId                 String       @unique @map("person_id") @db.Uuid
+  email                    String       @unique @db.VarChar(500)
+  emailHash                String?      @unique @map("email_hash") @db.VarChar(64)
+  emailVerifiedAt          DateTime?    @map("email_verified_at") @db.Timestamptz(6)
+  phonePrimary             String?      @map("phone_primary") @db.VarChar(150)
+  phonePrimaryHash         String?      @map("phone_primary_hash") @db.VarChar(64)
+  phonePrimaryPrefixId     String?      @map("phone_primary_prefix_id") @db.Uuid
+  phonePrimaryVerifiedAt   DateTime?    @map("phone_primary_verified_at") @db.Timestamptz(6)
+  phoneSecondary           String?      @map("phone_secondary") @db.VarChar(150)
+  phoneSecondaryHash       String?      @map("phone_secondary_hash") @db.VarChar(64)
+  phoneSecondaryPrefixId   String?      @map("phone_secondary_prefix_id") @db.Uuid
+  phoneSecondaryVerifiedAt DateTime?    @map("phone_secondary_verified_at") @db.Timestamptz(6)
+  originSessionId          String?      @map("origin_session_id") @db.Uuid
+  originCorrelationId      String?      @map("origin_correlation_id") @db.VarChar(128)
+  createdAt                DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  person                   Person       @relation(fields: [personId], references: [personId], onDelete: Cascade)
+  phone_primary_prefix     PhonePrefix? @relation("PersonContact_phone_primary_prefix", fields: [phonePrimaryPrefixId], references: [phonePrefixId], onDelete: Restrict)
+  phone_secondary_prefix   PhonePrefix? @relation("PersonContact_phone_secondary_prefix", fields: [phoneSecondaryPrefixId], references: [phonePrefixId], onDelete: Restrict)
+
+  @@index([emailHash], map: "idx_person_contacts_email_hash")
+  @@index([originSessionId], map: "idx_person_contacts_origin_session_id")
+  @@index([phonePrimaryHash], map: "idx_person_contacts_phone_primary_hash")
+  @@index([phoneSecondaryHash], map: "idx_person_contacts_phone_secondary_hash")
+  @@index([email], map: "person_contacts_email")
+  @@index([email, emailVerifiedAt], map: "person_contacts_email_email_verified_at")
+  @@index([emailVerifiedAt], map: "person_contacts_email_verified_at")
+  @@index([phonePrimary], map: "person_contacts_phone_primary")
+  @@index([phonePrimaryVerifiedAt], map: "person_contacts_phone_primary_verified_at")
+  @@index([phoneSecondary], map: "person_contacts_phone_secondary")
+  @@map("person_contacts")
+}
+
+model PersonLocation {
+  personLocationId    String     @id @default(uuid()) @map("person_location_id") @db.Uuid
+  personId            String     @unique @map("person_id") @db.Uuid
+  countryId           String?    @map("country_id") @db.Uuid
+  departmentId        String     @map("department_id") @db.Uuid
+  cityId              String     @map("city_id") @db.Uuid
+  address             String     @db.VarChar(100)
+  postalCode          String?    @map("postal_code") @db.VarChar(40)
+  type                String?    @db.VarChar(40)
+  originSessionId     String?    @map("origin_session_id") @db.Uuid
+  originCorrelationId String?    @map("origin_correlation_id") @db.VarChar(128)
+  createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  city                City       @relation(fields: [cityId], references: [cityId], onDelete: SetNull)
+  country             Country?   @relation(fields: [countryId], references: [countryId])
+  department          Department @relation(fields: [departmentId], references: [departmentId], onDelete: SetNull)
+  person              Person     @relation(fields: [personId], references: [personId], onDelete: Cascade)
+
+  @@index([originSessionId], map: "idx_person_locations_origin_session_id")
+  @@index([cityId], map: "person_locations_city_id")
+  @@index([countryId], map: "person_locations_country_id")
+  @@index([departmentId], map: "person_locations_department_id")
+  @@map("person_locations")
+}
+
+model PersonReference {
+  personReferenceId   String                       @id @default(uuid()) @map("person_reference_id") @db.Uuid
+  personId            String                       @map("person_id") @db.Uuid
+  referenceName       String                       @map("reference_name") @db.VarChar(200)
+  referencePhone      String                       @map("reference_phone") @db.VarChar(20)
+  referenceType       PersonReferenceReferenceType @map("reference_type")
+  isActive            Boolean                      @default(true) @map("is_active")
+  originSessionId     String?                      @map("origin_session_id") @db.Uuid
+  originCorrelationId String?                      @map("origin_correlation_id") @db.VarChar(128)
+  createdAt           DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  person              Person                       @relation(fields: [personId], references: [personId], onDelete: Cascade)
+
+  @@index([originSessionId], map: "idx_person_references_origin_session_id")
+  @@index([personId, isActive], map: "idx_person_references_person_active")
+  @@index([personId], map: "idx_person_references_person_id")
+  @@index([referenceType], map: "idx_person_references_type")
+  @@map("person_references")
+}
+
+model Person {
+  personId            String            @id @default(uuid()) @map("person_id") @db.Uuid
+  firstName           String            @map("first_name") @db.VarChar(100)
+  lastName            String            @map("last_name") @db.VarChar(100)
+  middleName          String?           @map("middle_name") @db.VarChar(100)
+  secondLastName      String?           @map("second_last_name") @db.VarChar(100)
+  nationalId          String?           @unique @map("national_id") @db.VarChar(150)
+  nationalIdHash      String?           @unique @map("national_id_hash") @db.VarChar(64)
+  documentTypeId      String?           @map("document_type_id") @db.Uuid
+  birthDate           DateTime?         @map("birth_date") @db.Date
+  genderId            String?           @map("gender_id") @db.Uuid
+  countryId           String?           @map("country_id") @db.Uuid
+  originSessionId     String?           @map("origin_session_id") @db.Uuid
+  originCorrelationId String?           @map("origin_correlation_id") @db.VarChar(128)
+  createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt           DateTime?         @db.Timestamptz(6)
+  contact             PersonContact?
+  location            PersonLocation?
+  references          PersonReference[]
+  country             Country?          @relation(fields: [countryId], references: [countryId])
+  document_type       DocumentType?     @relation(fields: [documentTypeId], references: [documentTypeId], onDelete: Restrict)
+  gender              Gender?           @relation(fields: [genderId], references: [genderId])
+  user                User?
+
+  @@index([nationalIdHash], map: "idx_persons_national_id_hash")
+  @@index([originSessionId], map: "idx_persons_origin_session_id")
+  @@index([countryId], map: "persons_country_id")
+  @@index([deletedAt], map: "persons_deleted_at")
+  @@index([documentTypeId], map: "persons_document_type_id")
+  @@index([firstName, lastName], map: "persons_first_name_last_name")
+  @@index([genderId], map: "persons_gender_id")
+  @@index([nationalId], map: "persons_national_id")
+  @@map("persons")
+}
+
+model PhonePrefix {
+  phonePrefixId                        String          @id @default(uuid()) @map("phone_prefix_id") @db.Uuid
+  prefix                               String          @db.VarChar(10)
+  countryId                            String          @map("country_id") @db.Uuid
+  isActive                             Boolean?        @default(true) @map("is_active")
+  createdAt                            DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                            DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  personContactsByPhonePrimaryPrefix   PersonContact[] @relation("PersonContact_phone_primary_prefix")
+  personContactsByPhoneSecondaryPrefix PersonContact[] @relation("PersonContact_phone_secondary_prefix")
+  country                              Country         @relation(fields: [countryId], references: [countryId])
+
+  @@index([countryId], map: "phone_prefixes_country_id")
+  @@index([isActive], map: "phone_prefixes_is_active")
+  @@index([prefix], map: "phone_prefixes_prefix")
+  @@map("phone_prefixes")
+}
+
+model PrivacyPolicy {
+  privacyPolicyId String        @id @default(uuid()) @map("privacy_policy_id") @db.Uuid
+  version         String        @unique @db.VarChar(20)
+  documentUrl     String        @map("document_url") @db.VarChar(500)
+  documentHash    String?       @map("document_hash") @db.VarChar(64)
+  summary         String?
+  isActive        Boolean       @default(false) @map("is_active")
+  effectiveDate   DateTime      @map("effective_date") @db.Timestamptz(6)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  userConsents    UserConsent[]
+
+  @@index([isActive])
+  @@index([version])
+  @@map("privacy_policies")
+}
+
+model ProviderFallbackEvent {
+  fallbackEventId        String    @id @default(uuid()) @map("fallback_event_id") @db.Uuid
+  provider               String    @db.VarChar(50)
+  circuitProduct         String    @map("circuit_product") @db.VarChar(50)
+  startedAt              DateTime  @map("started_at") @db.Timestamptz(6)
+  endedAt                DateTime? @map("ended_at") @db.Timestamptz(6)
+  affectedProcessesCount Int?      @map("affected_processes_count")
+  metadata               Json?
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([circuitProduct], map: "provider_fallback_events_circuit_product")
+  @@index([endedAt], map: "provider_fallback_events_ended_at")
+  @@index([provider], map: "provider_fallback_events_provider")
+  @@index([provider, endedAt], map: "provider_fallback_events_provider_ended_at")
+  @@index([startedAt], map: "provider_fallback_events_started_at")
+  @@map("provider_fallback_events")
+}
+
+model ResetCredentials {
+  resetCredentialsId  String               @id @default(uuid()) @map("reset_credentials_id") @db.Uuid
+  userId              String               @map("user_id") @db.Uuid
+  token               String               @unique @db.VarChar(500)
+  email               String               @db.VarChar(255)
+  type                ResetCredentialsType
+  expiresAt           DateTime             @map("expires_at") @db.Timestamptz(6)
+  used                Boolean?             @default(false)
+  usedAt              DateTime?            @map("used_at") @db.Timestamptz(6)
+  originSessionId     String?              @map("origin_session_id") @db.Uuid
+  originCorrelationId String?              @map("origin_correlation_id") @db.VarChar(128)
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt           DateTime?            @db.Timestamptz(6)
+  user                User                 @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([deletedAt], map: "idx_reset_credentials_deleted_at")
+  @@index([email], map: "idx_reset_credentials_email")
+  @@index([expiresAt], map: "idx_reset_credentials_expires_at")
+  @@index([originSessionId], map: "idx_reset_credentials_origin_session_id")
+  @@index([token], map: "idx_reset_credentials_token")
+  @@index([token, used, expiresAt], map: "idx_reset_credentials_token_validation")
+  @@index([type], map: "idx_reset_credentials_type")
+  @@index([used], map: "idx_reset_credentials_used")
+  @@index([userId], map: "idx_reset_credentials_user_id")
+  @@index([userId, type, used], map: "idx_reset_credentials_user_type_used")
+  @@map("reset_credentials")
+}
+
+model RolePermissionOverride {
+  rolePermissionId    String   @id @default(dbgenerated("gen_random_uuid()")) @map("role_permission_id") @db.Uuid
+  roleName            String   @map("role_name") @db.VarChar(50)
+  moduleName          String   @map("module_name") @db.VarChar(50)
+  action              String   @db.VarChar(20)
+  grantedByUserId     String   @map("granted_by_user_id") @db.Uuid
+  originSessionId     String?  @map("origin_session_id") @db.Uuid
+  originCorrelationId String?  @map("origin_correlation_id") @db.VarChar(128)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  grantedBy           User     @relation(fields: [grantedByUserId], references: [userId])
+
+  @@unique([roleName, moduleName, action], map: "uq_role_permission_overrides_role_module_action")
+  @@index([originSessionId], map: "idx_role_permission_overrides_origin_session_id")
+  @@index([roleName], map: "idx_role_permission_overrides_role_name")
+  @@map("role_permission_overrides")
+}
+
+model Role {
+  roleId      String   @id @default(uuid()) @map("role_id") @db.Uuid
+  name        String   @unique @db.VarChar(50)
+  description String?  @db.VarChar(255)
+  isActive    Boolean? @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  users       User[]
+
+  @@index([isActive], map: "roles_is_active")
+  @@map("roles")
+}
+
+model SmsDeliveryAttempt {
+  smsAttemptId      String                   @id @default(uuid()) @map("sms_attempt_id") @db.Uuid
+  userId            String?                  @map("user_id") @db.Uuid
+  phoneHash         String                   @map("phone_hash") @db.VarChar(64)
+  provider          String                   @default("aws_sms") @db.VarChar(30)
+  purpose           String                   @db.VarChar(30)
+  status            SmsDeliveryAttemptStatus @default(pending)
+  retryCount        Int                      @default(0) @map("retry_count")
+  lastError         String?                  @map("last_error")
+  providerMessageId String?                  @map("provider_message_id") @db.VarChar(255)
+  sentAt            DateTime?                @map("sent_at") @db.Timestamptz(6)
+  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user              User?                    @relation(fields: [userId], references: [userId])
+
+  @@index([createdAt], map: "sms_delivery_attempts_created_at")
+  @@index([phoneHash], map: "sms_delivery_attempts_phone_hash")
+  @@index([status], map: "sms_delivery_attempts_status")
+  @@index([userId], map: "sms_delivery_attempts_user_id")
+  @@map("sms_delivery_attempts")
+}
+
+model SystemGlobalConfig {
+  configId                String   @id @default(dbgenerated("gen_random_uuid()")) @map("config_id") @db.Uuid
+  configVersion           Int      @default(1) @map("config_version")
+  isActive                Boolean  @unique(map: "system_global_config_unique_active") @default(true) @map("is_active")
+  currency                String   @default("CLP") @db.VarChar(10)
+  auditRetentionHotYears  Int      @default(5) @map("audit_retention_hot_years")
+  auditRetentionColdYears Int      @default(10) @map("audit_retention_cold_years")
+  auditHotPurgeEnabled    Boolean  @default(false) @map("audit_hot_purge_enabled")
+  integrationResilience   Json     @default("{\"timeout_ms\": 30000, \"max_retries\": 3, \"circuit_breaker\": {\"failures_ttl_s\": 300, \"recovery_time_ms\": 60000, \"failure_threshold\": 5}, \"manual_review_timeout_ms\": 10000}") @map("integration_resilience")
+  promotionalBanners      Json     @default("[]") @map("promotional_banners")
+  originSessionId         String?  @map("origin_session_id") @db.Uuid
+  originCorrelationId     String?  @map("origin_correlation_id") @db.VarChar(128)
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([originSessionId], map: "idx_system_global_config_origin_session_id")
+  @@index([configVersion], map: "system_global_config_config_version")
+  @@index([createdAt], map: "system_global_config_created_at")
+  @@index([isActive], map: "system_global_config_is_active")
+  @@map("system_global_config")
+}
+
+model UserBiometricCredential {
+  biometricCredentialId String            @id @default(uuid()) @map("biometric_credential_id") @db.Uuid
+  userId                String            @map("user_id") @db.Uuid
+  userTrustedDeviceId   String            @map("user_trusted_device_id") @db.Uuid
+  credentialId          String            @unique(map: "uq_biometric_credentials_credential_id") @map("credential_id")
+  publicKey             String            @map("public_key")
+  signCount             Int               @default(0) @map("sign_count")
+  isActive              Boolean           @default(true) @map("is_active")
+  lastUsedAt            DateTime?         @map("last_used_at") @db.Timestamptz(6)
+  createdAt             DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                  User              @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  trustedDevice         UserTrustedDevice @relation(fields: [userTrustedDeviceId], references: [userTrustedDeviceId], onDelete: Cascade)
+
+  @@index([userTrustedDeviceId], map: "idx_biometric_credentials_device_id")
+  @@index([userId], map: "idx_biometric_credentials_user_id")
+  @@map("user_biometric_credentials")
+}
+
+model UserChangeLog {
+  logId               String                     @id @default(uuid()) @map("log_id") @db.Uuid
+  userId              String                     @map("user_id") @db.Uuid
+  changedByUserId     String?                    @map("changed_by_user_id") @db.Uuid
+  changedByRole       UserChangeLogChangedByRole @map("changed_by_role")
+  changeType          UserChangeLogChangeType    @map("change_type")
+  previousValue       String?                    @map("previous_value")
+  newValue            String?                    @map("new_value")
+  changeReason        String?                    @map("change_reason") @db.VarChar(255)
+  ipAddress           String?                    @map("ip_address") @db.VarChar(45)
+  userAgent           String?                    @map("user_agent")
+  originSessionId     String?                    @map("origin_session_id") @db.Uuid
+  originCorrelationId String?                    @map("origin_correlation_id") @db.VarChar(128)
+  createdAt           DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  changedBy           User?                      @relation("UserChangeLog_changedBy", fields: [changedByUserId], references: [userId])
+  user                User                       @relation("UserChangeLog_user", fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([changeType], map: "idx_user_change_logs_change_type")
+  @@index([changedByUserId], map: "idx_user_change_logs_changed_by")
+  @@index([createdAt], map: "idx_user_change_logs_created_at")
+  @@index([originSessionId], map: "idx_user_change_logs_origin_session_id")
+  @@index([userId], map: "idx_user_change_logs_user_id")
+  @@map("user_change_logs")
+}
+
+model UserConsent {
+  userConsentId       String         @id @default(uuid()) @map("user_consent_id") @db.Uuid
+  userId              String         @map("user_id") @db.Uuid
+  consentTypeId       String         @map("consent_type_id") @db.Uuid
+  privacyPolicyId     String?        @map("privacy_policy_id") @db.Uuid
+  grantedAt           DateTime       @map("granted_at") @db.Timestamptz(6)
+  grantedIp           String?        @map("granted_ip") @db.VarChar(45)
+  grantedUserAgent    String?        @map("granted_user_agent")
+  revokedAt           DateTime?      @map("revoked_at") @db.Timestamptz(6)
+  revokedIp           String?        @map("revoked_ip") @db.VarChar(45)
+  revocationReason    String?        @map("revocation_reason") @db.VarChar(500)
+  isCurrent           Boolean        @default(true) @map("is_current")
+  originSessionId     String?        @map("origin_session_id") @db.Uuid
+  originCorrelationId String?        @map("origin_correlation_id") @db.VarChar(128)
+  createdAt           DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  consentType         ConsentType    @relation(fields: [consentTypeId], references: [consentTypeId])
+  privacyPolicy       PrivacyPolicy? @relation(fields: [privacyPolicyId], references: [privacyPolicyId], onDelete: Restrict)
+  user                User           @relation(fields: [userId], references: [userId])
+
+  @@index([originSessionId], map: "idx_user_consents_origin_session_id")
+  @@index([grantedAt])
+  @@index([isCurrent])
+  @@index([userId])
+  @@index([userId, consentTypeId], map: "user_consents_user_type_idx")
+  @@map("user_consents")
+}
+
+model UserLoginAttempt {
+  userLoginAttemptId  String    @id @default(uuid()) @map("user_login_attempt_id") @db.Uuid
+  userId              String?   @map("user_id") @db.Uuid
+  usernameAttempt     String    @map("username_attempt") @db.VarChar(255)
+  nationalId          String    @map("national_id") @db.VarChar(255)
+  nationalIdHash      String?   @map("national_id_hash") @db.VarChar(64)
+  ipAddress           String?   @map("ip_address") @db.VarChar(45)
+  userAgent           String?   @map("user_agent")
+  deviceFingerprint   String?   @map("device_fingerprint") @db.VarChar(255)
+  success             Boolean   @default(false)
+  failureReason       String?   @map("failure_reason") @db.VarChar(255)
+  blockedUntil        DateTime? @map("blocked_until") @db.Timestamptz(6)
+  attemptedAt         DateTime  @map("attempted_at") @db.Timestamptz(6)
+  originSessionId     String?   @map("origin_session_id") @db.Uuid
+  originCorrelationId String?   @map("origin_correlation_id") @db.VarChar(128)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                User?     @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([nationalIdHash], map: "idx_user_login_attempts_national_id_hash")
+  @@index([originSessionId], map: "idx_user_login_attempts_origin_session_id")
+  @@index([attemptedAt], map: "user_login_attempts_attempted_at")
+  @@index([blockedUntil], map: "user_login_attempts_blocked_until")
+  @@index([ipAddress], map: "user_login_attempts_ip_address")
+  @@index([ipAddress, attemptedAt], map: "user_login_attempts_ip_address_attempted_at")
+  @@index([success], map: "user_login_attempts_success")
+  @@index([userId], map: "user_login_attempts_user_id")
+  @@index([userId, attemptedAt, success], map: "user_login_attempts_user_id_attempted_at_success")
+  @@index([usernameAttempt], map: "user_login_attempts_username_attempt")
+  @@map("user_login_attempts")
+}
+
+model UserNotificationPreference {
+  userNotificationPreferenceId String                @id @default(uuid()) @map("user_notification_preference_id") @db.Uuid
+  userId                       String                @map("user_id") @db.Uuid
+  notificationCategoryCode     String?               @map("notification_category_code") @db.VarChar(100)
+  allowPush                    Boolean?              @default(true) @map("allow_push")
+  allowEmail                   Boolean?              @default(true) @map("allow_email")
+  quietHoursStart              DateTime?             @map("quiet_hours_start") @db.Time(6)
+  quietHoursEnd                DateTime?             @map("quiet_hours_end") @db.Time(6)
+  originSessionId              String?               @map("origin_session_id") @db.Uuid
+  originCorrelationId          String?               @map("origin_correlation_id") @db.VarChar(128)
+  createdAt                    DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                    DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  allowSms                     Boolean?              @default(true) @map("allow_sms")
+  notification_category        NotificationCategory? @relation(fields: [notificationCategoryCode], references: [code], onDelete: Cascade)
+  user                         User                  @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@unique([userId, notificationCategoryCode], map: "idx_unp_user_id_notification_category_code")
+  @@index([notificationCategoryCode], map: "idx_unp_notification_category_code")
+  @@index([originSessionId], map: "idx_user_notification_preferences_origin_session_id")
+  @@index([userId], map: "user_notification_preferences_user_id")
+  @@map("user_notification_preferences")
+}
+
+model UserPushToken {
+  userPushTokenId     String    @id @default(uuid()) @map("user_push_token_id") @db.Uuid
+  userId              String    @map("user_id") @db.Uuid
+  token               String
+  platform            String    @db.VarChar(20)
+  deviceId            String?   @map("device_id") @db.VarChar(255)
+  isActive            Boolean?  @default(true) @map("is_active")
+  lastUsedAt          DateTime? @map("last_used_at") @db.Timestamptz(6)
+  originSessionId     String?   @map("origin_session_id") @db.Uuid
+  originCorrelationId String?   @map("origin_correlation_id") @db.VarChar(128)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                User      @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@unique([userId, token], map: "user_push_tokens_user_id_token")
+  @@index([originSessionId], map: "idx_user_push_tokens_origin_session_id")
+  @@index([isActive], map: "user_push_tokens_is_active")
+  @@index([platform], map: "user_push_tokens_platform")
+  @@index([userId], map: "user_push_tokens_user_id")
+  @@index([userId, isActive], map: "user_push_tokens_user_id_is_active")
+  @@map("user_push_tokens")
+}
+
+model UserSession {
+  userSessionId String             @id @default(dbgenerated("gen_random_uuid()")) @map("user_session_id") @db.Uuid
+  userId        String             @map("user_id") @db.Uuid
+  deviceId      String?            @map("device_id") @db.Uuid
+  jti           String             @unique @db.VarChar(36)
+  ipAddress     String?            @map("ip_address") @db.VarChar(45)
+  userAgent     String?            @map("user_agent")
+  status        UserSessionStatus  @default(active)
+  startedAt     DateTime           @default(now()) @map("started_at") @db.Timestamptz(6)
+  lastAccessAt  DateTime           @default(now()) @map("last_access_at") @db.Timestamptz(6)
+  closedAt      DateTime?          @map("closed_at") @db.Timestamptz(6)
+  closeReason   String?            @map("close_reason") @db.VarChar(50)
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  device        UserTrustedDevice? @relation(fields: [deviceId], references: [userTrustedDeviceId])
+
+  @@index([userId, status], map: "public_user_sessions_user_id_status")
+  @@index([deviceId], map: "user_sessions_device_id")
+  @@index([startedAt], map: "user_sessions_started_at")
+  @@index([status], map: "user_sessions_status")
+  @@index([userId], map: "user_sessions_user_id")
+  @@map("user_sessions")
+}
+
+model UserTrustedDevice {
+  userTrustedDeviceId                  String                    @id @default(uuid()) @map("user_trusted_device_id") @db.Uuid
+  userId                               String                    @map("user_id") @db.Uuid
+  fingerprintHash                      String                    @map("fingerprint_hash") @db.VarChar(64)
+  deviceName                           String                    @map("device_name") @db.VarChar(100)
+  status                               String                    @default("pending") @db.VarChar(20)
+  ipAddress                            String?                   @map("ip_address") @db.VarChar(45)
+  city                                 String?                   @db.VarChar(100)
+  country                              String?                   @db.VarChar(100)
+  countryCode                          String?                   @map("country_code") @db.VarChar(5)
+  browser                              String?                   @db.VarChar(100)
+  os                                   String?                   @db.VarChar(100)
+  deviceType                           String                    @default("desktop") @map("device_type") @db.VarChar(20)
+  hmacSecret                           String?                   @map("hmac_secret") @db.VarChar(200)
+  approvedByDeviceId                   String?                   @map("approved_by_device_id") @db.Uuid
+  approvedAt                           DateTime?                 @map("approved_at") @db.Timestamptz(6)
+  blockedByDeviceId                    String?                   @map("blocked_by_device_id") @db.Uuid
+  blockedAt                            DateTime?                 @map("blocked_at") @db.Timestamptz(6)
+  trustedAt                            DateTime?                 @map("trusted_at") @db.Timestamptz(6)
+  lastSeenAt                           DateTime                  @map("last_seen_at") @db.Timestamptz(6)
+  originSessionId                      String?                   @map("origin_session_id") @db.Uuid
+  originCorrelationId                  String?                   @map("origin_correlation_id") @db.VarChar(128)
+  createdAt                            DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                            DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  userBiometricCredentials             UserBiometricCredential[]
+  sessions                             UserSession[]
+  approvedByDevice                     UserTrustedDevice?        @relation("UserTrustedDevice_approvedByDevice", fields: [approvedByDeviceId], references: [userTrustedDeviceId], onUpdate: SetNull)
+  userTrustedDevicesByApprovedByDevice UserTrustedDevice[]       @relation("UserTrustedDevice_approvedByDevice")
+  blockedByDevice                      UserTrustedDevice?        @relation("UserTrustedDevice_blockedByDevice", fields: [blockedByDeviceId], references: [userTrustedDeviceId], onUpdate: SetNull)
+  userTrustedDevicesByBlockedByDevice  UserTrustedDevice[]       @relation("UserTrustedDevice_blockedByDevice")
+  user                                 User                      @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@unique([userId, fingerprintHash], map: "uq_user_trusted_devices_user_fingerprint")
+  @@index([fingerprintHash], map: "idx_user_trusted_devices_fingerprint_hash")
+  @@index([lastSeenAt], map: "idx_user_trusted_devices_last_seen_at")
+  @@index([originSessionId], map: "idx_user_trusted_devices_origin_session_id")
+  @@index([userId], map: "idx_user_trusted_devices_user_id")
+  @@index([userId, status], map: "idx_user_trusted_devices_user_status")
+  @@map("user_trusted_devices")
+}
+
+model User {
+  userId                           String                       @id @default(uuid()) @map("user_id") @db.Uuid
+  username                         String                       @unique @db.VarChar(50)
+  passwordHash                     String?                      @map("password_hash") @db.VarChar(255)
+  authUsername                     String?                      @unique(map: "users_cognito_username_key") @map("auth_username") @db.VarChar(255)
+  personId                         String                       @unique @map("person_id") @db.Uuid
+  roleId                           String                       @map("role_id") @db.Uuid
+  avatarId                         String?                      @map("avatar_id") @db.Uuid
+  totpEnabled                      Boolean?                     @default(false) @map("totp_enabled")
+  smsMfaEnabled                    Boolean                      @default(false) @map("sms_mfa_enabled")
+  preferredMfaMethod               String                       @default("none") @map("preferred_mfa_method") @db.VarChar(10)
+  privacyPolicyVersion             String?                      @map("privacy_policy_version") @db.VarChar(20)
+  privacyPolicyAcceptedAt          DateTime?                    @map("privacy_policy_accepted_at") @db.Timestamptz(6)
+  privacyPolicyAcceptedIp          String?                      @map("privacy_policy_accepted_ip") @db.VarChar(45)
+  isActive                         Boolean?                     @default(true) @map("is_active")
+  createdAt                        DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                        DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  // columna "deletedAt" fuera del schema: residuo sin uso (la real es deleted_at); fase 6c la elimina
+  deletedAt                        DateTime?                    @map("deleted_at") @db.Timestamptz(6)
+  totpSecret                       String?                      @map("totp_secret")
+  approvalRequestsByRequestedBy    ApprovalRequest[]            @relation("ApprovalRequest_requester")
+  approvalRequestsBySecondApprover ApprovalRequest[]            @relation("ApprovalRequest_secondApprover")
+  biometricChallenges              BiometricChallenge[]
+  emailBounceSuppressions          EmailBounceSuppression[]
+  globalNotificationReads          GlobalNotificationRead[]
+  globalNotifications              GlobalNotification[]
+  notifications                    Notification[]
+  resetCredentials                 ResetCredentials[]
+  rolePermissionOverrides          RolePermissionOverride[]
+  smsDeliveryAttempts              SmsDeliveryAttempt[]
+  userBiometricCredentials         UserBiometricCredential[]
+  userChangeLogsByChangedByUser    UserChangeLog[]              @relation("UserChangeLog_changedBy")
+  userChangeLogsByUser             UserChangeLog[]              @relation("UserChangeLog_user")
+  userConsents                     UserConsent[]
+  login_attempts                   UserLoginAttempt[]
+  notificationPreference           UserNotificationPreference[]
+  userPushTokens                   UserPushToken[]
+  trustedDevices                   UserTrustedDevice[]
+  avatar                           Avatar?                      @relation(fields: [avatarId], references: [avatarId])
+  person                           Person                       @relation(fields: [personId], references: [personId], onDelete: Cascade)
+  role                             Role                         @relation(fields: [roleId], references: [roleId])
+
+  @@index([deletedAt], map: "idx_users_deleted_at")
+  @@index([smsMfaEnabled], map: "idx_users_sms_mfa_enabled")
+  @@index([isActive], map: "users_is_active")
+  @@index([personId], map: "users_person_id")
+  @@index([privacyPolicyVersion])
+  @@index([roleId], map: "users_role_id")
+  @@index([username], map: "users_username")
+  @@map("users")
+}
+
+model VerificationCode {
+  verificationCodeId  String               @id @default(uuid()) @map("verification_code_id") @db.Uuid
+  type                VerificationCodeType
+  contactValue        String               @map("contact_value") @db.VarChar(255)
+  code                String               @db.VarChar(10)
+  attempts            Int?                 @default(0)
+  expiresAt           DateTime             @map("expires_at") @db.Timestamptz(6)
+  verifiedAt          DateTime?            @map("verified_at") @db.Timestamptz(6)
+  originSessionId     String?              @map("origin_session_id") @db.Uuid
+  originCorrelationId String?              @map("origin_correlation_id") @db.VarChar(128)
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([originSessionId], map: "idx_verification_codes_origin_session_id")
+  @@index([contactValue], map: "verification_codes_contact_value")
+  @@index([contactValue, type, expiresAt], map: "verification_codes_contact_value_type_expires_at")
+  @@index([expiresAt], map: "verification_codes_expires_at")
+  @@index([type], map: "verification_codes_type")
+  @@index([verifiedAt], map: "verification_codes_verified_at")
+  @@map("verification_codes")
+}
+
+enum ApprovalRequestStatus {
+  pending
+  approved
+  rejected
+  expired
+
+  @@map("enum_approval_requests_status")
+}
+
+enum AuditAlertRisk {
+  low
+  medium
+  high
+  critical
+  unknown
+
+  @@map("enum_audit_alerts_risk")
+}
+
+enum AuditLogOutcome {
+  success
+  failure
+  warning
+  attempt
+
+  @@map("enum_audit_logs_outcome")
+}
+
+enum AuditLogRisk {
+  low
+  medium
+  high
+  critical
+  unknown
+
+  @@map("enum_audit_logs_risk")
+}
+
+enum EmailBounceSuppressionStatus {
+  active
+  suppressed
+
+  @@map("enum_email_bounce_suppressions_status")
+}
+
+enum IntegrationApiLogProduct {
+  ses
+  s3
+  sns
+  aws_sms
+
+  @@map("enum_integration_api_logs_product")
+}
+
+enum IntegrationApiLogResult {
+  success
+  failed
+  circuit_open
+
+  @@map("enum_integration_api_logs_result")
+}
+
+enum PersonReferenceReferenceType {
+  conocido
+  familiar
+
+  @@map("enum_person_references_reference_type")
+}
+
+enum ResetCredentialsType {
+  mfa
+  password
+
+  @@map("enum_reset_credentials_type")
+}
+
+enum SmsDeliveryAttemptStatus {
+  pending
+  sent
+  failed
+
+  @@map("enum_sms_delivery_attempts_status")
+}
+
+enum UserChangeLogChangeType {
+  email
+  password
+  mfa_status
+  account_status
+  role
+  national_id
+  name
+  gender
+  location
+  phone
+  birth_date
+  funds_origin
+  sms_mfa_status
+  preferred_mfa_method
+
+  @@map("enum_user_change_logs_change_type")
+}
+
+enum UserChangeLogChangedByRole {
+  admin
+  user
+  system
+
+  @@map("enum_user_change_logs_changed_by_role")
+}
+
+enum UserSessionStatus {
+  active
+  closed
+
+  @@map("enum_user_sessions_status")
+}
+
+enum VerificationCodeType {
+  email
+  phone
+  contract_signature
+
+  @@map("enum_verification_codes_type")
+}

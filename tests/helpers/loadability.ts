@@ -18,6 +18,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const EXCLUDES = [
   /[\\/]servers[\\/]/,
   /[\\/]node_modules[\\/]/,
+  /[\\/]generated[\\/]/, // cliente de Prisma generado
   /[\\/]app\.ts$/, // modules/{admin,client}/app.ts: montan la app Express
   /\.server\.ts$/,
   /\.app\.ts$/
