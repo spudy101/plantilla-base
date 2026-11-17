@@ -15,16 +15,16 @@ function walk(dir: string): string[] {
     if (entry.isDirectory()) {
       return entry.name === 'node_modules' ? [] : walk(full);
     }
-    // .js y .ts conviven durante la migración a TypeScript (los .d.ts solo declaran tipos)
-    return /\.(js|ts)$/.test(entry.name) && !entry.name.endsWith('.d.ts') ? [full] : [];
+    // los .d.ts solo declaran tipos
+    return entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts') ? [full] : [];
   });
 }
 
 const rel = (file: string) => path.relative(ROOT, file).split(path.sep).join('/');
 const read = (file: string) => fs.readFileSync(file, 'utf8');
 const sourceFiles = [...walk(path.join(ROOT, 'modules')), ...walk(path.join(ROOT, 'shared'))];
-const isService = (f: string) => /\.service\.(js|ts)$/.test(f);
-const isRepository = (f: string) => /\.repository\.(js|ts)$/.test(f);
+const isService = (f: string) => f.endsWith('.service.ts');
+const isRepository = (f: string) => f.endsWith('.repository.ts');
 
 // Capa de aplicación: lo que NO debe conocer el ORM.
 const APPLICATION_LAYER = /\.(service|helper|validator|controller|middleware|util)\.(js|ts)$/;

@@ -23,7 +23,7 @@ Request
 | Validator  | cadenas express-validator; extiende `BaseValidator`.                                |
 | DTO        | transforma la respuesta a camelCase. Nunca spread sobre instancias Sequelize.       |
 
-## Middlewares globales (`shared/base/base.app.js`) — ORDEN CRÍTICO
+## Middlewares globales (`shared/base/base.app.ts`) — ORDEN CRÍTICO
 
 ```js
 this.app.set('trust proxy', 1);
@@ -43,7 +43,7 @@ this.app.use(httpLogger); // 6. log HTTP (necesita correlationId)
 Dependencias: `auditContext` necesita `correlationId` + `body` ya parseados; `httpLogger` necesita
 `correlationId`. **No reordenar.** No se repiten en las rutas.
 
-> ⚠️ `cookieParser()` **no** está en `BaseApp`: lo monta solo el monolito (`servers/monolith.js:24`). En modo
+> ⚠️ `cookieParser()` **no** está en `BaseApp`: lo monta solo el monolito (`servers/monolith.ts:24`). En modo
 > standalone (`dev:admin`/`dev:client`) `req.cookies.access_token` es `undefined` y todo request cae al camino
 > `Authorization: Bearer` → `canal='mobile'`. Ver `docs/run-modes.md`.
 
@@ -67,7 +67,7 @@ router.post(
 
 ## `req.user` (tras AuthMiddleware.authenticate)
 
-`auth.middleware.js` valida un **JWT RS256 propio** con `JwtUtil.verifyAccessToken` (autenticación 100% propia:
+`auth.middleware.ts` valida un **JWT RS256 propio** con `JwtUtil.verifyAccessToken` (autenticación 100% propia:
 la contraseña se valida contra el hash en BD en el login; en mobile además firma HMAC con ventana de 10 s),
 revisa device blocklist + token blacklist + **inactividad de 15 min para TODO usuario autenticado** (cliente e
 interno, con `last_access_at` deslizante; lo único que cambia por rol es el texto del 401), y puebla:
@@ -101,7 +101,7 @@ function _auditCtx(req, res) {
 
 ## Errores — `AppError` + handler global
 
-`shared/utils/app-error.util.js` — lanzar SIEMPRE `AppError` (nunca `throw 'string'`), sin try/catch en
+`shared/utils/app-error.util.ts` — lanzar SIEMPRE `AppError` (nunca `throw 'string'`), sin try/catch en
 controllers/validators (el `asyncHandler` reenvía al handler global).
 
 | Factory                                                | HTTP | code                 |
@@ -119,7 +119,7 @@ controllers/validators (el `asyncHandler` reenvía al handler global).
 El 2º arg `details` suele llevar `{ code: 'CODIGO_NEGOCIO' }` para que el front discrimine (ej.
 `{ code: 'MFA_REQUIRED' }`, `{ code: 'DUAL_APPROVAL_SAME_AS_MAKER' }`).
 
-`shared/middlewares/error.middleware.js`:
+`shared/middlewares/error.middleware.ts`:
 
 - `asyncHandler(fn)` envuelve el handler async y reenvía rechazos a `handleError`.
 - `handleError`: loguea, **audita el fallo** (`outcome: 'failure'`, mapeando el error a una acción:
@@ -128,7 +128,7 @@ El 2º arg `details` suele llevar `{ code: 'CODIGO_NEGOCIO' }` para que el front
 
 ## Respuestas — `ApiResponse`
 
-`shared/utils/app-response.util.js`. Éxitos: `success(res, msg, data, statusCode=200, metadata)`,
+`shared/utils/app-response.util.ts`. Éxitos: `success(res, msg, data, statusCode=200, metadata)`,
 `created` (201), `accepted` (202, doble aprobación), `noContent` (204). Errores:
 `badRequest/unauthorized/forbidden/notFound/conflict/tooManyRequests/validationError/error`.
 
@@ -141,17 +141,17 @@ capa C del enmascaramiento, invisible desde el controller. Detalle en `docs/pii-
 
 ## Rate limit y request lock
 
-- `rate-limit.middleware.js`: `apiLimiter()` (autenticados), `authLimiter()`/`loginIpLimiter()` (login),
+- `rate-limit.middleware.ts`: `apiLimiter()` (autenticados), `authLimiter()`/`loginIpLimiter()` (login),
   `forgotPasswordLimiter()`, `publicLimiter()`, `assistantLimiter()` (chat público). Store híbrido Redis +
   memoria; al exceder → 429 con `Retry-After`.
-- `request-lock.middleware.js`: `forAuthenticatedUsers()` / `forPublicEndpoints()`. Lock por
+- `request-lock.middleware.ts`: `forAuthenticatedUsers()` / `forPublicEndpoints()`. Lock por
   `hash(userId|ip + method + path + body)` (clave por ruta → endpoints distintos no se bloquean entre sí);
   Redis `SET NX EX` atómico, se libera en `res.on('finish')`. Duplicado concurrente → 409 (auth) / 429 (público).
   Ante error o sin Redis, deja pasar (no bloquea la app).
 
 ## Correlation y trazabilidad
 
-`correlation.middleware.js` toma `x-correlation-id`/`x-request-id` del cliente o genera
+`correlation.middleware.ts` toma `x-correlation-id`/`x-request-id` del cliente o genera
 `req-{ts}-{rand}`, lo pone en `req.correlationId` y en el header `X-Correlation-Id` de la respuesta.
 Todos los logs (`logger.*`, `logAudit`) lo incluyen automáticamente → se puede rastrear un request
 de punta a punta.

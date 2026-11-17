@@ -25,8 +25,8 @@ reclamación, la fila apunta a su sesión, y la sesión a su dispositivo, IP y v
 
 ## Cómo se rellena (el hook central)
 
-`shared/models/mixins/origin-session.mixin.js` exporta `stampOriginSession(instance)`, registrado **una
-sola vez** en `shared/models/index.js` como hook global del `sequelize`:
+`shared/models/mixins/origin-session.mixin.ts` exporta `stampOriginSession(instance)`, registrado **una
+sola vez** en `shared/models/index.ts` como hook global del `sequelize`:
 
 ```js
 sequelize.addHook('beforeCreate', stampOriginSession);
@@ -56,7 +56,7 @@ Reglas que respeta el hook:
    // dentro del objeto de atributos de sequelize.define:
    ...originSessionModelFields()
    ```
-2. **Migración** (el `create-*.js` **original** — en este repo se editan las migraciones originales y se
+2. **Migración** (el `create-*.ts` **original** — en este repo se editan las migraciones originales y se
    corre `db:reset`, no se crean `ALTER` nuevos):
    ```js
    const { originSessionMigrationColumns } = require('../shared/models/mixins/origin-session.mixin');
@@ -85,7 +85,7 @@ duplicarlo en `users` sería redundante.
 
 El timeline forense (`GET /records/audit/sessions/:id`) sale de `audit_logs`. Para **hidratar** el detalle
 de las filas referenciadas (`GET /records/audit/sessions/:id/entities`), el service
-`modules/admin/records/audit/services/admin-session-trace.service.js` tiene un `ENTITY_REGISTRY` que mapea
+`modules/admin/records/audit/services/admin-session-trace.service.ts` tiene un `ENTITY_REGISTRY` que mapea
 `entity_table → { repository, pk, entityType, dto }`. Las tablas no registradas caen en `skipped`.
 
 Hoy registra: `user_consents`, `user_notification_preferences`, `user_trusted_devices`.
@@ -94,7 +94,7 @@ Hoy registra: `user_consents`, `user_notification_preferences`, `user_trusted_de
 1. Asegurate de que sus `logAudit`/`AuditAction.declare` sellen **`entityId`** + **`entityTable`** (sin
    `entityId` no hidrata).
 2. Escribí un component DTO que **enmascare/omita PII** (esta vista NO es self-view). Los componentes viven
-   en `shared/dtos/audit/components-audit.dto.js` (ej. `NotificationPreferenceComponent`).
+   en `shared/dtos/audit/components-audit.dto.ts` (ej. `NotificationPreferenceComponent`).
 3. Sumá la entrada al `ENTITY_REGISTRY`:
    ```js
    mi_tabla: { repository: miRepo, pk: 'mi_tabla_id', entityType: 'MiEntidad', dto: r => MiComponent.build(r) }

@@ -6,16 +6,20 @@ const sharedConfig = {
   setupFiles: ['<rootDir>/tests/jest.setup.env.ts'],
   testPathIgnorePatterns: ['/node_modules/'],
   // `jose` (usado por jwt.util) se publica como ESM puro; Node lo carga con
-  // require(ESM), pero el loader de Jest no. Lo transpilamos vía babel-jest
+  // require(ESM), pero el loader de Jest no. Es el único .js que se transpila
   // (todo lo demás en node_modules se sigue ignorando por rendimiento).
   transformIgnorePatterns: ['/node_modules/(?!(jose)/)'],
-  // .ts → ts-jest (solo transpila; los tipos los revisa `npm run typecheck`).
-  // .js → babel-jest. Babel no soporta `export =`, que usan los .ts durante la migración.
+  // ts-jest solo transpila (isolatedModules): los tipos los revisa `npm run typecheck`.
   transform: {
     '^.+\\.ts$': ['ts-jest', { isolatedModules: true, tsconfig: '<rootDir>/tsconfig.test.json' }],
-    '^.+\\.js$': 'babel-jest'
+    // ESM → CommonJS para jose (el único .js que transformIgnorePatterns deja pasar); allowJs solo
+    // para este transform: el proyecto es TS (allowJs false)
+    '^.+\\.js$': [
+      'ts-jest',
+      { isolatedModules: true, tsconfig: { allowJs: true, module: 'commonjs', target: 'ES2023' } }
+    ]
   },
-  moduleFileExtensions: ['ts', 'js', 'json', 'node'],
+  moduleFileExtensions: ['ts', 'js', 'json', 'node'], // js: dependencias de node_modules
   clearMocks: true,
   resetMocks: false,
   restoreMocks: false,
@@ -31,36 +35,36 @@ const sharedConfig = {
 module.exports = {
   ...sharedConfig,
 
-  testMatch: ['**/tests/unit/**/*.test.{js,ts}', '**/tests/integration/**/*.test.{js,ts}'],
+  testMatch: ['**/tests/unit/**/*.test.ts', '**/tests/integration/**/*.test.ts'],
 
   collectCoverageFrom: [
     // Capas de aplicación
-    'modules/**/*.service.{js,ts}',
-    'modules/**/*.controller.{js,ts}',
-    'modules/**/*.dto.{js,ts}',
-    'modules/**/*.validator.{js,ts}',
+    'modules/**/*.service.ts',
+    'modules/**/*.controller.ts',
+    'modules/**/*.dto.ts',
+    'modules/**/*.validator.ts',
 
     // Utils / workers / helpers de módulo
-    'modules/**/utils/*.util.{js,ts}',
-    'modules/**/workers/*.worker.{js,ts}',
-    'modules/**/helpers/*.helper.{js,ts}',
+    'modules/**/utils/*.util.ts',
+    'modules/**/workers/*.worker.ts',
+    'modules/**/helpers/*.helper.ts',
 
     // Shared utils, middlewares, validators, services
-    'shared/utils/*.util.{js,ts}',
-    'shared/middlewares/*.middleware.{js,ts}',
-    'shared/validators/*.validator.{js,ts}',
-    'shared/services/*.service.{js,ts}',
-    'shared/repositories/base.repository.{js,ts}',
+    'shared/utils/*.util.ts',
+    'shared/middlewares/*.middleware.ts',
+    'shared/validators/*.validator.ts',
+    'shared/services/*.service.ts',
+    'shared/repositories/base.repository.ts',
 
     // Shared DTOs (componentes con lógica de mapeo/transformación)
-    'shared/dtos/**/*.{js,ts}',
+    'shared/dtos/**/*.ts',
 
     // Repositorios (capa de acceso a datos)
-    'modules/**/*.repository.{js,ts}',
+    'modules/**/*.repository.ts',
 
     // Exclusiones: archivos de arranque / bootstrap
-    '!modules/admin/app.{js,ts}',
-    '!modules/client/app.{js,ts}',
+    '!modules/admin/app.ts',
+    '!modules/client/app.ts',
     '!servers/**',
     '!**/node_modules/**'
   ],
@@ -74,13 +78,13 @@ module.exports = {
     {
       ...sharedConfig,
       displayName: 'unit',
-      testMatch: ['<rootDir>/tests/unit/**/*.test.{js,ts}'],
+      testMatch: ['<rootDir>/tests/unit/**/*.test.ts'],
       maxWorkers: 3
     },
     {
       ...sharedConfig,
       displayName: 'integration',
-      testMatch: ['<rootDir>/tests/integration/**/*.test.{js,ts}'],
+      testMatch: ['<rootDir>/tests/integration/**/*.test.ts'],
       maxWorkers: 1
     }
   ],

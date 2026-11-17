@@ -2,8 +2,8 @@
 
 > **Complementa** a [`encryption-pii.md`](./encryption-pii.md): ahí se explica cómo se guarda la PII
 > (cifrada at-rest); aquí, cómo **sale** por la API.
-> Piezas: `shared/constants/pii-fields.js` · `shared/utils/masking.util.js` ·
-> `shared/middlewares/pii-masking.middleware.js`.
+> Piezas: `shared/constants/pii-fields.ts` · `shared/utils/masking.util.ts` ·
+> `shared/middlewares/pii-masking.middleware.ts`.
 
 ## Idea general
 
@@ -11,7 +11,7 @@ Se enmascara por defecto en **todas** las respuestas. Si un dato hace falta comp
 quita la máscara ahí puntualmente (opt-out) — nunca al revés.
 
 Los **identificadores** protegidos: documento, correo, teléfono, TIN y número de cuenta. La lógica vive en
-`MaskingUtil` + el catálogo `pii-fields.js`.
+`MaskingUtil` + el catálogo `pii-fields.ts`.
 
 ## 1. Qué se enmascara
 
@@ -35,7 +35,7 @@ tener dos capas encima sin degradar el valor.
 
 ## 2. Las tres capas
 
-### Capa A — catálogo único: `shared/constants/pii-fields.js`
+### Capa A — catálogo único: `shared/constants/pii-fields.ts`
 
 Un solo mapa `key normalizada → tipo de máscara`. La normalización quita separadores y baja a minúsculas,
 así que `national_id`, `nationalId` y `NationalID` colapsan en `nationalid`.
@@ -46,7 +46,7 @@ así que `national_id`, `nationalId` y `NationalID` colapsan en `nationalid`.
 Hay un tipo especial `AUTO` para columnas polimórficas (`contactValue` de un OTP, `previousValue`/`newValue`
 del diff de `user_change_logs`): decide por la **forma** del valor y deja intacto lo que no parece PII
 (`activo`, `inactivo`). Las **fechas ISO** (`1995-03-12`) se reconocen ANTES que la forma de
-teléfono/documento y pasan intactas (`ISO_DATE_SHAPE`, `masking.util.js`) — coherente con la política de no
+teléfono/documento y pasan intactas (`ISO_DATE_SHAPE`, `masking.util.ts`) — coherente con la política de no
 enmascarar fechas: `birth_date` sale legible en el diff de `user_change_logs`.
 
 `PII_RAW_PAYLOAD_KEYS` lista los subárboles que **no se recorren** (`rawData`, `rawRequest`, `rawResponse`,
@@ -79,7 +79,7 @@ para no romper su serialización).
 
 ### Capa C — red de seguridad en `ApiResponse.success()`
 
-`shared/utils/app-response.util.js` es el embudo único de toda respuesta exitosa. Ahí se pasa `data` y
+`shared/utils/app-response.util.ts` es el embudo único de toda respuesta exitosa. Ahí se pasa `data` y
 `metadata` por `PiiMaskingMiddleware.apply()`, que aplica `redactPayload` salvo que la ruta esté exenta.
 
 Se enganchó ahí y **no en `BaseApp`** para no tocar `shared/base/` (restricción del proyecto) y porque
@@ -93,7 +93,7 @@ El único opt-out del template es el **registro**: el usuario está confirmando 
 verlos completos.
 
 ```js
-// en el *.routes.js, antes del validator
+// en el *.routes.ts, antes del validator
 PiiMaskingMiddleware.allowUnmasked(),
 ```
 
@@ -114,7 +114,7 @@ depurar una falla real.
 
 ## 5. Swagger
 
-- Los textos compartidos viven en `config/swagger/schemas/pii-masking.doc.js`:
+- Los textos compartidos viven en `config/swagger/schemas/pii-masking.doc.ts`:
   `MASKED_DOCUMENT_DESC`, `MASKED_PHONE_DESC`, `MASKED_EMAIL_DESC`, `MASKED_ACCOUNT_DESC`,
   `REDACTED_PAYLOAD_DESC`, `UNMASKED_ROUTE_DESC`.
 - ⚠️ **Los `requestBody` y `parameters` NUNCA se documentan como enmascarados**: la entrada va siempre
@@ -122,7 +122,7 @@ depurar una falla real.
 
 ## 6. Checklist para un campo o feature nuevo
 
-1. ¿El campo es documento, correo, teléfono, TIN o cuenta? → agrégalo a `PII_FIELD_MASKS` en `pii-fields.js`.
+1. ¿El campo es documento, correo, teléfono, TIN o cuenta? → agrégalo a `PII_FIELD_MASKS` en `pii-fields.ts`.
 2. En el DTO: `safeDecrypt` y después `MaskingUtil.maskXxx(...)`. Si es un JSONB propio, `redactPayload`.
 3. ¿La respuesta lleva un JSONB de un tercero? → no lo toques; si su key no está en `PII_RAW_PAYLOAD_KEYS`,
    agrégala.
@@ -134,4 +134,4 @@ depurar una falla real.
 - ❌ Nunca leer el campo crudo del modelo en un DTO: el `afterFind` no corre en includes anidados.
 - ❌ Nunca enmascarar un `requestBody`, ni en el código ni en Swagger.
 - ✅ El enmascaramiento se arregla **en el DTO**; la red de `ApiResponse` es respaldo, no excusa.
-- ✅ Un campo PII nuevo se declara en `pii-fields.js`, no se enmascara a mano en cada DTO.
+- ✅ Un campo PII nuevo se declara en `pii-fields.ts`, no se enmascara a mano en cada DTO.
