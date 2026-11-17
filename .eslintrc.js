@@ -505,7 +505,7 @@ module.exports = {
     // largos. No tiene sentido aplicarles límites de líneas ni longitud.
     // -------------------------------------------------------------------------
     {
-      files: ['**/swagger/**/*.js', '**/swagger.admin.js', '**/swagger.client.js'],
+      files: ['**/swagger/**/*.{js,ts}', '**/swagger.admin.{js,ts}', '**/swagger.client.{js,ts}'],
       rules: {
         'max-lines-per-function': 'off',
         'max-len': 'off',
@@ -520,7 +520,7 @@ module.exports = {
     // antes de que Winston esté inicializado (el problema que arreglamos hoy).
     // -------------------------------------------------------------------------
     {
-      files: ['**/config/database.js', '**/constants/config.js'],
+      files: ['**/config/database.{js,ts}', '**/constants/config.{js,ts}'],
       rules: {
         'no-console': 'off'
       }

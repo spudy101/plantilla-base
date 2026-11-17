@@ -66,7 +66,7 @@
 | **2. Resto de `shared/`** | `constants/`, `utils/`, `dtos/`, `middlewares/`, `services/`, `validators/`, `base/`, `models/index` + mixin: **`shared/` ya no tiene `.js`** | ✅ |
 | **3. Modelos + repositorios** | Los 41 modelos tipados **desde su definición real** (`gen-model-types.js`: `Attributes`, `CreationAttributes`, `Instance` con asociaciones, `Static`) y registro tipado `shared/models/registry.ts`; los 41 repositorios en TS con `extends BaseRepository<defineX.Instance>`; contratos `XRepositoryPort` en `modules/schemas/repository-ports.ts` de los que cada service deriva su puerto con `Pick<…>` | ✅ |
 | **4. Dominios** (uno por commit) | `modules/schemas`, `modules/shared-endpoints`, `modules/client`, `modules/admin` (services, controllers, routes, dtos, validators): **`modules/` ya no tiene `.js`** | ✅ |
-| **5. Arranque y config** | `servers/`, `config/` | ⏳ |
+| **5. Arranque y config** | `servers/` (monolith/client/admin), `config/` (Sequelize, perfiles de BD, Swagger). `npm run dev*` arranca los `.ts`; `.sequelizerc` apunta a `config/database.ts` (sequelize-cli corre vía `tsx`). **Toda la app es TypeScript** | ✅ |
 | **6. Cierre** | Tests a `.ts`, `allowJs: false`, pasar de `export =` a `import`/`export` nativos (ya sin consumidores JS), quitar `babel-jest`, migraciones/seeders a `.ts` | ⏳ |
 
 Orden pensado de abajo hacia arriba: cada fase solo depende de capas ya tipadas, así los tipos
@@ -142,6 +142,16 @@ Tipos y helpers compartidos:
 - **Filtros perdidos en `UserChangeLogRepository`**: `findByChangeType` y `findByAdminUser` pasaban claves
   snake_case que `findAllPaginated` no lee, y devolvían los logs de todos (sin llamadores hoy). Corregido
   (se agregó el filtro `changedByUserId`) y con test.
+
+#### Fase 5 (arranque y config)
+
+- **`DB_LOGGING=true` no activaba el log de SQL**: `config/database` comparaba `database.logging === 'true'`,
+  pero `logging` ya es boolean (`parseBoolEnv`).
+- **Swagger**: el 429 de `send-verification` no se documentaba (`commonResponses.TooManyRequests` no
+  existe; es `RateLimitExceeded`) y el 201 de referencias personales usaba `ok()` (documentaba
+  `statusCode: 200`) en vez de `created()`.
+- `config/config` crea Sequelize con el perfil completo (`new Sequelize(options)`): el perfil de test
+  (SQLite) no tiene usuario/clave.
 
 #### Fase 4 (dominios)
 
