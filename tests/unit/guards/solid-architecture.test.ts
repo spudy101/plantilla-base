@@ -30,11 +30,9 @@ const isRepository = (f: string) => f.endsWith('.repository.ts');
 // Capa de aplicación: lo que NO debe conocer el ORM.
 const APPLICATION_LAYER = /\.(service|helper|validator|controller|middleware|util)\.(js|ts)$/;
 
-// Adaptadores de infraestructura que escriben/arrancan con Sequelize a propósito (ver docs/solid.md § D).
-const ORM_ALLOWLIST = new Set([
-  'shared/utils/logger.util.ts', // escribe audit_logs (require diferido: el resto del sistema depende del logger)
-  'shared/utils/integration-api-logger.util.ts' // escribe integration_api_logs (mismo motivo)
-]);
+// Excepciones a "la capa de aplicación no conoce el ORM". Vacía desde la fase 3 de docs/prisma-migration.md:
+// logger.util e integration-api-logger.util escriben a través de sus repositorios.
+const ORM_ALLOWLIST = new Set<string>([]);
 
 // `import … from '…'` y los require('…') diferidos (cortan ciclos de carga).
 // `import type` se excluye: solo trae tipos, no acopla en runtime.
@@ -48,6 +46,15 @@ describe('SOLID — guardas de arquitectura', () => {
 
   it('la capa de aplicación no importa modelos Sequelize (D: usar repositorios y shared/constants/domain-enums)', () => {
     const offenders = applicationFiles.filter(f => MODELS_REQUIRE.test(read(f))).map(rel);
+    expect(offenders).toEqual([]);
+  });
+
+  it('solo repositorios, modelos y shared/database importan shared/models (workers y bootstraps incluidos)', () => {
+    // Fase 3 de docs/prisma-migration.md: para cambiar de ORM alcanza con tocar los repositorios.
+    // El resto (incluidas las llamadas a instancias: record.update()) lo revisa `npm run check:orm`.
+    const ormLayer = (f: string) =>
+      isRepository(f) || /[\\/]models[\\/]/.test(f) || rel(f).startsWith('shared/database/') || rel(f).startsWith('shared/repositories/');
+    const offenders = sourceFiles.filter(f => !ormLayer(f) && MODELS_REQUIRE.test(read(f))).map(rel);
     expect(offenders).toEqual([]);
   });
 

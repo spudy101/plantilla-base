@@ -124,10 +124,12 @@ class IntegrationApiLogger {
 
     setImmediate(async () => {
       try {
-        // Carga lazy para evitar ciclos de dependencia al importar shared/models
-        const { IntegrationApiLog } = interopDefault(require('../models') as typeof import('../models'));
+        // Carga lazy: el repositorio (y los modelos) dependen del logger
+        const integrationApiLogRepository = interopDefault(
+          require('../../modules/schemas/integration/repositories/integration-api-log.repository') as typeof import('../../modules/schemas/integration/repositories/integration-api-log.repository')
+        );
 
-        await IntegrationApiLog.create({
+        await integrationApiLogRepository.create({
           product,
           endpoint,
           user_id: origin.userId,

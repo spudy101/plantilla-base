@@ -2,9 +2,8 @@ import cron from 'node-cron';
 import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
 import requestContext from '../../../../../shared/utils/request-context.util';
-import modelsModule from '../../../../../shared/models';
-const { SystemGlobalConfig, AuditLog, sequelize } = modelsModule;
-import { Op } from 'sequelize';
+import auditLogRepository from '../repositories/audit-log.repository';
+import systemGlobalConfigRepository from '../../../core/repositories/system-global-config.repository';
 import errorMessageModule from '../../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
@@ -35,7 +34,7 @@ const RETENTION_CRON = '0 7 1 * *';
  */
 const run = async (opts: { enableDbPurge?: boolean } = {}) => {
   try {
-    const config = await SystemGlobalConfig.findOne({ where: { is_active: true } });
+    const config = await systemGlobalConfigRepository.findActive();
     const hotYears = config?.audit_retention_hot_years ?? DEFAULT_HOT_YEARS;
 
     await _logExpiringRecords(hotYears);
@@ -52,9 +51,7 @@ async function _logExpiringRecords(hotYears: number) {
   const cutoff = new Date();
   cutoff.setFullYear(cutoff.getFullYear() - hotYears + 1);
 
-  const expiringCount = await AuditLog.count({
-    where: { createdAt: { [Op.lte]: cutoff } }
-  });
+  const expiringCount = await auditLogRepository.countCreatedUpTo(cutoff);
 
   if (expiringCount > 0) {
     logger.warn('audit-archive.worker — registros próximos a vencer período caliente', {
@@ -75,9 +72,7 @@ async function _purgeExpiredFromDb(hotYears: number) {
   const cutoff = new Date();
   cutoff.setFullYear(cutoff.getFullYear() - hotYears);
 
-  const count = await AuditLog.count({
-    where: { createdAt: { [Op.lt]: cutoff } }
-  });
+  const count = await auditLogRepository.countCreatedBefore(cutoff);
 
   if (count === 0) {
     logger.info('audit-archive.worker — sin registros vencidos para purgar');
@@ -94,14 +89,7 @@ async function _purgeExpiredFromDb(hotYears: number) {
     PURGE_AUDIT_META
   );
 
-  await sequelize.transaction(async t => {
-    await sequelize.query("SET LOCAL app.allow_audit_purge = 'true'", { transaction: t });
-    await AuditLog.destroy({
-      where: { createdAt: { [Op.lt]: cutoff } },
-      force: true,
-      transaction: t
-    });
-  });
+  await auditLogRepository.purgeCreatedBefore(cutoff);
 
   logger.info('audit-archive.worker — purga completada', { purged: count });
 
@@ -125,7 +113,7 @@ function iniciar() {
   cron.schedule(RETENTION_CRON, () =>
     requestContext.runAsWorker('audit-archive.retention', async () => {
       logger.info('Ejecutando worker: retención/archivado de auditoría');
-      const config = await SystemGlobalConfig.findOne({ where: { is_active: true } });
+      const config = await systemGlobalConfigRepository.findActive();
       await run({ enableDbPurge: config?.audit_hot_purge_enabled === true });
     })
   );

@@ -1,4 +1,4 @@
-import { fn, col } from 'sequelize';
+import { Op, fn, col } from 'sequelize';
 import BaseRepository from '../../../../shared/repositories/base.repository';
 import ReadRepository from '../../../../shared/repositories/read.repository';
 import modelsModule from '../../../../shared/models';
@@ -35,6 +35,15 @@ class SmsDeliveryAttemptRepository extends BaseRepository<defineSmsDeliveryAttem
       status: 'pending',
       retry_count: 0
     });
+  }
+
+  /**
+   * Intentos fallidos en una ventana (impacto de un fallback del proveedor SMS). Sin `from` cuenta todo
+   * lo anterior a `to`.
+   */
+  countFailedBetween(from: Date | null, to: Date): Promise<number> {
+    const window = from ? { [Op.between]: [from, to] } : { [Op.lte]: to };
+    return this.model.count({ where: { status: 'failed', createdAt: window } });
   }
 
   async markSent(smsAttemptId: string, { providerMessageId = null }: { providerMessageId?: string | null } = {}) {

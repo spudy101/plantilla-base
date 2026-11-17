@@ -9,7 +9,8 @@
 
 jest.mock('modules/schemas/notification/repositories/notification-type.repository', () => ({
   findAllPaginated: jest.fn(),
-  findById: jest.fn()
+  findById: jest.fn(),
+  update: jest.fn()
 }));
 
 jest.mock('modules/schemas/notification/repositories/notification-category.repository', () => ({
@@ -124,13 +125,14 @@ describe('NotificationTypeService', () => {
 
     it('actualiza campos mapeados, commitea y audita', async () => {
       const updated = { code: 'X' };
-      const nt = { code: 'X', update: jest.fn().mockResolvedValue(updated) };
-      typeRepo.findById.mockResolvedValue(nt);
+      typeRepo.findById.mockResolvedValue({ code: 'X' });
+      typeRepo.update.mockResolvedValue(updated);
       categoryRepo.findById.mockResolvedValue({ notification_category_id: 'c-1' });
 
       const result = await service.update('t-1', { name: 'Nuevo', priority: 5, notificationCategoryId: 'c-1' }, ADMIN);
 
-      expect(nt.update).toHaveBeenCalledWith(
+      expect(typeRepo.update).toHaveBeenCalledWith(
+        't-1',
         { name: 'Nuevo', priority: 5, notification_category_id: 'c-1' },
         { transaction }
       );
@@ -145,8 +147,8 @@ describe('NotificationTypeService', () => {
     });
 
     it('hace rollback y re-lanza si el update falla', async () => {
-      const nt = { code: 'X', update: jest.fn().mockRejectedValue(new Error('db error')) };
-      typeRepo.findById.mockResolvedValue(nt);
+      typeRepo.findById.mockResolvedValue({ code: 'X' });
+      typeRepo.update.mockRejectedValue(new Error('db error'));
 
       await expect(service.update('t-1', { name: 'Nuevo' }, ADMIN)).rejects.toThrow('db error');
       expect(transaction.rollback).toHaveBeenCalled();

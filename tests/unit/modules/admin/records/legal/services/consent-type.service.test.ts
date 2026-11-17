@@ -15,7 +15,8 @@ jest.mock('modules/schemas/records/legal/repositories/consent-type.repository', 
   findAllPaginated: jest.fn(),
   findById: jest.fn(),
   findOne: jest.fn(),
-  create: jest.fn()
+  create: jest.fn(),
+  update: jest.fn()
 }));
 
 jest.mock('modules/schemas/notification/services/notification-creation.service', () => ({
@@ -167,18 +168,14 @@ describe('ConsentTypeService', () => {
 
     it('actualiza aplicando defaults del registro, audita, notifica y devuelve DTO', async () => {
       const updated = { code: 'PP', name: 'Nuevo' };
-      const record = {
-        code: 'PP',
-        name: 'Viejo',
-        description: 'desc',
-        is_active: true,
-        update: jest.fn().mockResolvedValue(updated)
-      };
+      const record = { code: 'PP', name: 'Viejo', description: 'desc', is_active: true };
       consentTypeRepository.findById.mockResolvedValue(record);
+      consentTypeRepository.update.mockResolvedValue(updated);
 
       const result = await service.update('ct-1', { name: 'Nuevo' }, AUDIT_CTX);
 
-      expect(record.update).toHaveBeenCalledWith(
+      expect(consentTypeRepository.update).toHaveBeenCalledWith(
+        'ct-1',
         expect.objectContaining({ name: 'Nuevo', description: 'desc', is_active: true })
       );
       expect(result).toEqual({ detail: 'PP' });

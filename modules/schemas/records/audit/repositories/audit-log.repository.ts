@@ -414,6 +414,32 @@ class AuditLogRepository extends AppendOnlyRepository<defineAuditLog.Instance> {
       order: [[fn('DATE', col('created_at')), 'ASC']]
     });
   }
+
+  // ============================================================
+  // RETENCIÓN (worker de archivado, RF-ADM-03)
+  // ============================================================
+
+  /** Cuántos registros se crearon hasta `cutoff` inclusive (aviso de próximos a vencer). */
+  countCreatedUpTo(cutoff: Date): Promise<number> {
+    return this.model.count({ where: { createdAt: { [Op.lte]: cutoff } } });
+  }
+
+  /** Cuántos registros se crearon antes de `cutoff` (candidatos a purga). */
+  countCreatedBefore(cutoff: Date): Promise<number> {
+    return this.model.count({ where: { createdAt: { [Op.lt]: cutoff } } });
+  }
+
+  /**
+   * Purga de retención: borra de la BD los registros creados antes de `cutoff` (la copia vive en S3).
+   * Es la ÚNICA baja permitida en esta tabla append-only: el trigger de inmutabilidad la autoriza solo
+   * con `app.allow_audit_purge` puesto en la misma transacción (SET LOCAL).
+   */
+  async purgeCreatedBefore(cutoff: Date): Promise<number> {
+    return this.sequelize.transaction(async transaction => {
+      await this.sequelize.query("SET LOCAL app.allow_audit_purge = 'true'", { transaction });
+      return this.model.destroy({ where: { createdAt: { [Op.lt]: cutoff } }, force: true, transaction });
+    });
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-namespace

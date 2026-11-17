@@ -10,7 +10,6 @@
 //
 // Todo corre dentro de requestContext.runAsSystem (source:'system').
 
-import { Op } from 'sequelize';
 import { interopDefault } from '../utils/interop.util';
 import CircuitBreaker from '../utils/circuit-breaker.util';
 import requestContext from '../utils/request-context.util';
@@ -43,9 +42,11 @@ async function _contarProcesosAfectados(product: string, startedAt: Date | null,
     if (product !== 'aws_sms') {
       return null;
     }
-    const { SmsDeliveryAttempt } = interopDefault(require('../models') as typeof import('../models'));
-    const windowFilter = startedAt ? { [Op.between]: [startedAt, endedAt] } : { [Op.lte]: endedAt };
-    return await SmsDeliveryAttempt.count({ where: { status: 'failed', createdAt: windowFilter } });
+    // require diferido: como antes con shared/models, no cargar repositorios al importar el bootstrap
+    const smsDeliveryAttemptRepository = interopDefault(
+      require('../../modules/schemas/notification/repositories/sms-delivery-attempt.repository') as typeof import('../../modules/schemas/notification/repositories/sms-delivery-attempt.repository')
+    );
+    return await smsDeliveryAttemptRepository.countFailedBetween(startedAt, endedAt);
   } catch {
     return null;
   }

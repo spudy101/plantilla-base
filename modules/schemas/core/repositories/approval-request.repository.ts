@@ -44,6 +44,28 @@ class ApprovalRequestRepository extends BaseRepository<defineApprovalRequest.Ins
     return request;
   }
 
+  /**
+   * Cierra una solicitud (aprobada o rechazada) y la devuelve recargada con sus usuarios. Antes el
+   * service hacía `request.update()` + `request.reload()` sobre la instancia: con Prisma no hay
+   * instancias vivas (docs/prisma-migration.md, fase 3).
+   */
+  async resolve(approvalRequestId: string, changes: ApprovalRequestRepository.Resolution) {
+    await this.model.update(changes, { where: { approval_request_id: approvalRequestId } });
+    return this.findByIdWithUsers(approvalRequestId);
+  }
+
+  /**
+   * Marca como vencida una solicitud que SIGUE pendiente (si alguien la resolvió entre la consulta del
+   * worker y este update, no la pisa). Devuelve si la marcó.
+   */
+  async markExpired(approvalRequestId: string, now: Date): Promise<boolean> {
+    const [affected] = await this.model.update(
+      { status: ApprovalRequest.STATUS.EXPIRED, resolved_at: now },
+      { where: { approval_request_id: approvalRequestId, status: ApprovalRequest.STATUS.PENDING } }
+    );
+    return affected > 0;
+  }
+
   async findAllPaginatedWithUsers(
     filters: ApprovalRequestRepository.Filters,
     paginationParams: ReadRepository.PaginationParams,
@@ -161,6 +183,10 @@ namespace ApprovalRequestRepository {
     status?: defineApprovalRequest.Attributes['status'];
     entityType?: string;
   }
+
+  /** Cierre de una solicitud (resolve). */
+  export type Resolution = Pick<defineApprovalRequest.Attributes, 'status' | 'second_approver_id' | 'resolved_at' | 'resolution_notes'> &
+    Partial<Pick<defineApprovalRequest.Attributes, 'result'>>;
 }
 
 export default new ApprovalRequestRepository();

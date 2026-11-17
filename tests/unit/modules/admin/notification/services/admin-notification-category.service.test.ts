@@ -9,6 +9,7 @@
 jest.mock('modules/schemas/notification/repositories/notification-category.repository', () => ({
   findAllPaginated: jest.fn(),
   findById: jest.fn(),
+  update: jest.fn(),
   codeExists: jest.fn(),
   create: jest.fn(),
   delete: jest.fn().mockResolvedValue(undefined)
@@ -145,12 +146,12 @@ describe('NotificationCategoryService', () => {
 
     it('actualiza columnas mapeadas, commitea y audita', async () => {
       const updated = { notification_category_id: 'c-1', code: 'ALERTS' };
-      const category = { notification_category_id: 'c-1', code: 'ALERTS', update: jest.fn().mockResolvedValue(updated) };
-      categoryRepo.findById.mockResolvedValue(category);
+      categoryRepo.findById.mockResolvedValue({ notification_category_id: 'c-1', code: 'ALERTS' });
+      categoryRepo.update.mockResolvedValue(updated);
 
       const result = await service.update('c-1', { name: 'Nuevo', isActive: false }, ADMIN);
 
-      expect(category.update).toHaveBeenCalledWith({ name: 'Nuevo', is_active: false }, { transaction });
+      expect(categoryRepo.update).toHaveBeenCalledWith('c-1', { name: 'Nuevo', is_active: false }, { transaction });
       expect(transaction.commit).toHaveBeenCalled();
       expect(result).toMatchObject({ dto: 'category' });
       expect(logAudit).toHaveBeenCalledWith(

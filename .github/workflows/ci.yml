@@ -55,6 +55,10 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: ORM fuera de los repositorios
+        # Llamadas a instancias de modelo (record.update()…) fuera de los repositorios: docs/prisma-migration.md
+        run: npm run check:orm
+
       - name: Prepare test database
         # Esquema `test` + migraciones (sin seeders). Variables dummy de la app: tests/test-env.ts.
         run: npm run db:test:prepare
