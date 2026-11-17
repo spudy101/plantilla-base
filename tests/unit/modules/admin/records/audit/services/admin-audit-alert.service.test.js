@@ -26,6 +26,8 @@ jest.mock('shared/utils/logger.util', () => ({
 
 // Paginación reducida a valores deterministas para no depender de su parsing interno.
 jest.mock('shared/utils/pagination.util', () => ({
+  stringParam: jest.requireActual('shared/utils/pagination.util').stringParam,
+  booleanParam: jest.requireActual('shared/utils/pagination.util').booleanParam,
   getPaginationParams: jest.fn().mockReturnValue({ limit: 10, offset: 0, page: 1, sortBy: 'created_at', order: 'DESC' }),
   buildFilters: jest.fn().mockReturnValue({})
 }));
@@ -66,7 +68,8 @@ describe('AdminAuditAlertService', () => {
       const result = await service.list({ acknowledged: 'false' }, ADMIN);
 
       expect(auditAlertRepo.findAllFiltered).toHaveBeenCalledWith(
-        expect.objectContaining({ acknowledged: 'false' }),
+        // booleanParam normaliza el query (boolean del validator o string) → boolean para el repo
+        expect.objectContaining({ acknowledged: false }),
         { limit: 10, offset: 0 }
       );
       expect(result.data).toHaveLength(2);

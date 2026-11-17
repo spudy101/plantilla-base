@@ -84,7 +84,10 @@ describe('AdminSessionTraceService', () => {
       expect(auditLogRepository.countBySessionIds).toHaveBeenCalledWith(['s1', 's2']);
       expect(SessionTraceListDTO).toHaveBeenCalledWith(
         [{ user_session_id: 's1' }, { user_session_id: 's2' }],
-        { s1: 3, s2: 0 },
+        new Map([
+          ['s1', 3],
+          ['s2', 0]
+        ]),
         expect.objectContaining({ totalItems: 2 })
       );
       expect(logAudit).toHaveBeenCalledWith(

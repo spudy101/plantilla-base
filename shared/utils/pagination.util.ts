@@ -102,6 +102,27 @@ class PaginationHelper {
    * @param {Array<string>} allowedFilters - Filtros permitidos
    * @returns {Object} Filtros parseados
    */
+  /** Parámetro de query como string no vacío, o null (un query param puede llegar como array u objeto). */
+  static stringParam(query: QueryInput, key: string): string | null {
+    const value = query[key];
+    return typeof value === 'string' && value !== '' ? value : null;
+  }
+
+  /**
+   * Booleano de query: los validators con .toBoolean() ya lo dejan como boolean (Express 4 reescribe
+   * req.query); sin sanitizer llega 'true'/'false'. Cualquier otro valor → undefined (sin filtro).
+   */
+  static booleanParam(query: QueryInput, key: string): boolean | undefined {
+    const value = query[key];
+    if (value === true || value === 'true') {
+      return true;
+    }
+    if (value === false || value === 'false') {
+      return false;
+    }
+    return undefined;
+  }
+
   static buildFilters(query: QueryInput = {}, allowedFilters: readonly string[] = []): Record<string, unknown> {
     const filters: Record<string, unknown> = {};
 

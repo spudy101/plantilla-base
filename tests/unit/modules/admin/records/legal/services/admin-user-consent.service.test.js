@@ -13,6 +13,8 @@ jest.mock('shared/utils/logger.util', () => ({
 
 // Paginación determinista para no depender de su parsing interno.
 jest.mock('shared/utils/pagination.util', () => ({
+  stringParam: jest.requireActual('shared/utils/pagination.util').stringParam,
+  booleanParam: jest.requireActual('shared/utils/pagination.util').booleanParam,
   getPaginationParams: jest.fn().mockReturnValue({ page: 1, limit: 10, offset: 0, sortBy: 'created_at', order: 'DESC' })
 }));
 

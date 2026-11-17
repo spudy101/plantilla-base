@@ -15,10 +15,12 @@ interface SystemGlobalConfigRow {
   audit_retention_hot_years: number;
   audit_retention_cold_years: number;
   audit_hot_purge_enabled?: boolean | null;
-  integration_resilience?: StoredResilience | null;
+  /** JSONB: el modelo lo tipa unknown; la forma la describe StoredResilience */
+  integration_resilience?: unknown;
 }
 
-function _buildIntegrationResilience(resilience: StoredResilience | null | undefined) {
+function _buildIntegrationResilience(raw: unknown) {
+  const resilience = raw as StoredResilience | null | undefined;
   if (!resilience || Object.keys(resilience).length === 0) {
     return {};
   }

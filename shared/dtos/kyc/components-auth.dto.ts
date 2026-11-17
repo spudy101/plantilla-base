@@ -55,6 +55,7 @@ interface UserChangeLogRow {
   ip_address?: Maybe<string>;
   user_agent?: Maybe<string>;
   origin_session_id?: Maybe<string>;
+  createdAt?: Maybe<DbDate>;
   created_at?: Maybe<DbDate>;
 }
 
@@ -250,7 +251,8 @@ class UserChangeLogComponent {
       userAgent: log.user_agent || null,
       // Alinea esta tabla de auditoría con audit_logs.session_id (consistencia pedida en §3 Fase 3).
       originSessionId: log.origin_session_id || null,
-      createdAt: log.created_at
+      // created_at existe cuando el repo lo selecciona por columna; si no, el atributo createdAt
+      createdAt: log.createdAt ?? log.created_at
     };
   }
 

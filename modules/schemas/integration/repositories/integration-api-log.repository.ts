@@ -198,13 +198,14 @@ function _summarize(byProduct: Record<string, IntegrationApiLogRepository.Produc
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 namespace IntegrationApiLogRepository {
+  // Llegan del query string: se comparan contra la columna tal cual (un valor desconocido no matchea)
   export type Filters = {
-    product?: Product;
-    result?: defineIntegrationApiLog.Attributes['result'];
-    userId?: string;
-    sessionId?: string;
-    from?: string | Date;
-    to?: string | Date;
+    product?: string | null;
+    result?: string | null;
+    userId?: string | null;
+    sessionId?: string | null;
+    from?: string | Date | null;
+    to?: string | Date | null;
   };
 
   export interface ProductStats {

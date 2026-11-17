@@ -19,6 +19,8 @@ jest.mock('modules/schemas/notification/repositories/notification-type.repositor
 }));
 
 jest.mock('shared/utils/pagination.util', () => ({
+  stringParam: jest.requireActual('shared/utils/pagination.util').stringParam,
+  booleanParam: jest.requireActual('shared/utils/pagination.util').booleanParam,
   getPaginationParams: jest.fn().mockReturnValue({ limit: 10, offset: 0, page: 1, sortBy: 'created_at', order: 'DESC' }),
   buildFilters: jest.fn().mockReturnValue({})
 }));

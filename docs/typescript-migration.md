@@ -65,7 +65,7 @@
 | **1. Infraestructura + núcleo** | tsconfig, build, dev, Jest, ESLint, Docker, CLI de BD vía tsx; `AppError`, `ReadRepository` / `BaseRepository` / `AppendOnlyRepository` (genéricos `<M extends Model>`), `UnitOfWork` (con su puerto `Port`), `domain-enums` (uniones literales), `es256-signature.util` | ✅ |
 | **2. Resto de `shared/`** | `constants/`, `utils/`, `dtos/`, `middlewares/`, `services/`, `validators/`, `base/`, `models/index` + mixin: **`shared/` ya no tiene `.js`** | ✅ |
 | **3. Modelos + repositorios** | Los 41 modelos tipados **desde su definición real** (`gen-model-types.js`: `Attributes`, `CreationAttributes`, `Instance` con asociaciones, `Static`) y registro tipado `shared/models/registry.ts`; los 41 repositorios en TS con `extends BaseRepository<defineX.Instance>`; contratos `XRepositoryPort` en `modules/schemas/repository-ports.ts` de los que cada service deriva su puerto con `Pick<…>` | ✅ |
-| **4. Dominios** (uno por commit) | `modules/schemas` ✅ · `modules/shared-endpoints` ✅ · `modules/client` ✅ · `modules/admin` ⏳ (services, controllers, routes, dtos, validators) | 🔶 3/4 |
+| **4. Dominios** (uno por commit) | `modules/schemas`, `modules/shared-endpoints`, `modules/client`, `modules/admin` (services, controllers, routes, dtos, validators): **`modules/` ya no tiene `.js`** | ✅ |
 | **5. Arranque y config** | `servers/`, `config/` | ⏳ |
 | **6. Cierre** | Tests a `.ts`, `allowJs: false`, pasar de `export =` a `import`/`export` nativos (ya sin consumidores JS), quitar `babel-jest`, migraciones/seeders a `.ts` | ⏳ |
 
@@ -113,6 +113,11 @@ Tipos y helpers compartidos:
 - **Contextos**: `shared/types/audit-context.ts` — `RequestAuditContext` (HTTP: ip, userAgent,
   fingerprint…) y `AdminAuditContext` (quién hace la acción admin). `KeyValueCache`
   (`shared/types/cache.ts`) para código que recibe Redis o la caché local indistintamente.
+- **Query string**: `PaginationHelper.stringParam(query, 'x')` (string no vacío o null) y
+  `PaginationHelper.booleanParam(query, 'x')` (acepta el boolean que dejan los validators con
+  `.toBoolean()` — Express 4 reescribe `req.query` — o `'true'`/`'false'`).
+- **Contexto admin**: `shared/utils/admin-audit-context.util` → `adminAuditContext(req, res)` (antes 6 copias
+  locales con variaciones).
 - **Tipos que cruzan archivos** van en un `*.types.ts` del dominio (`notification.types`,
   `notification-feed.types`, `profile.types`): un módulo que exporta una instancia (`export =
   new X()`) no deja alcanzar los tipos de su namespace desde otro archivo.
@@ -157,6 +162,18 @@ Tipos y helpers compartidos:
 - **`user_login_attempts.username_attempt`** es NOT NULL y se llenaba con `auth_username` (nullable):
   fallback a `username`.
 - **TOTP**: sin `username` en el token, la etiqueta de la app autenticadora quedaba en `'null'`.
+- **Seguridad — cambio de rol de clientes** (`PATCH /person/:id/role`): cargaba cualquier usuario por id y
+  el guard comparaba `role.name === 'admin'` en minúsculas (los roles son MAYÚSCULAS: nunca coincidía),
+  sin límite sobre el rol nuevo. Permitía cambiar el rol de un ADMIN/SUPERADMIN o promover un cliente a
+  interno, salteando la doble aprobación de admin-user. Ahora solo opera entre roles de cliente. Tests.
+- **Notificaciones del admin sin entidad relacionada**: 12 llamadas pasaban el id suelto como
+  `relatedEntity` (sesión, override RBAC, usuario, notificación). Ahora `{ type, id }`; el tipo lo exige.
+- **Fechas en null**: `ApprovalRequestComponent` y el drill-down de integraciones leían `created_at`, que
+  en modelos `underscored` no existe en una consulta normal (el atributo es `createdAt`): las solicitudes
+  de aprobación y las llamadas a proveedores salían sin fecha. Tests.
+
+Falsos positivos descartados al revisar: `acknowledged`/`onlyCritical`/`isActive` llegan como boolean
+(`.toBoolean()` del validator), así que esos filtros sí funcionaban.
 
 ### Cambios de contrato
 
