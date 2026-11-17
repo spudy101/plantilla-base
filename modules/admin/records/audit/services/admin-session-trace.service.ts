@@ -51,7 +51,7 @@ function _entry<R>(entry: RegistryEntry<R>): RegistryEntry<unknown> {
 const ENTITY_REGISTRY: Record<string, RegistryEntry<unknown> | undefined> = {
   user_consents: _entry({
     repository: userConsentRepository,
-    pk: 'user_consent_id',
+    pk: 'userConsentId',
     entityType: 'UserConsent',
     dto: r => UserConsentComponent.build(r)
   }),

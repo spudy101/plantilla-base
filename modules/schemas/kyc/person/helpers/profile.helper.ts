@@ -624,7 +624,7 @@ class ProfileHelper {
     await this.personLocationRepository.anonymizeAddressByPersonId(personId, { transaction });
 
     // Revocar todos los consentimientos vigentes
-    await this.userConsentRepository.revokeAll(userId, transaction);
+    await this.userConsentRepository.revokeAll(userId);
 
     await this.kycSharedUtil.logChange(
       {

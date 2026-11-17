@@ -176,7 +176,7 @@ const VALID_USER_DATA = {
 // Configura todas las dependencias para un register() por el camino feliz.
 function armHappyRegister() {
   countryRepository.findByCode.mockResolvedValue({ countryId: 'co-1' });
-  privacyPolicyRepository.findActive.mockResolvedValue({ version: 'v1', privacy_policy_id: 'pp-1' });
+  privacyPolicyRepository.findActive.mockResolvedValue({ version: 'v1', privacyPolicyId: 'pp-1' });
   verificationCodeRepository.findVerifiedByContact.mockResolvedValue({ verified: true });
   verificationCodeRepository.deleteVerifiedByContact.mockResolvedValue(undefined);
   documentTypeRepository.findById.mockResolvedValue({ documentTypeId: 'dt-1', isActive: true, isVisibleToClient: true });
@@ -192,8 +192,8 @@ function armHappyRegister() {
   personContactRepository.create.mockResolvedValue({ person_contact_id: 'pc-1' });
   userRepository.createWithPassword.mockResolvedValue({ user_id: 'u-1' });
   userNotificationPreferenceRepository.create.mockResolvedValue({});
-  consentTypeRepository.findByCode.mockResolvedValue({ consent_type_id: 'ct-1' });
-  userConsentRepository.grant.mockResolvedValue({ user_consent_id: 'uc-1' });
+  consentTypeRepository.findByCode.mockResolvedValue({ consentTypeId: 'ct-1' });
+  userConsentRepository.grant.mockResolvedValue({ userConsentId: 'uc-1' });
 
   userRepository.findByUserId.mockResolvedValue({ user_id: 'u-1', role: {}, person: {} });
   JwtUtil.generateAccessToken.mockResolvedValue('access-tok');
@@ -236,6 +236,36 @@ describe('AuthRegisterService', () => {
       armHappyRegister();
       await service.register({ ...VALID_USER_DATA, comunicacionesComerciales: true }, {});
       expect(userConsentRepository.grant).toHaveBeenCalledTimes(2);
+    });
+
+    // user_consents (Prisma) no puede escribirse en la transacción del alta mientras users siga en
+    // Sequelize: su FK no vería al usuario sin confirmar (docs/prisma-migration.md, grupo 2).
+    it('registra los consentimientos DESPUÉS del commit del alta, con la política activa', async () => {
+      armHappyRegister();
+      const tx = { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn() };
+      sequelize.transaction.mockImplementation(managedTransaction(tx));
+
+      await service.register(VALID_USER_DATA, { ip: '9.9.9.9' });
+
+      expect(userConsentRepository.grant).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'u-1', consentTypeId: 'ct-1', privacyPolicyId: 'pp-1', ip: '9.9.9.9' })
+      );
+      expect(tx.commit.mock.invocationCallOrder[0]).toBeLessThan(userConsentRepository.grant.mock.invocationCallOrder[0]!);
+    });
+
+    it('si falla el registro del consentimiento, el alta sigue y se emite la alerta CONSENT_RECORD_FAILED', async () => {
+      armHappyRegister();
+      userConsentRepository.grant.mockRejectedValue(new Error('db down'));
+
+      const result = await service.register(VALID_USER_DATA, {});
+
+      expect(result).toMatchObject({ userId: 'u-1' });
+      expect(logAudit).toHaveBeenCalledWith(
+        'CONSENT_RECORD_FAILED',
+        'u-1',
+        expect.objectContaining({ consentType: 'PRIVACY_POLICY' }),
+        expect.objectContaining({ outcome: 'failure' })
+      );
     });
 
     it('valida el género cuando se envía genderId', async () => {

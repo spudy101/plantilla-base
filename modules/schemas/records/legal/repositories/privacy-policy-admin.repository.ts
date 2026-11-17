@@ -1,46 +1,50 @@
-// modules/admin/privacy-policy/repositories/privacy-policy-admin.repository.ts
+// modules/schemas/records/legal/repositories/privacy-policy-admin.repository.ts
 //
-// Extiende el repositorio base de PrivacyPolicy con capacidades de
-// administración: paginación, búsqueda y detalle por ID.
-// El repositorio público (kyc) maneja solo findActive() y createVersion().
-// Este repositorio es exclusivo del panel admin.
+// Capacidades de administración de PrivacyPolicy: paginación, búsqueda, detalle y publicación de
+// versiones. El repositorio público (privacy-policy.repository) solo lee.
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import { Prisma } from '../../../../../shared/database/generated/prisma/client';
+import type { PrivacyPolicy } from '../../../../../shared/database/generated/prisma/client';
 
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import ReadRepository from '../../../../../shared/repositories/read.repository';
-import modelsModule from '../../../../../shared/models';
-const { PrivacyPolicy } = modelsModule;
-import type definePrivacyPolicy from '../models/privacy-policy.model';
+const LIST = { sortable: Object.values(Prisma.PrivacyPolicyScalarFieldEnum), searchFields: ['version', 'summary'] };
 
-class PrivacyPolicyAdminRepository extends BaseRepository<definePrivacyPolicy.Instance> {
-  constructor() {
-    super(PrivacyPolicy, {
-      searchFields: ['version', 'summary']
-    });
+class PrivacyPolicyAdminRepository extends PrismaRepository {
+  async findById(privacyPolicyId: string): Promise<PrivacyPolicy | null> {
+    return (await this.db()).privacyPolicy.findUnique({ where: { privacyPolicyId } });
   }
 
-  override findAllPaginated(
-    filters: ReadRepository.Filters = {},
-    paginationParams: ReadRepository.PaginationParams = {},
+  async findByVersion(version: string): Promise<PrivacyPolicy | null> {
+    return (await this.db()).privacyPolicy.findUnique({ where: { version } });
+  }
+
+  /** Listado paginado; sin `sortBy` ordena por fecha de vigencia. */
+  async findAllPaginated(
+    filters: PrismaRepository.Filters = {},
+    pagination: PrismaRepository.PaginationParams = {},
     searchTerm: string | null = null
-  ) {
-    return super.findAllPaginated(
+  ): Promise<PrismaRepository.Page<PrivacyPolicy>> {
+    const { where, page } = this.listQuery(
       filters,
-      { ...paginationParams, sortBy: paginationParams.sortBy || 'effective_date' },
-      searchTerm
+      { ...pagination, sortBy: pagination.sortBy || 'effectiveDate' },
+      searchTerm,
+      LIST
     );
+    const db = await this.db();
+    const [rows, count] = await Promise.all([
+      db.privacyPolicy.findMany({ where: where as Prisma.PrivacyPolicyWhereInput, ...page }),
+      db.privacyPolicy.count({ where: where as Prisma.PrivacyPolicyWhereInput })
+    ]);
+    return { rows, count };
   }
 
-  findByVersion(version: string) {
-    return this.findOne({ version });
-  }
-
-  // ✅ Agregado
-  async createVersion(data: Omit<definePrivacyPolicy.CreationAttributes, 'is_active'>) {
-    await this.model.update({ is_active: false }, { where: { is_active: true } });
-
-    return this.model.create({
-      ...data,
-      is_active: true
+  /**
+   * Publica una versión: desactiva la activa y crea la nueva como activa, en una sola transacción
+   * (solo puede haber UNA versión activa; con Sequelize eran dos escrituras sueltas).
+   */
+  createVersion(data: Omit<Prisma.PrivacyPolicyUncheckedCreateInput, 'isActive'>): Promise<PrivacyPolicy> {
+    return this.atomic(async db => {
+      await db.privacyPolicy.updateMany({ where: { isActive: true }, data: { isActive: false } });
+      return db.privacyPolicy.create({ data: { ...data, isActive: true } });
     });
   }
 }

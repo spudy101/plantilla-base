@@ -52,12 +52,12 @@ function _normalizePersonAliases(person: definePerson.Instance | null | undefine
 // ============================================================
 
 type ConsentTypeRow = NonNullable<Parameters<typeof UserConsentComponent.buildClientCatalogItem>[0]>;
-type ConsentRow = NonNullable<Parameters<typeof UserConsentComponent.buildClientCatalogItem>[1]> & { consent_type_id: string };
+type ConsentRow = NonNullable<Parameters<typeof UserConsentComponent.buildClientCatalogItem>[1]> & { consentTypeId: string };
 
 function _buildConsentCatalog(consentTypes: readonly ConsentTypeRow[] = [], consents: readonly ConsentRow[] = []) {
-  const grantedByTypeId = new Map(consents.map(c => [c.consent_type_id, c]));
+  const grantedByTypeId = new Map(consents.map(c => [c.consentTypeId, c]));
   return consentTypes.map(type =>
-    UserConsentComponent.buildClientCatalogItem(type, grantedByTypeId.get(type.consent_type_id) || null)
+    UserConsentComponent.buildClientCatalogItem(type, grantedByTypeId.get(type.consentTypeId) || null)
   );
 }
 

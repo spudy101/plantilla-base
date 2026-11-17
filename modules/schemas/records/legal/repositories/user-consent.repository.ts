@@ -1,168 +1,178 @@
-import BaseRepository from '../../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../../shared/models';
-const { UserConsent, ConsentType, PrivacyPolicy, User, Person } = modelsModule;
-import requestContext from '../../../../../shared/utils/request-context.util';
-import type { IncludeOptions, Transaction } from 'sequelize';
-import type defineUserConsent from '../models/user-consent.model';
-import * as queryModule from '../../../../../shared/repositories/query';
-const { range, toWhere } = queryModule;
-import type { WhereClause } from '../../../../../shared/repositories/query';
+// modules/schemas/records/legal/repositories/user-consent.repository.ts
+//
+// Consentimientos otorgados (RF-ADM-04). origin_session_id / origin_correlation_id los completa la
+// extensión de Prisma al crear (shared/database/prisma-extensions.ts), desde el contexto de la request.
+import PrismaRepository from '../../../../../shared/repositories/prisma.repository';
+import type { Prisma, UserConsent } from '../../../../../shared/database/generated/prisma/client';
 
-const CONSENT_TYPE_INCLUDE: IncludeOptions = {
-  model: ConsentType,
-  as: 'consentType',
-  attributes: ['consent_type_id', 'code', 'name', 'is_mandatory', 'is_revocable']
-};
+// Mismos campos que los include de Sequelize
+const CONSENT_TYPE_SELECT = {
+  consentTypeId: true,
+  code: true,
+  name: true,
+  isMandatory: true,
+  isRevocable: true
+} satisfies Prisma.ConsentTypeSelect;
 
-const PRIVACY_POLICY_INCLUDE: IncludeOptions = {
-  model: PrivacyPolicy,
-  as: 'privacyPolicy',
-  attributes: ['privacy_policy_id', 'version', 'document_url', 'effective_date']
-};
+const PRIVACY_POLICY_SELECT = {
+  privacyPolicyId: true,
+  version: true,
+  documentUrl: true,
+  effectiveDate: true
+} satisfies Prisma.PrivacyPolicySelect;
 
-const USER_INCLUDE: IncludeOptions = {
-  model: User,
-  as: 'user',
-  attributes: ['user_id', 'username'],
-  include: [{ model: Person, as: 'person', attributes: ['first_name', 'last_name'] }]
-};
+const USER_SELECT = {
+  userId: true,
+  username: true,
+  person: { select: { firstName: true, lastName: true } }
+} satisfies Prisma.UserSelect;
 
-class UserConsentRepository extends BaseRepository<defineUserConsent.Instance> {
-  constructor() {
-    super(UserConsent);
-  }
+const WITH_TYPE_AND_POLICY = {
+  consentType: { select: CONSENT_TYPE_SELECT },
+  privacyPolicy: { select: PRIVACY_POLICY_SELECT }
+} satisfies Prisma.UserConsentInclude;
 
-  findCurrentByUser(userId: string) {
-    return this.model.findAll({
-      where: { user_id: userId, is_current: true },
-      include: [CONSENT_TYPE_INCLUDE, PRIVACY_POLICY_INCLUDE],
-      order: [['granted_at', 'DESC']]
+const WITH_TYPE_POLICY_AND_USER = {
+  ...WITH_TYPE_AND_POLICY,
+  user: { select: USER_SELECT }
+} satisfies Prisma.UserConsentInclude;
+
+class UserConsentRepository extends PrismaRepository {
+  async findCurrentByUser(userId: string) {
+    return (await this.db()).userConsent.findMany({
+      where: { userId, isCurrent: true },
+      include: WITH_TYPE_AND_POLICY,
+      orderBy: { grantedAt: 'desc' }
     });
   }
 
-  findCurrentByUserAndType(userId: string, consentTypeId: string) {
-    return this.model.findOne({
-      where: { user_id: userId, consent_type_id: consentTypeId, is_current: true }
-    });
+  async findCurrentByUserAndType(userId: string, consentTypeId: string): Promise<UserConsent | null> {
+    return (await this.db()).userConsent.findFirst({ where: { userId, consentTypeId, isCurrent: true } });
   }
 
-  findHistoryByUser(userId: string, { limit = 50, offset = 0 }: { limit?: number; offset?: number } = {}) {
-    return this.model.findAndCountAll({
-      where: { user_id: userId },
-      include: [CONSENT_TYPE_INCLUDE, PRIVACY_POLICY_INCLUDE, USER_INCLUDE],
-      order: [['granted_at', 'DESC']],
-      limit,
-      offset,
-      distinct: true
-    });
-  }
-
-  /**
-   * Otorga un consentimiento. Si ya existe uno activo para user+type, lo marca como no vigente
-   * antes de crear el nuevo. Se ejecuta en una transacción.
-   */
-  async grant(
-    {
-      userId,
-      consentTypeId,
-      privacyPolicyId,
-      ip,
-      userAgent
-    }: { userId: string; consentTypeId: string; privacyPolicyId?: string | null; ip?: string | null; userAgent?: string | null },
-    transaction?: Transaction
-  ) {
-    await this.model.update(
-      { is_current: false },
-      { where: { user_id: userId, consent_type_id: consentTypeId, is_current: true }, transaction }
-    );
-
-    return this.model.create(
-      {
-        user_id: userId,
-        consent_type_id: consentTypeId,
-        privacy_policy_id: privacyPolicyId || null,
-        granted_at: new Date(),
-        granted_ip: ip || null,
-        granted_user_agent: userAgent || null,
-        is_current: true,
-        // La sesión se fotografía acá y no en cada llamador: grant() tiene 5 call sites en 5
-        // services distintos y un olvido dejaría el consentimiento sin trazabilidad de sesión.
-        ...requestContext.originFromContext()
-      },
-      { transaction }
-    );
-  }
-
-  /**
-   * Revoca el consentimiento activo de un usuario para un tipo específico.
-   */
-  async revoke(
-    { userId, consentTypeId, ip, reason }: { userId: string; consentTypeId: string; ip?: string | null; reason?: string | null },
-    transaction?: Transaction
-  ) {
-    const current = await this.findCurrentByUserAndType(userId, consentTypeId);
-    if (!current) {
-      return null;
+  /** Filas por id (hidratación del session-trace). */
+  async findByIds(ids: readonly string[]): Promise<UserConsent[]> {
+    if (ids.length === 0) {
+      return [];
     }
-    return current.update(
-      {
-        revoked_at: new Date(),
-        revoked_ip: ip || null,
-        revocation_reason: reason || null,
-        is_current: false
-      },
-      { transaction }
-    );
+    return (await this.db()).userConsent.findMany({ where: { userConsentId: { in: [...ids] } } });
+  }
+
+  async findHistoryByUser(userId: string, { limit = 50, offset = 0 }: { limit?: number; offset?: number } = {}) {
+    const db = await this.db();
+    const where = { userId } satisfies Prisma.UserConsentWhereInput;
+    const [rows, count] = await Promise.all([
+      db.userConsent.findMany({
+        where,
+        include: WITH_TYPE_POLICY_AND_USER,
+        orderBy: { grantedAt: 'desc' },
+        take: limit,
+        skip: offset
+      }),
+      db.userConsent.count({ where })
+    ]);
+    return { rows, count };
   }
 
   /**
-   * Revoca todos los consentimientos activos de un usuario (derecho de supresión).
+   * Otorga un consentimiento. Si ya existe uno vigente para user+type, lo marca como no vigente
+   * antes de crear el nuevo, de forma atómica (en la unidad de trabajo del llamador si hay una).
    */
-  revokeAll(userId: string, transaction?: Transaction) {
-    return this.model.update(
-      { revoked_at: new Date(), is_current: false, revocation_reason: 'right_to_erasure' },
-      { where: { user_id: userId, is_current: true }, transaction }
-    );
-  }
-
-  // Trae todos los consentimientos vigentes de scope ONBOARDING para el expediente de vinculación.
-  findOnboardingConsentsForDossier(userId: string) {
-    return this.model.findAll({
-      where: { user_id: userId, is_current: true },
-      include: [{ ...CONSENT_TYPE_INCLUDE, where: { scope: 'ONBOARDING' } }, PRIVACY_POLICY_INCLUDE],
-      order: [['granted_at', 'ASC']]
+  grant({
+    userId,
+    consentTypeId,
+    privacyPolicyId,
+    ip,
+    userAgent
+  }: {
+    userId: string;
+    consentTypeId: string;
+    privacyPolicyId?: string | null;
+    ip?: string | null;
+    userAgent?: string | null;
+  }): Promise<UserConsent> {
+    return this.atomic(async db => {
+      await db.userConsent.updateMany({ where: { userId, consentTypeId, isCurrent: true }, data: { isCurrent: false } });
+      return db.userConsent.create({
+        data: {
+          userId,
+          consentTypeId,
+          privacyPolicyId: privacyPolicyId || null,
+          grantedAt: new Date(),
+          grantedIp: ip || null,
+          grantedUserAgent: userAgent || null,
+          isCurrent: true
+        }
+      });
     });
   }
 
-  findAllPaginatedForAdmin(
+  /** Revoca el consentimiento vigente de un usuario para un tipo; null si no había uno. */
+  revoke({
+    userId,
+    consentTypeId,
+    ip,
+    reason
+  }: {
+    userId: string;
+    consentTypeId: string;
+    ip?: string | null;
+    reason?: string | null;
+  }): Promise<UserConsent | null> {
+    return this.atomic(async db => {
+      const current = await db.userConsent.findFirst({ where: { userId, consentTypeId, isCurrent: true } });
+      if (!current) {
+        return null;
+      }
+      return db.userConsent.update({
+        where: { userConsentId: current.userConsentId },
+        data: { revokedAt: new Date(), revokedIp: ip || null, revocationReason: reason || null, isCurrent: false }
+      });
+    });
+  }
+
+  /** Revoca todos los consentimientos vigentes de un usuario (derecho de supresión). */
+  async revokeAll(userId: string): Promise<number> {
+    const { count } = await (await this.db()).userConsent.updateMany({
+      where: { userId, isCurrent: true },
+      data: { revokedAt: new Date(), isCurrent: false, revocationReason: 'right_to_erasure' }
+    });
+    return count;
+  }
+
+  async findAllPaginatedForAdmin(
     filters: UserConsentRepository.AdminFilters = {},
     { limit = 20, offset = 0 }: { limit?: number; offset?: number } = {}
   ) {
-    const where: WhereClause = {};
+    const where: Prisma.UserConsentWhereInput = {};
     if (filters.userId) {
-      where.user_id = filters.userId;
+      where.userId = filters.userId;
     }
     if (filters.isCurrent !== undefined) {
-      where.is_current = filters.isCurrent;
+      where.isCurrent = filters.isCurrent;
     }
-    const grantedAtRange = range(filters.dateFrom, filters.dateTo);
-    if (grantedAtRange) {
-      where.granted_at = grantedAtRange;
+    if (filters.dateFrom != null || filters.dateTo != null) {
+      where.grantedAt = {
+        ...(filters.dateFrom != null ? { gte: filters.dateFrom } : {}),
+        ...(filters.dateTo != null ? { lte: filters.dateTo } : {})
+      };
     }
-
-    const include: IncludeOptions[] = [CONSENT_TYPE_INCLUDE, PRIVACY_POLICY_INCLUDE, USER_INCLUDE];
     if (filters.consentTypeCode) {
-      include[0] = { ...CONSENT_TYPE_INCLUDE, where: { code: filters.consentTypeCode } };
+      where.consentType = { code: filters.consentTypeCode };
     }
 
-    return this.model.findAndCountAll({
-      where: toWhere(where),
-      include,
-      order: [['granted_at', 'DESC']],
-      limit,
-      offset,
-      distinct: true
-    });
+    const db = await this.db();
+    const [rows, count] = await Promise.all([
+      db.userConsent.findMany({
+        where,
+        include: WITH_TYPE_POLICY_AND_USER,
+        orderBy: { grantedAt: 'desc' },
+        take: limit,
+        skip: offset
+      }),
+      db.userConsent.count({ where })
+    ]);
+    return { rows, count };
   }
 }
 

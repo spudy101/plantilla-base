@@ -535,8 +535,8 @@ describe('AuthBiometricService', () => {
     });
 
     it('con acceptPolicy=true actualiza la versión, registra consent y audita (devuelve null)', async () => {
-      privacyPolicyRepository.findActive.mockResolvedValue({ version: 3, privacy_policy_id: 'pp-3' });
-      consentTypeRepository.findByCode.mockResolvedValue({ consent_type_id: 'ct-1' });
+      privacyPolicyRepository.findActive.mockResolvedValue({ version: 3, privacyPolicyId: 'pp-3' });
+      consentTypeRepository.findByCode.mockResolvedValue({ consentTypeId: 'ct-1' });
       const user = { user_id: USER_ID, role: { name: 'client' }, privacy_policy_version: 2 };
 
       const result = await service._checkPrivacyPolicy(fixture(user), true, '1.2.3.4');
@@ -552,7 +552,7 @@ describe('AuthBiometricService', () => {
     });
 
     it('con versión desactualizada y sin aceptar bloquea y devuelve PolicyUpdateRequiredDTO', async () => {
-      privacyPolicyRepository.findActive.mockResolvedValue({ version: 4, document_url: 'http://x', summary: 's', effective_date: '2026-01-01' });
+      privacyPolicyRepository.findActive.mockResolvedValue({ version: 4, documentUrl: 'http://x', summary: 's', effectiveDate: '2026-01-01' });
       const user = { user_id: USER_ID, role: { name: 'client' }, privacy_policy_version: 2 };
 
       const result = await service._checkPrivacyPolicy(fixture(user), false, null);

@@ -133,6 +133,16 @@ class AuthRegisterService {
       comunicacionesComerciales: comunicacionesComerciales === true
     });
 
+    // Después del commit del alta: user_consents ya migró a Prisma y users sigue en Sequelize, así que
+    // dentro de la misma unidad de trabajo el INSERT iría por otra conexión y su FK no vería al usuario
+    // sin confirmar (docs/prisma-migration.md, grupo 2). Es best-effort con alerta (ver abajo); vuelve a
+    // la transacción del alta cuando users migre (grupo 6).
+    await this._recordRegistrationConsents(dbResult.user.user_id, {
+      privacyPolicyVersion,
+      privacyPolicyAcceptedIp: auditContext?.ip || null,
+      comunicacionesComerciales: comunicacionesComerciales === true
+    });
+
     // [RF-AUTH-01] | CA-04 | Login automático post-registro. La 2FA es opt-in en el template base:
     // el usuario la activa cuando quiere desde /kyc/iam/mfa (TOTP o SMS); no se fuerza enrolamiento.
     // Un proyecto derivado que la quiera obligatoria puede gatear el acceso al dashboard aquí.
@@ -321,8 +331,7 @@ class AuthRegisterService {
       authUsername,
       privacyPolicyVersion,
       privacyPolicyAcceptedAt,
-      privacyPolicyAcceptedIp,
-      comunicacionesComerciales
+      privacyPolicyAcceptedIp
     }: AuthRegisterService.NewUserData,
     transaction: Transaction
   ) {
@@ -390,12 +399,6 @@ class AuthRegisterService {
       { transaction }
     );
 
-    await this._recordRegistrationConsents(
-      user.user_id,
-      { privacyPolicyVersion, privacyPolicyAcceptedIp, comunicacionesComerciales },
-      transaction
-    );
-
     return { user, person, personContact, role: defaultRole };
   }
 
@@ -406,16 +409,10 @@ class AuthRegisterService {
    */
   async _recordRegistrationConsents(
     userId: string,
-    consentData: Pick<AuthRegisterService.NewUserData, 'privacyPolicyVersion' | 'privacyPolicyAcceptedIp' | 'comunicacionesComerciales'>,
-    transaction: Transaction
+    consentData: Pick<AuthRegisterService.NewUserData, 'privacyPolicyVersion' | 'privacyPolicyAcceptedIp' | 'comunicacionesComerciales'>
   ) {
     const { privacyPolicyVersion, privacyPolicyAcceptedIp, comunicacionesComerciales } = consentData;
-    await this._recordPrivacyPolicyConsent(
-      userId,
-      privacyPolicyVersion,
-      privacyPolicyAcceptedIp,
-      transaction
-    ).catch(err => {
+    await this._recordPrivacyPolicyConsent(userId, privacyPolicyVersion, privacyPolicyAcceptedIp).catch(err => {
       logger.warn('auth-register: no se pudo registrar user_consent de privacy policy', {
         userId,
         error: err.message
@@ -439,7 +436,7 @@ class AuthRegisterService {
     });
 
     if (comunicacionesComerciales) {
-      await this._recordComercialConsent(userId, privacyPolicyAcceptedIp, transaction).catch(err =>
+      await this._recordComercialConsent(userId, privacyPolicyAcceptedIp).catch(err =>
         logger.warn('auth-register: no se pudo registrar user_consent de comunicaciones comerciales', {
           userId,
           error: err.message
@@ -449,8 +446,8 @@ class AuthRegisterService {
   }
 
   /** @private — RF-ADM-04: delega en ConsentRecorder y deja traza granular vía logger (NO logAudit). */
-  async _recordPrivacyPolicyConsent(userId: string, policyVersion: string, ip: string | null, transaction: Transaction) {
-    const record = await this.consentRecorder.grantPrivacyPolicy({ userId, ip, transaction });
+  async _recordPrivacyPolicyConsent(userId: string, policyVersion: string, ip: string | null) {
+    const record = await this.consentRecorder.grantPrivacyPolicy({ userId, ip });
     if (!record) {
       return;
     }
@@ -458,19 +455,19 @@ class AuthRegisterService {
     logger.info('Consentimiento de política de privacidad otorgado en registro', {
       userId,
       policyVersion,
-      userConsentId: record?.user_consent_id
+      userConsentId: record?.userConsentId
     });
   }
 
   /** @private — comunicaciones comerciales (opcional en el registro). */
-  async _recordComercialConsent(userId: string, ip: string | null, transaction: Transaction) {
-    const record = await this.consentRecorder.grantCommercialCommunications({ userId, ip, transaction });
+  async _recordComercialConsent(userId: string, ip: string | null) {
+    const record = await this.consentRecorder.grantCommercialCommunications({ userId, ip });
     if (!record) {
       return;
     }
     logger.info('Consentimiento de comunicaciones comerciales otorgado en registro', {
       userId,
-      userConsentId: record?.user_consent_id
+      userConsentId: record?.userConsentId
     });
   }
 }

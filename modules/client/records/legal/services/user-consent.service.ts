@@ -31,8 +31,8 @@ class UserConsentService {
       this.userConsentRepository.findCurrentByUser(userId)
     ]);
 
-    const grantedByTypeId = new Map(currentConsents.map(c => [c.consent_type_id, c]));
-    const data = consentTypes.map(type => MyConsentCatalogDTO(type, grantedByTypeId.get(type.consent_type_id) || null));
+    const grantedByTypeId = new Map(currentConsents.map(c => [c.consentTypeId, c]));
+    const data = consentTypes.map(type => MyConsentCatalogDTO(type, grantedByTypeId.get(type.consentTypeId) || null));
 
     logAudit(
       'CONSENT_CATALOG_VIEWED',
@@ -53,7 +53,7 @@ class UserConsentService {
       throw AppError.badRequest('Debe proporcionar al menos un consentimiento a otorgar');
     }
 
-    const { granted, auditEntries } = await this.unitOfWork.run(async transaction => {
+    const { granted, auditEntries } = await this.unitOfWork.run(async () => {
       const granted = [];
       const auditEntries = [];
 
@@ -66,19 +66,18 @@ class UserConsentService {
         const record = await this.userConsentRepository.grant(
           {
             userId,
-            consentTypeId: consentType.consent_type_id,
+            consentTypeId: consentType.consentTypeId,
             privacyPolicyId: item.privacyPolicyId || null,
             ip: auditCtx.ip,
             userAgent: auditCtx.userAgent
-          },
-          transaction
+          }
         );
 
         auditEntries.push({
           consentTypeCode: item.consentTypeCode,
-          consentTypeId: consentType.consent_type_id,
+          consentTypeId: consentType.consentTypeId,
           privacyPolicyId: item.privacyPolicyId || null,
-          userConsentId: record.user_consent_id
+          userConsentId: record.userConsentId
         });
 
         granted.push(ConsentGrantedDTO(record));
@@ -113,19 +112,18 @@ class UserConsentService {
     if (!consentType) {
       throw AppError.notFound('Tipo de consentimiento no encontrado');
     }
-    if (!consentType.is_revocable) {
+    if (!consentType.isRevocable) {
       throw AppError.badRequest('Este consentimiento no puede ser revocado');
     }
 
-    const revoked = await this.unitOfWork.run(async transaction => {
+    const revoked = await this.unitOfWork.run(async () => {
       const revoked = await this.userConsentRepository.revoke(
         {
           userId,
           consentTypeId,
           ip: auditCtx.ip,
           reason: auditCtx.reason || null
-        },
-        transaction
+        }
       );
 
       if (!revoked) {
@@ -138,7 +136,7 @@ class UserConsentService {
       'CONSENT_REVOKED',
       userId,
       { consentTypeId, reason: auditCtx.reason || null },
-      { entityType: 'UserConsent', entityId: revoked.user_consent_id, entityTable: 'user_consents' }
+      { entityType: 'UserConsent', entityId: revoked.userConsentId, entityTable: 'user_consents' }
     );
 
     logger.info('UserConsentService.revokeMarketing', { userId, consentTypeId });

@@ -38,6 +38,19 @@ abstract class PrismaRepository {
   }
 
   /**
+   * Ejecuta `fn` de forma atómica: dentro de `unitOfWork.run()` se une a su transacción; fuera, abre
+   * una propia (`$transaction`). Para escrituras de varios pasos que no deben quedar a medias aunque
+   * el llamador no haya pedido una unidad de trabajo (p. ej. "desactivar la anterior + crear").
+   */
+  protected async atomic<T>(fn: (db: PrismaDb) => Promise<T>): Promise<T> {
+    const unit = txContext.activeUnit();
+    if (unit) {
+      return fn(await unit.prisma());
+    }
+    return (this._client as unknown as PrismaClientInstance).$transaction(tx => fn(tx as PrismaDb));
+  }
+
+  /**
    * skip/take/orderBy de un listado paginado. `sortBy` llega de la query string con el nombre de la
    * columna (`created_at`, como hasta ahora) o del campo (`createdAt`); solo se acepta si es un campo
    * del modelo, si no se ordena por `defaultSort` (mismo criterio "sortBy seguro" de ReadRepository).

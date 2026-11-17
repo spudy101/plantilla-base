@@ -1,4 +1,4 @@
-import type defineConsentType from '../../../../schemas/records/legal/models/consent-type.model';
+import type { ConsentType } from '../../../../../shared/database/generated/prisma/client';
 import type { AdminAuditContext } from '../../../../../shared/types/audit-context';
 import AppError from '../../../../../shared/utils/app-error.util';
 import loggerUtilModule from '../../../../../shared/utils/logger.util';
@@ -68,25 +68,28 @@ class ConsentTypeService {
   }
 
   async create(body: ConsentTypeService.CreateInput, auditCtx: AdminAuditContext) {
-    const existing = await this.consentTypeRepository.findOne({ code: body.code });
+    // Se guarda en mayúsculas: la unicidad se verifica con el código ya normalizado (antes se buscaba
+    // el código tal cual llegaba y "abc" pasaba el chequeo aunque existiera "ABC" → 500 por la UNIQUE).
+    const code = body.code.toUpperCase();
+    const existing = await this.consentTypeRepository.findAnyByCode(code);
     if (existing) {
-      throw AppError.conflict(`Ya existe un tipo de consentimiento con el código "${body.code}"`);
+      throw AppError.conflict(`Ya existe un tipo de consentimiento con el código "${code}"`);
     }
 
     const record = await this.consentTypeRepository.create({
-      code: body.code.toUpperCase(),
+      code,
       name: body.name,
       description: body.description || null,
-      is_mandatory: body.isMandatory !== false,
-      is_revocable: body.isRevocable === true,
-      is_active: true
+      isMandatory: body.isMandatory !== false,
+      isRevocable: body.isRevocable === true,
+      isActive: true
     });
 
     logAudit(
       'CONSENT_TYPE_CREATED',
       auditCtx.adminUserId,
       { code: record.code, name: record.name },
-      { entityType: 'ConsentType', entityTable: 'consent_types', entityId: record.consent_type_id }
+      { entityType: 'ConsentType', entityTable: 'consent_types', entityId: record.consentTypeId }
     );
 
     logger.info('ConsentTypeService.create', { code: record.code, adminUserId: auditCtx.adminUserId });
@@ -103,7 +106,7 @@ class ConsentTypeService {
     const updated = await this.consentTypeRepository.update(consentTypeId, {
       name: body.name ?? record.name,
       description: body.description !== undefined ? body.description : record.description,
-      is_active: body.isActive !== undefined ? body.isActive : record.is_active
+      isActive: body.isActive !== undefined ? body.isActive : record.isActive
     });
     if (!updated) {
       throw AppError.notFound('Tipo de consentimiento no encontrado');
@@ -121,12 +124,12 @@ class ConsentTypeService {
   }
 
   /** @private — push de confirmación al administrador que realizó la acción */
-  _notifyAdmin(accion: string, record: Pick<defineConsentType.Instance, 'consent_type_id' | 'code' | 'name'>, auditCtx: AdminAuditContext) {
+  _notifyAdmin(accion: string, record: Pick<ConsentType, 'consentTypeId' | 'code' | 'name'>, auditCtx: AdminAuditContext) {
     setImmediate(() => {
       this.NotificationUtil.crearNotificacion({
         tipoNotificacion: 'CONSENT_TYPE_ADMIN_ACTION',
         userId: auditCtx.adminUserId,
-        relatedEntity: { type: 'ConsentType', id: record.consent_type_id },
+        relatedEntity: { type: 'ConsentType', id: record.consentTypeId },
         metadata: {
           accion,
           code: record.code,

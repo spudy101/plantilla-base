@@ -31,7 +31,7 @@ jest.mock('modules/schemas/kyc/iam/repositories/auth-trusted-device.repository',
 }));
 
 jest.mock('shared/dtos/audit/components-audit.dto', () => ({
-  UserConsentComponent: { build: jest.fn(r => ({ built: 'consent', id: r.user_consent_id })) },
+  UserConsentComponent: { build: jest.fn(r => ({ built: 'consent', id: r.userConsentId })) },
   NotificationPreferenceComponent: { build: jest.fn(r => ({ built: 'pref', id: r.id })) },
   TrustedDeviceComponent: { build: jest.fn(r => ({ built: 'device', id: r.user_trusted_device_id })) }
 }));
@@ -158,13 +158,13 @@ describe('AdminSessionTraceService', () => {
         { entity_table: 'user_trusted_devices', entity_id: 'd1' },
         { entity_table: 'foo_table', entity_id: 'z1' }
       ]);
-      userConsentRepository.findByIds.mockResolvedValue([{ user_consent_id: 'c1' }]);
+      userConsentRepository.findByIds.mockResolvedValue([{ userConsentId: 'c1' }]);
       trustedDeviceRepo.findByIds.mockResolvedValue([{ user_trusted_device_id: 'd1' }]);
 
       await service.getSessionEntities('s1', {}, ADMIN_ID);
 
       // ids únicos por tabla
-      expect(userConsentRepository.findByIds).toHaveBeenCalledWith(['c1'], 'user_consent_id');
+      expect(userConsentRepository.findByIds).toHaveBeenCalledWith(['c1'], 'userConsentId');
 
       const [sessionIdArg, entities, skipped] = SessionEntitiesDTO.mock.calls[0];
       expect(sessionIdArg).toBe('s1');
@@ -187,7 +187,7 @@ describe('AdminSessionTraceService', () => {
         { entity_table: 'user_consents', entity_id: 'c1' },
         { entity_table: 'user_trusted_devices', entity_id: 'd1' }
       ]);
-      userConsentRepository.findByIds.mockResolvedValue([{ user_consent_id: 'c1' }]);
+      userConsentRepository.findByIds.mockResolvedValue([{ userConsentId: 'c1' }]);
 
       await service.getSessionEntities('s1', { entityTable: 'user_consents' }, ADMIN_ID);
 

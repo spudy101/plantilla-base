@@ -168,7 +168,7 @@ describe('ProfileHelper', () => {
         { transaction: TX }
       );
       expect(deps.personLocationRepository.anonymizeAddressByPersonId).toHaveBeenCalledWith('p-1', { transaction: TX });
-      expect(deps.userConsentRepository.revokeAll).toHaveBeenCalledWith('u-1', TX);
+      expect(deps.userConsentRepository.revokeAll).toHaveBeenCalledWith('u-1');
       expect(result).toMatchObject({ deletedEmail: 'ana@b.cl', firstName: 'Ana' });
     });
   });

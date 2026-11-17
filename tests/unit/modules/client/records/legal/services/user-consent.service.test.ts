@@ -19,7 +19,7 @@ jest.mock('modules/schemas/records/legal/repositories/user-consent.repository', 
 
 jest.mock('modules/client/records/legal/dtos/user-consent.dto', () => ({
   MyConsentCatalogDTO: jest.fn((type, record) => ({ code: type.code, granted: !!record })),
-  ConsentGrantedDTO: jest.fn(r => ({ id: r.user_consent_id }))
+  ConsentGrantedDTO: jest.fn(r => ({ id: r.userConsentId }))
 }));
 
 jest.mock('shared/models', () => ({
@@ -59,8 +59,8 @@ describe('UserConsentService', () => {
 
   describe('getMyConsents', () => {
     it('cruza el catálogo activo con los consentimientos vigentes y audita', async () => {
-      consentTypeRepository.findAllActive.mockResolvedValue([{ consent_type_id: 'a', code: 'PP' }, { consent_type_id: 'b', code: 'CC' }]);
-      userConsentRepository.findCurrentByUser.mockResolvedValue([{ consent_type_id: 'a' }]);
+      consentTypeRepository.findAllActive.mockResolvedValue([{ consentTypeId: 'a', code: 'PP' }, { consentTypeId: 'b', code: 'CC' }]);
+      userConsentRepository.findCurrentByUser.mockResolvedValue([{ consentTypeId: 'a' }]);
 
       const result = await service.getMyConsents(USER_ID);
 
@@ -97,11 +97,11 @@ describe('UserConsentService', () => {
     it('otorga cada item, commitea, audita por entrada y devuelve los DTO', async () => {
       const tx = mockTx();
       consentTypeRepository.findByCode
-        .mockResolvedValueOnce({ consent_type_id: 'a' })
-        .mockResolvedValueOnce({ consent_type_id: 'b' });
+        .mockResolvedValueOnce({ consentTypeId: 'a' })
+        .mockResolvedValueOnce({ consentTypeId: 'b' });
       userConsentRepository.grant
-        .mockResolvedValueOnce({ user_consent_id: 'uc-1' })
-        .mockResolvedValueOnce({ user_consent_id: 'uc-2' });
+        .mockResolvedValueOnce({ userConsentId: 'uc-1' })
+        .mockResolvedValueOnce({ userConsentId: 'uc-2' });
 
       const items = [
         { consentTypeCode: 'PP', privacyPolicyId: 'pp-1' },
@@ -111,8 +111,7 @@ describe('UserConsentService', () => {
 
       expect(userConsentRepository.grant).toHaveBeenCalledTimes(2);
       expect(userConsentRepository.grant).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: USER_ID, consentTypeId: 'a', privacyPolicyId: 'pp-1', ip: '1.2.3.4' }),
-        tx
+        expect.objectContaining({ userId: USER_ID, consentTypeId: 'a', privacyPolicyId: 'pp-1', ip: '1.2.3.4' })
       );
       expect(tx.commit).toHaveBeenCalled();
       expect(logAudit).toHaveBeenCalledTimes(2);
@@ -122,7 +121,7 @@ describe('UserConsentService', () => {
 
     it('hace rollback y propaga si el otorgamiento en repo falla', async () => {
       const tx = mockTx();
-      consentTypeRepository.findByCode.mockResolvedValue({ consent_type_id: 'a' });
+      consentTypeRepository.findByCode.mockResolvedValue({ consentTypeId: 'a' });
       userConsentRepository.grant.mockRejectedValue(new Error('db down'));
 
       await expect(service.grant([{ consentTypeCode: 'PP' }], USER_ID, AUDIT_CTX)).rejects.toThrow('db down');
@@ -139,13 +138,13 @@ describe('UserConsentService', () => {
     });
 
     it('lanza badRequest si el consentimiento no es revocable', async () => {
-      consentTypeRepository.findById.mockResolvedValue({ is_revocable: false });
+      consentTypeRepository.findById.mockResolvedValue({ isRevocable: false });
       await expect(service.revokeMarketing(USER_ID, 'ct-1', AUDIT_CTX)).rejects.toMatchObject({ statusCode: 400 });
     });
 
     it('hace rollback y lanza notFound si no hay consentimiento activo para revocar', async () => {
       const tx = mockTx();
-      consentTypeRepository.findById.mockResolvedValue({ is_revocable: true });
+      consentTypeRepository.findById.mockResolvedValue({ isRevocable: true });
       userConsentRepository.revoke.mockResolvedValue(null);
 
       await expect(service.revokeMarketing(USER_ID, 'ct-1', AUDIT_CTX)).rejects.toMatchObject({ statusCode: 404 });
@@ -155,14 +154,13 @@ describe('UserConsentService', () => {
 
     it('revoca, commitea, audita y devuelve mensaje de éxito', async () => {
       const tx = mockTx();
-      consentTypeRepository.findById.mockResolvedValue({ is_revocable: true });
-      userConsentRepository.revoke.mockResolvedValue({ user_consent_id: 'uc-9' });
+      consentTypeRepository.findById.mockResolvedValue({ isRevocable: true });
+      userConsentRepository.revoke.mockResolvedValue({ userConsentId: 'uc-9' });
 
       const result = await service.revokeMarketing(USER_ID, 'ct-1', AUDIT_CTX);
 
       expect(userConsentRepository.revoke).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: USER_ID, consentTypeId: 'ct-1', ip: '1.2.3.4', reason: 'ya no quiero' }),
-        tx
+        expect.objectContaining({ userId: USER_ID, consentTypeId: 'ct-1', ip: '1.2.3.4', reason: 'ya no quiero' })
       );
       expect(tx.commit).toHaveBeenCalled();
       expect(logAudit).toHaveBeenCalledWith('CONSENT_REVOKED', USER_ID, expect.any(Object), expect.any(Object));
