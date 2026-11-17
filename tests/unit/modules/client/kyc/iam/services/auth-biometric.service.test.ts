@@ -457,7 +457,7 @@ describe('AuthBiometricService', () => {
       expect(biometricCredentialRepository.updateAfterLogin).toHaveBeenCalledWith('cred-1', 7);
       expect(trustedDeviceRepository.updateLastSeen).toHaveBeenCalledWith(USER_ID, FP_HASH);
       expect(userLoginAttemptRepository.recordAttempt).toHaveBeenCalledWith(
-        expect.objectContaining({ user_id: USER_ID, success: true, origin_session_id: expect.any(String) })
+        expect.objectContaining({ userId: USER_ID, success: true, originSessionId: expect.any(String) })
       );
       expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_LOGIN_SUCCESS', USER_ID, expect.any(Object), expect.any(Object));
       expect(result).toMatchObject({ dto: 'login', deviceId: DEVICE_ID, deviceHmacSecret: 'hmac-1' });

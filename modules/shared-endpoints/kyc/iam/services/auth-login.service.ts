@@ -206,14 +206,14 @@ class AuthLoginService {
     const secret = user.totp_secret ? EncryptionUtil.decrypt(user.totp_secret) : null;
     if (!TotpUtil.verify(totpCode, secret)) {
       await this.userLoginAttemptRepository.recordAttempt({
-        user_id: user.user_id,
-        username_attempt: user.auth_username ?? user.username, // columna NOT NULL; auth_username es nullable
-        national_id: nationalId,
-        ip_address: ip,
-        user_agent: userAgent,
-        device_fingerprint: fingerprintHash,
+        userId: user.user_id,
+        usernameAttempt: user.auth_username ?? user.username, // columna NOT NULL; auth_username es nullable
+        nationalId: nationalId,
+        ipAddress: ip,
+        userAgent: userAgent,
+        deviceFingerprint: fingerprintHash,
         success: false,
-        failure_reason: 'Codigo TOTP incorrecto'
+        failureReason: 'Codigo TOTP incorrecto'
       // attempted_at lo pone recordAttempt
       });
 
@@ -323,14 +323,14 @@ class AuthLoginService {
   async _handleFailedLogin(user: defineUser.Instance, nationalId: string, auditContext: RequestAuditContext, reason: string) {
     // Registrar el intento en BD para auditoría (sin blocked_until — el bloqueo lo gestiona Redis)
     await this.userLoginAttemptRepository.recordAttempt({
-      user_id: user.user_id,
-      username_attempt: user.auth_username ?? user.username, // columna NOT NULL; auth_username es nullable
-      national_id: nationalId,
-      ip_address: auditContext.ip,
-      user_agent: auditContext.userAgent,
-      device_fingerprint: auditContext.fingerprintHash,
+      userId: user.user_id,
+      usernameAttempt: user.auth_username ?? user.username, // columna NOT NULL; auth_username es nullable
+      nationalId: nationalId,
+      ipAddress: auditContext.ip,
+      userAgent: auditContext.userAgent,
+      deviceFingerprint: auditContext.fingerprintHash,
       success: false,
-      failure_reason: reason
+      failureReason: reason
       // attempted_at lo pone recordAttempt
     });
 
@@ -457,17 +457,17 @@ class AuthLoginService {
 
     // ── Registro del intento exitoso ─────────────────────────
     await this.userLoginAttemptRepository.recordAttempt({
-      user_id: user.user_id,
-      username_attempt: user.auth_username ?? user.username, // columna NOT NULL; auth_username es nullable
-      national_id: nationalId,
-      ip_address: ip,
-      user_agent: userAgent,
-      device_fingerprint: fingerprintHash,
+      userId: user.user_id,
+      usernameAttempt: user.auth_username ?? user.username, // columna NOT NULL; auth_username es nullable
+      nationalId: nationalId,
+      ipAddress: ip,
+      userAgent: userAgent,
+      deviceFingerprint: fingerprintHash,
       success: true,
       // Explícito: `POST /auth/login` es ruta pública y no pasa por AuthMiddleware.authenticate, así que
       // el AsyncLocalStorage no tiene el sessionId aunque la sesión ya se creó unas líneas más arriba.
       // Ata el intento exitoso a su sesión — es lo que `session_cache_key` prometía y nunca cumplió.
-      origin_session_id: sessionId
+      originSessionId: sessionId
     });
 
     logAudit(

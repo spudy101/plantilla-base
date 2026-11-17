@@ -98,7 +98,7 @@ class AdminSessionTraceService {
     // Conteo de acciones por sesión, solo para las sesiones de esta página (un query agrupado).
     const sessionIds = rows.map(s => s.user_session_id);
     const counts = await this.auditLogRepository.countBySessionIds(sessionIds);
-    const countMap = new Map(counts.map(row => [row.session_id, Number(row.count)]));
+    const countMap = new Map(counts.map(row => [row.sessionId, row.count]));
 
     const activeFilters = PaginationHelper.buildFilters(query, ['userId', 'sessionId', 'status', 'ip', 'dateFrom', 'dateTo']);
 
@@ -129,7 +129,7 @@ class AdminSessionTraceService {
     const pagination = PaginationHelper.getPaginationParams(query);
 
     const { rows, count } = await this.auditLogRepository.findPaginatedWithExecutor(
-      { session_id: sessionId },
+      { sessionId },
       { limit: pagination.limit, offset: pagination.offset, sortBy: 'created_at', order: 'ASC' }
     );
 
@@ -151,7 +151,7 @@ class AdminSessionTraceService {
         sortBy: 'createdAt',
         order: 'ASC'
       },
-      log => _isHydratable(log.entity_table, log.entity_id)
+      log => _isHydratable(log.entityTable, log.entityId)
     );
   }
 
@@ -167,13 +167,13 @@ class AdminSessionTraceService {
     let refs = await this.auditLogRepository.findEntityRefsBySession(sessionId);
     const entityTableFilter = PaginationHelper.stringParam(query, 'entityTable');
     if (entityTableFilter) {
-      refs = refs.filter(r => r.entity_table === entityTableFilter);
+      refs = refs.filter(r => r.entityTable === entityTableFilter);
     }
 
     // Agrupar ids únicos por tabla.
     const idsByTable: Record<string, Set<string>> = {};
     for (const ref of refs) {
-      (idsByTable[ref.entity_table] ??= new Set()).add(ref.entity_id);
+      (idsByTable[ref.entityTable] ??= new Set()).add(ref.entityId);
     }
 
     const entities: SessionTraceDto.EntityGroup[] = [];

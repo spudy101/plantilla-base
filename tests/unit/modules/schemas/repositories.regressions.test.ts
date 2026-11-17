@@ -17,7 +17,6 @@ const fakeModel = (extra: Record<string, unknown> = {}) => ({
 });
 
 const mockModels = {
-  AuditLog: fakeModel(),
   UserChangeLog: fakeModel(),
   UserTrustedDevice: fakeModel()
 };
@@ -27,26 +26,9 @@ jest.mock('shared/utils/logger.util', () => ({
   logger: { error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() }
 }));
 
-import auditLogRepository from 'modules/schemas/records/audit/repositories/audit-log.repository';
 import userChangeLogRepository from 'modules/schemas/records/audit/repositories/user-change-log.repository';
 
 beforeEach(() => jest.clearAllMocks());
-
-describe('AuditLogRepository.register', () => {
-  // Antes: el try/catch envolvía una Promise sin await → el rechazo escapaba al llamador pese a
-  // que el contrato es "nunca lanza".
-  it('no propaga el error de BD: devuelve null', async () => {
-    mockModels.AuditLog.create.mockRejectedValue(new Error('db down'));
-
-    await expect(auditLogRepository.register({ action: 'LOGIN', user_id: 'u-1' })).resolves.toBeNull();
-  });
-
-  it('devuelve el registro creado', async () => {
-    mockModels.AuditLog.create.mockResolvedValue({ audit_log_id: 'a-1' });
-
-    await expect(auditLogRepository.register({ action: 'LOGIN' })).resolves.toEqual({ audit_log_id: 'a-1' });
-  });
-});
 
 describe('UserChangeLogRepository: filtros de los atajos', () => {
   // Antes: findByChangeType / findByAdminUser pasaban claves snake_case que findAllPaginated no lee,

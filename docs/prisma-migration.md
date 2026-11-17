@@ -5,7 +5,7 @@
 > al final de cada fase la app arranca y los tests pasan. Durante la migración **Prisma y Sequelize
 > conviven contra la misma base**: cada repositorio cambia de ORM sin que los services se enteren.
 >
-> Estado: **fases 0 a 4 completas; fase 5 en curso** (grupos 1 a 4 de 6) en la rama `feat/prisma`; ver [Cómo funciona hoy](#cómo-funciona-hoy).
+> Estado: **fases 0 a 4 completas; fase 5 en curso** (grupos 1 a 5 de 6) en la rama `feat/prisma`; ver [Cómo funciona hoy](#cómo-funciona-hoy).
 
 ## Punto de partida (medido)
 
@@ -119,8 +119,8 @@ filas de Prisma (camelCase) y de Sequelize (snake_case) a la vez.
 | 2. Legal | consent-type, privacy-policy, privacy-policy-admin, user-consent | ✅ |
 | 3. Notificaciones | notification-category, notification-type, notification, global-notification, global-notification-read, user-notification-preference, user-push-token, verification-code, sms-delivery-attempt, email-bounce-suppression | ✅ |
 | 4. Integraciones y config | system-global-config, integration-api-log, provider-fallback-event, approval-request | ✅ |
-| 5. Auditoría | audit-log, audit-alert, user-change-log, user-login-attempt | ⏳ |
-| 6. Núcleo de identidad | user, person, person-contact, person-location, person-reference, role, role-permission-override, user-session, auth-trusted-device, biometric, reset-credentials (al migrar: devolver los consentimientos y la preferencia de notificación del registro a la transacción del alta, ver grupos 2 y 3) | ⏳ |
+| 5. Auditoría | audit-log, audit-alert, user-login-attempt (user-change-log pasa al grupo 6) | ✅ |
+| 6. Núcleo de identidad | user, person, person-contact, person-location, person-reference, role, role-permission-override, user-session, auth-trusted-device, biometric, reset-credentials, user-change-log (al migrar: devolver los consentimientos y la preferencia de notificación del registro a la transacción del alta, ver grupos 2 y 3) | ⏳ |
 
 Receta por repositorio:
 
@@ -134,6 +134,23 @@ Receta por repositorio:
 4. Tests: los fixtures de los mocks a camelCase. Un test que pasa igual con el fixture viejo prueba algo
    equivocado: agregar el caso positivo (ver `profile.helper.test.ts`).
 5. Verificar contra la base de desarrollo los listados y búsquedas del grupo (totales iguales a Sequelize).
+
+#### Hallazgos del grupo 5
+
+- **`user-change-log` pasa al grupo 6**: se escribe en la misma unidad en que Sequelize edita al usuario, y
+  si esa edición toca una columna UNIQUE (`username` al eliminar la cuenta) el INSERT con FK de Prisma
+  queda esperando el lock hasta el timeout. Probado en `cross-orm-locks.test.ts`.
+- **La auditoría va fuera de la transacción del flujo**, como con Sequelize: `audit-log` y `audit-alert`
+  escriben con `independentDb()` aunque haya una unidad activa, así un flujo revertido conserva su rastro.
+- **Unidad de trabajo cerrada al terminar `work`** (ver reglas de la convivencia): sin eso, logAudit (que
+  persiste en `setImmediate`) heredaba el contexto y con Prisma escribía en una transacción ya cerrada.
+- `audit_logs`/`audit_alerts` no declaran relación con `users` (user_id es trazabilidad): el executor, el
+  actor y quien reconoce se adjuntan con una consulta por lote. `countBySessionIds` pasa a `groupBy`.
+- La purga de retención usa una transacción propia de Prisma con `SET LOCAL app.allow_audit_purge`, que
+  el trigger append-only acepta (probado contra Postgres).
+- `acknowledge`/`acknowledgeBulk` devuelven la cantidad de filas (antes `[n]` de Sequelize).
+- Verificado contra la base de desarrollo: totales, filtros, intentos de autenticación, primera página con
+  executor, alertas e intentos de login iguales a Sequelize.
 
 #### Hallazgos del grupo 4
 
@@ -215,6 +232,12 @@ Receta por repositorio:
 - **Un flujo transaccional no toca la misma fila con los dos ORMs**: son dos conexiones, así que la segunda
   esperaría el lock de la primera hasta el timeout de Prisma (15 s). Falla ruidoso, no corrompe datos.
   Por eso en la fase 5 cada flujo transaccional se migra entero.
+- **Tampoco una fila que la otra referencia por FK**, si la primera la acaba de crear (la FK no ve la fila sin
+  confirmar: grupo 2) o le cambió una columna UNIQUE (Postgres toma FOR UPDATE y la verificación de la FK
+  espera: grupo 5). `cross-orm-locks.test.ts` y `legal-consents.test.ts` lo prueban.
+- **Lo que una unidad deja en segundo plano no usa su transacción**: al terminar `work` la unidad se cierra
+  (`ActiveUnit.closed`); un `setImmediate` programado adentro (logAudit, notificaciones) corre con el
+  cliente normal en vez de una transacción ya cerrada o una nueva que nadie confirmaría.
 - **No es atómico si falla el commit de la segunda transacción** (la de Sequelize, después de confirmar la de
   Prisma). Un error de negocio dentro de `work` revierte las dos; solo un fallo del propio COMMIT deja una
   confirmada y la otra no. Desaparece al quitar Sequelize.

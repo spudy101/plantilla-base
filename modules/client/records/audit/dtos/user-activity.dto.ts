@@ -1,11 +1,11 @@
-import type defineAuditLog from '../../../../schemas/records/audit/models/audit-log.model';
+import type { AuditLogRepositoryPort } from '../../../../schemas/repository-ports';
 import type defineUserChangeLog from '../../../../schemas/records/audit/models/user-change-log.model';
 // DTO del feed de actividad del propio usuario. Client-safe: NUNCA expone `details` de audit_logs
 // (claves before/after), `previous_value`/`new_value` de user_change_logs, user_agent ni datos de
 // terceros. Keys camelCase; `source`/`action`/`category`/`outcome`/`changedByRole` son enums → snake_case.
 
 /** Fila de audit_logs del feed (findClientSafeByUser). */
-type AuditRow = defineAuditLog.Instance & { created_at?: Date };
+type AuditRow = Awaited<ReturnType<AuditLogRepositoryPort['findClientSafeByUser']>>['rows'][number];
 /** Fila de user_change_logs: el repo selecciona la columna por su nombre (created_at), que Sequelize expone tal cual. */
 type ChangeRow = defineUserChangeLog.Instance & { created_at?: Date };
 
@@ -35,7 +35,7 @@ const CHANGE_TYPE_DESCRIPTIONS: Record<string, string> = {
 
 function _auditItem(row: AuditRow, deviceBySession: DeviceBySession) {
   return {
-    activityId: row.audit_log_id,
+    activityId: row.auditLogId,
     source: 'audit_log',
     action: row.action,
     description: row.description ?? null,
@@ -43,8 +43,8 @@ function _auditItem(row: AuditRow, deviceBySession: DeviceBySession) {
     outcome: row.outcome ?? null,
     changedByRole: 'user',
     ip: row.ip ?? null,
-    device: deviceBySession.get(row.session_id) ?? null,
-    occurredAt: row.createdAt ?? row.created_at ?? null
+    device: deviceBySession.get(row.sessionId) ?? null,
+    occurredAt: row.createdAt ?? null
   };
 }
 

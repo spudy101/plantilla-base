@@ -83,8 +83,8 @@ describe('AdminSessionTraceService', () => {
         count: 2
       });
       auditLogRepository.countBySessionIds.mockResolvedValue([
-        { session_id: 's1', count: '3' },
-        { session_id: 's2', count: '0' }
+        { sessionId: 's1', count: 3 },
+        { sessionId: 's2', count: 0 }
       ]);
 
       const result = await service.listSessions({ userId: 'u-1' }, ADMIN_ID);
@@ -119,9 +119,9 @@ describe('AdminSessionTraceService', () => {
       userSessionRepository.findByIdWithDeviceAndUser.mockResolvedValue({ user_session_id: 's1' });
       auditLogRepository.findPaginatedWithExecutor.mockResolvedValue({
         rows: [
-          { entity_table: 'user_consents', entity_id: 'c1' },
-          { entity_table: 'tabla_no_registrada', entity_id: 'x1' },
-          { entity_table: 'user_consents', entity_id: null }
+          { entityTable: 'user_consents', entityId: 'c1' },
+          { entityTable: 'tabla_no_registrada', entityId: 'x1' },
+          { entityTable: 'user_consents', entityId: null }
         ],
         count: 3
       });
@@ -137,9 +137,9 @@ describe('AdminSessionTraceService', () => {
 
       // La función hasDetailFn se pasa como último argumento del DTO: la ejercitamos directamente.
       const hasDetailFn = SessionTimelineDTO.mock.calls[0][4];
-      expect(hasDetailFn({ entity_table: 'user_consents', entity_id: 'c1' })).toBe(true);
-      expect(hasDetailFn({ entity_table: 'tabla_no_registrada', entity_id: 'x1' })).toBe(false);
-      expect(hasDetailFn({ entity_table: 'user_consents', entity_id: null })).toBe(false);
+      expect(hasDetailFn({ entityTable: 'user_consents', entityId: 'c1' })).toBe(true);
+      expect(hasDetailFn({ entityTable: 'tabla_no_registrada', entityId: 'x1' })).toBe(false);
+      expect(hasDetailFn({ entityTable: 'user_consents', entityId: null })).toBe(false);
     });
   });
 
@@ -153,10 +153,10 @@ describe('AdminSessionTraceService', () => {
     it('hidrata por lote, agrupa ids únicos por tabla y reporta tablas no registradas en skipped', async () => {
       userSessionRepository.findById.mockResolvedValue({ user_session_id: 's1' });
       auditLogRepository.findEntityRefsBySession.mockResolvedValue([
-        { entity_table: 'user_consents', entity_id: 'c1' },
-        { entity_table: 'user_consents', entity_id: 'c1' }, // duplicado → un solo id
-        { entity_table: 'user_trusted_devices', entity_id: 'd1' },
-        { entity_table: 'foo_table', entity_id: 'z1' }
+        { entityTable: 'user_consents', entityId: 'c1' },
+        { entityTable: 'user_consents', entityId: 'c1' }, // duplicado → un solo id
+        { entityTable: 'user_trusted_devices', entityId: 'd1' },
+        { entityTable: 'foo_table', entityId: 'z1' }
       ]);
       userConsentRepository.findByIds.mockResolvedValue([{ userConsentId: 'c1' }]);
       trustedDeviceRepo.findByIds.mockResolvedValue([{ user_trusted_device_id: 'd1' }]);
@@ -184,8 +184,8 @@ describe('AdminSessionTraceService', () => {
     it('acota la hidratación a una sola tabla con ?entityTable', async () => {
       userSessionRepository.findById.mockResolvedValue({ user_session_id: 's1' });
       auditLogRepository.findEntityRefsBySession.mockResolvedValue([
-        { entity_table: 'user_consents', entity_id: 'c1' },
-        { entity_table: 'user_trusted_devices', entity_id: 'd1' }
+        { entityTable: 'user_consents', entityId: 'c1' },
+        { entityTable: 'user_trusted_devices', entityId: 'd1' }
       ]);
       userConsentRepository.findByIds.mockResolvedValue([{ userConsentId: 'c1' }]);
 

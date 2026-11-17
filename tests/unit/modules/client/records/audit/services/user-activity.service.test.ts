@@ -49,7 +49,7 @@ describe('UserActivityService', () => {
   describe('getRecentActivity', () => {
     it('fusiona ambas fuentes, ordena por fecha desc, audita y resuelve dispositivos por sesión', async () => {
       auditLogRepository.findClientSafeByUser.mockResolvedValue({
-        rows: [{ audit_log_id: 'a1', session_id: 'sess1', createdAt: new Date('2026-01-02') }],
+        rows: [{ auditLogId: 'a1', sessionId: 'sess1', createdAt: new Date('2026-01-02') }],
         count: 1
       });
       userChangeLogRepository.findExternalChangesByUserId.mockResolvedValue({
@@ -95,7 +95,7 @@ describe('UserActivityService', () => {
 
     it('no consulta dispositivos cuando ningún ítem tiene session_id', async () => {
       auditLogRepository.findClientSafeByUser.mockResolvedValue({
-        rows: [{ audit_log_id: 'a1', session_id: null, createdAt: new Date('2026-01-02') }],
+        rows: [{ auditLogId: 'a1', sessionId: null, createdAt: new Date('2026-01-02') }],
         count: 1
       });
       userChangeLogRepository.findExternalChangesByUserId.mockResolvedValue({

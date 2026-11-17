@@ -2,51 +2,59 @@
 // Componentes reutilizables de auditoría — RF-ADM-03
 
 import MaskingUtil from '../../utils/masking.util';
-import type { DbDate, Maybe, UserRefRow } from '../../types/db-rows';
+import type { DbDate, Maybe } from '../../types/db-rows';
 
+/** Usuario adjunto a una fila de auditoría (Prisma): firstName/lastName viven en Person. */
+interface AuditUserRow {
+  userId: string;
+  username?: Maybe<string>;
+  person?: Maybe<{ firstName?: Maybe<string>; lastName?: Maybe<string> }>;
+}
+
+// Filas de Prisma (camelCase): audit_logs y audit_alerts migraron en la fase 5 (grupo 5).
 interface AuditLogRow {
-  audit_log_id: string;
+  auditLogId: string;
   action: string;
   description?: Maybe<string>;
   category?: Maybe<string>;
   module?: Maybe<string>;
   risk?: Maybe<string>;
   outcome?: Maybe<string>;
-  http_status?: Maybe<number>;
-  error_code?: Maybe<string>;
-  error_message?: Maybe<string>;
-  user_id?: Maybe<string>;
-  session_id?: Maybe<string>;
-  executor?: Maybe<UserRefRow>;
-  entity_id?: Maybe<string>;
-  entity_type?: Maybe<string>;
-  entity_table?: Maybe<string>;
+  httpStatus?: Maybe<number>;
+  errorCode?: Maybe<string>;
+  errorMessage?: Maybe<string>;
+  userId?: Maybe<string>;
+  sessionId?: Maybe<string>;
+  executor?: Maybe<AuditUserRow>;
+  entityId?: Maybe<string>;
+  entityType?: Maybe<string>;
+  entityTable?: Maybe<string>;
   method?: Maybe<string>;
   path?: Maybe<string>;
   ip?: Maybe<string>;
   source?: Maybe<string>;
-  correlation_id?: Maybe<string>;
-  user_agent?: Maybe<string>;
+  correlationId?: Maybe<string>;
+  userAgent?: Maybe<string>;
   fingerprint?: Maybe<string>;
   details?: unknown;
   createdAt?: Maybe<DbDate>;
 }
 
 interface AuditAlertRow {
-  alert_id: string;
-  audit_log_id?: Maybe<string>;
+  alertId: string;
+  auditLogId?: Maybe<string>;
   action: string;
   category?: Maybe<string>;
   risk?: Maybe<string>;
-  user_id?: Maybe<string>;
-  actor?: Maybe<UserRefRow>;
-  entity_id?: Maybe<string>;
-  entity_type?: Maybe<string>;
+  userId?: Maybe<string>;
+  actor?: Maybe<AuditUserRow>;
+  entityId?: Maybe<string>;
+  entityType?: Maybe<string>;
   message?: Maybe<string>;
   acknowledged?: Maybe<boolean>;
-  acknowledged_by?: Maybe<string>;
-  acknowledgedByUser?: Maybe<UserRefRow>;
-  acknowledged_at?: Maybe<DbDate>;
+  acknowledgedBy?: Maybe<string>;
+  acknowledgedByUser?: Maybe<AuditUserRow>;
+  acknowledgedAt?: Maybe<DbDate>;
   createdAt?: Maybe<DbDate>;
 }
 
@@ -124,18 +132,7 @@ interface TrustedDeviceTraceRow {
 /** Variantes de UserConsentComponent que buildArray puede aplicar a cada registro. */
 type UserConsentVariant = 'build' | 'buildForClient' | 'buildGranted';
 
-function _buildUserRef(user: Maybe<UserRefRow>) {
-  if (!user) {
-    return null;
-  }
-  return {
-    userId: user.user_id,
-    username: user.username,
-    fullName: [user.person?.first_name, user.person?.last_name].filter(Boolean).join(' ') || null
-  };
-}
-
-function _buildConsentUserRef(user: Maybe<ConsentUserRow>) {
+function _buildUserRef(user: Maybe<AuditUserRow | ConsentUserRow>) {
   if (!user) {
     return null;
   }
@@ -152,22 +149,22 @@ class AuditLogComponent {
       return null;
     }
     return {
-      auditLogId: record.audit_log_id,
+      auditLogId: record.auditLogId,
       action: record.action,
       description: record.description || null,
       category: record.category || null,
       module: record.module || null,
       risk: record.risk,
       outcome: record.outcome,
-      httpStatus: record.http_status || null,
-      errorCode: record.error_code || null,
-      errorMessage: record.error_message || null,
-      userId: record.user_id || null,
-      sessionId: record.session_id || null,
+      httpStatus: record.httpStatus || null,
+      errorCode: record.errorCode || null,
+      errorMessage: record.errorMessage || null,
+      userId: record.userId || null,
+      sessionId: record.sessionId || null,
       executor: _buildUserRef(record.executor),
-      entityId: record.entity_id || null,
-      entityType: record.entity_type || null,
-      entityTable: record.entity_table || null,
+      entityId: record.entityId || null,
+      entityType: record.entityType || null,
+      entityTable: record.entityTable || null,
       method: record.method || null,
       path: record.path || null,
       ip: record.ip || null,
@@ -182,11 +179,11 @@ class AuditLogComponent {
     }
     return {
       ...AuditLogComponent.buildList(record),
-      httpStatus: record.http_status || null,
-      errorCode: record.error_code || null,
-      errorMessage: record.error_message || null,
-      correlationId: record.correlation_id || null,
-      userAgent: record.user_agent || null,
+      httpStatus: record.httpStatus || null,
+      errorCode: record.errorCode || null,
+      errorMessage: record.errorMessage || null,
+      correlationId: record.correlationId || null,
+      userAgent: record.userAgent || null,
       fingerprint: record.fingerprint || null,
       method: record.method || null,
       path: record.path || null,
@@ -210,20 +207,20 @@ class AuditAlertComponent {
       return null;
     }
     return {
-      alertId: record.alert_id,
-      auditLogId: record.audit_log_id || null,
+      alertId: record.alertId,
+      auditLogId: record.auditLogId || null,
       action: record.action,
       category: record.category || null,
       risk: record.risk,
-      userId: record.user_id || null,
+      userId: record.userId || null,
       user: _buildUserRef(record.actor),
-      entityId: record.entity_id || null,
-      entityType: record.entity_type || null,
+      entityId: record.entityId || null,
+      entityType: record.entityType || null,
       message: record.message || null,
       acknowledged: record.acknowledged,
-      acknowledgedBy: record.acknowledged_by || null,
+      acknowledgedBy: record.acknowledgedBy || null,
       acknowledgedByUser: _buildUserRef(record.acknowledgedByUser),
-      acknowledgedAt: record.acknowledged_at || null,
+      acknowledgedAt: record.acknowledgedAt || null,
       createdAt: record.createdAt
     };
   }
@@ -309,7 +306,7 @@ class UserConsentComponent {
     return {
       userConsentId: record.userConsentId,
       userId: record.userId,
-      user: _buildConsentUserRef(record.user),
+      user: _buildUserRef(record.user),
       consentType: ConsentTypeComponent.build(record.consentType),
       privacyPolicy: PrivacyPolicyRefComponent.build(record.privacyPolicy),
       grantedAt: record.grantedAt,

@@ -1,6 +1,6 @@
 // tests/unit/modules/schemas/repositories/query-encapsulation.test.ts
 //
-// Las consultas con operadores de Sequelize (Op.in, Op.between, Op.gte…) viven en los
+// Las consultas con operadores de Sequelize (Op.in, Op.notIn…) viven en los
 // repositorios, no en los services (SOLID: D e I). Aquí se cubre la traducción
 // "filtros de negocio → WHERE" que antes estaba repartida en los services.
 
@@ -28,84 +28,15 @@ const mockMakeModel = () => ({
 });
 
 jest.mock('shared/models', () => ({
-  AuditLog: mockMakeModel(),
   Role: mockMakeModel()
 }));
 
-import { mocked, fixture } from 'tests/helpers/mock';
+import { mocked } from 'tests/helpers/mock';
 import sequelizeModule from 'sequelize';
 const { Op } = mocked(sequelizeModule);
 import modelsModule from 'shared/models';
-const { AuditLog, Role } = mocked(modelsModule);
-import auditLogRepository from 'modules/schemas/records/audit/repositories/audit-log.repository';
+const { Role } = mocked(modelsModule);
 import roleRepository from 'modules/schemas/kyc/iam/repositories/role.repository';
-
-describe('AuditLogRepository — filtros de negocio a WHERE', () => {
-  it('buildSearchWhere mapea filtros a columnas y rango de fechas', () => {
-    const where = auditLogRepository.buildSearchWhere(fixture({
-      dateFrom: '2024-01-01',
-      dateTo: '2024-02-01',
-      action: 'LOGIN',
-      userId: 'u-9',
-      correlationId: 'c-1',
-      module: 'IAM',
-      ignored: 'x'
-    }));
-    expect(where).toEqual({
-      created_at: { [Op.gte]: '2024-01-01', [Op.lte]: '2024-02-01' },
-      action: 'LOGIN',
-      user_id: 'u-9',
-      correlation_id: 'c-1',
-      module: 'IAM'
-    });
-  });
-
-  it('buildSearchWhere sin filtros devuelve un WHERE vacío', () => {
-    expect(auditLogRepository.buildSearchWhere({})).toEqual({});
-  });
-
-  it('buildAuthAttemptsWhere con acciones usa IN y no filtra por categoría', () => {
-    const from = new Date('2024-01-01');
-    const to = new Date('2024-01-31');
-    const where = auditLogRepository.buildAuthAttemptsWhere({
-      from,
-      to,
-      actions: ['LOGIN_SUCCESS', 'LOGIN_FAILED'],
-      category: 'Autenticación',
-      userId: 'u-1',
-      outcome: 'FAILED'
-    });
-    expect(where).toEqual({
-      created_at: { [Op.between]: [from, to] },
-      action: { [Op.in]: ['LOGIN_SUCCESS', 'LOGIN_FAILED'] },
-      user_id: 'u-1',
-      outcome: 'FAILED'
-    });
-  });
-
-  it('buildAuthAttemptsWhere sin acciones filtra por categoría', () => {
-    const from = new Date('2024-01-01');
-    const to = new Date('2024-01-31');
-    expect(auditLogRepository.buildAuthAttemptsWhere({ from, to, category: 'Autenticación' })).toEqual({
-      created_at: { [Op.between]: [from, to] },
-      category: 'Autenticación'
-    });
-  });
-
-  it('searchPaginated consulta con el WHERE traducido', async () => {
-    await auditLogRepository.searchPaginated({ action: 'LOGIN' }, { limit: 10, offset: 0 }, []);
-    expect(AuditLog.findAndCountAll).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { action: 'LOGIN' }, limit: 10, offset: 0 })
-    );
-  });
-
-  it('es append-only: no expone update ni delete', () => {
-    // no existen en el tipo: se mira el objeto en tiempo de ejecución
-    const repo = auditLogRepository as unknown as Record<string, unknown>;
-    expect(repo.update).toBeUndefined();
-    expect(repo.delete).toBeUndefined();
-  });
-});
 
 describe('RoleRepository.findByNames', () => {
   it('filtra por IN', async () => {

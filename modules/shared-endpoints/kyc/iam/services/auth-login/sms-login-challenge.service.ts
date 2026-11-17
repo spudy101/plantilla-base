@@ -154,14 +154,14 @@ class SmsLoginChallengeService {
       await this.verificationCodeRepository.incrementAttempts(verificationCode.verificationCodeId);
 
       await this.userLoginAttemptRepository.recordAttempt({
-        user_id: user.user_id,
-        username_attempt: user.auth_username ?? user.username, // columna NOT NULL; auth_username es nullable
-        national_id: nationalId,
-        ip_address: ip,
-        user_agent: userAgent,
-        device_fingerprint: fingerprintHash,
+        userId: user.user_id,
+        usernameAttempt: user.auth_username ?? user.username, // columna NOT NULL; auth_username es nullable
+        nationalId: nationalId,
+        ipAddress: ip,
+        userAgent: userAgent,
+        deviceFingerprint: fingerprintHash,
         success: false,
-        failure_reason: 'Codigo SMS incorrecto'
+        failureReason: 'Codigo SMS incorrecto'
         // attempted_at lo pone recordAttempt
       });
 

@@ -343,16 +343,16 @@ class AuthBiometricService {
       this.biometricCredentialRepository.updateAfterLogin(credentialId, signCount),
       this.trustedDeviceRepository.updateLastSeen(userId, device.fingerprint_hash),
       this.userLoginAttemptRepository.recordAttempt({
-        user_id: userId,
-        username_attempt: user.auth_username ?? user.username, // columna NOT NULL; auth_username es nullable
-        national_id: user.username,
-        ip_address: ip,
-        user_agent: userAgent,
-        device_fingerprint: fingerprintHash,
+        userId: userId,
+        usernameAttempt: user.auth_username ?? user.username, // columna NOT NULL; auth_username es nullable
+        nationalId: user.username,
+        ipAddress: ip,
+        userAgent: userAgent,
+        deviceFingerprint: fingerprintHash,
         success: true,
         // Explícito por lo mismo que en auth-login: la ruta de login biométrico es pública, el
         // AsyncLocalStorage no trae sessionId aunque la sesión ya exista en scope.
-        origin_session_id: sessionId
+        originSessionId: sessionId
       })
     ]);
 

@@ -124,6 +124,23 @@ describe('SequelizeUnitOfWork', () => {
     expect(txContext.activeUnit()).toBeNull();
   });
 
+  // Lo programado en segundo plano dentro de run() (logAudit, notificaciones en setImmediate) hereda el
+  // AsyncLocalStorage: no debe usar la transacción ya cerrada ni abrir una que nadie confirmaría.
+  it('lo que work deja en segundo plano corre sin unidad activa (la unidad se cierra al terminar work)', async () => {
+    const { prisma } = fakePrisma();
+    const uow = new SequelizeUnitOfWork(fixture({ sequelize: { transaction: managedTransaction(sequelizeTx()) }, prisma }));
+    let later: Promise<unknown> = Promise.resolve();
+
+    await uow.run(async () => {
+      later = new Promise(resolve => {
+        setImmediate(() => resolve(txContext.activeUnit()));
+      });
+    });
+
+    await expect(later).resolves.toBeNull();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
   it('acepta una instancia de Sequelize inyectada (útil en tests o con otra conexión)', async () => {
     const fakeSequelize = { transaction: jest.fn(managedTransaction(sequelizeTx())) };
     const uow = new SequelizeUnitOfWork(fixture({ sequelize: fakeSequelize }));

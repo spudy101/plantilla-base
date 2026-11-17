@@ -9,7 +9,7 @@ import { PutObjectCommand } from '@aws-sdk/client-s3';
 import constantsModule from '../constants';
 const { logging, server } = constantsModule;
 import errorMessageModule from './error-message.util';
-import type defineAuditLog from '../../modules/schemas/records/audit/models/audit-log.model';
+import type { AuditLogOutcome, AuditLogRisk, Prisma } from '../database/generated/prisma/client';
 
 // Se usa como errorMessageModule.errorMessage(…): logAudit recibe una opción llamada errorMessage.
 
@@ -237,8 +237,8 @@ interface AuditEntry {
   [contextField: string]: unknown;
 }
 
-type AuditRisk = defineAuditLog.Attributes['risk'];
-type AuditOutcome = defineAuditLog.Attributes['outcome'];
+type AuditRisk = AuditLogRisk;
+type AuditOutcome = AuditLogOutcome;
 
 // Los campos del contexto de la petición llegan como unknown: a la BD solo van si son string
 const _str = (value: unknown): string | null => (typeof value === 'string' ? value : null);
@@ -260,21 +260,21 @@ const _saveToDatabase = async (entry: AuditEntry): Promise<void> => {
       // risk/outcome vienen del catálogo AUDIT_ACTIONS (tipado como string); la columna es un ENUM
       risk: (entry.risk ?? 'unknown') as AuditRisk,
       outcome: (entry.outcome ?? 'success') as AuditOutcome,
-      http_status: entry.httpStatus ?? null,
-      error_code: entry.errorCode ?? null,
-      error_message: entry.errorMessage ?? null,
-      user_id: _toDbUserId(entry.userId),
-      session_id: _str(entry.sessionId),
-      correlation_id: _str(entry.correlationId),
+      httpStatus: entry.httpStatus ?? null,
+      errorCode: entry.errorCode ?? null,
+      errorMessage: entry.errorMessage ?? null,
+      userId: _toDbUserId(entry.userId),
+      sessionId: _str(entry.sessionId),
+      correlationId: _str(entry.correlationId),
       ip: _str(entry.ip),
-      user_agent: _str(entry.userAgent),
+      userAgent: _str(entry.userAgent),
       fingerprint: _str(entry.fingerprintHash),
       method: _str(entry.method),
       path: _str(entry.path),
-      details: entry.details,
-      entity_id: entry.entityId ?? null,
-      entity_type: entry.entityType ?? null,
-      entity_table: entry.entityTable ?? null,
+      details: entry.details as Prisma.InputJsonValue,
+      entityId: entry.entityId ?? null,
+      entityType: entry.entityType ?? null,
+      entityTable: entry.entityTable ?? null,
       module: entry.module ?? null,
       source: _str(entry.source) ?? 'http'
     });
@@ -326,13 +326,13 @@ const _createAlert = async (entry: AuditEntry): Promise<void> => {
   try {
     const auditAlertRepository = interopDefault(require('../../modules/schemas/records/audit/repositories/audit-alert.repository') as typeof import('../../modules/schemas/records/audit/repositories/audit-alert.repository'));
     await auditAlertRepository.create({
-      audit_log_id: null,
+      auditLogId: null,
       action: entry.action,
       category: entry.category ?? null,
       risk: (entry.risk ?? 'high') as AuditRisk,
-      user_id: _toDbUserId(entry.userId),
-      entity_id: entry.entityId ?? null,
-      entity_type: entry.entityType ?? null,
+      userId: _toDbUserId(entry.userId),
+      entityId: entry.entityId ?? null,
+      entityType: entry.entityType ?? null,
       message: entry.description ?? entry.action
     });
   } catch (err) {
