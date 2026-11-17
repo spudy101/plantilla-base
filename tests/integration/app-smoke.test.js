@@ -8,7 +8,7 @@
 // Complementa a los tests de servicio/unidad (que cubren la lógica de negocio con
 // repos mockeados): este valida que la app se ENSAMBLA y RESPONDE de punta a punta.
 //
-// La BD en test es SQLite en memoria (config/database.js perfil `test`), así que el
+// La BD en test es SQLite en memoria (config/database.ts perfil `test`), así que el
 // health check contra la BD responde sano sin infraestructura externa.
 
 const request = require('supertest');
