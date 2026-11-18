@@ -7,7 +7,7 @@ import userSessionRepository from '../../repositories/user-session.repository';
 import trustedDeviceRepository from '../../repositories/auth-trusted-device.repository';
 import TokenBlacklistUtil from '../../utils/token-blacklist.util';
 import notificationModule from '../../../notification';
-const { notificationCreationService: NotificationUtil } = notificationModule;
+const { notifier } = notificationModule;
 import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import auditModule from '../../../audit';
@@ -16,7 +16,7 @@ const { audit } = auditModule;
 class AuthLogoutService {
   userSessionRepository: typeof userSessionRepository;
   trustedDeviceRepository: typeof trustedDeviceRepository;
-  NotificationUtil: typeof NotificationUtil;
+  notifier: typeof notifier;
 
   /**
    * @param {object} [deps] Dependencias inyectables (SOLID: D). Las provee la fachada
@@ -25,7 +25,7 @@ class AuthLogoutService {
   constructor(deps: AuthLogoutService.Deps = {}) {
     this.userSessionRepository = deps.userSessionRepository ?? userSessionRepository;
     this.trustedDeviceRepository = deps.trustedDeviceRepository ?? trustedDeviceRepository;
-    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+    this.notifier = deps.notifier ?? notifier;
   }
 
   // ============================================================
@@ -134,8 +134,8 @@ class AuthLogoutService {
 
     // Notificar al usuario que todas sus sesiones fueron cerradas (fire-and-forget)
     setImmediate(() => {
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion: 'LOGOUT_ALL',
+      this.notifier.notify({
+        type: 'LOGOUT_ALL',
         userId,
         metadata: { nombre: firstName || 'Usuario' }
       }).catch(err => logger.warn('Error enviando notificación logout all', { error: err.message }));
@@ -160,7 +160,7 @@ namespace AuthLogoutService {
   export interface Deps {
     userSessionRepository?: typeof userSessionRepository;
     trustedDeviceRepository?: typeof trustedDeviceRepository;
-    NotificationUtil?: typeof NotificationUtil;
+    notifier?: typeof notifier;
   }
 }
 

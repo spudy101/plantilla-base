@@ -32,8 +32,8 @@ jest.mock('../dtos/system-global-config.dto', () => ({
   SystemGlobalConfigDTO: (record: Loose) => ({ dto: 'config', ...record })
 }));
 
-jest.mock('../../notification/services/notification-creation.service', () => ({
-  crearNotificacion: jest.fn().mockResolvedValue(undefined)
+jest.mock('../../notification/notify', () => ({
+  notify: jest.fn().mockResolvedValue(undefined)
 }));
 
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
@@ -41,8 +41,8 @@ import auditServiceModule from '../../audit/audit.service';
 const logAudit = mocked(auditServiceModule).record;
 import systemGlobalConfigRepositoryModule from '../repositories/system-global-config.repository';
 const systemGlobalConfigRepository = mocked(systemGlobalConfigRepositoryModule);
-import notificationCreationServiceModule from '../../notification/services/notification-creation.service';
-const notificationCreationService = mocked(notificationCreationServiceModule);
+import notificationCreationServiceModule from '../../notification/notify';
+const notifier = mocked(notificationCreationServiceModule);
 import service from './system-global-config.service';
 
 const flush = () => new Promise(resolve => { setImmediate(resolve); });
@@ -115,8 +115,8 @@ describe('SystemGlobalConfigService', () => {
       expect(result).toMatchObject({ dto: 'config', configVersion: 4 });
 
       await flush();
-      expect(notificationCreationService.crearNotificacion).toHaveBeenCalledWith(
-        expect.objectContaining({ tipoNotificacion: 'SYSTEM_CONFIG_UPDATED_INTERNAL', userId: null })
+      expect(notifier.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'SYSTEM_CONFIG_UPDATED_INTERNAL', userId: null })
       );
     });
 

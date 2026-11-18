@@ -7,7 +7,7 @@
 import iamModule from '../../../iam';
 const { userRepository } = iamModule;
 import notificationModule from '../../../notification';
-const { notificationCreationService: NotificationCreationService } = notificationModule;
+const { notifier } = notificationModule;
 import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import constantsModule from '../../../../shared/constants';
@@ -24,12 +24,12 @@ const NOTIF_DUAL_APPROVAL_RESOLVED = 'DUAL_APPROVAL_RESOLVED';
 
 class DualApprovalNotifierService {
   userRepository: typeof userRepository;
-  NotificationCreationService: typeof NotificationCreationService;
+  notifier: typeof notifier;
 
   /** @param {object} [deps] Dependencias inyectables (SOLID: D). */
   constructor(deps: DualApprovalNotifierService.Deps = {}) {
     this.userRepository = deps.userRepository ?? userRepository;
-    this.NotificationCreationService = deps.NotificationCreationService ?? NotificationCreationService;
+    this.notifier = deps.notifier ?? notifier;
   }
 
   /** Avisa a todos los usuarios activos con un rol aprobador de la operación (fire-and-forget). */
@@ -44,8 +44,8 @@ class DualApprovalNotifierService {
 
     for (const approver of approvers ?? []) {
       setImmediate(() => {
-        this.NotificationCreationService.crearNotificacion({
-          tipoNotificacion: op.notificationType,
+        this.notifier.notify({
+          type: op.notificationType,
           userId: approver.userId,
           relatedEntity: { type: 'ApprovalRequest', id: request.approvalRequestId },
           metadata: {
@@ -72,8 +72,8 @@ class DualApprovalNotifierService {
       return;
     }
     setImmediate(() => {
-      this.NotificationCreationService.crearNotificacion({
-        tipoNotificacion: NOTIF_DUAL_APPROVAL_RESOLVED,
+      this.notifier.notify({
+        type: NOTIF_DUAL_APPROVAL_RESOLVED,
         userId: request.requestedBy,
         relatedEntity: { type: 'ApprovalRequest', id: request.approvalRequestId },
         metadata: {
@@ -97,7 +97,7 @@ namespace DualApprovalNotifierService {
   /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
   export interface Deps {
     userRepository?: typeof userRepository;
-    NotificationCreationService?: typeof NotificationCreationService;
+    notifier?: typeof notifier;
   }
 }
 

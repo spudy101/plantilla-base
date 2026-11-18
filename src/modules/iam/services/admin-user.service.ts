@@ -28,7 +28,7 @@ import auditModule from '../../audit';
 const { userChangeLogRepository } = auditModule;
 import unitOfWork from '../../../shared/database/unit-of-work';
 import notificationModule from '../../notification';
-const { notificationCreationService: NotificationCreationService } = notificationModule;
+const { notifier } = notificationModule;
 import approvalsModule from '../../approvals';
 const { DualApprovalService } = approvalsModule;
 import internalUserGuardsModule from './admin-user/internal-user-guards';
@@ -68,7 +68,7 @@ class AdminUserService {
       documentTypeRepository: deps.documentTypeRepository ?? documentTypeRepository,
       userSessionRepository: deps.userSessionRepository ?? userSessionRepository,
       userChangeLogRepository: deps.userChangeLogRepository ?? userChangeLogRepository,
-      NotificationCreationService: deps.NotificationCreationService ?? NotificationCreationService,
+      notifier: deps.notifier ?? notifier,
       DualApprovalService: deps.DualApprovalService ?? DualApprovalService
     };
     shared.guards = deps.guards ?? new InternalUserGuards(shared);

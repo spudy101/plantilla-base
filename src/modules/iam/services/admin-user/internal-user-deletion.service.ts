@@ -8,7 +8,7 @@ import userRepository from '../../repositories/user.repository';
 import personModule from '../../../person';
 const { ProfileHelper } = personModule;
 import notificationModule from '../../../notification';
-const { notificationCreationService: NotificationCreationService } = notificationModule;
+const { notifier } = notificationModule;
 import approvalsModule from '../../../approvals';
 const { DualApprovalService } = approvalsModule;
 import unitOfWork from '../../../../shared/database/unit-of-work';
@@ -26,7 +26,7 @@ class InternalUserDeletionService {
   unitOfWork: typeof unitOfWork;
   userRepository: typeof userRepository;
   profileHelper: typeof ProfileHelper;
-  NotificationCreationService: typeof NotificationCreationService;
+  notifier: typeof notifier;
   DualApprovalService: typeof DualApprovalService;
   guards: InstanceType<typeof InternalUserGuards>;
 
@@ -35,7 +35,7 @@ class InternalUserDeletionService {
     this.unitOfWork = deps.unitOfWork ?? unitOfWork;
     this.userRepository = deps.userRepository ?? userRepository;
     this.profileHelper = deps.profileHelper ?? ProfileHelper;
-    this.NotificationCreationService = deps.NotificationCreationService ?? NotificationCreationService;
+    this.notifier = deps.notifier ?? notifier;
     this.DualApprovalService = deps.DualApprovalService ?? DualApprovalService;
     this.guards = deps.guards ?? new InternalUserGuards(deps);
   }
@@ -110,8 +110,8 @@ class InternalUserDeletionService {
 
     const empleadoNombre = user.person?.firstName || 'Usuario';
     setImmediate(() => {
-      this.NotificationCreationService.crearNotificacion({
-        tipoNotificacion: 'IAM_ADMIN_STATUS_CHANGED',
+      this.notifier.notify({
+        type: 'IAM_ADMIN_STATUS_CHANGED',
         userId: auditCtx.adminUserId,
         relatedEntity: { type: 'User', id: userId },
         metadata: { nombreUsuario: empleadoNombre, accion: 'eliminado', logoUrl: notifications.ses.logoUrl }
@@ -129,7 +129,7 @@ namespace InternalUserDeletionService {
     unitOfWork?: typeof unitOfWork;
     userRepository?: typeof userRepository;
     profileHelper?: typeof ProfileHelper;
-    NotificationCreationService?: typeof NotificationCreationService;
+    notifier?: typeof notifier;
     DualApprovalService?: typeof DualApprovalService;
     guards?: InstanceType<typeof InternalUserGuards>;
   }

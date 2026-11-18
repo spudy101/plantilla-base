@@ -9,7 +9,7 @@ import personRepository from '../repositories/person.repository';
 import legalModule from '../../legal';
 const { userConsentRepository, consentTypeRepository } = legalModule;
 import notificationModule from '../../notification';
-const { notificationCreationService: NotificationUtil } = notificationModule;
+const { notifier } = notificationModule;
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
@@ -33,7 +33,7 @@ class ProfileService {
   personRepository: typeof personRepository;
   userConsentRepository: typeof userConsentRepository;
   consentTypeRepository: typeof consentTypeRepository;
-  NotificationUtil: typeof NotificationUtil;
+  notifier: typeof notifier;
 
   /**
    * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
@@ -48,7 +48,7 @@ class ProfileService {
     this.personRepository = deps.personRepository ?? personRepository;
     this.userConsentRepository = deps.userConsentRepository ?? userConsentRepository;
     this.consentTypeRepository = deps.consentTypeRepository ?? consentTypeRepository;
-    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+    this.notifier = deps.notifier ?? notifier;
   }
 
   // ============================================================
@@ -167,8 +167,8 @@ class ProfileService {
     });
 
     setImmediate(() => {
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion: 'PROFILE_UPDATED',
+      this.notifier.notify({
+        type: 'PROFILE_UPDATED',
         userId,
         relatedEntity: null,
         metadata: { nombre: firstName }
@@ -217,8 +217,8 @@ class ProfileService {
     });
 
     setImmediate(() => {
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion: 'EMAIL_UPDATED',
+      this.notifier.notify({
+        type: 'EMAIL_UPDATED',
         userId,
         relatedEntity: null,
         metadata: { nombre: firstName }
@@ -259,8 +259,8 @@ class ProfileService {
     });
 
     setImmediate(() => {
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion: 'PHONE_UPDATED',
+      this.notifier.notify({
+        type: 'PHONE_UPDATED',
         userId,
         relatedEntity: null,
         metadata: { nombre: firstName }
@@ -296,8 +296,8 @@ class ProfileService {
     });
 
     setImmediate(() => {
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion: 'PASSWORD_UPDATED',
+      this.notifier.notify({
+        type: 'PASSWORD_UPDATED',
         userId,
         relatedEntity: null,
         metadata: { nombre: firstName }
@@ -368,8 +368,8 @@ class ProfileService {
     });
 
     setImmediate(() => {
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion: 'PROFILE_UPDATED',
+      this.notifier.notify({
+        type: 'PROFILE_UPDATED',
         userId,
         relatedEntity: null,
         metadata: { nombre: firstName }
@@ -416,8 +416,8 @@ class ProfileService {
     const { deletedEmail } = result;
     if (deletedEmail) {
       setImmediate(() => {
-        this.NotificationUtil.crearNotificacionDirecta({
-          tipoNotificacion: 'CUENTA_ELIMINADA',
+        this.notifier.notifyEmail({
+          type: 'CUENTA_ELIMINADA',
           email: deletedEmail,
           metadata: {
             nombre: result.firstName,
@@ -542,7 +542,7 @@ namespace ProfileService {
     personRepository?: typeof personRepository;
     userConsentRepository?: typeof userConsentRepository;
     consentTypeRepository?: typeof consentTypeRepository;
-    NotificationUtil?: typeof NotificationUtil;
+    notifier?: typeof notifier;
   }
 }
 

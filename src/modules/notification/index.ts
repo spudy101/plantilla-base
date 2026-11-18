@@ -78,8 +78,9 @@ export default {
     return interopDefault(require('./routes/send-verification.routes') as typeof import('./routes/send-verification.routes'));
   },
 
-  get notificationCreationService() {
-    return interopDefault(require('./services/notification-creation.service') as typeof import('./services/notification-creation.service'));
+  /** Mandar notificaciones: notifier.notify({ type, userId, metadata }) / notifier.notifyEmail({ type, email }). */
+  get notifier() {
+    return interopDefault(require('./notify') as typeof import('./notify'));
   },
 
   get SmsService() {

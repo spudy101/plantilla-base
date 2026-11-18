@@ -7,7 +7,7 @@ import catalogsModule from '../../catalogs';
 const { documentTypeRepository, countryRepository, genderRepository } = catalogsModule;
 // eslint-disable-next-line max-len
 import notificationModule from '../../notification';
-const { notificationPreferenceRepository: userNotificationPreferenceRepository, verificationCodeRepository, notificationCreationService: NotificationUtil } = notificationModule;
+const { notificationPreferenceRepository: userNotificationPreferenceRepository, verificationCodeRepository, notifier } = notificationModule;
 import legalModule from '../../legal';
 const { privacyPolicyRepository, consentRecorder } = legalModule;
 import roleRepository from '../repositories/role.repository';
@@ -45,7 +45,7 @@ class AuthRegisterService {
   verificationCodeRepository: typeof verificationCodeRepository;
   roleRepository: typeof roleRepository;
   userSessionRepository: typeof userSessionRepository;
-  NotificationUtil: typeof NotificationUtil;
+  notifier: typeof notifier;
   sessionIssuer: InstanceType<typeof SessionIssuerService>;
   credentialReset: InstanceType<typeof CredentialResetService>;
 
@@ -69,7 +69,7 @@ class AuthRegisterService {
     this.verificationCodeRepository = deps.verificationCodeRepository ?? verificationCodeRepository;
     this.roleRepository = deps.roleRepository ?? roleRepository;
     this.userSessionRepository = deps.userSessionRepository ?? userSessionRepository;
-    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+    this.notifier = deps.notifier ?? notifier;
 
     // Sub-servicios por responsabilidad (SOLID: S). Reciben las mismas dependencias compartidas.
     this.sessionIssuer =
@@ -81,7 +81,7 @@ class AuthRegisterService {
         userRepository: this.userRepository,
         personContactRepository: this.personContactRepository,
         userSessionRepository: this.userSessionRepository,
-        NotificationUtil: this.NotificationUtil
+        notifier: this.notifier
       });
   }
 
@@ -245,8 +245,8 @@ class AuthRegisterService {
   /** @private */
   _sendWelcomeNotification(userId: string, nombre: string, email: string) {
     setImmediate(() => {
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion: 'BIENVENIDA',
+      this.notifier.notify({
+        type: 'BIENVENIDA',
         userId,
         relatedEntity: null,
         metadata: { nombre, email, logoUrl: notifications.ses.logoUrl }
@@ -476,7 +476,7 @@ namespace AuthRegisterService {
     verificationCodeRepository?: typeof verificationCodeRepository;
     roleRepository?: typeof roleRepository;
     userSessionRepository?: typeof userSessionRepository;
-    NotificationUtil?: typeof NotificationUtil;
+    notifier?: typeof notifier;
   }
 }
 

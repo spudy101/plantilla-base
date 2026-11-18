@@ -141,8 +141,8 @@ jest.mock('../utils/login-rate-limiter.util', () => ({
 }));
 
 // ── Notificaciones / SMS ─────────────────────────────────────────────────────
-jest.mock('../../notification/services/notification-creation.service', () => ({
-  crearNotificacion: jest.fn().mockResolvedValue(undefined)
+jest.mock('../../notification/notify', () => ({
+  notify: jest.fn().mockResolvedValue(undefined)
 }));
 
 jest.mock('../../notification/services/sms.service', () => ({
@@ -219,8 +219,8 @@ import TokenBlacklistUtilModule from '../utils/token-blacklist.util';
 const TokenBlacklistUtil = mocked(TokenBlacklistUtilModule);
 import redisClientModule from '../../../shared/infra/redis.util';
 const redisClient = mocked(redisClientModule);
-import NotificationUtilModule from '../../notification/services/notification-creation.service';
-const NotificationUtil = mocked(NotificationUtilModule);
+import NotificationUtilModule from '../../notification/notify';
+const notifier = mocked(NotificationUtilModule);
 import SmsServiceModule from '../../notification/services/sms.service';
 const SmsService = mocked(SmsServiceModule);
 import LoginRateLimiterModule from '../utils/login-rate-limiter.util';
@@ -337,8 +337,8 @@ describe('AuthLoginService', () => {
       await expect(service.login({ nationalId: '111', password: 'bad' }, AUDIT)).rejects.toMatchObject({
         statusCode: 429
       });
-      expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(
-        expect.objectContaining({ tipoNotificacion: 'ACCOUNT_BLOCKED' })
+      expect(notifier.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'ACCOUNT_BLOCKED' })
       );
       expect(logAudit).toHaveBeenCalledWith('ACCOUNT_BLOCKED', expect.objectContaining({ actorId: 'u-1' }));
     });
@@ -618,8 +618,8 @@ describe('AuthLoginService', () => {
       expect(result).toBeNull();
 
       await flush();
-      expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(
-        expect.objectContaining({ tipoNotificacion: 'LOGOUT_ALL' })
+      expect(notifier.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'LOGOUT_ALL' })
       );
     });
   });

@@ -25,8 +25,8 @@ jest.mock('../utils/token-blacklist.util', () => ({
   blacklistSession: jest.fn().mockResolvedValue(undefined)
 }));
 
-jest.mock('../../notification/services/notification-creation.service', () => ({
-  crearNotificacion: jest.fn().mockResolvedValue(undefined)
+jest.mock('../../notification/notify', () => ({
+  notify: jest.fn().mockResolvedValue(undefined)
 }));
 
 jest.mock('../../../shared/observability/logger.util', () => ({
@@ -54,8 +54,8 @@ import RefreshTokenStoreModule from '../utils/refresh-token-store.util';
 const RefreshTokenStore = mocked(RefreshTokenStoreModule);
 import TokenBlacklistUtilModule from '../utils/token-blacklist.util';
 const TokenBlacklistUtil = mocked(TokenBlacklistUtilModule);
-import NotificationCreationServiceModule from '../../notification/services/notification-creation.service';
-const NotificationCreationService = mocked(NotificationCreationServiceModule);
+import NotificationCreationServiceModule from '../../notification/notify';
+const notifier = mocked(NotificationCreationServiceModule);
 import loggerUtilModule from '../../../shared/observability/logger.util';
 import auditServiceModule from '../../audit/audit.service';
 const { logger } = mocked(loggerUtilModule);
@@ -131,8 +131,8 @@ describe('AdminAuthSessionService', () => {
       expect(result).toEqual({ sessionId: 'sess-1', status: 'closed', closeReason: 'revoked_by_admin' });
 
       await flush();
-      expect(NotificationCreationService.crearNotificacion).toHaveBeenCalledTimes(2);
-      const tipos = NotificationCreationService.crearNotificacion.mock.calls.map(c => c[0].tipoNotificacion);
+      expect(notifier.notify).toHaveBeenCalledTimes(2);
+      const tipos = notifier.notify.mock.calls.map(c => c[0].type);
       expect(tipos).toEqual(['AUTH_SESSION_REVOKED_INTERNAL', 'AUTH_SESSION_REVOKED_CLIENT']);
     });
 
@@ -178,7 +178,7 @@ describe('AdminAuthSessionService', () => {
 
     it('registra warn si falla el envío de una notificación', async () => {
       userSessionRepository.findById.mockResolvedValue(activeSession);
-      NotificationCreationService.crearNotificacion.mockRejectedValue(new Error('notif fail'));
+      notifier.notify.mockRejectedValue(new Error('notif fail'));
 
       await service.revokeSession('sess-1', ADMIN_ID);
       await flush();

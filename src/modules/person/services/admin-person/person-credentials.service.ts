@@ -11,7 +11,7 @@ import type { AdminAuditContext } from '../../../../shared/types/audit-context';
 import unitOfWork from '../../../../shared/database/unit-of-work';
 import KycSharedUtil from '../../utils/kyc-shared.util';
 import notificationModule from '../../../notification';
-const { notificationCreationService: NotificationUtil } = notificationModule;
+const { notifier } = notificationModule;
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
@@ -30,7 +30,7 @@ class PersonCredentialsService {
   unitOfWork: typeof unitOfWork;
   profileHelper: typeof ProfileHelper;
   userRepository: typeof userRepository;
-  NotificationUtil: typeof NotificationUtil;
+  notifier: typeof notifier;
 
   /**
    * @param {object} [deps] Dependencias inyectables (SOLID: D). Las provee la fachada
@@ -40,7 +40,7 @@ class PersonCredentialsService {
     this.unitOfWork = deps.unitOfWork ?? unitOfWork;
     this.profileHelper = deps.profileHelper ?? ProfileHelper;
     this.userRepository = deps.userRepository ?? userRepository;
-    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+    this.notifier = deps.notifier ?? notifier;
   }
 
   // ============================================================
@@ -85,8 +85,8 @@ class PersonCredentialsService {
     const affectedEmail = user.person?.contact?.email;
 
     setImmediate(() => {
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion: 'PASSWORD_RESET_ADMIN',
+      this.notifier.notify({
+        type: 'PASSWORD_RESET_ADMIN',
         userId: user.userId,
         relatedEntity: null,
         metadata: {
@@ -97,8 +97,8 @@ class PersonCredentialsService {
         }
       }).catch(err => logger.warn('Error sending password reset notification', { error: err.message }));
 
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion: 'PERSON_ADMIN_ACTION',
+      this.notifier.notify({
+        type: 'PERSON_ADMIN_ACTION',
         userId: auditContext.adminUserId,
         relatedEntity: null,
         metadata: {
@@ -153,21 +153,21 @@ class PersonCredentialsService {
     const firstName = user.person?.firstName;
 
     setImmediate(() => {
-      this.NotificationUtil.crearNotificacionDirecta({
-        tipoNotificacion: 'EMAIL_CHANGED_OLD',
+      this.notifier.notifyEmail({
+        type: 'EMAIL_CHANGED_OLD',
         email: oldEmail,
         metadata: { nombre: firstName, email: oldEmail, logoUrl: notifications.ses.logoUrl }
       }).catch(err => logger.warn('Error sending old email notification', { error: err.message }));
 
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion: 'EMAIL_CHANGED_NEW',
+      this.notifier.notify({
+        type: 'EMAIL_CHANGED_NEW',
         userId: user.userId,
         relatedEntity: null,
         metadata: { nombre: firstName, email: updatedEmail, logoUrl: notifications.ses.logoUrl }
       }).catch(err => logger.warn('Error sending new email notification', { error: err.message }));
 
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion: 'PERSON_ADMIN_ACTION',
+      this.notifier.notify({
+        type: 'PERSON_ADMIN_ACTION',
         userId: auditContext.adminUserId,
         relatedEntity: null,
         metadata: {
@@ -233,15 +233,15 @@ class PersonCredentialsService {
     const firstName = user.person?.firstName;
 
     setImmediate(() => {
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion: 'NATIONAL_ID_CHANGED',
+      this.notifier.notify({
+        type: 'NATIONAL_ID_CHANGED',
         userId: user.userId,
         relatedEntity: null,
         metadata: { nombre: firstName, email: affectedEmail, logoUrl: notifications.ses.logoUrl }
       }).catch(err => logger.warn('Error sending national id notification', { error: err.message }));
 
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion: 'PERSON_ADMIN_ACTION',
+      this.notifier.notify({
+        type: 'PERSON_ADMIN_ACTION',
         userId: auditContext.adminUserId,
         relatedEntity: null,
         metadata: {
@@ -322,8 +322,8 @@ class PersonCredentialsService {
     const affectedEmail = user.person?.contact?.email;
 
     setImmediate(() => {
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion: 'RESET_MFA',
+      this.notifier.notify({
+        type: 'RESET_MFA',
         userId: user.userId,
         relatedEntity: null,
         metadata: {
@@ -333,8 +333,8 @@ class PersonCredentialsService {
         }
       }).catch(err => logger.warn('Error sending MFA reset notification', { error: err.message }));
 
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion: 'PERSON_ADMIN_ACTION',
+      this.notifier.notify({
+        type: 'PERSON_ADMIN_ACTION',
         userId: auditContext.adminUserId,
         relatedEntity: null,
         metadata: {
@@ -355,7 +355,7 @@ namespace PersonCredentialsService {
     unitOfWork?: typeof unitOfWork;
     profileHelper?: typeof ProfileHelper;
     userRepository?: typeof userRepository;
-    NotificationUtil?: typeof NotificationUtil;
+    notifier?: typeof notifier;
   }
 }
 

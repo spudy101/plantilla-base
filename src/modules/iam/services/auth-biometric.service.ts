@@ -21,7 +21,7 @@ import LoginPolicyGateService from './auth-login/login-policy-gate.service';
 import es256SignatureUtilModule from '../../../shared/security/es256-signature.util';
 const { verifyEs256Signature } = es256SignatureUtilModule;
 import notificationModule from '../../notification';
-const { notificationCreationService: NotificationUtil } = notificationModule;
+const { notifier } = notificationModule;
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
@@ -55,7 +55,7 @@ class AuthBiometricService {
   biometricChallengeRepository: typeof biometricChallengeRepository;
   userSessionRepository: typeof userSessionRepository;
   verifySignature: typeof verifyEs256Signature;
-  NotificationUtil: typeof NotificationUtil;
+  notifier: typeof notifier;
   sessionControl: InstanceType<typeof SessionControlService>;
   sessionIssuer: InstanceType<typeof SessionIssuerService>;
   policyGate: InstanceType<typeof LoginPolicyGateService>;
@@ -88,7 +88,7 @@ class AuthBiometricService {
         consentRecorder: this.consentRecorder
       });
     this.verifySignature = deps.verifySignature ?? verifyEs256Signature;
-    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+    this.notifier = deps.notifier ?? notifier;
   }
 
   // ============================================================
@@ -217,8 +217,8 @@ class AuthBiometricService {
       this.userRepository
         .findByUserId(userId, 'basic')
         .then(user =>
-          this.NotificationUtil.crearNotificacion({
-            tipoNotificacion: 'BIOMETRIC_CREDENTIAL_REGISTERED',
+          this.notifier.notify({
+            type: 'BIOMETRIC_CREDENTIAL_REGISTERED',
             userId,
             // Antes se pasaba el id suelto (string) y la notificación no guardaba la entidad
             relatedEntity: { type: 'BiometricCredential', id: credential.biometricCredentialId },
@@ -536,7 +536,7 @@ namespace AuthBiometricService {
     biometricChallengeRepository?: typeof biometricChallengeRepository;
     userSessionRepository?: typeof userSessionRepository;
     verifySignature?: typeof verifyEs256Signature;
-    NotificationUtil?: typeof NotificationUtil;
+    notifier?: typeof notifier;
   }
 }
 

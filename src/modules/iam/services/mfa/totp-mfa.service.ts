@@ -7,7 +7,7 @@ import type { RequestAuditContext } from '../../../../shared/types/audit-context
 import unitOfWork from '../../../../shared/database/unit-of-work';
 import userRepository from '../../repositories/user.repository';
 import notificationModule from '../../../notification';
-const { notificationCreationService: NotificationUtil } = notificationModule;
+const { notifier } = notificationModule;
 import TotpUtil from '../../../../shared/security/totp.util';
 import EncryptionUtil from '../../../../shared/security/encryption.util';
 import AppError from '../../../../shared/http/app-error.util';
@@ -24,14 +24,14 @@ const ENTITY = { entityType: 'User', entityTable: 'users' };
 class TotpMfaService {
   unitOfWork: typeof unitOfWork;
   userRepository: typeof userRepository;
-  NotificationUtil: typeof NotificationUtil;
+  notifier: typeof notifier;
   account: InstanceType<typeof MfaAccount>;
 
   /** @param {object} [deps] Dependencias inyectables (SOLID: D). Las provee la fachada MFAService. */
   constructor(deps: TotpMfaService.Deps = {}) {
     this.unitOfWork = deps.unitOfWork ?? unitOfWork;
     this.userRepository = deps.userRepository ?? userRepository;
-    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+    this.notifier = deps.notifier ?? notifier;
     this.account = deps.account ?? new MfaAccount(deps);
   }
 
@@ -165,14 +165,14 @@ class TotpMfaService {
   }
 
   /** @private — notificación fire-and-forget al usuario */
-  _notify(tipoNotificacion: string, userId: string, firstName: string | null) {
+  _notify(type: string, userId: string, firstName: string | null) {
     setImmediate(() => {
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion,
+      this.notifier.notify({
+        type,
         userId,
         relatedEntity: null,
         metadata: { nombre: firstName }
-      }).catch(err => logger.warn(`Error enviando notificacion ${tipoNotificacion}`, { error: err.message, userId }));
+      }).catch(err => logger.warn(`Error enviando notificacion ${type}`, { error: err.message, userId }));
     });
   }
 }
@@ -183,7 +183,7 @@ namespace TotpMfaService {
   export interface Deps {
     unitOfWork?: typeof unitOfWork;
     userRepository?: typeof userRepository;
-    NotificationUtil?: typeof NotificationUtil;
+    notifier?: typeof notifier;
     account?: InstanceType<typeof MfaAccount>;
   }
 }

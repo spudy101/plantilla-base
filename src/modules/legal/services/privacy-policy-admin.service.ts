@@ -19,7 +19,7 @@ import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import PaginationHelper from '../../../shared/http/pagination.util';
 import notificationModule from '../../notification';
-const { notificationCreationService: NotificationCreationService } = notificationModule;
+const { notifier } = notificationModule;
 import privacyPolicyAdminDtoModule from '../dtos/privacy-policy-admin.dto';
 import auditModule from '../../audit';
 const { audit } = auditModule;
@@ -31,7 +31,7 @@ const {
 
 class PrivacyPolicyAdminService {
   privacyPolicyAdminRepository: typeof privacyPolicyAdminRepository;
-  NotificationCreationService: typeof NotificationCreationService;
+  notifier: typeof notifier;
 
   /**
    * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
@@ -41,7 +41,7 @@ class PrivacyPolicyAdminService {
    */
   constructor(deps: PrivacyPolicyAdminService.Deps = {}) {
     this.privacyPolicyAdminRepository = deps.privacyPolicyAdminRepository ?? privacyPolicyAdminRepository;
-    this.NotificationCreationService = deps.NotificationCreationService ?? NotificationCreationService;
+    this.notifier = deps.notifier ?? notifier;
   }
 
   // ============================================================
@@ -189,8 +189,8 @@ class PrivacyPolicyAdminService {
 
     // RF-ADM-04: notificar a todos los usuarios activos en background
     setImmediate(() => {
-      this.NotificationCreationService.crearNotificacion({
-        tipoNotificacion: 'PRIVACY_POLICY_UPDATE',
+      this.notifier.notify({
+        type: 'PRIVACY_POLICY_UPDATE',
         userId: null, // null = notificación global
         metadata: {
           nuevaVersion: version,
@@ -215,7 +215,7 @@ namespace PrivacyPolicyAdminService {
   /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
   export interface Deps {
     privacyPolicyAdminRepository?: typeof privacyPolicyAdminRepository;
-    NotificationCreationService?: typeof NotificationCreationService;
+    notifier?: typeof notifier;
   }
 }
 

@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 import unitOfWork from '../../../../shared/database/unit-of-work';
 import userRepository from '../../repositories/user.repository';
 import notificationModule from '../../../notification';
-const { verificationCodeRepository, notificationCreationService: NotificationUtil, SmsService } = notificationModule;
+const { verificationCodeRepository, notifier, SmsService } = notificationModule;
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
@@ -38,7 +38,7 @@ class SmsMfaService {
   unitOfWork: typeof unitOfWork;
   userRepository: typeof userRepository;
   verificationCodeRepository: typeof verificationCodeRepository;
-  NotificationUtil: typeof NotificationUtil;
+  notifier: typeof notifier;
   SmsService: typeof SmsService;
   account: InstanceType<typeof MfaAccount>;
 
@@ -47,7 +47,7 @@ class SmsMfaService {
     this.unitOfWork = deps.unitOfWork ?? unitOfWork;
     this.userRepository = deps.userRepository ?? userRepository;
     this.verificationCodeRepository = deps.verificationCodeRepository ?? verificationCodeRepository;
-    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+    this.notifier = deps.notifier ?? notifier;
     this.SmsService = deps.SmsService ?? SmsService;
     this.account = deps.account ?? new MfaAccount(deps);
   }
@@ -216,14 +216,14 @@ class SmsMfaService {
   }
 
   /** @private — notificación fire-and-forget al usuario */
-  _notify(tipoNotificacion: string, userId: string, firstName: string | null) {
+  _notify(type: string, userId: string, firstName: string | null) {
     setImmediate(() => {
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion,
+      this.notifier.notify({
+        type,
         userId,
         relatedEntity: null,
         metadata: { nombre: firstName }
-      }).catch(err => logger.warn(`Error enviando notificacion ${tipoNotificacion}`, { error: err.message, userId }));
+      }).catch(err => logger.warn(`Error enviando notificacion ${type}`, { error: err.message, userId }));
     });
   }
 
@@ -243,7 +243,7 @@ namespace SmsMfaService {
     unitOfWork?: typeof unitOfWork;
     userRepository?: typeof userRepository;
     verificationCodeRepository?: typeof verificationCodeRepository;
-    NotificationUtil?: typeof NotificationUtil;
+    notifier?: typeof notifier;
     SmsService?: typeof SmsService;
     account?: InstanceType<typeof MfaAccount>;
   }

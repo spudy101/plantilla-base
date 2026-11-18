@@ -9,7 +9,7 @@ import type { RequestAuditContext } from '../../../../shared/types/audit-context
 import trustedDeviceRepository from '../../repositories/auth-trusted-device.repository';
 import DeviceFingerprintUtil from '../../../../shared/security/device-fingerprint.util';
 import notificationModule from '../../../notification';
-const { notificationCreationService: NotificationUtil } = notificationModule;
+const { notifier } = notificationModule;
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
@@ -20,7 +20,7 @@ const { audit } = auditModule;
 
 class LoginDeviceService {
   trustedDeviceRepository: typeof trustedDeviceRepository;
-  NotificationUtil: typeof NotificationUtil;
+  notifier: typeof notifier;
 
   /**
    * @param {object} [deps] Dependencias inyectables (SOLID: D). Las provee la fachada
@@ -28,7 +28,7 @@ class LoginDeviceService {
    */
   constructor(deps: LoginDeviceService.Deps = {}) {
     this.trustedDeviceRepository = deps.trustedDeviceRepository ?? trustedDeviceRepository;
-    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+    this.notifier = deps.notifier ?? notifier;
   }
 
   /**
@@ -175,8 +175,8 @@ class LoginDeviceService {
     const firstName = user.person?.firstName || 'Usuario';
     const email = user.person?.contact?.email;
 
-    this.NotificationUtil.crearNotificacion({
-      tipoNotificacion: 'NUEVO_DISPOSITIVO_DETECTADO',
+    this.notifier.notify({
+      type: 'NUEVO_DISPOSITIVO_DETECTADO',
       userId: user.userId,
       relatedEntity: null,
       metadata: {
@@ -206,7 +206,7 @@ namespace LoginDeviceService {
   /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
   export interface Deps {
     trustedDeviceRepository?: typeof trustedDeviceRepository;
-    NotificationUtil?: typeof NotificationUtil;
+    notifier?: typeof notifier;
   }
 }
 

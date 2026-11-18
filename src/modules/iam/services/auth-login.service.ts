@@ -5,7 +5,7 @@ import userRepository from '../repositories/user.repository';
 import auditModule from '../../audit';
 const { userLoginAttemptRepository, audit } = auditModule;
 import notificationModule from '../../notification';
-const { verificationCodeRepository, notificationCreationService: NotificationUtil, SmsService } = notificationModule;
+const { verificationCodeRepository, notifier, SmsService } = notificationModule;
 import userSessionRepository from '../repositories/user-session.repository';
 import trustedDeviceRepository from '../repositories/auth-trusted-device.repository';
 import legalModule from '../../legal';
@@ -62,7 +62,7 @@ class AuthLoginService {
   trustedDeviceRepository: typeof trustedDeviceRepository;
   privacyPolicyRepository: typeof privacyPolicyRepository;
   consentRecorder: typeof consentRecorder;
-  NotificationUtil: typeof NotificationUtil;
+  notifier: typeof notifier;
   SmsService: typeof SmsService;
   tokenRefresh: InstanceType<typeof TokenRefreshService>;
   logoutService: InstanceType<typeof AuthLogoutService>;
@@ -87,7 +87,7 @@ class AuthLoginService {
     this.trustedDeviceRepository = deps.trustedDeviceRepository ?? trustedDeviceRepository;
     this.privacyPolicyRepository = deps.privacyPolicyRepository ?? privacyPolicyRepository;
     this.consentRecorder = deps.consentRecorder ?? consentRecorder;
-    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+    this.notifier = deps.notifier ?? notifier;
     this.SmsService = deps.SmsService ?? SmsService;
 
     // Sub-servicios por responsabilidad (SOLID: S). Reciben las mismas dependencias.
@@ -99,7 +99,7 @@ class AuthLoginService {
       trustedDeviceRepository: this.trustedDeviceRepository,
       privacyPolicyRepository: this.privacyPolicyRepository,
       consentRecorder: this.consentRecorder,
-      NotificationUtil: this.NotificationUtil,
+      notifier: this.notifier,
       SmsService: this.SmsService
     };
     this.tokenRefresh = deps.tokenRefresh ?? new TokenRefreshService(shared);
@@ -371,8 +371,8 @@ class AuthLoginService {
       });
 
       // Notificar al usuario que su cuenta quedó bloqueada (fire-and-forget)
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion: 'ACCOUNT_BLOCKED',
+      this.notifier.notify({
+        type: 'ACCOUNT_BLOCKED',
         userId: user.userId,
         metadata: {
           nombre: user.person?.firstName || 'Usuario',
@@ -630,7 +630,7 @@ namespace AuthLoginService {
     trustedDeviceRepository?: typeof trustedDeviceRepository;
     privacyPolicyRepository?: typeof privacyPolicyRepository;
     consentRecorder?: typeof consentRecorder;
-    NotificationUtil?: typeof NotificationUtil;
+    notifier?: typeof notifier;
     SmsService?: typeof SmsService;
     tokenRefresh?: InstanceType<typeof TokenRefreshService>;
     logoutService?: InstanceType<typeof AuthLogoutService>;

@@ -5,7 +5,7 @@ import PaginationHelper from '../../../shared/http/pagination.util';
 import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
 import notificationModule from '../../notification';
-const { notificationCreationService: NotificationCreationService } = notificationModule;
+const { notifier } = notificationModule;
 import catalogsModule from '../../catalogs';
 const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
@@ -15,17 +15,17 @@ const { AuditAlertListDTO } = adminAuditAlertDtoModule;
 import audit from '../audit.service';
 
 class AdminAuditAlertService {
-  NotificationCreationService: typeof NotificationCreationService;
+  notifier: typeof notifier;
   auditAlertRepository: typeof auditAlertRepository;
 
   /**
    * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
    * reales; en tests u otros contextos se pueden reemplazar:
-   *   new AdminAuditAlertService({ NotificationCreationService: fake })
+   *   new AdminAuditAlertService({ notifier: fake })
    * @param {object} [deps]
    */
   constructor(deps: AdminAuditAlertService.Deps = {}) {
-    this.NotificationCreationService = deps.NotificationCreationService ?? NotificationCreationService;
+    this.notifier = deps.notifier ?? notifier;
     this.auditAlertRepository = deps.auditAlertRepository ?? auditAlertRepository;
   }
 
@@ -87,8 +87,8 @@ class AdminAuditAlertService {
     });
 
     setImmediate(() => {
-      this.NotificationCreationService.crearNotificacion({
-        tipoNotificacion: 'AUDIT_ALERT_ACKNOWLEDGED',
+      this.notifier.notify({
+        type: 'AUDIT_ALERT_ACKNOWLEDGED',
         userId: adminUserId,
         relatedEntity: { type: 'AuditAlert', id: alertId },
         metadata: { alertId, logoUrl: notifications.ses.logoUrl }
@@ -109,8 +109,8 @@ class AdminAuditAlertService {
     });
 
     setImmediate(() => {
-      this.NotificationCreationService.crearNotificacion({
-        tipoNotificacion: 'AUDIT_ALERTS_BULK_ACKNOWLEDGED',
+      this.notifier.notify({
+        type: 'AUDIT_ALERTS_BULK_ACKNOWLEDGED',
         userId: adminUserId,
         relatedEntity: null,
         metadata: { acknowledged: count, total: alertIds.length, logoUrl: notifications.ses.logoUrl }
@@ -125,7 +125,7 @@ class AdminAuditAlertService {
 namespace AdminAuditAlertService {
   /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
   export interface Deps {
-    NotificationCreationService?: typeof NotificationCreationService;
+    notifier?: typeof notifier;
     auditAlertRepository?: typeof auditAlertRepository;
   }
 }

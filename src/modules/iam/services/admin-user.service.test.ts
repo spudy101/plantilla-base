@@ -93,8 +93,8 @@ jest.mock('../../../shared/constants', () => ({
   notifications: { ses: { logoUrl: 'https://logo.test/x.png' } }
 }));
 
-jest.mock('../../notification/services/notification-creation.service', () => ({
-  crearNotificacion: jest.fn().mockResolvedValue(undefined)
+jest.mock('../../notification/notify', () => ({
+  notify: jest.fn().mockResolvedValue(undefined)
 }));
 
 jest.mock('../../approvals/services/dual-approval.service', () => ({
@@ -141,8 +141,8 @@ import prismaModule from '../../../shared/database/prisma';
 const prisma = mocked(prismaModule);
 import auditServiceModule from '../../audit/audit.service';
 const logAudit = mocked(auditServiceModule).record;
-import NotificationCreationServiceModule from '../../notification/services/notification-creation.service';
-const NotificationCreationService = mocked(NotificationCreationServiceModule);
+import NotificationCreationServiceModule from '../../notification/notify';
+const notifier = mocked(NotificationCreationServiceModule);
 import DualApprovalServiceModule from '../../approvals/services/dual-approval.service';
 const DualApprovalService = mocked(DualApprovalServiceModule);
 import service from './admin-user.service';
@@ -290,11 +290,11 @@ describe('AdminUserService', () => {
       expect(result).toMatchObject({ dto: 'created', temporaryPassword: 'TempPass123!' });
 
       await flush();
-      expect(NotificationCreationService.crearNotificacion).toHaveBeenCalledWith(
-        expect.objectContaining({ tipoNotificacion: 'IAM_INTERNAL_USER_CREATED' })
+      expect(notifier.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'IAM_INTERNAL_USER_CREATED' })
       );
-      expect(NotificationCreationService.crearNotificacion).toHaveBeenCalledWith(
-        expect.objectContaining({ tipoNotificacion: 'IAM_ADMIN_USER_CREATED' })
+      expect(notifier.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'IAM_ADMIN_USER_CREATED' })
       );
     });
 
@@ -380,7 +380,7 @@ describe('AdminUserService', () => {
       expect(result).toMatchObject({ dto: 'user' });
 
       await flush();
-      expect(NotificationCreationService.crearNotificacion).toHaveBeenCalledWith(expect.objectContaining({ tipoNotificacion: 'IAM_INTERNAL_USER_ROLE_CHANGED' }));
+      expect(notifier.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'IAM_INTERNAL_USER_ROLE_CHANGED' }));
     });
   });
 
@@ -410,7 +410,7 @@ describe('AdminUserService', () => {
       expect(result).toMatchObject({ dto: 'user' });
 
       await flush();
-      expect(NotificationCreationService.crearNotificacion).toHaveBeenCalledWith(expect.objectContaining({ tipoNotificacion: 'IAM_INTERNAL_USER_DEACTIVATED' }));
+      expect(notifier.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'IAM_INTERNAL_USER_DEACTIVATED' }));
     });
 
     it('al activar NO cierra sesiones y audita el alta', async () => {
@@ -515,7 +515,7 @@ describe('AdminUserService', () => {
       expect(result).toEqual({ userId: 'u-1', closed: true });
 
       await flush();
-      expect(NotificationCreationService.crearNotificacion).toHaveBeenCalledWith(expect.objectContaining({ tipoNotificacion: 'IAM_INTERNAL_USER_SESSIONS_CLOSED' }));
+      expect(notifier.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'IAM_INTERNAL_USER_SESSIONS_CLOSED' }));
     });
   });
 

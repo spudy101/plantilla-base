@@ -23,7 +23,7 @@ import approvalRequestRepository from '../repositories/approval-request.reposito
 import iamModule from '../../iam';
 const { userRepository } = iamModule;
 import notificationModule from '../../notification';
-const { notificationCreationService: NotificationCreationService } = notificationModule;
+const { notifier: notifications } = notificationModule;
 import DualApprovalNotifierService from './dual-approval/dual-approval-notifier.service';
 import domainEnumsModule from '../../../shared/constants/domain-enums';
 const { APPROVAL_REQUEST_STATUS } = domainEnumsModule;
@@ -57,7 +57,7 @@ const HANDLERS = new Map<string, { onApprove: DualApprovalService.Handler; onRej
 class DualApprovalService {
   approvalRequestRepository: typeof approvalRequestRepository;
   userRepository: typeof userRepository;
-  NotificationCreationService: typeof NotificationCreationService;
+  notifications: typeof notifications;
   notifier: DualApprovalService.Notifier;
 
   /**
@@ -69,13 +69,13 @@ class DualApprovalService {
   constructor(deps: DualApprovalService.Deps = {}) {
     this.approvalRequestRepository = deps.approvalRequestRepository ?? approvalRequestRepository;
     this.userRepository = deps.userRepository ?? userRepository;
-    this.NotificationCreationService = deps.NotificationCreationService ?? NotificationCreationService;
+    this.notifications = deps.notifications ?? notifications;
     // Avisos a aprobadores / solicitante (SOLID: S)
     this.notifier =
       deps.notifier ??
       new DualApprovalNotifierService({
         userRepository: this.userRepository,
-        NotificationCreationService: this.NotificationCreationService
+        notifier: this.notifications
       });
   }
 
@@ -577,7 +577,7 @@ namespace DualApprovalService {
     notifier?: Notifier;
     approvalRequestRepository?: typeof approvalRequestRepository;
     userRepository?: typeof userRepository;
-    NotificationCreationService?: typeof NotificationCreationService;
+    notifications?: typeof notifications;
   }
 }
 
