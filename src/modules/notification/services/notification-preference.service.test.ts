@@ -8,6 +8,7 @@
 
 jest.mock('../../../shared/database/prisma', () => ({ __esModule: true, default: { $transaction: jest.fn() } }));
 jest.mock('../../../shared/observability/logger.util', () => ({ logAudit: jest.fn() }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('../repositories/user-notification-preference.repository', () => ({
   upsertGlobalPreference: jest.fn(),
@@ -35,8 +36,8 @@ import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
 import prismaModule from '../../../shared/database/prisma';
 const prisma = mocked(prismaModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import prefRepoModule from '../repositories/user-notification-preference.repository';
 const prefRepo = mocked(prefRepoModule);
 import categoryRepoModule from '../repositories/notification-category.repository';
@@ -79,15 +80,7 @@ describe('NotificationPreferenceService', () => {
         'user-1',
         { allowPush: false, allowSms: true, quietHoursStart: '22:00' }
       );
-      expect(logAudit).toHaveBeenCalledWith(
-        'NOTIFICATION_GLOBAL_PREFERENCE_UPDATED',
-        'user-1',
-        { allowPush: false, allowSms: true, quietHoursStart: '22:00' },
-        {
-          entityId: 'pref-1',
-          entityType: 'UserNotificationPreference',
-          entityTable: 'user_notification_preferences'
-        }
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_GLOBAL_PREFERENCE_UPDATED', { actorId: 'user-1', details: { allowPush: false, allowSms: true, quietHoursStart: '22:00' }, entityId: 'pref-1', entityType: 'UserNotificationPreference', entityTable: 'user_notification_preferences' }
       );
       expect(UpdatePreferenceResponseDTO).toHaveBeenCalledWith(preference);
       expect(result).toEqual({ built: preference });
@@ -133,11 +126,7 @@ describe('NotificationPreferenceService', () => {
         'SECURITY',
         { allowEmail: true }
       );
-      expect(logAudit).toHaveBeenCalledWith(
-        'NOTIFICATION_CATEGORY_PREFERENCE_UPDATED',
-        'user-1',
-        { notificationCategoryCode: 'SECURITY', allowEmail: true },
-        expect.objectContaining({ entityId: 'pref-2' })
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_CATEGORY_PREFERENCE_UPDATED', expect.objectContaining({ actorId: 'user-1', details: { notificationCategoryCode: 'SECURITY', allowEmail: true }, entityId: 'pref-2' })
       );
       expect(result).toEqual({ built: preference });
     });
@@ -165,11 +154,7 @@ describe('NotificationPreferenceService', () => {
       const result = await service.deleteCategoryPreference('SECURITY', 'user-1');
 
       expect(prefRepo.deleteCategoryPreference).toHaveBeenCalledWith('user-1', 'SECURITY');
-      expect(logAudit).toHaveBeenCalledWith(
-        'NOTIFICATION_CATEGORY_PREFERENCE_DELETED',
-        'user-1',
-        { notificationCategoryCode: 'SECURITY' },
-        { entityType: 'UserNotificationPreference', entityTable: 'user_notification_preferences' }
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_CATEGORY_PREFERENCE_DELETED', { actorId: 'user-1', details: { notificationCategoryCode: 'SECURITY' }, entityType: 'UserNotificationPreference', entityTable: 'user_notification_preferences' }
       );
       expect(result).toEqual({ notificationCategoryCode: 'SECURITY' });
     });
@@ -193,11 +178,7 @@ describe('NotificationPreferenceService', () => {
       const result = await service.getPreferences('user-1');
 
       expect(UserNotificationPreferenceComponent.buildArray).toHaveBeenCalledWith(stored);
-      expect(logAudit).toHaveBeenCalledWith(
-        'NOTIFICATION_PREFERENCES_VIEWED',
-        'user-1',
-        { totalItems: 2 },
-        { entityType: 'UserNotificationPreference', entityTable: 'user_notification_preferences' }
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_PREFERENCES_VIEWED', { actorId: 'user-1', details: { totalItems: 2 }, entityType: 'UserNotificationPreference', entityTable: 'user_notification_preferences' }
       );
       expect(result).toEqual(['a', 'b']);
     });
@@ -220,11 +201,7 @@ describe('NotificationPreferenceService', () => {
       expect(passedGlobal).toBe(globalPref);
       expect(passedOverrides).toBeInstanceOf(Map);
       expect(passedOverrides.get('SECURITY')).toBe(override);
-      expect(logAudit).toHaveBeenCalledWith(
-        'NOTIFICATION_PREFERENCES_VIEWED',
-        'user-1',
-        { totalItems: 2 },
-        { entityType: 'UserNotificationPreference', entityTable: 'user_notification_preferences' }
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_PREFERENCES_VIEWED', { actorId: 'user-1', details: { totalItems: 2 }, entityType: 'UserNotificationPreference', entityTable: 'user_notification_preferences' }
       );
       expect(result).toEqual(['view']);
     });

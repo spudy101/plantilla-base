@@ -8,7 +8,6 @@ import AuthMiddleware from '../../iam/middlewares/auth.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 import constantsModule from '../../../shared/constants';
 const { CLIENT_ACCESS_ROLES } = constantsModule;
 
@@ -16,7 +15,6 @@ router.get(
   '/person/person-references',
   AuthMiddleware.requireRole(CLIENT_ACCESS_ROLES),
   RateLimitMiddleware.apiLimiter(),
-  AuditAction.declare('PROFILE_REFERENCES_VIEWED', { entityType: 'PersonReference', entityTable: 'person_references' }),
   PersonReferenceController.list
 );
 
@@ -27,7 +25,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   PersonReferenceValidator.create(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PROFILE_REFERENCE_CREATED', { entityType: 'PersonReference', entityTable: 'person_references' }),
   PersonReferenceController.create
 );
 
@@ -38,7 +35,6 @@ router.put(
   RequestLockMiddleware.forAuthenticatedUsers(),
   PersonReferenceValidator.update(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PROFILE_REFERENCE_UPDATED', { entityType: 'PersonReference', entityTable: 'person_references' }),
   PersonReferenceController.update
 );
 
@@ -49,7 +45,6 @@ router.delete(
   RequestLockMiddleware.forAuthenticatedUsers(),
   PersonReferenceValidator.remove(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PROFILE_REFERENCE_DELETED', { entityType: 'PersonReference', entityTable: 'person_references' }),
   PersonReferenceController.remove
 );
 

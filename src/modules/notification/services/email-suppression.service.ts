@@ -2,7 +2,8 @@ import emailBounceSuppressionRepo from '../repositories/email-bounce-suppression
 import EncryptionUtil from '../../../shared/security/encryption.util';
 import MaskingUtil from '../../../shared/security/masking.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
+import audit from '../../audit/audit.service';
 
 // Umbral de rebotes duros para bloquear una dirección de correo. Regla de negocio (no configurable
 // por env): a los 3 hard bounces la dirección se suprime.
@@ -76,12 +77,12 @@ class EmailSuppressionService {
 
     const maskedEmail = email ? MaskingUtil.maskEmail(email) : null;
 
-    logAudit(
-      'EMAIL_HARD_BOUNCE_RECORDED',
-      'system',
-      { emailHash: hash, maskedEmail, errorCode, bounceCount: result.bounceCount, threshold: HARD_BOUNCE_SUPPRESSION_THRESHOLD },
-      { ...ENTITY, outcome: 'failure' }
-    );
+    await audit.record('EMAIL_HARD_BOUNCE_RECORDED', {
+      actorId: 'system',
+      details: { emailHash: hash, maskedEmail, errorCode, bounceCount: result.bounceCount, threshold: HARD_BOUNCE_SUPPRESSION_THRESHOLD },
+      ...ENTITY,
+      outcome: 'failure'
+    });
 
     // Solo la transición active → suppressed dispara el evento de bloqueo (no cada rebote posterior).
     if (result.suppressed && !result.alreadySuppressed) {
@@ -89,12 +90,12 @@ class EmailSuppressionService {
         emailHash: hash,
         bounceCount: result.bounceCount
       });
-      logAudit(
-        'EMAIL_ADDRESS_SUPPRESSED',
-        'system',
-        { emailHash: hash, maskedEmail, bounceCount: result.bounceCount, threshold: HARD_BOUNCE_SUPPRESSION_THRESHOLD },
-        { ...ENTITY, outcome: 'failure' }
-      );
+      await audit.record('EMAIL_ADDRESS_SUPPRESSED', {
+        actorId: 'system',
+        details: { emailHash: hash, maskedEmail, bounceCount: result.bounceCount, threshold: HARD_BOUNCE_SUPPRESSION_THRESHOLD },
+        ...ENTITY,
+        outcome: 'failure'
+      });
     }
 
     return result;
@@ -107,12 +108,11 @@ class EmailSuppressionService {
   async lift({ email = null, emailHash = null, adminUserId }: { email?: string | null; emailHash?: string | null; adminUserId: string }) {
     const hash = this._toHash(emailHash || email);
     const record = hash ? await this.emailBounceSuppressionRepo.lift(hash) : null;
-    logAudit(
-      'EMAIL_SUPPRESSION_LIFTED',
-      adminUserId,
-      { emailHash: hash, maskedEmail: email ? MaskingUtil.maskEmail(email) : null, found: record !== null },
-      { ...ENTITY }
-    );
+    await audit.record('EMAIL_SUPPRESSION_LIFTED', {
+      actorId: adminUserId,
+      details: { emailHash: hash, maskedEmail: email ? MaskingUtil.maskEmail(email) : null, found: record !== null },
+      ...ENTITY
+    });
     return record;
   }
 }

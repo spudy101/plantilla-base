@@ -10,9 +10,10 @@ import snsSignatureUtilModule from '../../../shared/security/sns-signature.util'
 const { verifySnsSignature, confirmSnsSubscription } = snsSignatureUtilModule;
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
+import audit from '../../audit/audit.service';
 
 const ENTITY = { entityType: 'EmailBounceSuppression', entityTable: 'email_bounce_suppressions' };
 
@@ -48,7 +49,11 @@ class EmailBounceWebhookService {
 
     if (message.Type === 'SubscriptionConfirmation' || message.Type === 'UnsubscribeConfirmation') {
       await confirmSnsSubscription(message);
-      logAudit('EMAIL_BOUNCE_SUBSCRIPTION_CONFIRMED', 'system', { topicArn: message.TopicArn }, { ...ENTITY });
+      await audit.record('EMAIL_BOUNCE_SUBSCRIPTION_CONFIRMED', {
+        actorId: 'system',
+        details: { topicArn: message.TopicArn },
+        ...ENTITY
+      });
       return { type: message.Type, confirmed: true, processed: 0, suppressed: 0 };
     }
 
@@ -110,12 +115,12 @@ class EmailBounceWebhookService {
       }
     }
 
-    logAudit(
-      'EMAIL_BOUNCE_WEBHOOK_RECEIVED',
-      'system',
-      { recipients: recipients.length, suppressed, bounceSubType: errorCode, feedbackId: bounce.feedbackId || null },
-      { ...ENTITY, outcome: 'failure' }
-    );
+    await audit.record('EMAIL_BOUNCE_WEBHOOK_RECEIVED', {
+      actorId: 'system',
+      details: { recipients: recipients.length, suppressed, bounceSubType: errorCode, feedbackId: bounce.feedbackId || null },
+      ...ENTITY,
+      outcome: 'failure'
+    });
 
     return { type: 'Notification', processed: recipients.length, suppressed };
   }

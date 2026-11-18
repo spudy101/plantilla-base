@@ -1,9 +1,8 @@
 import userChangeLogRepository from '../repositories/user-change-log.repository';
 import PaginationHelper from '../../../shared/http/pagination.util';
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = loggerUtilModule;
 import adminChangeLogDtoModule from '../dtos/admin-change-log.dto';
 const { ListUserChangeLogsResponseDTO } = adminChangeLogDtoModule;
+import audit from '../audit.service';
 
 class ChangeLogService {
   userChangeLogRepository: typeof userChangeLogRepository;
@@ -46,16 +45,16 @@ class ChangeLogService {
       filters: searchTerm ? { search: searchTerm, ...filters } : filters
     };
 
-    logAudit(
-      'CHANGE_LOG_VIEWED',
-      adminUserId,
-      {
+    await audit.record('CHANGE_LOG_VIEWED', {
+      actorId: adminUserId,
+      details: {
         totalItems: count,
         page: paginationParams.page,
         ...(PaginationHelper.stringParam(query, 'userId') ? { targetUserId: PaginationHelper.stringParam(query, 'userId') } : {})
       },
-      { entityId: PaginationHelper.stringParam(query, 'userId'), entityType: 'AuditRecord' }
-    );
+      entityId: PaginationHelper.stringParam(query, 'userId'),
+      entityType: 'AuditRecord'
+    });
 
     return ListUserChangeLogsResponseDTO(rows, metadata);
   }

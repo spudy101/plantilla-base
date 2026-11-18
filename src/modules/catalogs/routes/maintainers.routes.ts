@@ -5,7 +5,6 @@ import MaintainersValidator from '../validators/maintainers.validator';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 
 /**
  * TODAS LAS RUTAS SON PÚBLICAS — no requieren autenticación
@@ -19,7 +18,6 @@ router.get(
   RequestLockMiddleware.forPublicEndpoints(),
   MaintainersValidator.paginationQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('MAINTAINER_GENDERS_VIEWED', { entityType: 'Catalog' }),
   MaintainersController.listGenders
 );
 
@@ -29,7 +27,6 @@ router.get(
   RequestLockMiddleware.forPublicEndpoints(),
   MaintainersValidator.paginationQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('MAINTAINER_DOCUMENT_TYPES_VIEWED', { entityType: 'Catalog' }),
   MaintainersController.listDocumentTypes
 );
 
@@ -39,7 +36,6 @@ router.get(
   RequestLockMiddleware.forPublicEndpoints(),
   MaintainersValidator.paginationQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('MAINTAINER_PHONE_PREFIXES_VIEWED', { entityType: 'Catalog' }),
   MaintainersController.listPhonePrefixes
 );
 
@@ -49,7 +45,6 @@ router.get(
   RequestLockMiddleware.forPublicEndpoints(),
   MaintainersValidator.paginationQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('MAINTAINER_COUNTRIES_VIEWED', { entityType: 'Catalog' }),
   MaintainersController.listCountries
 );
 
@@ -59,7 +54,6 @@ router.get(
   RequestLockMiddleware.forPublicEndpoints(),
   MaintainersValidator.paginationQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('MAINTAINER_DEPARTMENTS_VIEWED', { entityType: 'Catalog' }),
   MaintainersController.listDepartments
 );
 
@@ -69,7 +63,6 @@ router.get(
   RequestLockMiddleware.forPublicEndpoints(),
   MaintainersValidator.paginationQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('MAINTAINER_CITIES_VIEWED', { entityType: 'Catalog' }),
   MaintainersController.listCities
 );
 
@@ -79,7 +72,6 @@ router.get(
   RequestLockMiddleware.forPublicEndpoints(),
   MaintainersValidator.paginationQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('MAINTAINER_AVATARS_VIEWED', { entityType: 'Catalog' }),
   MaintainersController.listAvatars
 );
 
@@ -89,7 +81,6 @@ router.get(
   RequestLockMiddleware.forPublicEndpoints(),
   MaintainersValidator.paginationQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('MAINTAINER_AVATAR_THEMES_VIEWED', { entityType: 'Catalog' }),
   MaintainersController.listAvatarThemes
 );
 
@@ -99,7 +90,6 @@ router.get(
   RequestLockMiddleware.forPublicEndpoints(),
   MaintainersValidator.paginationQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('MAINTAINER_NOTIFICATION_TYPES_VIEWED', { entityType: 'Catalog' }),
   MaintainersController.listNotificationTypes
 );
 
@@ -109,7 +99,6 @@ router.get(
   RequestLockMiddleware.forPublicEndpoints(),
   MaintainersValidator.paginationQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('MAINTAINER_ROLES_VIEWED', { entityType: 'Catalog' }),
   MaintainersController.listRoles
 );
 
@@ -122,7 +111,6 @@ router.get(
   '/maintainers/privacy-policy/active',
   RateLimitMiddleware.publicLimiter(),
   RequestLockMiddleware.forPublicEndpoints(),
-  AuditAction.declare('PRIVACY_POLICY_VIEWED', { entityType: 'Catalog' }),
   MaintainersController.getActivePrivacyPolicy
 );
 

@@ -8,12 +8,9 @@ import RbacMiddleware from '../../iam/middlewares/rbac.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 import rbacModule from '../../../shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
-const DASHBOARD_ENTITY = { entityType: 'IntegrationApiLog', entityTable: 'integration_api_logs' };
-const FALLBACK_ENTITY = { entityType: 'ProviderFallbackEvent', entityTable: 'provider_fallback_events' };
 
 // GET /api/v1/integration/dashboard — métricas por producto + estado del circuito + fallbacks.
 router.get(
@@ -24,7 +21,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   IntegrationMonitoringValidator.dashboardQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('INTEGRATION_DASHBOARD_VIEWED', DASHBOARD_ENTITY),
   IntegrationMonitoringController.dashboard
 );
 
@@ -35,7 +31,6 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.PROVIDERS, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuditAction.declare('PROVIDER_HEALTH_DASHBOARD_VIEWED', DASHBOARD_ENTITY),
   IntegrationMonitoringController.health
 );
 
@@ -48,7 +43,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   IntegrationMonitoringValidator.logsQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('INTEGRATION_LOGS_VIEWED', DASHBOARD_ENTITY),
   IntegrationMonitoringController.logs
 );
 
@@ -61,7 +55,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   IntegrationMonitoringValidator.logIdParam(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('INTEGRATION_LOG_DETAIL_VIEWED', DASHBOARD_ENTITY),
   IntegrationMonitoringController.logDetail
 );
 
@@ -74,7 +67,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   IntegrationMonitoringValidator.fallbackQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PROVIDER_FALLBACK_HISTORY_VIEWED', FALLBACK_ENTITY),
   IntegrationMonitoringController.fallbacks
 );
 

@@ -1,5 +1,3 @@
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = loggerUtilModule;
 import PaginationHelper from '../../../shared/http/pagination.util';
 import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
@@ -7,6 +5,7 @@ import AppError from '../../../shared/http/app-error.util';
 import userConsentRepository from '../repositories/user-consent.repository';
 import adminUserConsentDtoModule from '../dtos/admin-user-consent.dto';
 const { UserConsentAuditItemDTO } = adminUserConsentDtoModule;
+import audit from '../../audit/audit.service';
 
 class AdminUserConsentService {
   userConsentRepository: typeof userConsentRepository;
@@ -30,12 +29,12 @@ class AdminUserConsentService {
       offset: paginationParams.offset
     });
 
-    logAudit(
-      'CONSENT_LIST_VIEWED',
-      adminUserId,
-      { totalItems: count, filters: Object.keys(filters) },
-      { entityType: 'UserConsent', entityTable: 'user_consents' }
-    );
+    await audit.record('CONSENT_LIST_VIEWED', {
+      actorId: adminUserId,
+      details: { totalItems: count, filters: Object.keys(filters) },
+      entityType: 'UserConsent',
+      entityTable: 'user_consents'
+    });
 
     return {
       data: rows.map(r => UserConsentAuditItemDTO(r)),
@@ -62,12 +61,13 @@ class AdminUserConsentService {
       throw AppError.notFound('No se encontraron consentimientos para este usuario');
     }
 
-    logAudit(
-      'CONSENT_HISTORY_VIEWED',
-      adminUserId,
-      { targetUserId: userId },
-      { entityId: userId, entityType: 'UserConsent', entityTable: 'user_consents' }
-    );
+    await audit.record('CONSENT_HISTORY_VIEWED', {
+      actorId: adminUserId,
+      details: { targetUserId: userId },
+      entityId: userId,
+      entityType: 'UserConsent',
+      entityTable: 'user_consents'
+    });
 
     return {
       data: rows.map(r => UserConsentAuditItemDTO(r)),

@@ -16,10 +16,11 @@ import S3Util from '../../../shared/infra/s3.util';
 import redisClient from '../../../shared/infra/redis.util';
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import PaginationHelper from '../../../shared/http/pagination.util';
 import NotificationCreationService from '../../notification/services/notification-creation.service';
 import privacyPolicyAdminDtoModule from '../dtos/privacy-policy-admin.dto';
+import audit from '../../audit/audit.service';
 const {
   ListPrivacyPoliciesResponseDTO,
   PrivacyPolicyDetailResponseDTO,
@@ -72,15 +73,15 @@ class PrivacyPolicyAdminService {
       filters: searchTerm ? { search: searchTerm, ...filters } : filters
     };
 
-    logAudit(
-      'PRIVACY_POLICY_LIST_VIEWED',
-      userId,
-      {
+    await audit.record('PRIVACY_POLICY_LIST_VIEWED', {
+      actorId: userId,
+      details: {
         totalItems: count,
         page: paginationParams.page
       },
-      { entityType: 'PrivacyPolicy', entityTable: 'privacy_policies' }
-    );
+      entityType: 'PrivacyPolicy',
+      entityTable: 'privacy_policies'
+    });
 
     return ListPrivacyPoliciesResponseDTO(rows, metadata);
   }
@@ -102,12 +103,13 @@ class PrivacyPolicyAdminService {
       throw AppError.notFound('Versión de política de privacidad no encontrada');
     }
 
-    logAudit(
-      'PRIVACY_POLICY_DETAIL_VIEWED',
-      userId,
-      { version: policy.version },
-      { entityId: privacyPolicyId, entityType: 'PrivacyPolicy', entityTable: 'privacy_policies' }
-    );
+    await audit.record('PRIVACY_POLICY_DETAIL_VIEWED', {
+      actorId: userId,
+      details: { version: policy.version },
+      entityId: privacyPolicyId,
+      entityType: 'PrivacyPolicy',
+      entityTable: 'privacy_policies'
+    });
 
     return PrivacyPolicyDetailResponseDTO(policy);
   }
@@ -171,16 +173,17 @@ class PrivacyPolicyAdminService {
       effectiveDate: effectiveDate || new Date()
     });
 
-    logAudit(
-      'PRIVACY_POLICY_VERSION_CREATED',
-      userId,
-      {
+    await audit.record('PRIVACY_POLICY_VERSION_CREATED', {
+      actorId: userId,
+      details: {
         version,
         documentUrl,
         s3Key
       },
-      { entityId: policy.privacyPolicyId, entityType: 'PrivacyPolicy', entityTable: 'privacy_policies' }
-    );
+      entityId: policy.privacyPolicyId,
+      entityType: 'PrivacyPolicy',
+      entityTable: 'privacy_policies'
+    });
 
     // RF-ADM-04: notificar a todos los usuarios activos en background
     setImmediate(() => {

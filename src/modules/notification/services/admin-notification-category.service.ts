@@ -3,9 +3,8 @@ import notificationCategoryRepository from '../repositories/notification-categor
 import notificationTypeRepository from '../repositories/notification-type.repository';
 import AppError from '../../../shared/http/app-error.util';
 import PaginationHelper from '../../../shared/http/pagination.util';
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = loggerUtilModule;
 import adminNotificationCategoryDtoModule from '../dtos/admin-notification-category.dto';
+import audit from '../../audit/audit.service';
 const {
   NotificationCategoryAdminDTO,
   ListNotificationCategoriesResponseDTO
@@ -72,7 +71,11 @@ class NotificationCategoryService {
       filters: searchTerm ? { search: searchTerm, ...filters } : filters
     };
 
-    logAudit('NOTIFICATION_CATEGORY_LIST_VIEWED', adminUserId, { totalItems: count }, AUDIT_META);
+    await audit.record('NOTIFICATION_CATEGORY_LIST_VIEWED', {
+      actorId: adminUserId,
+      details: { totalItems: count },
+      ...AUDIT_META
+    });
 
     return ListNotificationCategoriesResponseDTO(rows, metadata);
   }
@@ -82,7 +85,9 @@ class NotificationCategoryService {
     if (!category) {
       throw AppError.notFound('Categoría de notificación no encontrada');
     }
-    logAudit('NOTIFICATION_CATEGORY_VIEWED', adminUserId, { code: category.code }, {
+    await audit.record('NOTIFICATION_CATEGORY_VIEWED', {
+      actorId: adminUserId,
+      details: { code: category.code },
       ...AUDIT_META,
       entityId: notificationCategoryId
     });
@@ -100,7 +105,9 @@ class NotificationCategoryService {
       name: string;
     });
 
-    logAudit('NOTIFICATION_CATEGORY_CREATED', adminUserId, { code }, {
+    await audit.record('NOTIFICATION_CATEGORY_CREATED', {
+      actorId: adminUserId,
+      details: { code },
       ...AUDIT_META,
       entityId: category.notificationCategoryId
     });
@@ -124,7 +131,9 @@ class NotificationCategoryService {
       throw AppError.notFound('Categoría de notificación no encontrada');
     }
 
-    logAudit('NOTIFICATION_CATEGORY_UPDATED', adminUserId, { code: updated.code, updatedFields: Object.keys(columns) }, {
+    await audit.record('NOTIFICATION_CATEGORY_UPDATED', {
+      actorId: adminUserId,
+      details: { code: updated.code, updatedFields: Object.keys(columns) },
       ...AUDIT_META,
       entityId: notificationCategoryId
     });
@@ -148,7 +157,9 @@ class NotificationCategoryService {
 
     await this.notificationCategoryRepository.delete(notificationCategoryId);
 
-    logAudit('NOTIFICATION_CATEGORY_DELETED', adminUserId, { code: category.code }, {
+    await audit.record('NOTIFICATION_CATEGORY_DELETED', {
+      actorId: adminUserId,
+      details: { code: category.code },
       ...AUDIT_META,
       entityId: notificationCategoryId
     });

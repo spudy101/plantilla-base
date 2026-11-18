@@ -10,6 +10,7 @@ import { Loose } from 'tests/helpers/mock';
 
 jest.mock('../../settings/repositories/system-global-config.repository', () => ({ findActive: jest.fn() }));
 jest.mock('../../../shared/observability/logger.util', () => ({ logAudit: jest.fn() }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 jest.mock('../dtos/promotional-banner.dto', () => ({
   PublicPromotionalBannerListDTO: jest.fn()
 }));
@@ -24,7 +25,7 @@ describe('PromotionalBannerPublicService', () => {
     // Caché en memoria a nivel de módulo → reset para cada test.
     jest.resetModules();
     systemGlobalConfigRepository = interopDefault(require('../../settings/repositories/system-global-config.repository') as typeof import('../../settings/repositories/system-global-config.repository'));
-    ({ logAudit } = interopDefault(require('../../../shared/observability/logger.util') as typeof import('../../../shared/observability/logger.util')));
+    logAudit = interopDefault(require('../../audit/audit.service') as typeof import('../../audit/audit.service')).record;
     ({ PublicPromotionalBannerListDTO } = interopDefault(require('../dtos/promotional-banner.dto') as typeof import('../dtos/promotional-banner.dto')));
     service = interopDefault(require('./promotional-banner.service') as typeof import('./promotional-banner.service'));
   });
@@ -48,11 +49,7 @@ describe('PromotionalBannerPublicService', () => {
         { id: 1, title: 'A', is_active: true },
         { id: 3, title: 'C' }
       ]);
-      expect(logAudit).toHaveBeenCalledWith(
-        'PROMOTIONAL_BANNERS_PUBLIC_VIEWED',
-        null,
-        { total: 2 },
-        { entityType: 'SystemGlobalConfig', entityTable: 'system_global_config' }
+      expect(logAudit).toHaveBeenCalledWith('PROMOTIONAL_BANNERS_PUBLIC_VIEWED', { actorId: null, details: { total: 2 }, entityType: 'SystemGlobalConfig', entityTable: 'system_global_config' }
       );
       expect(result).toBe(dto);
     });

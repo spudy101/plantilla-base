@@ -17,7 +17,6 @@ import RbacMiddleware from '../middlewares/rbac.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 import constantsModule from '../../../shared/constants';
 const { RBAC_MODULES, RBAC_ACTIONS } = constantsModule;
 
@@ -27,7 +26,6 @@ router.get(
   AuthMiddleware.authenticate,
   RbacMiddleware.requirePermission(RBAC_MODULES.ROLES_PERMISSIONS, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
-  AuditAction.declare('RBAC_CATALOG_VIEWED', { entityType: 'RbacCatalog', entityTable: 'roles' }),
   AdminRbacController.getCatalog
 );
 
@@ -36,7 +34,6 @@ router.get(
   AuthMiddleware.authenticate,
   RbacMiddleware.requirePermission(RBAC_MODULES.ROLES_PERMISSIONS, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
-  AuditAction.declare('RBAC_ROLES_VIEWED', { entityType: 'RbacRole', entityTable: 'roles' }),
   AdminRbacController.getRoles
 );
 
@@ -47,7 +44,6 @@ router.get(
   '/iam/rbac/me',
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
-  AuditAction.declare('RBAC_EFFECTIVE_PERMISSIONS_VIEWED', { entityType: 'RbacRole', entityTable: 'roles' }),
   AdminRbacController.getMyPermissions
 );
 
@@ -59,7 +55,6 @@ router.get(
   RateLimitMiddleware.apiLimiter(),
   AdminRbacValidator.roleNameParam(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('RBAC_ROLE_PERMISSIONS_VIEWED', { entityType: 'RbacRole', entityTable: 'role_permission_overrides' }),
   AdminRbacController.listOverrides
 );
 
@@ -71,7 +66,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AdminRbacValidator.grantPermission(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('RBAC_PERMISSION_GRANTED', { entityType: 'RbacPermission', entityTable: 'role_permission_overrides' }),
   AdminRbacController.grantPermission
 );
 
@@ -84,7 +78,6 @@ router.delete(
   AdminRbacValidator.roleNameParam(),
   AdminRbacValidator.permissionIdParam(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('RBAC_PERMISSION_REVOKED', { entityType: 'RbacPermission', entityTable: 'role_permission_overrides' }),
   AdminRbacController.revokePermission
 );
 

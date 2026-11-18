@@ -21,6 +21,7 @@ export default {
     risk: AUDIT_RISKS.MEDIUM
   },
   AUDIT_LOG_EXPORTED: {
+    alert: true,
     description: 'Logs de auditoría exportados por administrador',
     category: AUDIT_CATEGORIES.AUDIT,
     risk: AUDIT_RISKS.HIGH

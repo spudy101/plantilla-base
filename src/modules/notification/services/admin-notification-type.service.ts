@@ -4,11 +4,10 @@ import userRepository from '../../iam/repositories/user.repository';
 import NotificationUtil from './notification-creation.service';
 import AppError from '../../../shared/http/app-error.util';
 import PaginationHelper from '../../../shared/http/pagination.util';
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = loggerUtilModule;
 import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
 import adminNotificationTypeDtoModule from '../dtos/admin-notification-type.dto';
+import audit from '../../audit/audit.service';
 const {
   ListNotificationTypesResponseDTO,
   UpdateNotificationTypeResponseDTO,
@@ -52,15 +51,15 @@ class NotificationTypeService {
     };
 
     // ✅ .description extrae el string del objeto AUDIT_ACTIONS
-    logAudit(
-      'NOTIFICATION_TYPE_LIST_VIEWED',
-      adminUserId,
-      {
+    await audit.record('NOTIFICATION_TYPE_LIST_VIEWED', {
+      actorId: adminUserId,
+      details: {
         totalItems: count,
         page: paginationParams.page
       },
-      { entityType: 'NotificationType', entityTable: 'notification_types' }
-    );
+      entityType: 'NotificationType',
+      entityTable: 'notification_types'
+    });
 
     return ListNotificationTypesResponseDTO(rows, metadata);
   }
@@ -97,15 +96,16 @@ class NotificationTypeService {
       throw AppError.notFound('Tipo de notificación no encontrado');
     }
 
-    logAudit(
-      'NOTIFICATION_TYPE_UPDATED',
-      adminUserId,
-      {
+    await audit.record('NOTIFICATION_TYPE_UPDATED', {
+      actorId: adminUserId,
+      details: {
         code: updated.code,
         updatedFields: Object.keys(updateData)
       },
-      { entityId: notificationTypeId, entityType: 'NotificationType', entityTable: 'notification_types' }
-    );
+      entityId: notificationTypeId,
+      entityType: 'NotificationType',
+      entityTable: 'notification_types'
+    });
 
     return UpdateNotificationTypeResponseDTO(updated);
   }
@@ -122,12 +122,13 @@ class NotificationTypeService {
     // userId null → la creación devuelve la notificación global
     const globalNotificationId = 'globalNotificationId' in result ? result.globalNotificationId : '';
 
-    logAudit(
-      'GLOBAL_NOTIFICATION_SENT',
-      adminUserId,
-      { titulo },
-      { entityId: globalNotificationId, entityType: 'GlobalNotification', entityTable: 'global_notifications' }
-    );
+    await audit.record('GLOBAL_NOTIFICATION_SENT', {
+      actorId: adminUserId,
+      details: { titulo },
+      entityId: globalNotificationId,
+      entityType: 'GlobalNotification',
+      entityTable: 'global_notifications'
+    });
 
     return CreateGlobalNotificationResponseDTO({
       globalNotificationId,
@@ -156,12 +157,13 @@ class NotificationTypeService {
     });
     const notificationId = 'notificationId' in result ? result.notificationId : '';
 
-    logAudit(
-      'DIRECT_NOTIFICATION_SENT',
-      adminUserId,
-      { userId, titulo },
-      { entityId: notificationId, entityType: 'Notification', entityTable: 'notifications' }
-    );
+    await audit.record('DIRECT_NOTIFICATION_SENT', {
+      actorId: adminUserId,
+      details: { userId, titulo },
+      entityId: notificationId,
+      entityType: 'Notification',
+      entityTable: 'notifications'
+    });
 
     return CreateDirectNotificationResponseDTO({
       notificationId,

@@ -95,6 +95,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('../../../shared/constants', () => ({
   INTERNAL_ROLE_NAMES: ['admin', 'ejecutivo'],
@@ -143,8 +144,8 @@ import userSessionRepositoryModule from '../repositories/user-session.repository
 const userSessionRepository = mocked(userSessionRepositoryModule);
 import NotificationUtilModule from '../../notification/services/notification-creation.service';
 const NotificationUtil = mocked(NotificationUtilModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 
 import service from './auth-biometric.service';
 
@@ -197,7 +198,7 @@ describe('AuthBiometricService', () => {
       expect(biometricChallengeRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({ userId: USER_ID, type: 'registration', challenge: expect.any(String) })
       );
-      expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_REGISTER_START', USER_ID, {}, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_REGISTER_START', expect.objectContaining({ actorId: USER_ID }));
       expect(result).toMatchObject({ dto: 'registerStart', deviceId: DEVICE_ID, algorithm: -7 });
     });
   });
@@ -253,11 +254,7 @@ describe('AuthBiometricService', () => {
 
       await expect(service.registerFinish(payload, USER_ID, FP_HASH)).rejects.toMatchObject({ statusCode: 401 });
       expect(biometricChallengeRepository.markAsUsed).toHaveBeenCalledWith('chid');
-      expect(logAudit).toHaveBeenCalledWith(
-        'BIOMETRIC_REGISTER_INVALID_SIGNATURE',
-        USER_ID,
-        {},
-        expect.objectContaining({ outcome: 'failure' })
+      expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_REGISTER_INVALID_SIGNATURE', expect.objectContaining({ actorId: USER_ID, outcome: 'failure' })
       );
       spy.mockRestore();
     });
@@ -285,7 +282,7 @@ describe('AuthBiometricService', () => {
       expect(biometricCredentialRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({ userId: USER_ID, credentialId: 'cred-1', signCount: 0 })
       );
-      expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_REGISTER_SUCCESS', USER_ID, expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_REGISTER_SUCCESS', expect.objectContaining({ actorId: USER_ID }));
       expect(result).toMatchObject({ dto: 'registerFinish', biometricCredentialId: 'newcred' });
 
       await flush();
@@ -361,7 +358,7 @@ describe('AuthBiometricService', () => {
       biometricChallengeRepository.findValid.mockResolvedValue({ challengeId: 'x', userId: USER_ID, type: 'authentication' });
 
       await expect(service._verifyLoginChallenge(fixture({ ...base, signCount: 5 }))).rejects.toMatchObject({ statusCode: 401 });
-      expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_LOGIN_REPLAY_ATTACK', USER_ID, expect.any(Object), expect.objectContaining({ outcome: 'failure' }));
+      expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_LOGIN_REPLAY_ATTACK', expect.objectContaining({ actorId: USER_ID, outcome: 'failure' }));
     });
 
     it('lanza 401 si la firma es inválida y audita', async () => {
@@ -369,7 +366,7 @@ describe('AuthBiometricService', () => {
       const spy = jest.spyOn(service, '_verifySignature').mockReturnValue(false);
 
       await expect(service._verifyLoginChallenge(fixture(base))).rejects.toMatchObject({ statusCode: 401 });
-      expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_LOGIN_INVALID_SIGNATURE', USER_ID, {}, expect.objectContaining({ outcome: 'failure' }));
+      expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_LOGIN_INVALID_SIGNATURE', expect.objectContaining({ actorId: USER_ID, outcome: 'failure' }));
       spy.mockRestore();
     });
 
@@ -470,7 +467,7 @@ describe('AuthBiometricService', () => {
       expect(userLoginAttemptRepository.recordAttempt).toHaveBeenCalledWith(
         expect.objectContaining({ userId: USER_ID, success: true, originSessionId: expect.any(String) })
       );
-      expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_LOGIN_SUCCESS', USER_ID, expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_LOGIN_SUCCESS', expect.objectContaining({ actorId: USER_ID }));
       expect(result).toMatchObject({ dto: 'login', deviceId: DEVICE_ID, deviceHmacSecret: 'hmac-1' });
       vspy.mockRestore();
       pspy.mockRestore();
@@ -514,7 +511,7 @@ describe('AuthBiometricService', () => {
 
         expect(userSessionRepository.closeSession).toHaveBeenCalledWith('old-1', 'session_limit');
         expect(RefreshTokenStore.revoke).toHaveBeenCalledWith('jti-old');
-        expect(logAudit).toHaveBeenCalledWith('SESSION_LIMIT_ENFORCED', USER_ID, expect.any(Object), expect.any(Object));
+        expect(logAudit).toHaveBeenCalledWith('SESSION_LIMIT_ENFORCED', expect.objectContaining({ actorId: USER_ID }));
       });
     });
   });
@@ -553,7 +550,7 @@ describe('AuthBiometricService', () => {
       const result = await service._checkPrivacyPolicy(fixture(user), true, '1.2.3.4');
 
       expect(userRepository.updatePrivacyPolicy).toHaveBeenCalledWith(USER_ID, expect.objectContaining({ version: 3 }));
-      expect(logAudit).toHaveBeenCalledWith('PRIVACY_POLICY_ACCEPTED', USER_ID, expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('PRIVACY_POLICY_ACCEPTED', expect.objectContaining({ actorId: USER_ID }));
       expect(result).toBeNull();
 
       await flush();
@@ -574,11 +571,7 @@ describe('AuthBiometricService', () => {
       const result = await service._checkPrivacyPolicy(fixture(user), false, null);
 
       expect(result).toMatchObject({ dto: 'policyUpdate', newVersion: 4 });
-      expect(logAudit).toHaveBeenCalledWith(
-        'BIOMETRIC_LOGIN_BLOCKED_POLICY_UPDATE',
-        USER_ID,
-        expect.any(Object),
-        expect.objectContaining({ outcome: 'failure' })
+      expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_LOGIN_BLOCKED_POLICY_UPDATE', expect.objectContaining({ actorId: USER_ID, outcome: 'failure' })
       );
     });
   });
@@ -593,7 +586,7 @@ describe('AuthBiometricService', () => {
       const result = await service.getCredentials(USER_ID);
 
       expect(result).toEqual({ credentials: [{ id: 'c-1' }, { id: 'c-2' }], total: 2 });
-      expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_CREDENTIALS_VIEWED', USER_ID, { count: 2 }, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_CREDENTIALS_VIEWED', expect.objectContaining({ actorId: USER_ID, details: { count: 2 } }));
     });
   });
 
@@ -611,7 +604,7 @@ describe('AuthBiometricService', () => {
       const result = await service.deleteCredential(USER_ID, 'c-1');
 
       expect(biometricCredentialRepository.deactivate).toHaveBeenCalledWith('c-1');
-      expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_CREDENTIAL_DELETED', USER_ID, {}, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_CREDENTIAL_DELETED', expect.objectContaining({ actorId: USER_ID }));
       expect(result).toBeNull();
     });
   });

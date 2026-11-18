@@ -11,6 +11,8 @@ import unitOfWork from '../../src/shared/database/unit-of-work';
 import auditLogRepository from '../../src/modules/audit/repositories/audit-log.repository';
 import auditAlertRepository from '../../src/modules/audit/repositories/audit-alert.repository';
 import userLoginAttemptRepository from '../../src/modules/audit/repositories/user-login-attempt.repository';
+import audit from '../../src/modules/audit/audit.service';
+import requestContext from '../../src/shared/observability/request-context.util';
 
 const TAG = `audit-it-${randomUUID().slice(0, 8)}`;
 const SESSION_A = randomUUID();
@@ -32,9 +34,9 @@ describe('Auditoría · Prisma contra Postgres', () => {
     // audit_logs es append-only: la limpieza usa la misma vía autorizada que la purga
     await prisma.$transaction(async tx => {
       await tx.$executeRaw`SET LOCAL app.allow_audit_purge = 'true'`;
-      await tx.auditLog.deleteMany({ where: { module: TAG } });
+      await tx.auditLog.deleteMany({ where: { OR: [{ module: TAG }, { correlationId: { startsWith: TAG } }] } });
     });
-    await prisma.auditAlert.deleteMany({ where: { action: TAG } });
+    await prisma.auditAlert.deleteMany({ where: { OR: [{ action: TAG }, { userId }] } });
     await prisma.userLoginAttempt.deleteMany({ where: { usernameAttempt: TAG } });
     await prisma.user.deleteMany({ where: { userId } });
     await prisma.person.deleteMany({ where: { personId } });
@@ -42,15 +44,47 @@ describe('Auditoría · Prisma contra Postgres', () => {
     await prisma.$disconnect();
   });
 
-  it('la auditoría escrita dentro de una unidad que se revierte queda igual (va fuera de la transacción)', async () => {
+  // audit.record dentro de una operación con correlationId propio, para contar solo lo de cada caso
+  const inOperation = <T>(id: string, fn: () => Promise<T>) =>
+    requestContext.run(
+      { correlationId: `${TAG}-${id}`, source: 'http', name: 'test', ip: null, userAgent: null, fingerprintHash: null, method: null, path: null },
+      fn
+    );
+  const countFor = (id: string) => prisma.auditLog.count({ where: { correlationId: `${TAG}-${id}` } });
+
+  it('un hecho de negocio se revierte junto con la unidad de trabajo (el cambio y su auditoría, juntos o ninguno)', async () => {
     await expect(
-      unitOfWork.run(async () => {
-        await auditLogRepository.create({ ...base, action: `${TAG}-rollback`, userId });
-        throw new Error('regla de negocio');
-      })
+      inOperation('rollback', () =>
+        unitOfWork.run(async () => {
+          await audit.record('SYSTEM_GLOBAL_CONFIG_VIEWED', { actorId: userId });
+          throw new Error('regla de negocio');
+        })
+      )
     ).rejects.toThrow('regla de negocio');
 
-    expect(await prisma.auditLog.count({ where: { action: `${TAG}-rollback` } })).toBe(1);
+    expect(await countFor('rollback')).toBe(0);
+  });
+
+  it('un intento fallido queda aunque la unidad de trabajo se revierta', async () => {
+    await expect(
+      inOperation('failed', () =>
+        unitOfWork.run(async () => {
+          await audit.record('AUTH_FAILURE', { actorId: userId, outcome: 'failure' });
+          throw new Error('credenciales inválidas');
+        })
+      )
+    ).rejects.toThrow('credenciales inválidas');
+
+    expect(await countFor('failed')).toBe(1);
+  });
+
+  it('una acción con alert crea su alerta enlazada al registro, con el contexto de la operación', async () => {
+    await inOperation('alert', () => audit.record('SYSTEM_GLOBAL_CONFIG_UPDATED', { actorId: userId, details: { updatedFields: ['x'] } }));
+
+    const log = await prisma.auditLog.findFirstOrThrow({ where: { correlationId: `${TAG}-alert` } });
+    expect(log).toMatchObject({ action: 'SYSTEM_GLOBAL_CONFIG_UPDATED', userId, category: 'Configuración', risk: 'high' });
+    const alert = await prisma.auditAlert.findFirst({ where: { auditLogId: log.auditLogId } });
+    expect(alert).toMatchObject({ action: 'SYSTEM_GLOBAL_CONFIG_UPDATED', userId });
   });
 
   it('listado con executor, conteo por sesión y referencias de entidades', async () => {

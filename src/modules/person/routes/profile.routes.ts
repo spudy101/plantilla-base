@@ -6,7 +6,6 @@ import AuthMiddleware from '../../iam/middlewares/auth.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 
 /**
  * TODAS LAS RUTAS REQUIEREN AUTENTICACIÓN
@@ -18,7 +17,6 @@ router.get(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuditAction.declare('PROFILE_VIEWED', { entityType: 'User', entityTable: 'users' }),
   ProfileController.getProfile
 );
 
@@ -28,7 +26,6 @@ router.get(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuditAction.declare('PROFILE_EXTENDED_VIEWED', { entityType: 'User', entityTable: 'users' }),
   ProfileController.getExtendedProfile
 );
 
@@ -38,7 +35,6 @@ router.get(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuditAction.declare('PROFILE_LOCATION_VIEWED', { entityType: 'User', entityTable: 'users' }),
   ProfileController.getLocation
 );
 
@@ -48,7 +44,6 @@ router.get(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuditAction.declare('PROFILE_CONTACT_VIEWED', { entityType: 'User', entityTable: 'users' }),
   ProfileController.getContactInfo
 );
 
@@ -60,7 +55,6 @@ router.put(
   RequestLockMiddleware.forAuthenticatedUsers(),
   ProfileValidator.updateProfile(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PROFILE_UPDATED', { entityType: 'User', entityTable: 'users' }),
   ProfileController.updateProfile
 );
 
@@ -72,7 +66,6 @@ router.put(
   RequestLockMiddleware.forAuthenticatedUsers(),
   ProfileValidator.updateEmail(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PROFILE_EMAIL_UPDATED', { entityType: 'User', entityTable: 'users' }),
   ProfileController.updateEmail
 );
 
@@ -84,7 +77,6 @@ router.put(
   RequestLockMiddleware.forAuthenticatedUsers(),
   ProfileValidator.updatePhone(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PROFILE_PHONE_UPDATED', { entityType: 'User', entityTable: 'users' }),
   ProfileController.updatePhone
 );
 
@@ -96,7 +88,6 @@ router.put(
   RequestLockMiddleware.forAuthenticatedUsers(),
   ProfileValidator.updatePassword(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PASSWORD_CHANGED', { entityType: 'User', entityTable: 'users' }),
   ProfileController.updatePassword
 );
 
@@ -111,7 +102,6 @@ router.put(
   RequestLockMiddleware.forAuthenticatedUsers(),
   ProfileValidator.updateNames(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PROFILE_UPDATED', { entityType: 'User', entityTable: 'users' }),
   ProfileController.updateNames
 );
 
@@ -123,7 +113,6 @@ router.delete(
   RequestLockMiddleware.forAuthenticatedUsers(),
   ProfileValidator.deleteAccount(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('ACCOUNT_DELETED', { entityType: 'User', entityTable: 'users' }),
   ProfileController.deleteAccount
 );
 

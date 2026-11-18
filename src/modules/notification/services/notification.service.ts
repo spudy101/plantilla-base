@@ -1,7 +1,7 @@
 import type * as Feed from '../notification-feed.types';
 import unitOfWork from '../../../shared/database/unit-of-work';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import PaginationHelper from '../../../shared/http/pagination.util';
 import notificationRepository from '../repositories/notification.repository';
 import globalNotificationRepository from '../repositories/global-notification.repository';
@@ -13,6 +13,7 @@ import NotificationCountUtil from '../utils/notification-count.util';
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
+import audit from '../../audit/audit.service';
 
 
 class NotificationService {
@@ -53,12 +54,12 @@ class NotificationService {
 
     await this._markPageAsRead(userId, paginatedMixed, readIds);
 
-    logAudit(
-      'NOTIFICATION_LIST_VIEWED',
-      userId,
-      { totalItems, page: paginationParams.page },
-      { entityType: 'Notification', entityTable: 'notifications' }
-    );
+    await audit.record('NOTIFICATION_LIST_VIEWED', {
+      actorId: userId,
+      details: { totalItems, page: paginationParams.page },
+      entityType: 'Notification',
+      entityTable: 'notifications'
+    });
 
     return { personal, global: globalTagged, mixed: paginatedMixed, readIds, totalItems, paginationParams };
   }
@@ -75,12 +76,12 @@ class NotificationService {
       setImmediate(() => NotificationCountUtil.emitCountUpdate(userId));
     }
 
-    logAudit(
-      'NOTIFICATION_PERSONAL_LIST_VIEWED',
-      userId,
-      { totalItems: count, page: paginationParams.page },
-      { entityType: 'Notification', entityTable: 'notifications' }
-    );
+    await audit.record('NOTIFICATION_PERSONAL_LIST_VIEWED', {
+      actorId: userId,
+      details: { totalItems: count, page: paginationParams.page },
+      entityType: 'Notification',
+      entityTable: 'notifications'
+    });
 
     return { rows, count, paginationParams };
   }
@@ -102,12 +103,12 @@ class NotificationService {
       setImmediate(() => NotificationCountUtil.emitCountUpdate(userId));
     }
 
-    logAudit(
-      'NOTIFICATION_GLOBAL_LIST_VIEWED',
-      userId,
-      { totalItems, page: paginationParams.page },
-      { entityType: 'GlobalNotification', entityTable: 'global_notifications' }
-    );
+    await audit.record('NOTIFICATION_GLOBAL_LIST_VIEWED', {
+      actorId: userId,
+      details: { totalItems, page: paginationParams.page },
+      entityType: 'GlobalNotification',
+      entityTable: 'global_notifications'
+    });
 
     return { rows: paginatedRows, readIds, totalItems, paginationParams };
   }
@@ -117,12 +118,12 @@ class NotificationService {
 
     NotificationEmitter.emit('count-updated', { userId, count: total });
 
-    logAudit(
-      'NOTIFICATION_UNREAD_COUNT_VIEWED',
-      userId,
-      { count: total },
-      { entityType: 'Notification', entityTable: 'notifications' }
-    );
+    await audit.record('NOTIFICATION_UNREAD_COUNT_VIEWED', {
+      actorId: userId,
+      details: { count: total },
+      entityType: 'Notification',
+      entityTable: 'notifications'
+    });
 
     return total;
   }
@@ -148,12 +149,12 @@ class NotificationService {
       externalService
     });
 
-    logAudit(
-      'NOTIFICATION_CREATED',
-      null,
-      { tipoNotificacion: data.tipoNotificacion, userId: data.userId, externalService },
-      { entityType: 'Notification', entityTable: 'notifications' }
-    );
+    await audit.record('NOTIFICATION_CREATED', {
+      actorId: null,
+      details: { tipoNotificacion: data.tipoNotificacion, userId: data.userId, externalService },
+      entityType: 'Notification',
+      entityTable: 'notifications'
+    });
 
     return result;
   }
@@ -161,12 +162,12 @@ class NotificationService {
   async createDirectNotification(data: Parameters<NotificationService['notificationCreationService']['crearNotificacionDirecta']>[0]) {
     const result = await this.notificationCreationService.crearNotificacionDirecta(data);
 
-    logAudit(
-      'NOTIFICATION_DIRECT_CREATED',
-      null,
-      { tipoNotificacion: data.tipoNotificacion, email: data.email },
-      { entityType: 'Notification', entityTable: 'notifications' }
-    );
+    await audit.record('NOTIFICATION_DIRECT_CREATED', {
+      actorId: null,
+      details: { tipoNotificacion: data.tipoNotificacion, email: data.email },
+      entityType: 'Notification',
+      entityTable: 'notifications'
+    });
 
     return result;
   }

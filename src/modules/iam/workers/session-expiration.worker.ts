@@ -12,7 +12,7 @@
 
 import cron from 'node-cron';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import { runOperation } from '../../../shared/observability/operation';
 import userSessionRepository from '../repositories/user-session.repository';
 import RefreshTokenStore from '../utils/refresh-token-store.util';
@@ -22,6 +22,7 @@ const { SECURITY } = constantsModule;
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
+import audit from '../../audit/audit.service';
 
 
 // Cron hardcodeado (convención del repo: los workers no leen el cron de env vars).
@@ -103,10 +104,9 @@ class SessionExpirationWorker {
       })
     );
 
-    logAudit(
-      auditAction,
-      'system',
-      {
+    await audit.record(auditAction, {
+      actorId: 'system',
+      details: {
         targetUserId: session.userId,
         jti: session.jti,
         lastAccessAt: session.lastAccessAt,
@@ -114,8 +114,10 @@ class SessionExpirationWorker {
         before: { status: 'active' },
         after: { status: 'closed', closeReason: reason }
       },
-      { entityId: sessionId, entityType: 'UserSession', entityTable: 'user_sessions' }
-    );
+      entityId: sessionId,
+      entityType: 'UserSession',
+      entityTable: 'user_sessions'
+    });
 
     return true;
   }

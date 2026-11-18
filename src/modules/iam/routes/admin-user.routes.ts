@@ -17,7 +17,6 @@ import RbacMiddleware from '../middlewares/rbac.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 import constantsModule from '../../../shared/constants';
 const { RBAC_MODULES, RBAC_ACTIONS } = constantsModule;
 
@@ -32,7 +31,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AdminUserValidator.listQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('INTERNAL_USER_LIST_VIEWED', { entityType: 'InternalUser', entityTable: 'users' }),
   AdminUserController.list
 );
 
@@ -45,7 +43,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AdminUserValidator.create(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('INTERNAL_USER_CREATED', { entityType: 'InternalUser', entityTable: 'users' }),
   AdminUserController.create
 );
 
@@ -59,7 +56,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AdminUserValidator.listQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('INTERNAL_USER_DELETED_LIST_VIEWED', { entityType: 'InternalUser', entityTable: 'users' }),
   AdminUserController.listDeleted
 );
 
@@ -72,7 +68,6 @@ router.get(
   RbacMiddleware.requirePermission(M, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuditAction.declare('INTERNAL_USER_ROLE_OPTIONS_VIEWED', { entityType: 'RbacRole', entityTable: 'roles' }),
   AdminUserController.listRoleOptions
 );
 
@@ -85,7 +80,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   BaseValidator.uuidParam('userId', 'El usuario'),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('INTERNAL_USER_VIEWED', { entityType: 'InternalUser', entityTable: 'users' }),
   AdminUserController.getById
 );
 
@@ -99,7 +93,6 @@ router.patch(
   BaseValidator.uuidParam('userId', 'El usuario'),
   AdminUserValidator.update(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('INTERNAL_USER_UPDATED', { entityType: 'InternalUser', entityTable: 'persons' }),
   AdminUserController.update
 );
 
@@ -113,10 +106,6 @@ router.patch(
   BaseValidator.uuidParam('userId', 'El usuario'),
   AdminUserValidator.changeRole(),
   ValidatorUtil.handleValidationErrors,
-  // Doble aprobación: gateada a nivel de service (AdminUserService.changeRole), DESPUÉS de validar
-  // que el target no sea eliminado/superadmin ni un no-op, para no generar approval_requests
-  // inviables. Pendiente → 202; el handler IoC reanuda con executeChangeRole.
-  AuditAction.declare('INTERNAL_USER_ROLE_CHANGED', { entityType: 'InternalUser', entityTable: 'users' }),
   AdminUserController.changeRole
 );
 
@@ -144,7 +133,6 @@ router.delete(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AdminUserValidator.deleteUser(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('INTERNAL_USER_DELETED', { entityType: 'InternalUser', entityTable: 'users' }),
   AdminUserController.deleteUser
 );
 
@@ -157,7 +145,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   BaseValidator.uuidParam('userId', 'El usuario'),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('INTERNAL_USER_SESSIONS_VIEWED', { entityType: 'InternalUser', entityTable: 'users' }),
   AdminUserController.listSessions
 );
 
@@ -169,7 +156,6 @@ router.delete(
   RequestLockMiddleware.forAuthenticatedUsers(),
   BaseValidator.uuidParam('userId', 'El usuario'),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('INTERNAL_USER_SESSIONS_CLOSED', { entityType: 'InternalUser', entityTable: 'users' }),
   AdminUserController.closeSessions
 );
 
@@ -183,7 +169,6 @@ router.get(
   BaseValidator.uuidParam('userId', 'El usuario'),
   AdminUserValidator.changeLogsQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('INTERNAL_USER_CHANGE_LOGS_VIEWED', { entityType: 'InternalUser', entityTable: 'users' }),
   AdminUserController.listChangeLogs
 );
 

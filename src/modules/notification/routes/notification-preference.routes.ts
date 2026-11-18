@@ -6,13 +6,11 @@ import AuthMiddleware from '../../iam/middlewares/auth.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 
 /**
  * TODAS LAS RUTAS REQUIEREN AUTENTICACIÓN
  */
 
-const AUDIT_META = { entityType: 'UserNotificationPreference', entityTable: 'user_notification_preferences' };
 
 /** GET /person/notifications/preferences — preferencias crudas del usuario (global + overrides) */
 router.get(
@@ -20,7 +18,6 @@ router.get(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuditAction.declare('NOTIFICATION_PREFERENCES_VIEWED', AUDIT_META),
   NotificationPreferenceController.getPreferences
 );
 
@@ -30,7 +27,6 @@ router.get(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuditAction.declare('NOTIFICATION_PREFERENCES_VIEWED', AUDIT_META),
   NotificationPreferenceController.getCategoriesWithPreferences
 );
 
@@ -42,7 +38,6 @@ router.put(
   RequestLockMiddleware.forAuthenticatedUsers(),
   NotificationPreferenceValidator.updateGlobalPreference(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('NOTIFICATION_GLOBAL_PREFERENCE_UPDATED', AUDIT_META),
   NotificationPreferenceController.updateGlobalPreference
 );
 
@@ -54,7 +49,6 @@ router.put(
   RequestLockMiddleware.forAuthenticatedUsers(),
   NotificationPreferenceValidator.updateCategoryPreference(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('NOTIFICATION_CATEGORY_PREFERENCE_UPDATED', AUDIT_META),
   NotificationPreferenceController.updateCategoryPreference
 );
 
@@ -66,7 +60,6 @@ router.delete(
   RequestLockMiddleware.forAuthenticatedUsers(),
   NotificationPreferenceValidator.deleteCategoryPreference(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('NOTIFICATION_CATEGORY_PREFERENCE_DELETED', AUDIT_META),
   NotificationPreferenceController.deleteCategoryPreference
 );
 

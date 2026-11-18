@@ -1,6 +1,6 @@
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import PaginationHelper from '../../../shared/http/pagination.util';
 import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
@@ -10,6 +10,7 @@ const { MetadataDTO } = componentsCatalogDtoModule;
 import auditAlertRepository from '../repositories/audit-alert.repository';
 import adminAuditAlertDtoModule from '../dtos/admin-audit-alert.dto';
 const { AuditAlertListDTO } = adminAuditAlertDtoModule;
+import audit from '../audit.service';
 
 class AdminAuditAlertService {
   NotificationCreationService: typeof NotificationCreationService;
@@ -44,12 +45,12 @@ class AdminAuditAlertService {
 
     const activeFilters = PaginationHelper.buildFilters(query, ['acknowledged', 'dateFrom', 'dateTo', 'action', 'category']);
 
-    logAudit(
-      'AUDIT_ALERT_LISTED',
-      adminUserId,
-      { totalItems: count, pending },
-      { entityType: 'AuditAlert', entityTable: 'audit_alerts' }
-    );
+    await audit.record('AUDIT_ALERT_LISTED', {
+      actorId: adminUserId,
+      details: { totalItems: count, pending },
+      entityType: 'AuditAlert',
+      entityTable: 'audit_alerts'
+    });
 
     return {
       data: rows.map(r => AuditAlertListDTO(r)),
@@ -75,12 +76,13 @@ class AdminAuditAlertService {
 
     const record = await this.auditAlertRepository.findById(alertId);
 
-    logAudit(
-      'AUDIT_ALERT_ACKNOWLEDGED',
-      adminUserId,
-      { alertId },
-      { entityId: alertId, entityType: 'AuditAlert', entityTable: 'audit_alerts' }
-    );
+    await audit.record('AUDIT_ALERT_ACKNOWLEDGED', {
+      actorId: adminUserId,
+      details: { alertId },
+      entityId: alertId,
+      entityType: 'AuditAlert',
+      entityTable: 'audit_alerts'
+    });
 
     setImmediate(() => {
       this.NotificationCreationService.crearNotificacion({
@@ -97,12 +99,12 @@ class AdminAuditAlertService {
   async acknowledgeBulk(alertIds: string[], adminUserId: string) {
     const count = await this.auditAlertRepository.acknowledgeBulk(alertIds, adminUserId);
 
-    logAudit(
-      'AUDIT_ALERTS_BULK_ACKNOWLEDGED',
-      adminUserId,
-      { requested: alertIds.length, acknowledged: count },
-      { entityType: 'AuditAlert', entityTable: 'audit_alerts' }
-    );
+    await audit.record('AUDIT_ALERTS_BULK_ACKNOWLEDGED', {
+      actorId: adminUserId,
+      details: { requested: alertIds.length, acknowledged: count },
+      entityType: 'AuditAlert',
+      entityTable: 'audit_alerts'
+    });
 
     setImmediate(() => {
       this.NotificationCreationService.crearNotificacion({

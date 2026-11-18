@@ -28,6 +28,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked } from 'tests/helpers/mock';
@@ -37,8 +38,8 @@ import userConsentRepositoryModule from '../repositories/user-consent.repository
 const userConsentRepository = mocked(userConsentRepositoryModule);
 import prismaModule from '../../../shared/database/prisma';
 const prisma = mocked(prismaModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import service from './user-consent.service';
 
 const USER_ID = 'user-1';
@@ -66,11 +67,7 @@ describe('UserConsentService', () => {
         { code: 'PP', granted: true },
         { code: 'CC', granted: false }
       ]);
-      expect(logAudit).toHaveBeenCalledWith(
-        'CONSENT_CATALOG_VIEWED',
-        USER_ID,
-        expect.objectContaining({ totalItems: 2, grantedCount: 1 }),
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('CONSENT_CATALOG_VIEWED', expect.objectContaining({ actorId: USER_ID, details: expect.objectContaining({ totalItems: 2, grantedCount: 1 }) })
       );
     });
   });
@@ -113,7 +110,7 @@ describe('UserConsentService', () => {
       );
       expect(tx.commit).toHaveBeenCalled();
       expect(logAudit).toHaveBeenCalledTimes(2);
-      expect(logAudit).toHaveBeenCalledWith('CONSENT_GRANTED', USER_ID, expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('CONSENT_GRANTED', expect.objectContaining({ actorId: USER_ID }));
       expect(result).toEqual([{ id: 'uc-1' }, { id: 'uc-2' }]);
     });
 
@@ -161,7 +158,7 @@ describe('UserConsentService', () => {
         expect.objectContaining({ userId: USER_ID, consentTypeId: 'ct-1', ip: '1.2.3.4', reason: 'ya no quiero' })
       );
       expect(tx.commit).toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith('CONSENT_REVOKED', USER_ID, expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('CONSENT_REVOKED', expect.objectContaining({ actorId: USER_ID }));
       expect(result).toEqual({ message: 'Consentimiento revocado exitosamente' });
     });
   });

@@ -26,6 +26,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn() },
   logAudit: jest.fn()
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 import { mocked } from 'tests/helpers/mock';
 import suppressionRepoModule from '../repositories/email-bounce-suppression.repository';
@@ -35,7 +36,9 @@ const EncryptionUtil = mocked(EncryptionUtilModule);
 import MaskingUtilModule from '../../../shared/security/masking.util';
 const MaskingUtil = mocked(MaskingUtilModule);
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const { logger } = mocked(loggerUtilModule);
+const logAudit = mocked(auditServiceModule).record;
 import service from './email-suppression.service';
 
 // Un SHA-256 válido: 64 chars hexadecimales (en mayúsculas para verificar que se normaliza a minúsculas).
@@ -94,11 +97,7 @@ describe('EmailSuppressionService', () => {
       // Se audita el rebote con el correo enmascarado (se recibió en claro).
       expect(MaskingUtil.maskEmail).toHaveBeenCalledWith('user@example.com');
       expect(logAudit).toHaveBeenCalledTimes(1);
-      expect(logAudit).toHaveBeenCalledWith(
-        'EMAIL_HARD_BOUNCE_RECORDED',
-        'system',
-        expect.objectContaining({ bounceCount: 1, threshold: 3, maskedEmail: 'u***@e***.com' }),
-        expect.objectContaining({ outcome: 'failure' })
+      expect(logAudit).toHaveBeenCalledWith('EMAIL_HARD_BOUNCE_RECORDED', expect.objectContaining({ actorId: 'system', details: expect.objectContaining({ bounceCount: 1, threshold: 3, maskedEmail: 'u***@e***.com' }), outcome: 'failure' })
       );
       // Sin bloqueo: no hay warn ni segundo evento de auditoría.
       expect(logger.warn).not.toHaveBeenCalled();
@@ -112,12 +111,7 @@ describe('EmailSuppressionService', () => {
 
       expect(logger.warn).toHaveBeenCalledTimes(1);
       expect(logAudit).toHaveBeenCalledTimes(2);
-      expect(logAudit).toHaveBeenNthCalledWith(
-        2,
-        'EMAIL_ADDRESS_SUPPRESSED',
-        'system',
-        expect.objectContaining({ bounceCount: 3, threshold: 3 }),
-        expect.objectContaining({ outcome: 'failure' })
+      expect(logAudit).toHaveBeenNthCalledWith(2, 'EMAIL_ADDRESS_SUPPRESSED', expect.objectContaining({ actorId: 'system', details: expect.objectContaining({ bounceCount: 3, threshold: 3 }), outcome: 'failure' })
       );
     });
 
@@ -129,7 +123,7 @@ describe('EmailSuppressionService', () => {
       expect(logger.warn).not.toHaveBeenCalled();
       // Solo el evento de rebote; no el de bloqueo.
       expect(logAudit).toHaveBeenCalledTimes(1);
-      expect(logAudit).toHaveBeenCalledWith('EMAIL_HARD_BOUNCE_RECORDED', 'system', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('EMAIL_HARD_BOUNCE_RECORDED', expect.objectContaining({ actorId: 'system' }));
     });
 
     it('acepta emailHash directo y no enmascara cuando no hay correo en claro', async () => {
@@ -142,11 +136,7 @@ describe('EmailSuppressionService', () => {
       expect(suppressionRepo.registerHardBounce).toHaveBeenCalledWith('a'.repeat(64), expect.any(Object));
       // Sin correo en claro no hay enmascarado; maskedEmail queda null.
       expect(MaskingUtil.maskEmail).not.toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith(
-        'EMAIL_HARD_BOUNCE_RECORDED',
-        'system',
-        expect.objectContaining({ maskedEmail: null }),
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('EMAIL_HARD_BOUNCE_RECORDED', expect.objectContaining({ actorId: 'system', details: expect.objectContaining({ maskedEmail: null }) })
       );
     });
   });
@@ -159,11 +149,7 @@ describe('EmailSuppressionService', () => {
       const result = await service.lift({ email: 'user@example.com', adminUserId: 'admin-1' });
 
       expect(suppressionRepo.lift).toHaveBeenCalledWith('email-hash-de-prueba');
-      expect(logAudit).toHaveBeenCalledWith(
-        'EMAIL_SUPPRESSION_LIFTED',
-        'admin-1',
-        expect.objectContaining({ found: true, maskedEmail: 'u***@e***.com' }),
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('EMAIL_SUPPRESSION_LIFTED', expect.objectContaining({ actorId: 'admin-1', details: expect.objectContaining({ found: true, maskedEmail: 'u***@e***.com' }) })
       );
       expect(result).toBe(record);
     });
@@ -176,11 +162,7 @@ describe('EmailSuppressionService', () => {
       expect(suppressionRepo.lift).toHaveBeenCalledWith('a'.repeat(64));
       // Sin correo en claro no se enmascara.
       expect(MaskingUtil.maskEmail).not.toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith(
-        'EMAIL_SUPPRESSION_LIFTED',
-        'admin-2',
-        expect.objectContaining({ found: false, maskedEmail: null }),
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('EMAIL_SUPPRESSION_LIFTED', expect.objectContaining({ actorId: 'admin-2', details: expect.objectContaining({ found: false, maskedEmail: null }) })
       );
       expect(result).toBeNull();
     });

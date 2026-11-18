@@ -12,7 +12,8 @@ import type { NextFunction, Request, Response } from 'express';
 import requestContext, { type OperationSource, type RequestContext } from './request-context.util';
 import operationRepository from './operation.repository';
 import loggerUtilModule from './logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
+import { auditInfraEvent } from './audit-hook';
 import DeviceFingerprintUtil from '../security/device-fingerprint.util';
 import errorMessageModule from '../utils/error-message.util';
 const { errorMessage } = errorMessageModule;
@@ -114,12 +115,13 @@ function runOperation<T>(
       if (source !== 'worker') {
         throw error;
       }
-      logAudit(
-        'WORKER_CYCLE_FAILED',
-        'system',
-        { worker: name, error: errorMessage(error) },
-        { outcome: 'failure', entityType: 'Worker', errorMessage: errorMessage(error) }
-      );
+      auditInfraEvent({
+        action: 'WORKER_CYCLE_FAILED',
+        actorId: 'system',
+        details: { worker: name, error: errorMessage(error) },
+        outcome: 'failure',
+        entityType: 'Worker'
+      });
       return undefined;
     }
   });

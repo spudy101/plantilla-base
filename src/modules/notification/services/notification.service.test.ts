@@ -16,6 +16,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
   logAudit: jest.fn()
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('../../../shared/http/pagination.util', () => ({
   stringParam: jest.requireActual('../../../shared/http/pagination.util').default.stringParam,
@@ -58,7 +59,9 @@ import { mocked } from 'tests/helpers/mock';
 import prismaModule from '../../../shared/database/prisma';
 const prisma = mocked(prismaModule);
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit, logger } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const { logger } = mocked(loggerUtilModule);
+const logAudit = mocked(auditServiceModule).record;
 import notificationRepoModule from '../repositories/notification.repository';
 const notificationRepo = mocked(notificationRepoModule);
 import globalNotificationRepoModule from '../repositories/global-notification.repository';
@@ -111,11 +114,7 @@ describe('NotificationService', () => {
       expect(notificationRepo.markAsReadByIds).toHaveBeenCalled();
       expect(globalReadRepo.bulkMarkAsRead).toHaveBeenCalledWith(['g-1'], USER);
       expect(tx.commit).toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith(
-        'NOTIFICATION_LIST_VIEWED',
-        USER,
-        expect.objectContaining({ totalItems: 2 }),
-        expect.objectContaining({ entityType: 'Notification' })
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_LIST_VIEWED', expect.objectContaining({ actorId: USER, details: expect.objectContaining({ totalItems: 2 }), entityType: 'Notification' })
       );
 
       await flush();
@@ -158,11 +157,7 @@ describe('NotificationService', () => {
 
       // solo las no leídas; el WHERE con IN lo arma el repositorio
       expect(notificationRepo.markAsReadByIds).toHaveBeenCalledWith(['n-1']);
-      expect(logAudit).toHaveBeenCalledWith(
-        'NOTIFICATION_PERSONAL_LIST_VIEWED',
-        USER,
-        expect.objectContaining({ totalItems: 2 }),
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_PERSONAL_LIST_VIEWED', expect.objectContaining({ actorId: USER, details: expect.objectContaining({ totalItems: 2 }) })
       );
       expect(result.count).toBe(2);
 
@@ -195,11 +190,7 @@ describe('NotificationService', () => {
 
       expect(globalReadRepo.bulkMarkAsRead).toHaveBeenCalledWith(['g-1'], USER);
       expect(result.totalItems).toBe(1);
-      expect(logAudit).toHaveBeenCalledWith(
-        'NOTIFICATION_GLOBAL_LIST_VIEWED',
-        USER,
-        expect.objectContaining({ totalItems: 1 }),
-        expect.objectContaining({ entityType: 'GlobalNotification' })
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_GLOBAL_LIST_VIEWED', expect.objectContaining({ actorId: USER, details: expect.objectContaining({ totalItems: 1 }), entityType: 'GlobalNotification' })
       );
 
       await flush();
@@ -227,11 +218,7 @@ describe('NotificationService', () => {
 
       expect(total).toBe(5);
       expect(NotificationEmitter.emit).toHaveBeenCalledWith('count-updated', { userId: USER, count: 5 });
-      expect(logAudit).toHaveBeenCalledWith(
-        'NOTIFICATION_UNREAD_COUNT_VIEWED',
-        USER,
-        { count: 5 },
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_UNREAD_COUNT_VIEWED', expect.objectContaining({ actorId: USER, details: { count: 5 } })
       );
     });
   });
@@ -260,11 +247,7 @@ describe('NotificationService', () => {
 
       expect(creationService.crearNotificacion).toHaveBeenCalledWith({ tipoNotificacion: 'WELCOME', userId: 'u-9' });
       expect(logger.info).toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith(
-        'NOTIFICATION_CREATED',
-        null,
-        expect.objectContaining({ tipoNotificacion: 'WELCOME', externalService: 'externo-x' }),
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_CREATED', expect.objectContaining({ actorId: null, details: expect.objectContaining({ tipoNotificacion: 'WELCOME', externalService: 'externo-x' }) })
       );
       expect(result).toEqual({ notificationId: 'n-1' });
     });
@@ -277,11 +260,7 @@ describe('NotificationService', () => {
       const result = await service.createDirectNotification({ tipoNotificacion: 'CODIGO', email: 'a@b.cl' });
 
       expect(creationService.crearNotificacionDirecta).toHaveBeenCalledWith({ tipoNotificacion: 'CODIGO', email: 'a@b.cl' });
-      expect(logAudit).toHaveBeenCalledWith(
-        'NOTIFICATION_DIRECT_CREATED',
-        null,
-        expect.objectContaining({ tipoNotificacion: 'CODIGO', email: 'a@b.cl' }),
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_DIRECT_CREATED', expect.objectContaining({ actorId: null, details: expect.objectContaining({ tipoNotificacion: 'CODIGO', email: 'a@b.cl' }) })
       );
       expect(result).toEqual({ estadoSolicitud: 1 });
     });

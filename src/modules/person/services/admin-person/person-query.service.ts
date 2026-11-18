@@ -7,8 +7,6 @@ import type { UserRepositoryPort } from '../../../repository-ports';
 import userRepository from '../../../iam/repositories/user.repository';
 import roleRepository from '../../../iam/repositories/role.repository';
 import AppError from '../../../../shared/http/app-error.util';
-import loggerUtilModule from '../../../../shared/observability/logger.util';
-const { logAudit } = loggerUtilModule;
 import PaginationHelper from '../../../../shared/http/pagination.util';
 import componentsCatalogDtoModule from '../../../catalogs/dtos/catalog-components.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
@@ -17,6 +15,7 @@ const { CLIENT_ROLE_NAMES } = constantsModule;
 
 import adminPersonDtoModule from '../../dtos/admin-person.dto';
 const { UserDTO, UserListItemDTO, RoleOptionDTO } = adminPersonDtoModule;
+import audit from '../../../audit/audit.service';
 
 class PersonQueryService {
   userRepository: typeof userRepository;
@@ -81,15 +80,15 @@ class PersonQueryService {
 
     const activeFilters = searchTerm ? { search: searchTerm, ...filters } : filters;
 
-    logAudit(
-      'PERSON_LIST_VIEWED',
-      adminUserId,
-      {
+    await audit.record('PERSON_LIST_VIEWED', {
+      actorId: adminUserId,
+      details: {
         totalItems: count,
         page: paginationParams.page
       },
-      { entityType: 'User', entityTable: 'users' }
-    );
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     return {
       data: rows.map(u => UserListItemDTO(u)),
@@ -123,12 +122,12 @@ class PersonQueryService {
 
     const { rows, count } = await this.userRepository.findAllPaginated(filters, paginationParams, searchTerm);
 
-    logAudit(
-      'PERSON_DELETED_LIST_VIEWED',
-      adminUserId,
-      { totalItems: count, page: paginationParams.page },
-      { entityType: 'User', entityTable: 'users' }
-    );
+    await audit.record('PERSON_DELETED_LIST_VIEWED', {
+      actorId: adminUserId,
+      details: { totalItems: count, page: paginationParams.page },
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     return {
       data: rows.map(u => UserListItemDTO(u)),
@@ -149,12 +148,12 @@ class PersonQueryService {
    */
   async listRoleOptions(adminUserId: string) {
     const roles = await this.roleRepository.findByNames(CLIENT_ROLE_NAMES);
-    logAudit(
-      'PERSON_ROLE_OPTIONS_VIEWED',
-      adminUserId,
-      { totalItems: roles.length },
-      { entityType: 'RbacRole', entityTable: 'roles' }
-    );
+    await audit.record('PERSON_ROLE_OPTIONS_VIEWED', {
+      actorId: adminUserId,
+      details: { totalItems: roles.length },
+      entityType: 'RbacRole',
+      entityTable: 'roles'
+    });
     return roles.map(RoleOptionDTO);
   }
 
@@ -164,12 +163,13 @@ class PersonQueryService {
       throw AppError.notFound('Usuario no encontrado');
     }
 
-    logAudit(
-      'PERSON_VIEWED',
-      adminUserId,
-      { targetUserId: userId },
-      { entityId: userId, entityType: 'User', entityTable: 'users' }
-    );
+    await audit.record('PERSON_VIEWED', {
+      actorId: adminUserId,
+      details: { targetUserId: userId },
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     return UserDTO(user);
   }

@@ -23,6 +23,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn() }
 }));
+jest.mock('../audit.service', () => ({ record: jest.fn() }));
 
 // Paginación reducida a valores deterministas para no depender de su parsing interno.
 jest.mock('../../../shared/http/pagination.util', () => ({
@@ -49,8 +50,8 @@ import auditAlertRepoModule from '../repositories/audit-alert.repository';
 const auditAlertRepo = mocked(auditAlertRepoModule);
 import notificationCreationModule from '../../notification/services/notification-creation.service';
 const notificationCreation = mocked(notificationCreationModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import service from './admin-audit-alert.service';
 
 const ADMIN = 'admin-1';
@@ -79,11 +80,7 @@ describe('AdminAuditAlertService', () => {
       expect(result.data).toHaveLength(2);
       expect(result.data[0]).toMatchObject({ dto: true, audit_alert_id: 'a-1' });
       expect(result.metadata).toMatchObject({ totalItems: 2, pendingCount: 5 });
-      expect(logAudit).toHaveBeenCalledWith(
-        'AUDIT_ALERT_LISTED',
-        ADMIN,
-        { totalItems: 2, pending: 5 },
-        expect.objectContaining({ entityType: 'AuditAlert' })
+      expect(logAudit).toHaveBeenCalledWith('AUDIT_ALERT_LISTED', expect.objectContaining({ actorId: ADMIN, details: { totalItems: 2, pending: 5 }, entityType: 'AuditAlert' })
       );
     });
   });
@@ -104,11 +101,7 @@ describe('AdminAuditAlertService', () => {
       const result = await service.acknowledge('a-1', ADMIN);
 
       expect(result).toMatchObject({ dto: true, audit_alert_id: 'a-1' });
-      expect(logAudit).toHaveBeenCalledWith(
-        'AUDIT_ALERT_ACKNOWLEDGED',
-        ADMIN,
-        { alertId: 'a-1' },
-        expect.objectContaining({ entityId: 'a-1', entityType: 'AuditAlert' })
+      expect(logAudit).toHaveBeenCalledWith('AUDIT_ALERT_ACKNOWLEDGED', expect.objectContaining({ actorId: ADMIN, details: { alertId: 'a-1' }, entityId: 'a-1', entityType: 'AuditAlert' })
       );
 
       await flushMacrotasks();
@@ -125,11 +118,7 @@ describe('AdminAuditAlertService', () => {
       const result = await service.acknowledgeBulk(['a-1', 'a-2', 'a-3'], ADMIN);
 
       expect(result).toEqual({ acknowledged: 2, requested: 3 });
-      expect(logAudit).toHaveBeenCalledWith(
-        'AUDIT_ALERTS_BULK_ACKNOWLEDGED',
-        ADMIN,
-        { requested: 3, acknowledged: 2 },
-        expect.objectContaining({ entityType: 'AuditAlert' })
+      expect(logAudit).toHaveBeenCalledWith('AUDIT_ALERTS_BULK_ACKNOWLEDGED', expect.objectContaining({ actorId: ADMIN, details: { requested: 3, acknowledged: 2 }, entityType: 'AuditAlert' })
       );
 
       await flushMacrotasks();

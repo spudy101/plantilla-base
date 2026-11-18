@@ -10,6 +10,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('../repositories/person-reference.repository', () => ({
   findAllByPersonId: jest.fn(),
@@ -27,8 +28,8 @@ jest.mock('../dtos/person-reference.dto', () => ({
 import { mocked, fixture } from 'tests/helpers/mock';
 import referenceRepoModule from '../repositories/person-reference.repository';
 const referenceRepo = mocked(referenceRepoModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import service from './person-reference.service';
 
 const PERSON_ID = 'person-1';
@@ -48,11 +49,7 @@ describe('PersonReferenceService', () => {
       expect(referenceRepo.findAllByPersonId).toHaveBeenCalledWith(PERSON_ID);
       expect(result).toHaveLength(2);
       expect(result[0]).toMatchObject({ dto: 'list', personReferenceId: 'r-1' });
-      expect(logAudit).toHaveBeenCalledWith(
-        'PROFILE_REFERENCES_VIEWED',
-        USER_ID,
-        { count: 2 },
-        expect.objectContaining({ entityType: 'PersonReference' })
+      expect(logAudit).toHaveBeenCalledWith('PROFILE_REFERENCES_VIEWED', expect.objectContaining({ actorId: USER_ID, details: { count: 2 }, entityType: 'PersonReference' })
       );
     });
   });
@@ -75,11 +72,7 @@ describe('PersonReferenceService', () => {
         })
       );
       expect(result).toMatchObject({ dto: 'item', personReferenceId: 'r-9' });
-      expect(logAudit).toHaveBeenCalledWith(
-        'PROFILE_REFERENCE_CREATED',
-        USER_ID,
-        {},
-        expect.objectContaining({ entityId: 'r-9', entityType: 'PersonReference' })
+      expect(logAudit).toHaveBeenCalledWith('PROFILE_REFERENCE_CREATED', expect.objectContaining({ actorId: USER_ID, entityId: 'r-9', entityType: 'PersonReference' })
       );
     });
 
@@ -117,14 +110,10 @@ describe('PersonReferenceService', () => {
         referenceType: undefined
       });
       expect(result).toMatchObject({ dto: 'item', personReferenceId: 'r-1' });
-      expect(logAudit).toHaveBeenCalledWith(
-        'PROFILE_REFERENCE_UPDATED',
-        USER_ID,
-        expect.objectContaining({
+      expect(logAudit).toHaveBeenCalledWith('PROFILE_REFERENCE_UPDATED', expect.objectContaining({ actorId: USER_ID, details: expect.objectContaining({
           before: expect.objectContaining({ referenceName: 'Ana' }),
           after: expect.objectContaining({ referenceName: 'Ana María' })
-        }),
-        expect.objectContaining({ entityId: 'r-1', entityType: 'PersonReference' })
+        }), entityId: 'r-1', entityType: 'PersonReference' })
       );
     });
   });
@@ -144,11 +133,7 @@ describe('PersonReferenceService', () => {
       await service.remove('r-1', PERSON_ID, USER_ID);
 
       expect(referenceRepo.update).toHaveBeenCalledWith('r-1', { isActive: false });
-      expect(logAudit).toHaveBeenCalledWith(
-        'PROFILE_REFERENCE_DELETED',
-        USER_ID,
-        {},
-        expect.objectContaining({ entityId: 'r-1', entityType: 'PersonReference' })
+      expect(logAudit).toHaveBeenCalledWith('PROFILE_REFERENCE_DELETED', expect.objectContaining({ actorId: USER_ID, entityId: 'r-1', entityType: 'PersonReference' })
       );
     });
   });

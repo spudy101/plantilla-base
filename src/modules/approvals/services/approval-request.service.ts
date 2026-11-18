@@ -2,9 +2,8 @@ import type { AdminAuditContext } from '../../../shared/types/audit-context';
 // Service del módulo admin de doble aprobación. Delega en el core DualApprovalService
 // (capa de datos en schemas/core) y agrega la auditoría de los endpoints admin.
 
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = loggerUtilModule;
 import DualApprovalService from './dual-approval.service';
+import audit from '../../audit/audit.service';
 
 const ENTITY = { entityType: 'ApprovalRequest', entityTable: 'approval_requests' };
 
@@ -23,24 +22,23 @@ class ApprovalRequestService {
 
   async list(query: Record<string, unknown>, adminUserId: string) {
     const result = await this.DualApprovalService.list(query);
-    logAudit(
-      'APPROVAL_REQUEST_LIST_VIEWED',
-      adminUserId,
-      { operationKey: query.operationKey ?? null, status: query.status ?? null },
-      ENTITY
-    );
+    await audit.record('APPROVAL_REQUEST_LIST_VIEWED', {
+      actorId: adminUserId,
+      details: { operationKey: query.operationKey ?? null, status: query.status ?? null },
+      ...ENTITY
+    });
     return result;
   }
 
   async getById(id: string, adminUserId: string) {
     const data = await this.DualApprovalService.getById(id);
-    logAudit('APPROVAL_REQUEST_VIEWED', adminUserId, {}, { entityId: id, ...ENTITY });
+    await audit.record('APPROVAL_REQUEST_VIEWED', { actorId: adminUserId, entityId: id, ...ENTITY });
     return data;
   }
 
   async getPolicy(adminUserId: string) {
     const data = await this.DualApprovalService.getPolicy();
-    logAudit('APPROVAL_POLICY_VIEWED', adminUserId, {}, ENTITY);
+    await audit.record('APPROVAL_POLICY_VIEWED', { actorId: adminUserId, ...ENTITY });
     return data;
   }
 

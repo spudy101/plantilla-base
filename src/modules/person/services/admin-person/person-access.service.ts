@@ -11,7 +11,7 @@ import KycSharedUtil from '../../utils/kyc-shared.util';
 import NotificationUtil from '../../../notification/services/notification-creation.service';
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import constantsModule from '../../../../shared/constants';
 const { notifications } = constantsModule;
 
@@ -19,6 +19,7 @@ import adminPersonDtoModule from '../../dtos/admin-person.dto';
 const { ToggleUserStatusDTO, ChangeRoleDTO } = adminPersonDtoModule;
 import personGuardsModule from './person-guards';
 const { assertNotDeleted, isClientRole } = personGuardsModule;
+import audit from '../../../audit/audit.service';
 
 class PersonAccessService {
   unitOfWork: typeof unitOfWork;
@@ -79,12 +80,13 @@ class PersonAccessService {
       return user;
     });
 
-    logAudit(
-      isActivating ? 'PERSON_ACTIVATED' : 'PERSON_DEACTIVATED',
-      auditContext.adminUserId,
-      { before: { isActive: !isActivating }, after: { isActive: isActivating } },
-      { entityId: userId, entityType: 'User', entityTable: 'users' }
-    );
+    await audit.record(isActivating ? 'PERSON_ACTIVATED' : 'PERSON_DEACTIVATED', {
+      actorId: auditContext.adminUserId,
+      details: { before: { isActive: !isActivating }, after: { isActive: isActivating } },
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     const affectedNombre = user.person?.firstName || 'Usuario';
     const affectedEmail = user.person?.contact?.email;
@@ -168,15 +170,16 @@ class PersonAccessService {
       return { user, newRole, oldRole };
     });
 
-    logAudit(
-      'PERSON_ROLE_CHANGED',
-      auditContext.adminUserId,
-      {
+    await audit.record('PERSON_ROLE_CHANGED', {
+      actorId: auditContext.adminUserId,
+      details: {
         before: { role: oldRole?.name ?? null },
         after: { role: newRole.name }
       },
-      { entityId: userId, entityType: 'User', entityTable: 'users' }
-    );
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     const affectedNombre = user.person?.firstName || 'Usuario';
     const affectedEmail = user.person?.contact?.email;

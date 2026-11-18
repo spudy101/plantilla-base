@@ -4,6 +4,7 @@
 // repositorios: las dependencias se inyectan por constructor (SOLID: D).
 
 jest.mock('../../../../shared/observability/logger.util', () => ({ logger: { info: jest.fn(), warn: jest.fn() }, logAudit: jest.fn() }));
+jest.mock('../../../audit/audit.service', () => ({ record: jest.fn() }));
 jest.mock('../../utils/token-blacklist.util', () => ({ invalidateUserSessions: jest.fn().mockResolvedValue(undefined) }));
 
 import { managedTransaction } from 'tests/helpers/transaction';
@@ -11,8 +12,8 @@ import { mocked, Loose, fixture } from 'tests/helpers/mock';
 import CredentialResetService from './credential-reset.service';
 import TokenBlacklistUtilModule from '../../utils/token-blacklist.util';
 const TokenBlacklistUtil = mocked(TokenBlacklistUtilModule);
-import loggerUtilModule from '../../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 
 const flush = () => new Promise(resolve => { setImmediate(resolve); });
 
@@ -105,7 +106,7 @@ describe('CredentialResetService', () => {
       expect(transaction.commit).toHaveBeenCalled();
       expect(TokenBlacklistUtil.invalidateUserSessions).toHaveBeenCalledWith('u-1');
       expect(deps.userSessionRepository.closeAllByUser).toHaveBeenCalledWith('u-1', 'password_reset');
-      expect(logAudit).toHaveBeenCalledWith('PASSWORD_RESET_CONFIRMED', 'u-1', { type: 'password' }, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('PASSWORD_RESET_CONFIRMED', expect.objectContaining({ actorId: 'u-1', details: { type: 'password' } }));
     });
 
     it('mfa: baja TOTP y SMS, registra ambos cambios y NO cierra sesiones', async () => {

@@ -40,6 +40,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
   logAudit: jest.fn()
 }));
+jest.mock('../audit.service', () => ({ record: jest.fn() }));
 
 
 jest.mock('../dtos/admin-session-trace.dto', () => ({
@@ -57,8 +58,8 @@ import userConsentRepositoryModule from '../../legal/repositories/user-consent.r
 const userConsentRepository = mocked(userConsentRepositoryModule);
 import trustedDeviceRepoModule from '../../iam/repositories/auth-trusted-device.repository';
 const trustedDeviceRepo = mocked(trustedDeviceRepoModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import adminSessionTraceDtoModuleModule from '../dtos/admin-session-trace.dto';
 const adminSessionTraceDtoModule = mocked(adminSessionTraceDtoModuleModule);
 const {
@@ -98,11 +99,7 @@ describe('AdminSessionTraceService', () => {
         ]),
         expect.objectContaining({ totalItems: 2 })
       );
-      expect(logAudit).toHaveBeenCalledWith(
-        'SESSION_TRACE_LIST_VIEWED',
-        ADMIN_ID,
-        expect.objectContaining({ totalItems: 2, filters: ['userId'] }),
-        expect.anything()
+      expect(logAudit).toHaveBeenCalledWith('SESSION_TRACE_LIST_VIEWED', expect.objectContaining({ actorId: ADMIN_ID, details: expect.objectContaining({ totalItems: 2, filters: ['userId'] }) })
       );
       expect(result).toEqual({ dto: 'list' });
     });
@@ -128,11 +125,7 @@ describe('AdminSessionTraceService', () => {
 
       await service.getSessionTimeline('s1', {}, ADMIN_ID);
 
-      expect(logAudit).toHaveBeenCalledWith(
-        'SESSION_TRACE_VIEWED',
-        ADMIN_ID,
-        expect.objectContaining({ sessionId: 's1', totalItems: 3 }),
-        expect.anything()
+      expect(logAudit).toHaveBeenCalledWith('SESSION_TRACE_VIEWED', expect.objectContaining({ actorId: ADMIN_ID, details: expect.objectContaining({ sessionId: 's1', totalItems: 3 }) })
       );
 
       // La función hasDetailFn se pasa como último argumento del DTO: la ejercitamos directamente.
@@ -173,11 +166,7 @@ describe('AdminSessionTraceService', () => {
         expect.objectContaining({ entityTable: 'user_trusted_devices', entityType: 'UserTrustedDevice', count: 1 })
       ]);
       expect(skipped).toEqual([{ entityTable: 'foo_table', count: 1 }]);
-      expect(logAudit).toHaveBeenCalledWith(
-        'SESSION_TRACE_ENTITIES_VIEWED',
-        ADMIN_ID,
-        expect.objectContaining({ tables: ['user_consents', 'user_trusted_devices'], skipped: ['foo_table'] }),
-        expect.anything()
+      expect(logAudit).toHaveBeenCalledWith('SESSION_TRACE_ENTITIES_VIEWED', expect.objectContaining({ actorId: ADMIN_ID, details: expect.objectContaining({ tables: ['user_consents', 'user_trusted_devices'], skipped: ['foo_table'] }) })
       );
     });
 

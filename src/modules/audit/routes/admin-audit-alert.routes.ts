@@ -7,7 +7,6 @@ import RbacMiddleware from '../../iam/middlewares/rbac.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../middlewares/audit-action.middleware';
 import constantsModule from '../../../shared/constants';
 const { RBAC_MODULES, RBAC_ACTIONS } = constantsModule;
 
@@ -19,7 +18,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AdminAuditAlertValidator.listQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('AUDIT_ALERT_LISTED', { entityType: 'AuditAlert', entityTable: 'audit_alerts' }),
   AdminAuditAlertController.list
 );
 
@@ -31,7 +29,6 @@ router.patch(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AdminAuditAlertValidator.alertId(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('AUDIT_ALERT_ACKNOWLEDGED', { entityType: 'AuditAlert', entityTable: 'audit_alerts' }),
   AdminAuditAlertController.acknowledge
 );
 
@@ -43,7 +40,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AdminAuditAlertValidator.acknowledgeBulk(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('AUDIT_ALERTS_BULK_ACKNOWLEDGED', { entityType: 'AuditAlert', entityTable: 'audit_alerts' }),
   AdminAuditAlertController.acknowledgeBulk
 );
 

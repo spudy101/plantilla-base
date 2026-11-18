@@ -8,8 +8,6 @@ import type SessionTraceDto from '../dtos/admin-session-trace.dto';
 // un findAll por tabla involucrada, agrupando los ids, reusando los DTOs admin que ya existen.
 
 import AppError from '../../../shared/http/app-error.util';
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = loggerUtilModule;
 import PaginationHelper from '../../../shared/http/pagination.util';
 
 import auditLogRepository from '../repositories/audit-log.repository';
@@ -27,6 +25,7 @@ const {
 } = componentsAuditDtoModule;
 import adminSessionTraceDtoModule from '../dtos/admin-session-trace.dto';
 const { SessionTraceListDTO, SessionTimelineDTO, SessionEntitiesDTO } = adminSessionTraceDtoModule;
+import audit from '../audit.service';
 
 // ============================================================
 // REGISTRY — mapa entity_table → { repository, pk, entityType, dto } declarado en UN solo lugar (§8.4).
@@ -102,12 +101,12 @@ class AdminSessionTraceService {
 
     const activeFilters = PaginationHelper.buildFilters(query, ['userId', 'sessionId', 'status', 'ip', 'dateFrom', 'dateTo']);
 
-    logAudit(
-      'SESSION_TRACE_LIST_VIEWED',
-      adminUserId,
-      { totalItems: count, filters: Object.keys(activeFilters) },
-      { entityType: 'AuthSession', entityTable: 'user_sessions' }
-    );
+    await audit.record('SESSION_TRACE_LIST_VIEWED', {
+      actorId: adminUserId,
+      details: { totalItems: count, filters: Object.keys(activeFilters) },
+      entityType: 'AuthSession',
+      entityTable: 'user_sessions'
+    });
 
     return SessionTraceListDTO(rows, countMap, {
       totalItems: count,
@@ -133,12 +132,13 @@ class AdminSessionTraceService {
       { limit: pagination.limit, offset: pagination.offset, sortBy: 'createdAt', order: 'ASC' }
     );
 
-    logAudit(
-      'SESSION_TRACE_VIEWED',
-      adminUserId,
-      { sessionId, totalItems: count },
-      { entityId: sessionId, entityType: 'AuthSession', entityTable: 'user_sessions' }
-    );
+    await audit.record('SESSION_TRACE_VIEWED', {
+      actorId: adminUserId,
+      details: { sessionId, totalItems: count },
+      entityId: sessionId,
+      entityType: 'AuthSession',
+      entityTable: 'user_sessions'
+    });
 
     return SessionTimelineDTO(
       session,
@@ -195,12 +195,13 @@ class AdminSessionTraceService {
       });
     }
 
-    logAudit(
-      'SESSION_TRACE_ENTITIES_VIEWED',
-      adminUserId,
-      { sessionId, tables: entities.map(e => e.entityTable), skipped: skipped.map(s => s.entityTable) },
-      { entityId: sessionId, entityType: 'AuthSession', entityTable: 'user_sessions' }
-    );
+    await audit.record('SESSION_TRACE_ENTITIES_VIEWED', {
+      actorId: adminUserId,
+      details: { sessionId, tables: entities.map(e => e.entityTable), skipped: skipped.map(s => s.entityTable) },
+      entityId: sessionId,
+      entityType: 'AuthSession',
+      entityTable: 'user_sessions'
+    });
 
     return SessionEntitiesDTO(sessionId, entities, skipped);
   }

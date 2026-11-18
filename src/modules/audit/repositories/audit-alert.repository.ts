@@ -1,7 +1,6 @@
 // modules/schemas/records/audit/repositories/audit-alert.repository.ts
 //
-// Alertas de auditoría para el superadmin. Se crean desde logAudit con el cliente por defecto (fuera de la
-// transacción del flujo, como la auditoría misma).
+// Alertas de auditoría para el superadmin. Las crea audit.record() junto con el registro que las dispara.
 import PrismaRepository from '../../../shared/database/prisma.repository';
 import type { AuditAlert, Prisma } from '../../../shared/database/generated/prisma/client';
 import { loadUserRefs } from './user-ref';
@@ -11,8 +10,10 @@ import type { UserRef } from './user-ref';
 export type AuditAlertWithUsers = AuditAlert & { actor: UserRef | null; acknowledgedByUser: UserRef | null };
 
 class AuditAlertRepository extends PrismaRepository {
-  create(data: Prisma.AuditAlertUncheckedCreateInput): Promise<AuditAlert> {
-    return this.independentDb().auditAlert.create({ data });
+  /** Misma regla que la auditoría: dentro de la transacción en curso salvo `independent`. */
+  async create(data: Prisma.AuditAlertUncheckedCreateInput, { independent = false } = {}): Promise<AuditAlert> {
+    const db = independent ? this.independentDb() : await this.db();
+    return db.auditAlert.create({ data });
   }
 
   async findById(alertId: string): Promise<AuditAlertWithUsers | null> {

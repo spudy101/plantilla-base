@@ -41,6 +41,7 @@ export default {
   },
 
   AUDIT_LOG_PURGE_EXECUTED: {
+    alert: true,
     description: 'Purga de registros de auditoría vencidos ejecutada desde BD por el worker de retención (RF-ADM-03)',
     category: AUDIT_CATEGORIES.AUDIT,
     risk: AUDIT_RISKS.CRITICAL

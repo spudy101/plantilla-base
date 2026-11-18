@@ -4,16 +4,17 @@
 // contraseña y el biométrico. Dependencias inyectadas por constructor (SOLID: D).
 
 jest.mock('../../../../shared/observability/logger.util', () => ({ logger: { warn: jest.fn() }, logAudit: jest.fn() }));
+jest.mock('../../../audit/audit.service', () => ({ record: jest.fn() }));
 
 import { mocked, fixture } from 'tests/helpers/mock';
 import LoginPolicyGateService from './login-policy-gate.service';
-import loggerUtilModule from '../../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import constantsModule from '../../../../shared/constants';
 const { INTERNAL_ROLE_NAMES } = constantsModule;
 
 const ACTIVE_POLICY = { privacyPolicyId: 'pp-2', version: '2.0', documentUrl: 'http://x/p.pdf', summary: 's', effectiveDate: 'd' };
-const CONTEXT = { blockedAuditAction: 'LOGIN_BLOCKED_POLICY_UPDATE', source: 'auth-login' };
+const CONTEXT = { blockedAuditAction: 'LOGIN_BLOCKED_POLICY_UPDATE' as const, source: 'auth-login' };
 
 const makeGate = ({ activePolicy = ACTIVE_POLICY } = {}) => {
   const deps = {
@@ -50,16 +51,16 @@ describe('LoginPolicyGateService', () => {
 
     expect(deps.userRepository.updatePrivacyPolicy).toHaveBeenCalledWith('u-1', expect.objectContaining({ version: '2.0', acceptedIp: '1.2.3.4' }));
     expect(deps.consentRecorder.grantPrivacyPolicy).toHaveBeenCalledWith({ userId: 'u-1', privacyPolicyId: 'pp-2', ip: '1.2.3.4' });
-    expect(logAudit).toHaveBeenCalledWith('PRIVACY_POLICY_ACCEPTED', 'u-1', expect.any(Object), expect.any(Object));
+    expect(logAudit).toHaveBeenCalledWith('PRIVACY_POLICY_ACCEPTED', expect.objectContaining({ actorId: 'u-1' }));
   });
 
   it('versión desactualizada sin aceptar: audita con la acción del origen y devuelve el DTO de bloqueo', async () => {
     const { gate, deps } = makeGate();
 
-    const result = await gate.check(fixture(client()), false, null, { blockedAuditAction: 'BIOMETRIC_LOGIN_BLOCKED_POLICY_UPDATE', source: 'auth-biometric' });
+    const result = await gate.check(fixture(client()), false, null, { blockedAuditAction: 'BIOMETRIC_LOGIN_BLOCKED_POLICY_UPDATE' as const, source: 'auth-biometric' });
 
     expect(deps.userRepository.updatePrivacyPolicy).not.toHaveBeenCalled();
-    expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_LOGIN_BLOCKED_POLICY_UPDATE', 'u-1', expect.any(Object), expect.objectContaining({ outcome: 'failure' }));
+    expect(logAudit).toHaveBeenCalledWith('BIOMETRIC_LOGIN_BLOCKED_POLICY_UPDATE', expect.objectContaining({ actorId: 'u-1', outcome: 'failure' }));
     expect(result).toMatchObject({
       requiresPolicyAcceptance: true,
       policy: { currentVersion: '1.0', newVersion: '2.0', documentUrl: 'http://x/p.pdf' }

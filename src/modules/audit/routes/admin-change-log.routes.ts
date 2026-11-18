@@ -7,7 +7,6 @@ import RbacMiddleware from '../../iam/middlewares/rbac.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../middlewares/audit-action.middleware';
 import constantsModule from '../../../shared/constants';
 const { RBAC_MODULES, RBAC_ACTIONS } = constantsModule;
 
@@ -19,7 +18,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   ChangeLogValidator.listUserChangeLogsQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('CHANGE_LOG_VIEWED', { entityType: 'AuditRecord' }),
   ChangeLogController.listUserChangeLogs
 );
 

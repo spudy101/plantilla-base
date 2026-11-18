@@ -2,11 +2,12 @@ import type { Prisma, SystemGlobalConfig } from '../../../shared/database/genera
 import type { AdminAuditContext } from '../../../shared/types/audit-context';
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import systemGlobalConfigRepository from '../repositories/system-global-config.repository';
 import systemGlobalConfigDtoModule from '../dtos/system-global-config.dto';
 const { SystemGlobalConfigDTO } = systemGlobalConfigDtoModule;
 import notificationCreationService from '../../notification/services/notification-creation.service';
+import audit from '../../audit/audit.service';
 
 const NOTIF_SYSTEM_CONFIG_UPDATED = 'SYSTEM_CONFIG_UPDATED_INTERNAL';
 
@@ -31,12 +32,12 @@ class SystemGlobalConfigService {
       throw AppError.notFound('No hay una configuración global activa. Contacta al equipo de infraestructura.');
     }
 
-    logAudit(
-      'SYSTEM_GLOBAL_CONFIG_VIEWED',
-      adminUserId,
-      {},
-      { entityId: config.configId, entityType: 'SystemGlobalConfig', entityTable: 'system_global_config' }
-    );
+    await audit.record('SYSTEM_GLOBAL_CONFIG_VIEWED', {
+      actorId: adminUserId,
+      entityId: config.configId,
+      entityType: 'SystemGlobalConfig',
+      entityTable: 'system_global_config'
+    });
 
     return SystemGlobalConfigDTO(config);
   }
@@ -57,15 +58,16 @@ class SystemGlobalConfigService {
       throw AppError.notFound('Configuración global no encontrada');
     }
 
-    logAudit(
-      'SYSTEM_GLOBAL_CONFIG_UPDATED',
-      adminUserId,
-      {
+    await audit.record('SYSTEM_GLOBAL_CONFIG_UPDATED', {
+      actorId: adminUserId,
+      details: {
         updatedFields: Object.keys(data),
         configVersion: { before: previousVersion, after: updated.configVersion }
       },
-      { entityId: config.configId, entityType: 'SystemGlobalConfig', entityTable: 'system_global_config' }
-    );
+      entityId: config.configId,
+      entityType: 'SystemGlobalConfig',
+      entityTable: 'system_global_config'
+    });
 
     setImmediate(() => {
       this.notificationCreationService

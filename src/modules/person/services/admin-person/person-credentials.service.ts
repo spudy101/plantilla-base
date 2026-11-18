@@ -12,7 +12,7 @@ import KycSharedUtil from '../../utils/kyc-shared.util';
 import NotificationUtil from '../../../notification/services/notification-creation.service';
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import ProfileHelper from '../../helpers/profile.helper';
 import constantsModule from '../../../../shared/constants';
 const { notifications } = constantsModule;
@@ -21,6 +21,7 @@ import adminPersonDtoModule from '../../dtos/admin-person.dto';
 const { ResetPasswordDTO, ChangeEmailDTO, ChangeNationalIdDTO, DisableMFADTO } = adminPersonDtoModule;
 import personGuardsModule from './person-guards';
 const { assertNotDeleted, requirePerson } = personGuardsModule;
+import audit from '../../../audit/audit.service';
 
 class PersonCredentialsService {
   unitOfWork: typeof unitOfWork;
@@ -70,12 +71,12 @@ class PersonCredentialsService {
       return { user, temporaryPassword };
     });
 
-    logAudit(
-      'PERSON_PASSWORD_RESET',
-      auditContext.adminUserId,
-      {},
-      { entityId: userId, entityType: 'User', entityTable: 'users' }
-    );
+    await audit.record('PERSON_PASSWORD_RESET', {
+      actorId: auditContext.adminUserId,
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     const affectedNombre = user.person?.firstName || 'Usuario';
     const affectedEmail = user.person?.contact?.email;
@@ -135,15 +136,16 @@ class PersonCredentialsService {
       return { user, oldEmail, updatedEmail };
     });
 
-    logAudit(
-      'PERSON_EMAIL_CHANGED',
-      auditContext.adminUserId,
-      {
+    await audit.record('PERSON_EMAIL_CHANGED', {
+      actorId: auditContext.adminUserId,
+      details: {
         before: { email: oldEmail },
         after: { email: updatedEmail }
       },
-      { entityId: userId, entityType: 'User', entityTable: 'users' }
-    );
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     const firstName = user.person?.firstName;
 
@@ -213,15 +215,16 @@ class PersonCredentialsService {
       return ChangeNationalIdDTO(user, oldNationalId, updated);
     }
 
-    logAudit(
-      'PERSON_NATIONAL_ID_CHANGED',
-      auditContext.adminUserId,
-      {
+    await audit.record('PERSON_NATIONAL_ID_CHANGED', {
+      actorId: auditContext.adminUserId,
+      details: {
         before: { nationalId: oldNationalId },
         after: { nationalId: updated }
       },
-      { entityId: userId, entityType: 'User', entityTable: 'users' }
-    );
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     const affectedEmail = user.person?.contact?.email;
     const firstName = user.person?.firstName;
@@ -291,15 +294,16 @@ class PersonCredentialsService {
       return user;
     });
 
-    logAudit(
-      'PERSON_MFA_DISABLED',
-      auditContext.adminUserId,
-      {
+    await audit.record('PERSON_MFA_DISABLED', {
+      actorId: auditContext.adminUserId,
+      details: {
         before: { mfaEnabled: true },
         after: { mfaEnabled: false }
       },
-      { entityId: userId, entityType: 'User', entityTable: 'users' }
-    );
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     this._notifyMFADisabled(user, userId, auditContext);
 

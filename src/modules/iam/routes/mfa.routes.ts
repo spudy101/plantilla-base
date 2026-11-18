@@ -6,7 +6,6 @@ import AuthMiddleware from '../middlewares/auth.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 
 /**
  * TODAS LAS RUTAS REQUIEREN AUTENTICACIÓN
@@ -18,7 +17,6 @@ router.post(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuditAction.declare('MFA_TOTP_SETUP', { entityType: 'User', entityTable: 'users' }),
   MFAController.setupTOTP
 );
 
@@ -30,7 +28,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   MFAValidator.activateTOTP(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('MFA_TOTP_ACTIVATED', { entityType: 'User', entityTable: 'users' }),
   MFAController.activateTOTP
 );
 
@@ -42,7 +39,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   MFAValidator.verifyTOTP(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('MFA_VERIFIED', { entityType: 'User', entityTable: 'users' }),
   MFAController.verifyTOTP
 );
 
@@ -54,7 +50,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   MFAValidator.validatePassword(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('MFA_PASSWORD_VALIDATED', { entityType: 'User', entityTable: 'users' }),
   MFAController.validatePassword
 );
 
@@ -66,7 +61,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   MFAValidator.deactivateTOTP(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('MFA_TOTP_DEACTIVATED', { entityType: 'User', entityTable: 'users' }),
   MFAController.deactivateTOTP
 );
 
@@ -75,7 +69,6 @@ router.get(
   '/iam/mfa/status',
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
-  AuditAction.declare('MFA_STATUS_VIEWED', { entityType: 'User', entityTable: 'users' }),
   MFAController.getStatus
 );
 
@@ -87,7 +80,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   MFAValidator.requestSMSActivation(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('MFA_SMS_SETUP', { entityType: 'User', entityTable: 'users' }),
   MFAController.requestSMSActivation
 );
 
@@ -99,7 +91,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   MFAValidator.confirmSMSActivation(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('MFA_SMS_ACTIVATED', { entityType: 'User', entityTable: 'users' }),
   MFAController.confirmSMSActivation
 );
 
@@ -111,7 +102,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   MFAValidator.deactivateSMS(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('MFA_SMS_DEACTIVATED', { entityType: 'User', entityTable: 'users' }),
   MFAController.deactivateSMS
 );
 
@@ -123,7 +113,6 @@ router.put(
   RequestLockMiddleware.forAuthenticatedUsers(),
   MFAValidator.updatePreferredMethod(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('MFA_PREFERRED_METHOD_UPDATED', { entityType: 'User', entityTable: 'users' }),
   MFAController.updatePreferredMethod
 );
 

@@ -7,9 +7,10 @@ import trustedDeviceRepository from '../../repositories/auth-trusted-device.repo
 import DeviceBlocklistUtil from '../../utils/device-blocklist.util';
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import authLoginDtoModule from '../../dtos/auth-login.dto';
 const { TrustedDeviceListDTO, TrustedDeviceUpdateDTO } = authLoginDtoModule;
+import audit from '../../../audit/audit.service';
 
 class TrustedDeviceManagementService {
   trustedDeviceRepository: typeof trustedDeviceRepository;
@@ -32,12 +33,13 @@ class TrustedDeviceManagementService {
   async getTrustedDevices(userId: string, currentFingerprintHash: string, currentSessionId: string | null = null) {
     const devices = await this.trustedDeviceRepository.findAllByUserWithSessions(userId);
 
-    logAudit(
-      'TRUSTED_DEVICES_VIEWED',
-      userId,
-      { deviceCount: devices.length },
-      { entityId: userId, entityType: 'User', entityTable: 'users' }
-    );
+    await audit.record('TRUSTED_DEVICES_VIEWED', {
+      actorId: userId,
+      details: { deviceCount: devices.length },
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     return TrustedDeviceListDTO(devices, currentFingerprintHash, currentSessionId);
   }
@@ -45,12 +47,13 @@ class TrustedDeviceManagementService {
   async getPendingDevices(userId: string) {
     const devices = await this.trustedDeviceRepository.findAllPending(userId);
 
-    logAudit(
-      'PENDING_DEVICES_VIEWED',
-      userId,
-      { deviceCount: devices.length },
-      { entityId: userId, entityType: 'User', entityTable: 'users' }
-    );
+    await audit.record('PENDING_DEVICES_VIEWED', {
+      actorId: userId,
+      details: { deviceCount: devices.length },
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     return TrustedDeviceListDTO(devices, null);
   }
@@ -63,12 +66,13 @@ class TrustedDeviceManagementService {
 
     const updated = await this.trustedDeviceRepository.rename(deviceId, deviceName);
 
-    logAudit(
-      'TRUSTED_DEVICE_RENAMED',
-      userId,
-      { newName: deviceName },
-      { entityId: deviceId, entityType: 'UserTrustedDevice', entityTable: 'user_trusted_devices' }
-    );
+    await audit.record('TRUSTED_DEVICE_RENAMED', {
+      actorId: userId,
+      details: { newName: deviceName },
+      entityId: deviceId,
+      entityType: 'UserTrustedDevice',
+      entityTable: 'user_trusted_devices'
+    });
 
     return TrustedDeviceUpdateDTO(updated);
   }
@@ -126,14 +130,15 @@ class TrustedDeviceManagementService {
       })
     );
 
-    logAudit(
-      'TRUSTED_DEVICE_BLOCKED',
-      userId,
-      {
+    await audit.record('TRUSTED_DEVICE_BLOCKED', {
+      actorId: userId,
+      details: {
         blockedByDeviceId: currentDevice.userTrustedDeviceId
       },
-      { entityId: deviceId, entityType: 'UserTrustedDevice', entityTable: 'user_trusted_devices' }
-    );
+      entityId: deviceId,
+      entityType: 'UserTrustedDevice',
+      entityTable: 'user_trusted_devices'
+    });
 
     return TrustedDeviceUpdateDTO(updated);
   }
@@ -173,14 +178,15 @@ class TrustedDeviceManagementService {
       })
     );
 
-    logAudit(
-      'TRUSTED_DEVICE_UNBLOCKED',
-      userId,
-      {
+    await audit.record('TRUSTED_DEVICE_UNBLOCKED', {
+      actorId: userId,
+      details: {
         unblockedByDeviceId: currentDevice.userTrustedDeviceId
       },
-      { entityId: deviceId, entityType: 'UserTrustedDevice', entityTable: 'user_trusted_devices' }
-    );
+      entityId: deviceId,
+      entityType: 'UserTrustedDevice',
+      entityTable: 'user_trusted_devices'
+    });
 
     return TrustedDeviceUpdateDTO(updated);
   }
@@ -208,14 +214,15 @@ class TrustedDeviceManagementService {
 
     const approved = await this.trustedDeviceRepository.approve(deviceId, currentDevice.userTrustedDeviceId);
 
-    logAudit(
-      'TRUSTED_DEVICE_APPROVED',
-      userId,
-      {
+    await audit.record('TRUSTED_DEVICE_APPROVED', {
+      actorId: userId,
+      details: {
         approvedByDeviceId: currentDevice.userTrustedDeviceId
       },
-      { entityId: deviceId, entityType: 'UserTrustedDevice', entityTable: 'user_trusted_devices' }
-    );
+      entityId: deviceId,
+      entityType: 'UserTrustedDevice',
+      entityTable: 'user_trusted_devices'
+    });
 
     return TrustedDeviceUpdateDTO(approved);
   }

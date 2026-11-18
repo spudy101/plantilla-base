@@ -21,6 +21,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
+jest.mock('../audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('../dtos/admin-change-log.dto', () => ({
   ListUserChangeLogsResponseDTO: jest.fn((rows, metadata) => ({ data: rows, metadata }))
@@ -31,8 +32,8 @@ import userChangeLogRepositoryModule from '../repositories/user-change-log.repos
 const userChangeLogRepository = mocked(userChangeLogRepositoryModule);
 import PaginationHelperModule from '../../../shared/http/pagination.util';
 const PaginationHelper = mocked(PaginationHelperModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import adminChangeLogDtoModule from '../dtos/admin-change-log.dto';
 const { ListUserChangeLogsResponseDTO } = mocked(adminChangeLogDtoModule);
 import service from './admin-change-log.service';
@@ -55,11 +56,7 @@ describe('ChangeLogService', () => {
       // filtros base = lo que devuelve buildFilters (aquí {})
       expect(userChangeLogRepository.findAllPaginated).toHaveBeenCalledWith({}, PAGINATION, null);
 
-      expect(logAudit).toHaveBeenCalledWith(
-        'CHANGE_LOG_VIEWED',
-        ADMIN,
-        { totalItems: 1, page: 2 },
-        { entityId: null, entityType: 'AuditRecord' }
+      expect(logAudit).toHaveBeenCalledWith('CHANGE_LOG_VIEWED', { actorId: ADMIN, details: { totalItems: 1, page: 2 }, entityId: null, entityType: 'AuditRecord' }
       );
 
       // metadata.filters sin search === filters tal cual
@@ -91,11 +88,7 @@ describe('ChangeLogService', () => {
         'admin'
       );
 
-      expect(logAudit).toHaveBeenCalledWith(
-        'CHANGE_LOG_VIEWED',
-        ADMIN,
-        { totalItems: 1, page: 2, targetUserId: 'u-9' },
-        { entityId: 'u-9', entityType: 'AuditRecord' }
+      expect(logAudit).toHaveBeenCalledWith('CHANGE_LOG_VIEWED', { actorId: ADMIN, details: { totalItems: 1, page: 2, targetUserId: 'u-9' }, entityId: 'u-9', entityType: 'AuditRecord' }
       );
 
       // Con search, metadata.filters incluye search + filtros

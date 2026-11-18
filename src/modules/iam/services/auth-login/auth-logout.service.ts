@@ -8,7 +8,8 @@ import trustedDeviceRepository from '../../repositories/auth-trusted-device.repo
 import TokenBlacklistUtil from '../../utils/token-blacklist.util';
 import NotificationUtil from '../../../notification/services/notification-creation.service';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
+import audit from '../../../audit/audit.service';
 
 class AuthLogoutService {
   userSessionRepository: typeof userSessionRepository;
@@ -74,7 +75,13 @@ class AuthLogoutService {
       .updateLastSeen(userId, fingerprintHash)
       .catch(err => logger.warn('Error updating last_seen on logout', { error: err.message }));
 
-    logAudit('LOGOUT', userId, { fingerprintHash }, { entityId: userId, entityType: 'User', entityTable: 'users' });
+    await audit.record('LOGOUT', {
+      actorId: userId,
+      details: { fingerprintHash },
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     return null;
   }
@@ -116,7 +123,12 @@ class AuthLogoutService {
 
     await this.trustedDeviceRepository.deleteAllByUser(userId);
 
-    logAudit('LOGOUT_ALL', userId, {}, { entityId: userId, entityType: 'User', entityTable: 'users' });
+    await audit.record('LOGOUT_ALL', {
+      actorId: userId,
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     // Notificar al usuario que todas sus sesiones fueron cerradas (fire-and-forget)
     setImmediate(() => {

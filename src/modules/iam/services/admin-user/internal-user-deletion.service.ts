@@ -11,11 +11,12 @@ import DualApprovalService from '../../../approvals/services/dual-approval.servi
 import unitOfWork from '../../../../shared/database/unit-of-work';
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import constantsModule from '../../../../shared/constants';
 const { notifications } = constantsModule;
 import internalUserGuardsModule from './internal-user-guards';
 const { InternalUserGuards } = internalUserGuardsModule;
+import audit from '../../../audit/audit.service';
 
 class InternalUserDeletionService {
   unitOfWork: typeof unitOfWork;
@@ -96,12 +97,12 @@ class InternalUserDeletionService {
     // Tras el commit: cierra sesiones.
     await this.guards.invalidateSessions(userId, 'account_deleted');
 
-    logAudit(
-      'INTERNAL_USER_DELETED',
-      auditCtx.adminUserId,
-      {},
-      { entityId: userId, entityType: 'InternalUser', entityTable: 'users' }
-    );
+    await audit.record('INTERNAL_USER_DELETED', {
+      actorId: auditCtx.adminUserId,
+      entityId: userId,
+      entityType: 'InternalUser',
+      entityTable: 'users'
+    });
 
     const empleadoNombre = user.person?.firstName || 'Usuario';
     setImmediate(() => {

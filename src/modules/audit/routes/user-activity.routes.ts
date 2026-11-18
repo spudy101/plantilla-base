@@ -5,7 +5,6 @@ import UserActivityValidator from '../validators/user-activity.validator';
 import AuthMiddleware from '../../iam/middlewares/auth.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../middlewares/audit-action.middleware';
 import constantsModule from '../../../shared/constants';
 const { CLIENT_ACCESS_ROLES } = constantsModule;
 
@@ -16,7 +15,6 @@ router.get(
   RateLimitMiddleware.apiLimiter(),
   UserActivityValidator.list(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('RECENT_ACTIVITY_VIEWED', { entityType: 'AuditLog', entityTable: 'audit_logs' }),
   UserActivityController.list
 );
 

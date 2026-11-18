@@ -10,10 +10,11 @@ import consentTypeRepository from '../../legal/repositories/consent-type.reposit
 import NotificationUtil from '../../notification/services/notification-creation.service';
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import KycSharedUtil from '../utils/kyc-shared.util';
 import ProfileHelper from '../helpers/profile.helper';
 import profileDtoModule from '../dtos/profile.dto';
+import audit from '../../audit/audit.service';
 const {
   BasicProfileDTO,
   ExtendedProfileDTO,
@@ -60,7 +61,12 @@ class ProfileService {
       this.consentTypeRepository.findAllActive(),
       this.userConsentRepository.findCurrentByUser(userId)
     ]);
-    logAudit('PROFILE_VIEWED', userId, {}, { entityId: userId, entityType: 'User', entityTable: 'users' });
+    await audit.record('PROFILE_VIEWED', {
+      actorId: userId,
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
     return BasicProfileDTO(user, consentTypes, consents);
   }
 
@@ -73,7 +79,12 @@ class ProfileService {
       this.consentTypeRepository.findAllActive(),
       this.userConsentRepository.findCurrentByUser(userId)
     ]);
-    logAudit('PROFILE_EXTENDED_VIEWED', userId, {}, { entityId: userId, entityType: 'User', entityTable: 'users' });
+    await audit.record('PROFILE_EXTENDED_VIEWED', {
+      actorId: userId,
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
     return ExtendedProfileDTO(user, consentTypes, consents);
   }
 
@@ -84,7 +95,13 @@ class ProfileService {
     if (!contact) {
       throw AppError.notFound('Informacion de contacto no encontrada');
     }
-    logAudit('PROFILE_CONTACT_VIEWED', userId, { personId }, { entityId: userId, entityType: 'User', entityTable: 'users' });
+    await audit.record('PROFILE_CONTACT_VIEWED', {
+      actorId: userId,
+      details: { personId },
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
     return PersonContactComponent.build(contact);
   }
 
@@ -92,7 +109,13 @@ class ProfileService {
     const { PersonLocationComponent } = interopDefault(require('../dtos/person-components.dto') as typeof import('../dtos/person-components.dto'));
     const personLocationRepository = interopDefault(require('../repositories/person-location.repository') as typeof import('../repositories/person-location.repository'));
     const location = await personLocationRepository.findByPersonId(personId);
-    logAudit('PROFILE_LOCATION_VIEWED', userId, { personId }, { entityId: userId, entityType: 'User', entityTable: 'users' });
+    await audit.record('PROFILE_LOCATION_VIEWED', {
+      actorId: userId,
+      details: { personId },
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
     return PersonLocationComponent.build(location);
   }
 
@@ -130,14 +153,15 @@ class ProfileService {
       await _logProfileFieldChanges({ data, snapshot, userId, auditContext });
     });
 
-    logAudit(
-      'PROFILE_UPDATED',
-      userId,
-      {
+    await audit.record('PROFILE_UPDATED', {
+      actorId: userId,
+      details: {
         updatedFields: Object.keys(data)
       },
-      { entityId: userId, entityType: 'User', entityTable: 'users' }
-    );
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     setImmediate(() => {
       this.NotificationUtil.crearNotificacion({
@@ -181,7 +205,13 @@ class ProfileService {
     });
 
     // Cambio de email — riesgo high, dato de contacto crítico
-    logAudit('PROFILE_EMAIL_UPDATED', userId, { newEmail }, { entityId: userId, entityType: 'User', entityTable: 'users' });
+    await audit.record('PROFILE_EMAIL_UPDATED', {
+      actorId: userId,
+      details: { newEmail },
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     setImmediate(() => {
       this.NotificationUtil.crearNotificacion({
@@ -217,7 +247,13 @@ class ProfileService {
       return result;
     });
 
-    logAudit('PROFILE_PHONE_UPDATED', userId, { phoneType }, { entityId: userId, entityType: 'User', entityTable: 'users' });
+    await audit.record('PROFILE_PHONE_UPDATED', {
+      actorId: userId,
+      details: { phoneType },
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     setImmediate(() => {
       this.NotificationUtil.crearNotificacion({
@@ -249,7 +285,12 @@ class ProfileService {
     });
 
     // Cambio de contraseña — riesgo high
-    logAudit('PASSWORD_CHANGED', userId, {}, { entityId: userId, entityType: 'User', entityTable: 'users' });
+    await audit.record('PASSWORD_CHANGED', {
+      actorId: userId,
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     setImmediate(() => {
       this.NotificationUtil.crearNotificacion({
@@ -315,12 +356,13 @@ class ProfileService {
       }
     });
 
-    logAudit(
-      'PROFILE_UPDATED',
-      userId,
-      { updatedFields: Object.keys(data) },
-      { entityId: userId, entityType: 'User', entityTable: 'users' }
-    );
+    await audit.record('PROFILE_UPDATED', {
+      actorId: userId,
+      details: { updatedFields: Object.keys(data) },
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     setImmediate(() => {
       this.NotificationUtil.crearNotificacion({
@@ -361,7 +403,12 @@ class ProfileService {
     });
 
     // Eliminación de cuenta — crítico, acción irreversible
-    logAudit('ACCOUNT_DELETED', userId, {}, { entityId: userId, entityType: 'User', entityTable: 'users' });
+    await audit.record('ACCOUNT_DELETED', {
+      actorId: userId,
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     const { deletedEmail } = result;
     if (deletedEmail) {

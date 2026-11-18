@@ -10,14 +10,13 @@ import privacyPolicyRepository from '../../legal/repositories/privacy-policy.rep
 import roleRepository from '../../iam/repositories/role.repository';
 import notificationTypeRepository from '../../notification/repositories/notification-type.repository';
 import AppError from '../../../shared/http/app-error.util';
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = loggerUtilModule;
 import PaginationHelper from '../../../shared/http/pagination.util';
 import type PrismaRepository from '../../../shared/database/prisma.repository';
 import componentsCatalogDtoModule from '../dtos/catalog-components.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
 import redisClient from '../../../shared/infra/redis.util';
 import maintainersDtoModule from '../dtos/maintainers.dto';
+import audit, { type AuditActionKey } from '../../audit/audit.service';
 const {
   ListGendersResponseDTO,
   ListDocumentTypesResponseDTO,
@@ -85,12 +84,12 @@ class MaintainersService {
 
   async listDocumentTypes(_query: MaintainersService.Query = {}, userId: string | null = null) {
     const items = await this.documentTypeRepository.findAllVisibleToClient();
-    logAudit(
-      'MAINTAINER_DOCUMENT_TYPES_VIEWED',
-      userId,
-      { totalItems: items.length },
-      { entityType: 'Catalog', entityTable: null }
-    );
+    await audit.record('MAINTAINER_DOCUMENT_TYPES_VIEWED', {
+      actorId: userId,
+      details: { totalItems: items.length },
+      entityType: 'Catalog',
+      entityTable: null
+    });
     return ListDocumentTypesResponseDTO(items, {
       totalItems: items.length,
       page: 1,
@@ -194,7 +193,12 @@ class MaintainersService {
   async getActivePrivacyPolicy() {
     const cached = await redisClient.get<ReturnType<typeof ActivePrivacyPolicyResponseDTO>>(PRIVACY_POLICY_CACHE_KEY);
     if (cached) {
-      logAudit('PRIVACY_POLICY_VIEWED', null, { version: cached.version }, { entityType: 'Catalog', entityTable: null });
+      await audit.record('PRIVACY_POLICY_VIEWED', {
+        actorId: null,
+        details: { version: cached.version },
+        entityType: 'Catalog',
+        entityTable: null
+      });
       return cached;
     }
 
@@ -203,7 +207,12 @@ class MaintainersService {
       throw AppError.notFound('No hay una política de privacidad activa configurada');
     }
     const responseDto = ActivePrivacyPolicyResponseDTO(policy);
-    logAudit('PRIVACY_POLICY_VIEWED', null, { version: policy.version }, { entityType: 'Catalog', entityTable: null });
+    await audit.record('PRIVACY_POLICY_VIEWED', {
+      actorId: null,
+      details: { version: policy.version },
+      entityType: 'Catalog',
+      entityTable: null
+    });
     await redisClient.set(PRIVACY_POLICY_CACHE_KEY, responseDto, PRIVACY_POLICY_CACHE_TTL_SECONDS);
     return responseDto;
   }
@@ -220,7 +229,7 @@ class MaintainersService {
     repository: MaintainersService.PaginatedSource<T>;
     query: MaintainersService.Query;
     filters: readonly string[];
-    auditAction?: string;
+    auditAction?: AuditActionKey;
     userId?: string | null;
     DTO: (rows: T[], metadata: Parameters<typeof MetadataDTO.build>[0]) => R;
   }) {
@@ -240,12 +249,12 @@ class MaintainersService {
     };
 
     if (auditAction) {
-      logAudit(
-        auditAction,
-        userId,
-        { totalItems: count, page: paginationParams.page },
-        { entityType: 'Catalog', entityTable: null }
-      );
+      await audit.record(auditAction, {
+        actorId: userId,
+        details: { totalItems: count, page: paginationParams.page },
+        entityType: 'Catalog',
+        entityTable: null
+      });
     }
 
     return DTO(rows, metadata);

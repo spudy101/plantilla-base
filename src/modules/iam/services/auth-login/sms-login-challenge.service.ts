@@ -12,7 +12,7 @@ import verificationCodeRepository from '../../../notification/repositories/verif
 import SmsService from '../../../notification/services/sms.service';
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import constantsModule from '../../../../shared/constants';
 const { MOCKS } = constantsModule;
 import authLoginDtoModule from '../../dtos/auth-login.dto';
@@ -20,6 +20,7 @@ const { MFARequiredResponseDTO } = authLoginDtoModule;
 import errorMessageModule from '../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
+import audit from '../../../audit/audit.service';
 
 
 // ============================================================
@@ -95,12 +96,13 @@ class SmsLoginChallengeService {
       }
     });
 
-    logAudit(
-      'MFA_REQUIRED',
-      user.userId,
-      { nationalId, challengeType: 'SMS_OTP' },
-      { entityId: user.userId, entityType: 'User', entityTable: 'users' }
-    );
+    await audit.record('MFA_REQUIRED', {
+      actorId: user.userId,
+      details: { nationalId, challengeType: 'SMS_OTP' },
+      entityId: user.userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     return MFARequiredResponseDTO({
       username: user.authUsername,
@@ -151,12 +153,14 @@ class SmsLoginChallengeService {
 
       // Evento forense de seguridad (Opción A): se mantiene pese al log genérico del
       // middleware al propagar el throw. El intento queda en user_login_attempts.
-      logAudit(
-        'MFA_FAILED',
-        user.userId,
-        { nationalId, reason: 'Codigo SMS incorrecto' },
-        { entityId: user.userId, entityType: 'User', entityTable: 'users', outcome: 'failure' }
-      );
+      await audit.record('MFA_FAILED', {
+        actorId: user.userId,
+        details: { nationalId, reason: 'Codigo SMS incorrecto' },
+        entityId: user.userId,
+        entityType: 'User',
+        entityTable: 'users',
+        outcome: 'failure'
+      });
 
       const remaining = SMS_MAX_ATTEMPTS - (attempts + 1);
       throw AppError.badRequest(`Código SMS incorrecto. Te quedan ${remaining} intento(s)`);

@@ -4,12 +4,13 @@ import NotificationUtil from './notification-creation.service';
 import SmsService from './sms.service';
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import constantsModule from '../../../shared/constants';
 const { notifications, MOCKS } = constantsModule;
 import crypto from 'node:crypto';
 import sendVerificationDtoModule from '../dtos/send-verification.dto';
 const { SendVerificationResponseDTO, VerifyCodeResponseDTO } = sendVerificationDtoModule;
+import audit from '../../audit/audit.service';
 
 // [RF-AUTH-01] | CA-02 | 🔄 MODIFICADO: CA-02 especifica
 // TTL 24h. Implementado en 15 min por criterio de
@@ -56,16 +57,17 @@ class SendVerificationService {
     const verificationCode = await this.verificationCodeRepository.create({ type, contactValue: contact, code, expiresAt });
 
     // Ruta pública — userId = null (no hay sesión activa)
-    logAudit(
-      'VERIFICATION_CODE_SENT',
-      null,
-      {
+    await audit.record('VERIFICATION_CODE_SENT', {
+      actorId: null,
+      details: {
         type,
         contact,
         expiresAt
       },
-      { entityId: verificationCode.verificationCodeId, entityType: 'VerificationCode', entityTable: 'verification_codes' }
-    );
+      entityId: verificationCode.verificationCodeId,
+      entityType: 'VerificationCode',
+      entityTable: 'verification_codes'
+    });
 
     setImmediate(() => {
       this._sendCode(type, contact, phonePrefixId, code).catch(err =>
@@ -113,21 +115,18 @@ class SendVerificationService {
       // Evento de seguridad (mismo patrón que LOGIN_FAILED / MFA SMS fallido): se audita el
       // intento fallido con outcome=failure y datos (contact, attempts) que el middleware no captura.
       // Ruta pública → userId = null.
-      logAudit(
-        'VERIFICATION_CODE_FAILED',
-        null,
-        {
+      await audit.record('VERIFICATION_CODE_FAILED', {
+        actorId: null,
+        details: {
           type,
           contact,
           attempts: attempts + 1
         },
-        {
-          entityId: verificationCode.verificationCodeId,
-          entityType: 'VerificationCode',
-          entityTable: 'verification_codes',
-          outcome: 'failure'
-        }
-      );
+        entityId: verificationCode.verificationCodeId,
+        entityType: 'VerificationCode',
+        entityTable: 'verification_codes',
+        outcome: 'failure'
+      });
 
       const remaining = MAX_VERIFICATION_ATTEMPTS - (attempts + 1);
       throw AppError.badRequest(`Código inválido. Te quedan ${remaining} intento${remaining !== 1 ? 's' : ''}`);
@@ -136,15 +135,16 @@ class SendVerificationService {
     await this.verificationCodeRepository.markAsVerified(verificationCode.verificationCodeId);
 
     // Verificación exitosa — ruta pública, userId = null
-    logAudit(
-      'VERIFICATION_CODE_VERIFIED',
-      null,
-      {
+    await audit.record('VERIFICATION_CODE_VERIFIED', {
+      actorId: null,
+      details: {
         type,
         contact
       },
-      { entityId: verificationCode.verificationCodeId, entityType: 'VerificationCode', entityTable: 'verification_codes' }
-    );
+      entityId: verificationCode.verificationCodeId,
+      entityType: 'VerificationCode',
+      entityTable: 'verification_codes'
+    });
 
     return VerifyCodeResponseDTO();
   }

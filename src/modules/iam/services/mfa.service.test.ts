@@ -54,6 +54,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn() },
   logAudit: jest.fn()
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 // MOCKS.EXTERNAL_PROVIDERS mutable: en true el OTP es fijo '123456'.
 jest.mock('../../../shared/constants', () => ({ MOCKS: { EXTERNAL_PROVIDERS: false } }));
@@ -88,8 +89,8 @@ import SmsServiceModule from '../../notification/services/sms.service';
 const SmsService = mocked(SmsServiceModule);
 import constantsModule from '../../../shared/constants';
 const constants = mocked(constantsModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import mfa from './mfa.service';
 
 const USER_ID = 'u-1';
@@ -138,7 +139,7 @@ describe('MFAService', () => {
       expect(userRepo.update).toHaveBeenCalledWith(USER_ID, { totpSecret: 'enc(secret)' });
       expect(userRepo.updateTOTPStatus).not.toHaveBeenCalled(); // aún no se activa
       expect(result).toMatchObject({ otpauthUrl: 'otpauth://totp/x', secretCode: 'SECRET123' });
-      expect(logAudit).toHaveBeenCalledWith('MFA_TOTP_SETUP', USER_ID, { username: 'juan' }, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('MFA_TOTP_SETUP', expect.objectContaining({ actorId: USER_ID, details: { username: 'juan' } }));
     });
   });
 
@@ -197,7 +198,7 @@ describe('MFAService', () => {
       const result = await mfa.verifyTOTP('123456', USER_ID, 'juan');
 
       expect(result).toMatchObject({ valid: true });
-      expect(logAudit).toHaveBeenCalledWith('MFA_VERIFIED', USER_ID, expect.objectContaining({ success: true }), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('MFA_VERIFIED', expect.objectContaining({ actorId: USER_ID, details: expect.objectContaining({ success: true }) }));
     });
 
     it('devuelve valid=false y audita MFA_FAILED cuando el código es incorrecto', async () => {
@@ -207,7 +208,7 @@ describe('MFAService', () => {
       const result = await mfa.verifyTOTP('000000', USER_ID, 'juan');
 
       expect(result).toMatchObject({ valid: false });
-      expect(logAudit).toHaveBeenCalledWith('MFA_FAILED', USER_ID, expect.objectContaining({ success: false }), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('MFA_FAILED', expect.objectContaining({ actorId: USER_ID, details: expect.objectContaining({ success: false }) }));
     });
   });
 
@@ -239,7 +240,7 @@ describe('MFAService', () => {
       const result = await mfa.validatePassword('pw', USER_ID, 'juan');
 
       expect(result).toMatchObject({ valid: true });
-      expect(logAudit).toHaveBeenCalledWith('MFA_PASSWORD_VALIDATED', USER_ID, expect.objectContaining({ success: true }), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('MFA_PASSWORD_VALIDATED', expect.objectContaining({ actorId: USER_ID, details: expect.objectContaining({ success: true }) }));
     });
   });
 

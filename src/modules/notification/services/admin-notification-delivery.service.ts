@@ -12,7 +12,7 @@ import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.d
 const { MetadataDTO } = componentsCatalogDtoModule;
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
 import domainEnumsModule from '../../../shared/constants/domain-enums';
@@ -21,6 +21,7 @@ import adminNotificationDeliveryDtoModule from '../dtos/admin-notification-deliv
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
+import audit from '../../audit/audit.service';
 
 const {
   NotificationDeliveryListDTO,
@@ -62,12 +63,12 @@ class AdminNotificationDeliveryService {
 
     const { rows, count } = await this.notificationRepo.findAllForAdmin(filters, paginationParams);
 
-    logAudit(
-      'NOTIFICATION_DELIVERY_LIST_VIEWED',
-      adminUserId,
-      { totalItems: count },
-      { entityType: 'Notification', entityTable: 'notifications' }
-    );
+    await audit.record('NOTIFICATION_DELIVERY_LIST_VIEWED', {
+      actorId: adminUserId,
+      details: { totalItems: count },
+      entityType: 'Notification',
+      entityTable: 'notifications'
+    });
 
     const activeFilters = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== null));
 
@@ -94,12 +95,12 @@ class AdminNotificationDeliveryService {
 
     const result = NotificationDeliveryMetricsDTO(rows, range);
 
-    logAudit(
-      'NOTIFICATION_DELIVERY_METRICS_VIEWED',
-      adminUserId,
-      { total: result.total, from: range.from, to: range.to },
-      { entityType: 'Notification', entityTable: 'notifications' }
-    );
+    await audit.record('NOTIFICATION_DELIVERY_METRICS_VIEWED', {
+      actorId: adminUserId,
+      details: { total: result.total, from: range.from, to: range.to },
+      entityType: 'Notification',
+      entityTable: 'notifications'
+    });
 
     return result;
   }
@@ -110,12 +111,13 @@ class AdminNotificationDeliveryService {
       throw AppError.notFound('Notificación no encontrada');
     }
 
-    logAudit(
-      'NOTIFICATION_DELIVERY_VIEWED',
-      adminUserId,
-      { notificationId },
-      { entityId: notificationId, entityType: 'Notification', entityTable: 'notifications' }
-    );
+    await audit.record('NOTIFICATION_DELIVERY_VIEWED', {
+      actorId: adminUserId,
+      details: { notificationId },
+      entityId: notificationId,
+      entityType: 'Notification',
+      entityTable: 'notifications'
+    });
 
     return NotificationDeliveryDetailDTO(record);
   }
@@ -139,12 +141,13 @@ class AdminNotificationDeliveryService {
     // Resetear el mismo registro en lugar de crear uno nuevo
     await this.notificationRepo.resetForRetry(notificationId, effectiveChannel);
 
-    logAudit(
-      'NOTIFICATION_DELIVERY_RETRY_REQUESTED',
-      adminUserId,
-      { notificationId, channel: effectiveChannel },
-      { entityId: notificationId, entityType: 'Notification', entityTable: 'notifications' }
-    );
+    await audit.record('NOTIFICATION_DELIVERY_RETRY_REQUESTED', {
+      actorId: adminUserId,
+      details: { notificationId, channel: effectiveChannel },
+      entityId: notificationId,
+      entityType: 'Notification',
+      entityTable: 'notifications'
+    });
 
     setImmediate(() => {
       this.NotificationCreationService.crearNotificacion({

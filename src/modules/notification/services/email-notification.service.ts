@@ -1,6 +1,6 @@
 import { SESClient, SendEmailCommand, SendRawEmailCommand } from '@aws-sdk/client-ses';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import constantsModule from '../../../shared/constants';
 const { notifications, aws } = constantsModule;
 import retryUtilModule from '../../../shared/infra/retry.util';
@@ -16,6 +16,7 @@ import type * as Types from '../notification.types';
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
+import audit from '../../audit/audit.service';
 
 
 // Límite de tamaño del mensaje raw de SES (SendRawEmailCommand): 10 MB incluyendo adjuntos en base64.
@@ -122,12 +123,12 @@ class EmailNotificationService {
       logger.warn('[EmailNotification] Envío omitido: dirección suprimida por rebotes duros', {
         destinatario: MaskingUtil.maskEmail(destinatario)
       });
-      logAudit(
-        'EMAIL_SUPPRESSED_SEND_SKIPPED',
-        'system',
-        { maskedEmail: MaskingUtil.maskEmail(destinatario), notificationId },
-        { entityType: 'EmailBounceSuppression', entityTable: 'email_bounce_suppressions' }
-      );
+      await audit.record('EMAIL_SUPPRESSED_SEND_SKIPPED', {
+        actorId: 'system',
+        details: { maskedEmail: MaskingUtil.maskEmail(destinatario), notificationId },
+        entityType: 'EmailBounceSuppression',
+        entityTable: 'email_bounce_suppressions'
+      });
       return null;
     }
 
@@ -211,12 +212,12 @@ class EmailNotificationService {
       logger.warn('[EmailNotification] Envío con adjuntos omitido: dirección suprimida por rebotes duros', {
         destinatario: MaskingUtil.maskEmail(destinatario)
       });
-      logAudit(
-        'EMAIL_SUPPRESSED_SEND_SKIPPED',
-        'system',
-        { maskedEmail: MaskingUtil.maskEmail(destinatario), notificationId },
-        { entityType: 'EmailBounceSuppression', entityTable: 'email_bounce_suppressions' }
-      );
+      await audit.record('EMAIL_SUPPRESSED_SEND_SKIPPED', {
+        actorId: 'system',
+        details: { maskedEmail: MaskingUtil.maskEmail(destinatario), notificationId },
+        entityType: 'EmailBounceSuppression',
+        entityTable: 'email_bounce_suppressions'
+      });
       return null;
     }
 

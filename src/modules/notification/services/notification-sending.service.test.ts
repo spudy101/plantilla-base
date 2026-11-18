@@ -41,6 +41,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn() },
   logAudit: jest.fn()
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
 import notificationRepoModule from '../repositories/notification.repository';
@@ -59,8 +60,8 @@ import smsServiceModule from './sms.service';
 const smsService = mocked(smsServiceModule);
 import schedulerServiceModule from './notification-scheduler.service';
 const schedulerService = mocked(schedulerServiceModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import sending from './notification-sending.service';
 
 const NID = 'notif-1';
@@ -199,7 +200,7 @@ describe('NotificationSendingService', () => {
       await sending.enviarPushIndividual(UID, 't', 'b', {}, NID);
 
       expect(notificationRepo.recordPushError).toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith('PUSH_DELIVERY_FAILED', null, expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('PUSH_DELIVERY_FAILED', expect.objectContaining({ actorId: null }));
     });
   });
 
@@ -224,7 +225,7 @@ describe('NotificationSendingService', () => {
       emailService.enviarNotificacion.mockRejectedValueOnce(new Error('SES down'));
       await sending.enviarEmailIndividual(UID, fixture(type), { email: 'a@b.com' }, NID);
       expect(notificationRepo.recordEmailError).toHaveBeenCalledWith(NID, 'SES down');
-      expect(logAudit).toHaveBeenCalledWith('EMAIL_DELIVERY_FAILED', null, expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('EMAIL_DELIVERY_FAILED', expect.objectContaining({ actorId: null }));
     });
   });
 
@@ -244,7 +245,7 @@ describe('NotificationSendingService', () => {
       smsService.enviarSms.mockResolvedValue({ success: false, error: 'circuito abierto' });
       await sending.enviarSmsIndividual(UID, 'hola', { phone: '911112222' }, NID);
       expect(notificationRepo.recordSmsError).toHaveBeenCalledWith(NID, 'circuito abierto');
-      expect(logAudit).toHaveBeenCalledWith('SMS_DELIVERY_FAILED', null, expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('SMS_DELIVERY_FAILED', expect.objectContaining({ actorId: null }));
     });
 
     it('sin teléfono en metadata ni contacto no envía', async () => {

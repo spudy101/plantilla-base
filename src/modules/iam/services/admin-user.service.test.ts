@@ -74,6 +74,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('../../../shared/http/pagination.util', () => ({
   stringParam: jest.requireActual('../../../shared/http/pagination.util').default.stringParam,
@@ -138,8 +139,8 @@ import TokenBlacklistUtilModule from '../utils/token-blacklist.util';
 const TokenBlacklistUtil = mocked(TokenBlacklistUtilModule);
 import prismaModule from '../../../shared/database/prisma';
 const prisma = mocked(prismaModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import NotificationCreationServiceModule from '../../notification/services/notification-creation.service';
 const NotificationCreationService = mocked(NotificationCreationServiceModule);
 import DualApprovalServiceModule from '../../approvals/services/dual-approval.service';
@@ -188,7 +189,7 @@ describe('AdminUserService', () => {
         'jua'
       );
       expect(DualApprovalService.annotatePending).toHaveBeenCalledWith('User', expect.any(Array), 'userId');
-      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_LIST_VIEWED', 'admin-1', { totalItems: 1 }, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_LIST_VIEWED', expect.objectContaining({ actorId: 'admin-1', details: { totalItems: 1 } }));
       expect(result.data).toHaveLength(1);
       expect(result.metadata).toMatchObject({ meta: true, totalItems: 1, filters: { roleId: 'role-admin', isActive: true } });
     });
@@ -219,7 +220,7 @@ describe('AdminUserService', () => {
         expect.any(Object),
         null
       );
-      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_DELETED_LIST_VIEWED', 'admin-1', { totalItems: 1 }, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_DELETED_LIST_VIEWED', expect.objectContaining({ actorId: 'admin-1', details: { totalItems: 1 } }));
       expect(result.data).toHaveLength(1);
     });
   });
@@ -232,11 +233,7 @@ describe('AdminUserService', () => {
 
       // el service pide roles por nombre de negocio; el repositorio arma el IN / NOT IN
       expect(roleRepository.findByNames).toHaveBeenCalledWith(expect.any(Array), { exclude: expect.any(Array) });
-      expect(logAudit).toHaveBeenCalledWith(
-        'INTERNAL_USER_ROLE_OPTIONS_VIEWED',
-        'admin-1',
-        { totalItems: 1 },
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_ROLE_OPTIONS_VIEWED', expect.objectContaining({ actorId: 'admin-1', details: { totalItems: 1 } })
       );
       expect(result).toEqual([{ dto: 'role', roleId: 'r1', name: 'auditor' }]);
     });
@@ -246,7 +243,7 @@ describe('AdminUserService', () => {
     it('devuelve el detalle del usuario interno y audita', async () => {
       const result = await service.getById('u-1', 'admin-1');
 
-      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_VIEWED', 'admin-1', { targetUserId: 'u-1' }, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_VIEWED', expect.objectContaining({ actorId: 'admin-1', details: { targetUserId: 'u-1' } }));
       expect(result).toMatchObject({ dto: 'user', userId: 'u-1' });
     });
 
@@ -287,13 +284,9 @@ describe('AdminUserService', () => {
           role: { roleId: 'role-auditor', name: 'auditor' }
         })
       );
-      expect(logAudit).toHaveBeenCalledWith(
-        'INTERNAL_USER_CREATED',
-        'admin-1',
-        expect.objectContaining({ roleName: 'auditor' }),
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_CREATED', expect.objectContaining({ actorId: 'admin-1', details: expect.objectContaining({ roleName: 'auditor' }) })
       );
-      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_CREATED', 'admin-1', expect.objectContaining({ roleName: 'auditor' }), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_CREATED', expect.objectContaining({ actorId: 'admin-1', details: expect.objectContaining({ roleName: 'auditor' }) }));
       expect(result).toMatchObject({ dto: 'created', temporaryPassword: 'TempPass123!' });
 
       await flush();
@@ -329,11 +322,7 @@ describe('AdminUserService', () => {
 
       // Se persiste vía repositorio (no con la instancia ORM)
       expect(personRepository.update).toHaveBeenCalledWith('p-1', expect.objectContaining({ firstName: 'Nuevo' }));
-      expect(logAudit).toHaveBeenCalledWith(
-        'INTERNAL_USER_UPDATED',
-        'admin-1',
-        { before: { firstName: 'A' }, after: { firstName: 'B' } },
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_UPDATED', expect.objectContaining({ actorId: 'admin-1', details: { before: { firstName: 'A' }, after: { firstName: 'B' } } })
       );
       expect(result).toMatchObject({ dto: 'user' });
     });
@@ -387,7 +376,7 @@ describe('AdminUserService', () => {
       expect(userRepository.update).toHaveBeenCalledWith('u-1', { roleId: 'role-admin' });
       expect(KycSharedUtil.logChange).toHaveBeenCalledWith(expect.objectContaining({ changeType: 'role', newValue: 'admin' }));
       expect(userSessionRepository.closeAllByUser).toHaveBeenCalledWith('u-1', 'role_changed');
-      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_ROLE_CHANGED', 'admin-1', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_ROLE_CHANGED', expect.objectContaining({ actorId: 'admin-1' }));
       expect(result).toMatchObject({ dto: 'user' });
 
       await flush();
@@ -417,7 +406,7 @@ describe('AdminUserService', () => {
 
       expect(userRepository.setActiveStatus).toHaveBeenCalledWith('u-1', false);
       expect(userSessionRepository.closeAllByUser).toHaveBeenCalledWith('u-1', 'account_deactivated');
-      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_DEACTIVATED', 'admin-1', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_DEACTIVATED', expect.objectContaining({ actorId: 'admin-1' }));
       expect(result).toMatchObject({ dto: 'user' });
 
       await flush();
@@ -430,7 +419,7 @@ describe('AdminUserService', () => {
       await service.setStatus('u-1', true, AUDIT_CTX);
 
       expect(userSessionRepository.closeAllByUser).not.toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_ACTIVATED', 'admin-1', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_ACTIVATED', expect.objectContaining({ actorId: 'admin-1' }));
     });
   });
 
@@ -484,7 +473,7 @@ describe('AdminUserService', () => {
       expect(ProfileHelper.validateCurrentPassword).toHaveBeenCalledWith('hash', 'pwd');
       expect(ProfileHelper.deleteAccountLogic).toHaveBeenCalledWith(expect.objectContaining({ userId: 'u-1', personId: 'p-1' }));
       expect(userSessionRepository.closeAllByUser).toHaveBeenCalledWith('u-1', 'account_deleted');
-      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_DELETED', 'admin-1', {}, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_DELETED', expect.objectContaining({ actorId: 'admin-1' }));
       expect(result).toEqual({ userId: 'u-1', deleted: true });
     });
   });
@@ -511,11 +500,7 @@ describe('AdminUserService', () => {
 
       const result = await service.listSessions('u-1', 'admin-1');
 
-      expect(logAudit).toHaveBeenCalledWith(
-        'INTERNAL_USER_SESSIONS_VIEWED',
-        'admin-1',
-        { targetUserId: 'u-1' },
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_SESSIONS_VIEWED', expect.objectContaining({ actorId: 'admin-1', details: { targetUserId: 'u-1' } })
       );
       expect(result).toEqual([{ dto: 'session', userSessionId: 's-1' }]);
     });
@@ -540,7 +525,7 @@ describe('AdminUserService', () => {
 
       const result = await service.listChangeLogs('u-1', {}, 'admin-1');
 
-      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_CHANGE_LOGS_VIEWED', 'admin-1', { targetUserId: 'u-1' }, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_CHANGE_LOGS_VIEWED', expect.objectContaining({ actorId: 'admin-1', details: { targetUserId: 'u-1' } }));
       expect(result.data).toEqual([{ dto: 'log', id: 'l-1' }]);
       expect(result.metadata).toMatchObject({ totalItems: 1 });
     });

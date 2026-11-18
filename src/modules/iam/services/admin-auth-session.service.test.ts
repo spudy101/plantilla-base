@@ -33,6 +33,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
   logAudit: jest.fn()
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('../../../shared/constants', () => ({
   notifications: { ses: { logoUrl: 'https://logo.test/logo.png' } }
@@ -56,7 +57,9 @@ const TokenBlacklistUtil = mocked(TokenBlacklistUtilModule);
 import NotificationCreationServiceModule from '../../notification/services/notification-creation.service';
 const NotificationCreationService = mocked(NotificationCreationServiceModule);
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit, logger } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const { logger } = mocked(loggerUtilModule);
+const logAudit = mocked(auditServiceModule).record;
 import adminAuthSessionDtoModule from '../dtos/admin-auth-session.dto';
 const { SessionListDTO, AuthAttemptListDTO } = mocked(adminAuthSessionDtoModule);
 import service from './admin-auth-session.service';
@@ -82,11 +85,7 @@ describe('AdminAuthSessionService', () => {
       const result = await service.listSessions({ page: '2', limit: '5' }, ADMIN_ID);
 
       expect(userSessionRepository.findPaginatedWithDeviceAndUser).toHaveBeenCalledTimes(1);
-      expect(logAudit).toHaveBeenCalledWith(
-        'AUTH_SESSION_LIST_VIEWED',
-        ADMIN_ID,
-        { totalItems: 1 },
-        expect.objectContaining({ entityType: 'AuthSession' })
+      expect(logAudit).toHaveBeenCalledWith('AUTH_SESSION_LIST_VIEWED', expect.objectContaining({ actorId: ADMIN_ID, details: { totalItems: 1 }, entityType: 'AuthSession' })
       );
       expect(SessionListDTO).toHaveBeenCalledWith(
         [{ userSessionId: 's1' }],
@@ -110,11 +109,7 @@ describe('AdminAuthSessionService', () => {
       await service.getSessionsByUser('user-7', { status: 'active' }, ADMIN_ID);
 
       expect(userSessionRepository.buildWhere).toHaveBeenCalledWith({ userId: 'user-7', status: 'active' });
-      expect(logAudit).toHaveBeenCalledWith(
-        'AUTH_SESSION_BY_USER_VIEWED',
-        ADMIN_ID,
-        { targetUserId: 'user-7' },
-        expect.objectContaining({ entityId: 'user-7' })
+      expect(logAudit).toHaveBeenCalledWith('AUTH_SESSION_BY_USER_VIEWED', expect.objectContaining({ actorId: ADMIN_ID, details: { targetUserId: 'user-7' }, entityId: 'user-7' })
       );
       expect(SessionListDTO).toHaveBeenCalled();
     });
@@ -131,11 +126,7 @@ describe('AdminAuthSessionService', () => {
       expect(userSessionRepository.closeSession).toHaveBeenCalledWith('sess-1', 'revoked_by_admin');
       expect(RefreshTokenStore.revoke).toHaveBeenCalledWith('jti-1');
       expect(TokenBlacklistUtil.blacklistSession).toHaveBeenCalledWith('sess-1');
-      expect(logAudit).toHaveBeenCalledWith(
-        'AUTH_SESSION_REVOKED',
-        ADMIN_ID,
-        expect.objectContaining({ targetUserId: 'user-9', jti: 'jti-1' }),
-        expect.objectContaining({ entityId: 'sess-1' })
+      expect(logAudit).toHaveBeenCalledWith('AUTH_SESSION_REVOKED', expect.objectContaining({ actorId: ADMIN_ID, details: expect.objectContaining({ targetUserId: 'user-9', jti: 'jti-1' }), entityId: 'sess-1' })
       );
       expect(result).toEqual({ sessionId: 'sess-1', status: 'closed', closeReason: 'revoked_by_admin' });
 
@@ -206,11 +197,7 @@ describe('AdminAuthSessionService', () => {
       expect(criteria.actions).toBeUndefined();
       expect(criteria.from).toBeInstanceOf(Date);
       expect(criteria.to).toBeInstanceOf(Date);
-      expect(logAudit).toHaveBeenCalledWith(
-        'AUTH_ATTEMPTS_LIST_VIEWED',
-        ADMIN_ID,
-        expect.objectContaining({ scope: 'all' }),
-        expect.anything()
+      expect(logAudit).toHaveBeenCalledWith('AUTH_ATTEMPTS_LIST_VIEWED', expect.objectContaining({ actorId: ADMIN_ID, details: expect.objectContaining({ scope: 'all' }) })
       );
       expect(AuthAttemptListDTO).toHaveBeenCalledWith(
         [{ audit_log_id: 'a1' }],
@@ -235,11 +222,7 @@ describe('AdminAuthSessionService', () => {
 
       const criteria = auditLogRepository.findAuthAttemptsPaginated.mock.calls[0][0];
       expect(criteria.userId).toBe('user-target');
-      expect(logAudit).toHaveBeenCalledWith(
-        'AUTH_ATTEMPTS_BY_USER_VIEWED',
-        ADMIN_ID,
-        expect.objectContaining({ targetUserId: 'user-target', scope: 'all' }),
-        expect.objectContaining({ entityId: 'user-target' })
+      expect(logAudit).toHaveBeenCalledWith('AUTH_ATTEMPTS_BY_USER_VIEWED', expect.objectContaining({ actorId: ADMIN_ID, details: expect.objectContaining({ targetUserId: 'user-target', scope: 'all' }), entityId: 'user-target' })
       );
     });
   });

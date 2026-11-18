@@ -3,11 +3,12 @@ import { v4 as uuidv4 } from 'uuid';
 import type { Prisma } from '../../../shared/database/generated/prisma/client';
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit, logger } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import S3Util from '../../../shared/infra/s3.util';
 import systemGlobalConfigRepository from '../../settings/repositories/system-global-config.repository';
 import promotionalBannerDtoModule from '../dtos/admin-promotional-banner.dto';
 const { PromotionalBannerListDTO, PromotionalBannerImageDTO } = promotionalBannerDtoModule;
+import audit from '../../audit/audit.service';
 
 // Prefijo del bucket PÚBLICO (CloudFront). Cada imagen sube con key única (uuid), así que no hay
 // caché vieja que invalidar: la URL nueva se referencia desde el JSON del banner.
@@ -33,7 +34,11 @@ class PromotionalBannerService {
   async list(adminUserId: string) {
     const config = await this._getActiveConfig();
 
-    logAudit('PROMOTIONAL_BANNERS_VIEWED_ADMIN', adminUserId, {}, { entityId: config.configId, ...ENTITY_META });
+    await audit.record('PROMOTIONAL_BANNERS_VIEWED_ADMIN', {
+      actorId: adminUserId,
+      entityId: config.configId,
+      ...ENTITY_META
+    });
 
     return PromotionalBannerListDTO((config.promotionalBanners ?? []) as unknown as BannerDto.Stored[]);
   }
@@ -72,12 +77,12 @@ class PromotionalBannerService {
     // referencia más (best-effort — un fallo de S3 no revierte el reemplazo).
     const cleanup = await this._cleanupOrphanImages(previousBanners, normalized);
 
-    logAudit(
-      'PROMOTIONAL_BANNERS_UPDATED',
-      adminUserId,
-      { total: normalized.length, active: normalized.filter(b => b.is_active).length, imagesRemoved: cleanup.deleted },
-      { entityId: config.configId, ...ENTITY_META }
-    );
+    await audit.record('PROMOTIONAL_BANNERS_UPDATED', {
+      actorId: adminUserId,
+      details: { total: normalized.length, active: normalized.filter(b => b.is_active).length, imagesRemoved: cleanup.deleted },
+      entityId: config.configId,
+      ...ENTITY_META
+    });
 
     return PromotionalBannerListDTO((updated.promotionalBanners ?? []) as unknown as BannerDto.Stored[]);
   }
@@ -96,7 +101,11 @@ class PromotionalBannerService {
 
     const imageUrl = await this.fileStorage.uploadPublicDocument(file.buffer, s3Key, file.mimetype);
 
-    logAudit('PROMOTIONAL_BANNER_IMAGE_UPLOADED', adminUserId, { s3Key }, ENTITY_META);
+    await audit.record('PROMOTIONAL_BANNER_IMAGE_UPLOADED', {
+      actorId: adminUserId,
+      details: { s3Key },
+      ...ENTITY_META
+    });
 
     return PromotionalBannerImageDTO(imageUrl, s3Key);
   }

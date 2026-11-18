@@ -10,6 +10,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 // Paginación determinista para no depender de su parsing interno.
 jest.mock('../../../shared/http/pagination.util', () => ({
@@ -36,8 +37,8 @@ import consentRepoModule from '../repositories/user-consent.repository';
 const consentRepo = mocked(consentRepoModule);
 import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
 const { MetadataDTO } = mocked(componentsCatalogDtoModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import service from './admin-user-consent.service';
 
 const ADMIN = 'admin-1';
@@ -77,11 +78,7 @@ describe('AdminUserConsentService', () => {
       expect(result.data).toHaveLength(2);
       expect(result.data[0]).toMatchObject({ dto: true, user_consent_id: 'c-1' });
       expect(MetadataDTO.build).toHaveBeenCalledWith(expect.objectContaining({ totalItems: 2, page: 1 }));
-      expect(logAudit).toHaveBeenCalledWith(
-        'CONSENT_LIST_VIEWED',
-        ADMIN,
-        expect.objectContaining({ totalItems: 2, filters: expect.arrayContaining(['userId', 'consentTypeCode']) }),
-        expect.objectContaining({ entityType: 'UserConsent' })
+      expect(logAudit).toHaveBeenCalledWith('CONSENT_LIST_VIEWED', expect.objectContaining({ actorId: ADMIN, details: expect.objectContaining({ totalItems: 2, filters: expect.arrayContaining(['userId', 'consentTypeCode']) }), entityType: 'UserConsent' })
       );
     });
 
@@ -91,11 +88,7 @@ describe('AdminUserConsentService', () => {
       await service.list({}, ADMIN);
 
       expect(MetadataDTO.build).toHaveBeenCalledWith(expect.objectContaining({ filters: undefined }));
-      expect(logAudit).toHaveBeenCalledWith(
-        'CONSENT_LIST_VIEWED',
-        ADMIN,
-        { totalItems: 0, filters: [] },
-        expect.anything()
+      expect(logAudit).toHaveBeenCalledWith('CONSENT_LIST_VIEWED', expect.objectContaining({ actorId: ADMIN, details: { totalItems: 0, filters: [] } })
       );
     });
 
@@ -131,11 +124,7 @@ describe('AdminUserConsentService', () => {
       expect(result.data).toHaveLength(1);
       expect(result.data[0]).toMatchObject({ dto: true, user_consent_id: 'c-1' });
       expect(MetadataDTO.build).toHaveBeenCalledWith(expect.objectContaining({ totalItems: 1 }));
-      expect(logAudit).toHaveBeenCalledWith(
-        'CONSENT_HISTORY_VIEWED',
-        ADMIN,
-        { targetUserId: 'u-9' },
-        expect.objectContaining({ entityId: 'u-9', entityType: 'UserConsent' })
+      expect(logAudit).toHaveBeenCalledWith('CONSENT_HISTORY_VIEWED', expect.objectContaining({ actorId: ADMIN, details: { targetUserId: 'u-9' }, entityId: 'u-9', entityType: 'UserConsent' })
       );
     });
   });

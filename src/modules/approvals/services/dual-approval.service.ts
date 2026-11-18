@@ -15,7 +15,7 @@
 import { interopDefault } from '../../../shared/utils/interop.util';
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit, logger } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import businessHoursUtilModule from '../utils/business-hours.util';
 const { addBusinessHours } = businessHoursUtilModule;
 import PaginationHelper from '../../../shared/http/pagination.util';
@@ -40,6 +40,7 @@ import type { AdminAuditContext } from '../../../shared/types/audit-context';
 import type { ApprovalRequest, Prisma } from '../../../shared/database/generated/prisma/client';
 
 const { errorMessage } = errorMessageModule;
+import audit from '../../audit/audit.service';
 
 
 const DECISION = { APPROVE: 'approve', REJECT: 'reject' } as const;
@@ -172,18 +173,19 @@ class DualApprovalService {
 
     this.notifier.notifyApprovers(op, request, ctx);
 
-    logAudit(
-      'DUAL_APPROVAL_REQUESTED',
-      ctx.adminUserId,
-      {
+    await audit.record('DUAL_APPROVAL_REQUESTED', {
+      actorId: ctx.adminUserId,
+      details: {
         approvalRequestId: request.approvalRequestId,
         operationKey: opKey,
         entityType: resolvedEntityType,
         entityId: entityId ?? null,
         expiresAt
       },
-      { entityId: request.approvalRequestId, entityType: 'ApprovalRequest', entityTable: 'approval_requests' }
-    );
+      entityId: request.approvalRequestId,
+      entityType: 'ApprovalRequest',
+      entityTable: 'approval_requests'
+    });
 
     return { pending: true, request: ApprovalRequestComponent.build(request) };
   }
@@ -242,8 +244,12 @@ class DualApprovalService {
       entityType: 'ApprovalRequest',
       entityTable: 'approval_requests'
     };
-    logAudit('DUAL_APPROVAL_REQUESTED', ctx.adminUserId, auditDetails, auditMeta);
-    logAudit('DUAL_APPROVAL_AUTO_APPROVED', ctx.adminUserId, auditDetails, auditMeta);
+    await audit.record('DUAL_APPROVAL_REQUESTED', { actorId: ctx.adminUserId, details: auditDetails, ...auditMeta });
+    await audit.record('DUAL_APPROVAL_AUTO_APPROVED', {
+      actorId: ctx.adminUserId,
+      details: auditDetails,
+      ...auditMeta
+    });
 
     return { pending: false, autoApproved: true, request: ApprovalRequestComponent.build(request) };
   }
@@ -303,17 +309,18 @@ class DualApprovalService {
 
     this.notifier.notifyMaker(resolved, op, DECISION.APPROVE);
 
-    logAudit(
-      'DUAL_APPROVAL_APPROVED',
-      approverCtx.adminUserId,
-      {
+    await audit.record('DUAL_APPROVAL_APPROVED', {
+      actorId: approverCtx.adminUserId,
+      details: {
         approvalRequestId: request.approvalRequestId,
         operationKey: request.operationKey,
         entityType: request.entityType,
         entityId: request.entityId
       },
-      { entityId: request.approvalRequestId, entityType: 'ApprovalRequest', entityTable: 'approval_requests' }
-    );
+      entityId: request.approvalRequestId,
+      entityType: 'ApprovalRequest',
+      entityTable: 'approval_requests'
+    });
 
     return ApprovalRequestComponent.build(resolved);
   }
@@ -334,17 +341,18 @@ class DualApprovalService {
 
     this.notifier.notifyMaker(resolved, op, DECISION.REJECT);
 
-    logAudit(
-      'DUAL_APPROVAL_REJECTED',
-      approverCtx.adminUserId,
-      {
+    await audit.record('DUAL_APPROVAL_REJECTED', {
+      actorId: approverCtx.adminUserId,
+      details: {
         approvalRequestId: request.approvalRequestId,
         operationKey: request.operationKey,
         entityType: request.entityType,
         entityId: request.entityId
       },
-      { entityId: request.approvalRequestId, entityType: 'ApprovalRequest', entityTable: 'approval_requests' }
-    );
+      entityId: request.approvalRequestId,
+      entityType: 'ApprovalRequest',
+      entityTable: 'approval_requests'
+    });
 
     return ApprovalRequestComponent.build(resolved);
   }

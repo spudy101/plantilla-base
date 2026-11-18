@@ -5,7 +5,8 @@ import type { NextFunction, Request, Response } from 'express';
 import ApiResponse from './app-response.util';
 import AppError from './app-error.util';
 import loggerUtilModule from '../observability/logger.util';
-const { logger, logAudit, sanitizeForLog } = loggerUtilModule;
+const { logger, sanitizeForLog } = loggerUtilModule;
+import { auditInfraEvent } from '../observability/audit-hook';
 import constantsModule from '../constants';
 const { HTTP_STATUS, ERROR_CODES, ERROR_MESSAGES, server, FIELD_LABELS, DEFAULT_FIELD_LABEL } = constantsModule;
 
@@ -40,43 +41,15 @@ function _prismaConstraintFields(err: HandledError): string[] {
 
 type AsyncRequestHandler = (req: Request, res: Response, next: NextFunction) => unknown;
 
-// ==============================================
-// MAPEO DE ERRORES → AUDIT ACTION
-// ==============================================
-//
-// Granularidad por tipo de error para que la SFC pueda filtrar
-// por acción sin necesidad de inspeccionar http_status o error_code.
-//
-//   AUTH_FAILURE    — 401 · token inválido, expirado, faltante
-//   ACCESS_DENIED   — 403 · autenticado pero sin permiso de rol
-//   VALIDATION_FAILURE — 400 · parámetros incorrectos o faltantes
-//                     422 · error de validación semántica (Joi, Sequelize)
-//   RESOURCE_NOT_FOUND — 404 · entidad no encontrada
-//   BUSINESS_RULE_VIOLATION — 409/429 · conflicto de estado, rate limit,
-//                              y cualquier AppError de negocio no clasificado
-//   SYSTEM_ERROR    — 5xx · errores inesperados / bugs / caídas
-//
-const _resolveAuditAction = (err: HandledError): string => {
+// Rechazos de seguridad que además se auditan (el resto de errores solo va al log y a `operations`):
+//   AUTH_FAILURE  — 401 · token inválido, expirado o ausente
+//   ACCESS_DENIED — 403 · autenticado pero sin permiso
+const _securityAuditAction = (err: HandledError): 'AUTH_FAILURE' | 'ACCESS_DENIED' | null => {
   const status = err.statusCode || 500;
-
   if (status === 401 || err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
     return 'AUTH_FAILURE';
   }
-  if (status === 403) {
-    return 'ACCESS_DENIED';
-  }
-  if (status === 400 || status === 422 || err.name === 'SequelizeValidationError') {
-    return 'VALIDATION_FAILURE';
-  }
-  if (status === 404) {
-    return 'RESOURCE_NOT_FOUND';
-  }
-  if (status === 409 || status === 429 || (err instanceof AppError && !err.isOperational)) {
-    return 'BUSINESS_RULE_VIOLATION';
-  }
-
-  // 5xx — Sequelize inesperado, MulterError, o cualquier no controlado
-  return 'SYSTEM_ERROR';
+  return status === 403 ? 'ACCESS_DENIED' : null;
 };
 
 // Nivel de log para un AppError de negocio (isOperational=false, 4xx):
@@ -189,31 +162,20 @@ class ErrorMiddleware {
     // El cierre de la operación (shared/observability/operation.ts) lo guarda en `operations`
     res.locals.operationError = { code: errorCode, message: err.message };
 
-    // La route puede declarar su acción de dominio (AuditAction.declare). Si el
-    // fallo ocurrió ya dentro del handler, se audita ESA acción con outcome
-    // failure. Si no hay declaración (o el fallo fue pre-handler: 401/403/422/429),
-    // cae al mapeo genérico por status.
-    const declared = res.locals?.auditAction;
-    const action = declared?.action ?? _resolveAuditAction(err);
-
-    logAudit(
-      action,
-      req.user?.userId ?? null,
-      {
-        path: req.path,
-        method: req.method,
-        originalError: err.message,
-        ...(server.nodeEnv !== 'production' && { stack: err.stack?.split('\n')[1]?.trim() })
-      },
-      {
+    // La auditoría registra hechos de negocio; los errores quedan en el log y en `operations`. Solo los
+    // rechazos de seguridad (401/403) son además un hecho auditable.
+    const securityAction = _securityAuditAction(err);
+    if (securityAction) {
+      auditInfraEvent({
+        action: securityAction,
+        actorId: req.user?.userId ?? null,
+        details: { path: req.path, method: req.method },
         outcome: 'failure',
         httpStatus: statusCode,
         errorCode,
-        errorMessage: err.message,
-        entityType: declared?.entityType ?? null,
-        entityTable: declared?.entityTable ?? null
-      }
-    );
+        errorMessage: err.message
+      });
+    }
 
     if (rawError instanceof AppError) {
       return ErrorMiddleware._handleAppError(rawError, res, req);
@@ -244,20 +206,6 @@ class ErrorMiddleware {
       path: req.path,
       ip: req.ip
     });
-
-    // Auditar intento de acceso a ruta inexistente — puede indicar
-    // exploración de endpoints o configuración incorrecta del cliente.
-    logAudit(
-      'RESOURCE_NOT_FOUND',
-      req.user?.userId ?? null,
-      { path: req.path, method: req.method },
-      {
-        outcome: 'failure',
-        httpStatus: 404,
-        errorCode: 'NOT_FOUND',
-        errorMessage: `Ruta no encontrada: ${req.method} ${req.path}`
-      }
-    );
 
     return ApiResponse.notFound(res, `Ruta no encontrada: ${req.method} ${req.path}`);
   }

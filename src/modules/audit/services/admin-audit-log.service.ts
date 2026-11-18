@@ -2,13 +2,14 @@ import type { Response } from 'express';
 import ExcelJS from 'exceljs';
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import PaginationHelper from '../../../shared/http/pagination.util';
 import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
 import auditLogRepository from '../repositories/audit-log.repository';
 import adminAuditLogDtoModule from '../dtos/admin-audit-log.dto';
 const { AuditLogListDTO, AuditLogDTO } = adminAuditLogDtoModule;
+import audit from '../audit.service';
 
 const EXPORT_LIMIT = 50000;
 
@@ -76,12 +77,12 @@ class AdminAuditLogService {
       'source'
     ]);
 
-    logAudit(
-      'AUDIT_LOG_LISTED',
-      adminUserId,
-      { totalItems: count, filters: Object.keys(activeFilters) },
-      { entityType: 'AuditLog', entityTable: 'audit_logs' }
-    );
+    await audit.record('AUDIT_LOG_LISTED', {
+      actorId: adminUserId,
+      details: { totalItems: count, filters: Object.keys(activeFilters) },
+      entityType: 'AuditLog',
+      entityTable: 'audit_logs'
+    });
 
     return {
       data: rows.map(r => AuditLogListDTO(r)),
@@ -102,12 +103,13 @@ class AdminAuditLogService {
       throw AppError.notFound('Log de auditoría no encontrado');
     }
 
-    logAudit(
-      'AUDIT_LOG_VIEWED',
-      adminUserId,
-      { auditLogId },
-      { entityId: auditLogId, entityType: 'AuditLog', entityTable: 'audit_logs' }
-    );
+    await audit.record('AUDIT_LOG_VIEWED', {
+      actorId: adminUserId,
+      details: { auditLogId },
+      entityId: auditLogId,
+      entityType: 'AuditLog',
+      entityTable: 'audit_logs'
+    });
 
     return AuditLogDTO(record);
   }
@@ -117,12 +119,12 @@ class AdminAuditLogService {
 
     const truncated = rows.length === EXPORT_LIMIT;
 
-    logAudit(
-      'AUDIT_LOG_EXPORTED',
-      adminUserId,
-      { format, count: rows.length, truncated },
-      { entityType: 'AuditLog', entityTable: 'audit_logs' }
-    );
+    await audit.record('AUDIT_LOG_EXPORTED', {
+      actorId: adminUserId,
+      details: { format, count: rows.length, truncated },
+      entityType: 'AuditLog',
+      entityTable: 'audit_logs'
+    });
 
     logger.info('AdminAuditLogService.export', { adminUserId, format, count: rows.length, truncated });
 

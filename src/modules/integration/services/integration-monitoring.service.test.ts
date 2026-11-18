@@ -33,6 +33,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn() }
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('../../catalogs/dtos/catalog-components.dto', () => ({
   MetadataDTO: { build: (meta: Loose) => ({ ...meta }) }
@@ -60,8 +61,8 @@ import fallbackRepoModule from '../repositories/provider-fallback-event.reposito
 const fallbackRepo = mocked(fallbackRepoModule);
 import CircuitBreakerModule from '../../../shared/infra/circuit-breaker.util';
 const CircuitBreaker = mocked(CircuitBreakerModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import service from './integration-monitoring.service';
 
 const ADMIN = 'admin-1';
@@ -94,7 +95,7 @@ describe('IntegrationMonitoringService', () => {
       expect(result.products).toHaveLength(2);
       expect(result.summary).toEqual(baseStats().summary);
       expect(result.activeFallbacks).toBe(2);
-      expect(logAudit).toHaveBeenCalledWith('INTEGRATION_DASHBOARD_VIEWED', ADMIN, expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('INTEGRATION_DASHBOARD_VIEWED', expect.objectContaining({ actorId: ADMIN }));
     });
 
     it('usa la ventana de 24h por defecto cuando no llega rango', async () => {
@@ -122,7 +123,7 @@ describe('IntegrationMonitoringService', () => {
       expect(Object.keys(result.providers[0]).sort()).toEqual(
         ['availabilityStatus', 'avgResponseMs', 'circuit', 'product', 'successRate'].sort()
       );
-      expect(logAudit).toHaveBeenCalledWith('PROVIDER_HEALTH_DASHBOARD_VIEWED', ADMIN, { activeFallbacks: 1 }, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('PROVIDER_HEALTH_DASHBOARD_VIEWED', expect.objectContaining({ actorId: ADMIN, details: { activeFallbacks: 1 } }));
     });
   });
 
@@ -162,7 +163,7 @@ describe('IntegrationMonitoringService', () => {
       apiLogRepo.findById.mockResolvedValue({ api_log_id: 'l-1' });
       const result = await service.getLogDetail('l-1', ADMIN);
       expect(result).toEqual({ detail: true, api_log_id: 'l-1' });
-      expect(logAudit).toHaveBeenCalledWith('INTEGRATION_LOG_DETAIL_VIEWED', ADMIN, { apiLogId: 'l-1' }, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('INTEGRATION_LOG_DETAIL_VIEWED', expect.objectContaining({ actorId: ADMIN, details: { apiLogId: 'l-1' } }));
     });
   });
 

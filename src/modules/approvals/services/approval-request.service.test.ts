@@ -9,6 +9,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('./dual-approval.service', () => ({
   list: jest.fn(),
@@ -18,8 +19,8 @@ jest.mock('./dual-approval.service', () => ({
 }));
 
 import { mocked, fixture } from 'tests/helpers/mock';
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import DualApprovalServiceModule from './dual-approval.service';
 const DualApprovalService = mocked(DualApprovalServiceModule);
 import service from './approval-request.service';
@@ -41,11 +42,7 @@ describe('ApprovalRequestService', () => {
       const result = await service.list(query, ADMIN);
 
       expect(DualApprovalService.list).toHaveBeenCalledWith(query);
-      expect(logAudit).toHaveBeenCalledWith(
-        'APPROVAL_REQUEST_LIST_VIEWED',
-        ADMIN,
-        { operationKey: 'CLIENT_ACCOUNT_DELETE', status: 'pending' },
-        ENTITY
+      expect(logAudit).toHaveBeenCalledWith('APPROVAL_REQUEST_LIST_VIEWED', { actorId: ADMIN, details: { operationKey: 'CLIENT_ACCOUNT_DELETE', status: 'pending' }, ...ENTITY }
       );
       expect(result).toBe(coreResult);
     });
@@ -55,11 +52,7 @@ describe('ApprovalRequestService', () => {
 
       await service.list({}, ADMIN);
 
-      expect(logAudit).toHaveBeenCalledWith(
-        'APPROVAL_REQUEST_LIST_VIEWED',
-        ADMIN,
-        { operationKey: null, status: null },
-        ENTITY
+      expect(logAudit).toHaveBeenCalledWith('APPROVAL_REQUEST_LIST_VIEWED', { actorId: ADMIN, details: { operationKey: null, status: null }, ...ENTITY }
       );
     });
   });
@@ -72,7 +65,7 @@ describe('ApprovalRequestService', () => {
       const result = await service.getById('req-9', ADMIN);
 
       expect(DualApprovalService.getById).toHaveBeenCalledWith('req-9');
-      expect(logAudit).toHaveBeenCalledWith('APPROVAL_REQUEST_VIEWED', ADMIN, {}, { entityId: 'req-9', ...ENTITY });
+      expect(logAudit).toHaveBeenCalledWith('APPROVAL_REQUEST_VIEWED', expect.objectContaining({ actorId: ADMIN, entityId: 'req-9', ...ENTITY }));
       expect(result).toBe(data);
     });
   });
@@ -85,7 +78,7 @@ describe('ApprovalRequestService', () => {
       const result = await service.getPolicy(ADMIN);
 
       expect(DualApprovalService.getPolicy).toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith('APPROVAL_POLICY_VIEWED', ADMIN, {}, ENTITY);
+      expect(logAudit).toHaveBeenCalledWith('APPROVAL_POLICY_VIEWED', expect.objectContaining({ actorId: ADMIN, ...ENTITY }));
       expect(result).toBe(data);
     });
   });

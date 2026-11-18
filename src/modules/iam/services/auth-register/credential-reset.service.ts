@@ -18,10 +18,11 @@ import KycSharedUtil from '../../../person/utils/kyc-shared.util';
 import TokenBlacklistUtil from '../../utils/token-blacklist.util';
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import unitOfWork from '../../../../shared/database/unit-of-work';
 import constantsModule from '../../../../shared/constants';
 const { frontend, SECURITY, notifications } = constantsModule;
+import audit from '../../../audit/audit.service';
 
 const RESET_TOKEN_BYTES = 32;
 const MS_PER_MINUTE = 60 * 1000;
@@ -87,12 +88,13 @@ class CredentialResetService {
       expiresAt: expiresAt
     });
 
-    logAudit(
-      'CREDENTIALS_RESET_REQUESTED',
-      user.userId,
-      { type },
-      { entityId: user.userId, entityType: 'User', entityTable: 'users' }
-    );
+    await audit.record('CREDENTIALS_RESET_REQUESTED', {
+      actorId: user.userId,
+      details: { type },
+      entityId: user.userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     const firstName = personContact.person.firstName || 'Usuario';
     const resetUrl = `${frontend.resetCredentialUrl}-${type === 'password' ? 'password' : 'totp'}?token=${token}&type=${type}`;
@@ -138,12 +140,13 @@ class CredentialResetService {
       }
       return this._applyCredentialReset(type, user, newPassword);
     });
-    logAudit(
-      type === 'password' ? 'PASSWORD_RESET_CONFIRMED' : 'MFA_RESET_CONFIRMED',
-      user.userId,
-      { type },
-      { entityId: user.userId, entityType: 'User', entityTable: 'users' }
-    );
+    await audit.record(type === 'password' ? 'PASSWORD_RESET_CONFIRMED' : 'MFA_RESET_CONFIRMED', {
+      actorId: user.userId,
+      details: { type },
+      entityId: user.userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
     this._sendResetConfirmationNotification(user, tipoNotif);
     if (type === 'password') {
       this._invalidateSessionsAfterPasswordReset(user.userId);

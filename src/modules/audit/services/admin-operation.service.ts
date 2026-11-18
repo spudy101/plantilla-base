@@ -6,14 +6,13 @@
 // respuesta trae la consulta de Logs Insights lista para pegar.
 import AppError from '../../../shared/http/app-error.util';
 import PaginationHelper from '../../../shared/http/pagination.util';
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = loggerUtilModule;
 import operationRepository from '../../../shared/observability/operation.repository';
 import auditLogRepository from '../repositories/audit-log.repository';
 import integrationApiLogRepository from '../../integration/repositories/integration-api-log.repository';
 import adminOperationDtoModule from '../dtos/admin-operation.dto';
 const { OperationListDTO, OperationTimelineDTO } = adminOperationDtoModule;
 import type { OperationSource, OperationStatus } from '../../../shared/database/generated/prisma/client';
+import audit from '../audit.service';
 
 type OperationReader = Pick<typeof operationRepository, 'findAllPaginated' | 'findById' | 'findChildren'>;
 type AuditReader = Pick<typeof auditLogRepository, 'findByCorrelationId'>;
@@ -50,7 +49,11 @@ class AdminOperationService {
     );
     const filters = PaginationHelper.buildFilters(query, FILTERS);
 
-    logAudit('OPERATION_LIST_VIEWED', adminUserId, { totalItems: count, filters: Object.keys(filters) }, ENTITY);
+    await audit.record('OPERATION_LIST_VIEWED', {
+      actorId: adminUserId,
+      details: { totalItems: count, filters: Object.keys(filters) },
+      ...ENTITY
+    });
 
     return OperationListDTO(rows, {
       totalItems: count,
@@ -71,7 +74,7 @@ class AdminOperationService {
       this.integrationApiLogRepository.findByCorrelationId(operationId)
     ]);
 
-    logAudit('OPERATION_VIEWED', adminUserId, {}, { ...ENTITY, entityId: operationId });
+    await audit.record('OPERATION_VIEWED', { actorId: adminUserId, ...ENTITY, entityId: operationId });
 
     return OperationTimelineDTO({ operation, children, auditEvents, externalCalls });
   }

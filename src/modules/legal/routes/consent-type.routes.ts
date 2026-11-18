@@ -7,7 +7,6 @@ import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import RbacMiddleware from '../../iam/middlewares/rbac.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 import rbacModule from '../../../shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
@@ -19,7 +18,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   ConsentTypeValidator.listQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('CONSENT_TYPE_LIST_VIEWED', { entityType: 'ConsentType', entityTable: 'consent_types' }),
   ConsentTypeController.list
 );
 
@@ -31,7 +29,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   ConsentTypeValidator.idParam(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('CONSENT_TYPE_DETAIL_VIEWED', { entityType: 'ConsentType', entityTable: 'consent_types' }),
   ConsentTypeController.getById
 );
 
@@ -43,7 +40,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   ConsentTypeValidator.create(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('CONSENT_TYPE_CREATED', { entityType: 'ConsentType', entityTable: 'consent_types' }),
   ConsentTypeController.create
 );
 
@@ -55,7 +51,6 @@ router.patch(
   RequestLockMiddleware.forAuthenticatedUsers(),
   ConsentTypeValidator.update(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('CONSENT_TYPE_UPDATED', { entityType: 'ConsentType', entityTable: 'consent_types' }),
   ConsentTypeController.update
 );
 

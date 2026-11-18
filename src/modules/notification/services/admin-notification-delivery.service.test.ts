@@ -51,6 +51,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('../../../shared/constants', () => ({
   notifications: { ses: { logoUrl: 'https://logo.test/x.png' } }
@@ -66,8 +67,8 @@ import sendingServiceModule from './notification-sending.service';
 const sendingService = mocked(sendingServiceModule);
 import notificationCreationModule from './notification-creation.service';
 const notificationCreation = mocked(notificationCreationModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import service from './admin-notification-delivery.service';
 
 const ADMIN = 'admin-1';
@@ -94,11 +95,7 @@ describe('AdminNotificationDeliveryService', () => {
       expect(result.data).toEqual([{ dto: 'list', id: 'n-1' }, { dto: 'list', id: 'n-2' }]);
       // filters solo contiene channel (los null se descartan)
       expect(result.metadata.filters).toEqual({ channel: 'email' });
-      expect(logAudit).toHaveBeenCalledWith(
-        'NOTIFICATION_DELIVERY_LIST_VIEWED',
-        ADMIN,
-        { totalItems: 2 },
-        expect.objectContaining({ entityType: 'Notification' })
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_DELIVERY_LIST_VIEWED', expect.objectContaining({ actorId: ADMIN, details: { totalItems: 2 }, entityType: 'Notification' })
       );
     });
 
@@ -119,11 +116,7 @@ describe('AdminNotificationDeliveryService', () => {
 
       expect(notificationRepo.deliveryMetrics).toHaveBeenCalledWith({ from: '2026-01-01', to: '2026-02-01', userId: null });
       expect(result).toMatchObject({ dto: 'metrics', total: 2 });
-      expect(logAudit).toHaveBeenCalledWith(
-        'NOTIFICATION_DELIVERY_METRICS_VIEWED',
-        ADMIN,
-        expect.objectContaining({ from: '2026-01-01', to: '2026-02-01' }),
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_DELIVERY_METRICS_VIEWED', expect.objectContaining({ actorId: ADMIN, details: expect.objectContaining({ from: '2026-01-01', to: '2026-02-01' }) })
       );
     });
   });
@@ -142,11 +135,7 @@ describe('AdminNotificationDeliveryService', () => {
       const result = await service.getById('n-1', ADMIN);
 
       expect(result).toEqual({ dto: 'detail', id: 'n-1' });
-      expect(logAudit).toHaveBeenCalledWith(
-        'NOTIFICATION_DELIVERY_VIEWED',
-        ADMIN,
-        { notificationId: 'n-1' },
-        expect.objectContaining({ entityId: 'n-1' })
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_DELIVERY_VIEWED', expect.objectContaining({ actorId: ADMIN, details: { notificationId: 'n-1' }, entityId: 'n-1' })
       );
     });
   });
@@ -193,11 +182,7 @@ describe('AdminNotificationDeliveryService', () => {
 
       expect(notificationRepo.resetForRetry).toHaveBeenCalledWith('n-1', 'email');
       expect(result).toEqual({ notificationId: 'n-1', channel: 'email', status: 'retry_initiated' });
-      expect(logAudit).toHaveBeenCalledWith(
-        'NOTIFICATION_DELIVERY_RETRY_REQUESTED',
-        ADMIN,
-        { notificationId: 'n-1', channel: 'email' },
-        expect.objectContaining({ entityId: 'n-1' })
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_DELIVERY_RETRY_REQUESTED', expect.objectContaining({ actorId: ADMIN, details: { notificationId: 'n-1', channel: 'email' }, entityId: 'n-1' })
       );
 
       await flush();

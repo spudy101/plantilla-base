@@ -2,11 +2,10 @@ import type { PersonReference } from '../../../shared/database/generated/prisma/
 // modules/client/kyc/services/person-reference.service.ts
 
 import AppError from '../../../shared/http/app-error.util';
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = loggerUtilModule;
 import personReferenceRepository from '../repositories/person-reference.repository';
 import personReferenceDtoModule from '../dtos/person-reference.dto';
 const { PersonReferenceDTO, PersonReferenceListDTO } = personReferenceDtoModule;
+import audit from '../../audit/audit.service';
 
 const MAX_REFERENCES_PER_PERSON = 5;
 
@@ -25,12 +24,12 @@ class PersonReferenceService {
 
   async list(personId: string, userId: string) {
     const references = await this.personReferenceRepository.findAllByPersonId(personId);
-    logAudit(
-      'PROFILE_REFERENCES_VIEWED',
-      userId,
-      { count: references.length },
-      { entityType: 'PersonReference', entityTable: 'person_references' }
-    );
+    await audit.record('PROFILE_REFERENCES_VIEWED', {
+      actorId: userId,
+      details: { count: references.length },
+      entityType: 'PersonReference',
+      entityTable: 'person_references'
+    });
     return references.map(r => PersonReferenceListDTO(r));
   }
 
@@ -47,12 +46,12 @@ class PersonReferenceService {
       referenceType: data.referenceType
     });
 
-    logAudit(
-      'PROFILE_REFERENCE_CREATED',
-      userId,
-      {},
-      { entityId: reference.personReferenceId, entityType: 'PersonReference', entityTable: 'person_references' }
-    );
+    await audit.record('PROFILE_REFERENCE_CREATED', {
+      actorId: userId,
+      entityId: reference.personReferenceId,
+      entityType: 'PersonReference',
+      entityTable: 'person_references'
+    });
     return PersonReferenceDTO(reference);
   }
 
@@ -68,10 +67,9 @@ class PersonReferenceService {
       referenceType: data.referenceType
     });
 
-    logAudit(
-      'PROFILE_REFERENCE_UPDATED',
-      userId,
-      {
+    await audit.record('PROFILE_REFERENCE_UPDATED', {
+      actorId: userId,
+      details: {
         before: {
           referenceName: reference.referenceName,
           referencePhone: reference.referencePhone,
@@ -83,8 +81,10 @@ class PersonReferenceService {
           referenceType: data.referenceType ?? reference.referenceType
         }
       },
-      { entityId: referenceId, entityType: 'PersonReference', entityTable: 'person_references' }
-    );
+      entityId: referenceId,
+      entityType: 'PersonReference',
+      entityTable: 'person_references'
+    });
     return PersonReferenceDTO(updated);
   }
 
@@ -95,12 +95,12 @@ class PersonReferenceService {
     }
 
     await this.personReferenceRepository.update(referenceId, { isActive: false });
-    logAudit(
-      'PROFILE_REFERENCE_DELETED',
-      userId,
-      {},
-      { entityId: referenceId, entityType: 'PersonReference', entityTable: 'person_references' }
-    );
+    await audit.record('PROFILE_REFERENCE_DELETED', {
+      actorId: userId,
+      entityId: referenceId,
+      entityType: 'PersonReference',
+      entityTable: 'person_references'
+    });
   }
 }
 

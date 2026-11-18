@@ -6,7 +6,6 @@ import AuthMiddleware from '../middlewares/auth.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 
 // ============================================================
 // PUBLIC
@@ -44,7 +43,6 @@ router.post(
   RequestLockMiddleware.forRefresh(),
   AuthLoginValidator.refreshToken(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('TOKEN_REFRESHED', { entityType: 'User', entityTable: 'users' }),
   AuthLoginController.refreshToken
 );
 
@@ -58,7 +56,6 @@ router.post(
   '/logout',
   AuthMiddleware.authenticate,
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuditAction.declare('LOGOUT', { entityType: 'User', entityTable: 'users' }),
   AuthLoginController.logout
 );
 
@@ -66,7 +63,6 @@ router.post(
   '/logout-all',
   AuthMiddleware.authenticate,
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuditAction.declare('LOGOUT_ALL', { entityType: 'User', entityTable: 'users' }),
   AuthLoginController.logoutAll
 );
 
@@ -80,7 +76,6 @@ router.post(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuditAction.declare('LOGOUT_OTHERS', { entityType: 'User', entityTable: 'users' }),
   AuthLoginController.logoutOthers
 );
 
@@ -96,7 +91,6 @@ router.delete(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AuthLoginValidator.closeSession(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('SESSION_CLOSED_BY_USER', { entityType: 'UserSession', entityTable: 'user_sessions' }),
   AuthLoginController.closeSession
 );
 
@@ -113,7 +107,6 @@ router.get(
   '/devices',
   AuthMiddleware.authenticate,
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuditAction.declare('TRUSTED_DEVICES_VIEWED', { entityType: 'User', entityTable: 'users' }),
   AuthLoginController.getTrustedDevices
 );
 
@@ -127,7 +120,6 @@ router.get(
   '/devices/pending',
   AuthMiddleware.authenticate,
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuditAction.declare('PENDING_DEVICES_VIEWED', { entityType: 'User', entityTable: 'users' }),
   AuthLoginController.getPendingDevices
 );
 
@@ -141,7 +133,6 @@ router.patch(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AuthLoginValidator.renameDevice(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('TRUSTED_DEVICE_RENAMED', { entityType: 'UserTrustedDevice', entityTable: 'user_trusted_devices' }),
   AuthLoginController.renameDevice
 );
 
@@ -156,7 +147,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AuthLoginValidator.approveDevice(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('TRUSTED_DEVICE_APPROVED', { entityType: 'UserTrustedDevice', entityTable: 'user_trusted_devices' }),
   AuthLoginController.approveDevice
 );
 
@@ -172,7 +162,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AuthLoginValidator.blockDevice(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('TRUSTED_DEVICE_BLOCKED', { entityType: 'UserTrustedDevice', entityTable: 'user_trusted_devices' }),
   AuthLoginController.blockDevice
 );
 
@@ -187,7 +176,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AuthLoginValidator.unblockDevice(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('TRUSTED_DEVICE_UNBLOCKED', { entityType: 'UserTrustedDevice', entityTable: 'user_trusted_devices' }),
   AuthLoginController.unblockDevice
 );
 

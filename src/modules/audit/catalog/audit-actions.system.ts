@@ -13,6 +13,20 @@ import auditCatalogModule from './audit-catalog';
 const { AUDIT_CATEGORIES, AUDIT_RISKS } = auditCatalogModule;
 
 export default {
+  // ── CONFIGURACIÓN GLOBAL ──────────────────────────────────────
+
+  SYSTEM_GLOBAL_CONFIG_VIEWED: {
+    description: 'Configuración global del sistema consultada por administrador',
+    category: AUDIT_CATEGORIES.CONFIGURATION,
+    risk: AUDIT_RISKS.LOW
+  },
+  SYSTEM_GLOBAL_CONFIG_UPDATED: {
+    alert: true,
+    description: 'Configuración global del sistema modificada por administrador',
+    category: AUDIT_CATEGORIES.CONFIGURATION,
+    risk: AUDIT_RISKS.HIGH
+  },
+
   // ── AUTENTICACIÓN / AUTORIZACIÓN ──────────────────────────────
 
   AUTH_FAILURE: {
@@ -60,6 +74,7 @@ export default {
   // ── WORKERS / CRONS ───────────────────────────────────────────
 
   WORKER_CYCLE_FAILED: {
+    alert: true,
     description: 'Ciclo de worker/cron abortado por una excepción no controlada — el ciclo no completó',
     category: AUDIT_CATEGORIES.ADMINISTRATION,
     risk: AUDIT_RISKS.HIGH
@@ -69,6 +84,7 @@ export default {
   // Emitidas en la TRANSICIÓN (una vez por incidente), no por ocurrencia.
 
   REDIS_CONNECTION_LOST: {
+    alert: true,
     description:
       'Redis no disponible — modo degradado activado (fallback a BD/memoria en rate-limit, revocación de sesión y blocklist)',
     category: AUDIT_CATEGORIES.ADMINISTRATION,

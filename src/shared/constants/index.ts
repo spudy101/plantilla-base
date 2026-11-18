@@ -10,9 +10,6 @@
 
 import config from './config';
 import fieldLabelsModule from './field-labels';
-import auditAlertTriggers from './audit-actions/audit-alert-triggers';
-import auditCatalog from './audit-actions/audit-catalog';
-import auditActions from './audit-actions';
 
 const { FIELD_LABELS, DEFAULT_FIELD_LABEL } = fieldLabelsModule;
 
@@ -339,17 +336,8 @@ export default {
   // Simulación de proveedores externos (RF-INT-01)
   MOCKS,
 
-  // Auditoría — alertas (RF-ADM-03)
-  AUDIT_ALERT_TRIGGER_ACTIONS: auditAlertTriggers.AUDIT_ALERT_TRIGGER_ACTIONS,
-
-  // Auditoría — catálogo canónico (category/risk/module) — API /api/audit-action-catalog
-  AUDIT_CATEGORIES: auditCatalog.AUDIT_CATEGORIES,
-  AUDIT_RISKS: auditCatalog.AUDIT_RISKS,
-  AUDIT_RISK_ORDER: auditCatalog.AUDIT_RISK_ORDER,
-  AUDIT_MODULES: auditCatalog.AUDIT_MODULES,
-
   // Mensaje de log compartido del gate de 2FA (rbac / auth)
-  MFA_NOT_ACTIVE_LOG_MSG: auditActions.MFA_NOT_ACTIVE_LOG_MSG,
+  MFA_NOT_ACTIVE_LOG_MSG: 'Acción bloqueada — 2FA no activo',
 
   // Consentimientos (RF-ADM-04)
   CONSENT_TYPE_CODES: {

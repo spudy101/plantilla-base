@@ -24,6 +24,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('../../../shared/constants', () => ({
   RBAC_ROLES: { SUPER_ADMIN: 'super_admin', ADMIN: 'admin', AUDITOR: 'auditor' },
@@ -53,8 +54,8 @@ jest.mock('../dtos/admin-rbac.dto', () => ({
 import { mocked, Loose } from 'tests/helpers/mock';
 import RbacServiceModule from './rbac.service';
 const RbacService = mocked(RbacServiceModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import NotificationCreationServiceModule from '../../notification/services/notification-creation.service';
 const NotificationCreationService = mocked(NotificationCreationServiceModule);
 import overrideRepoModule from '../repositories/role-permission-override.repository';
@@ -78,7 +79,7 @@ describe('AdminRbacService', () => {
 
       const result = service.getCatalog('admin-1');
 
-      expect(logAudit).toHaveBeenCalledWith('RBAC_CATALOG_VIEWED', 'admin-1', {}, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('RBAC_CATALOG_VIEWED', expect.objectContaining({ actorId: 'admin-1' }));
       expect(result).toMatchObject({ dto: 'catalog' });
     });
   });
@@ -90,7 +91,7 @@ describe('AdminRbacService', () => {
       const result = await service.getRoles('admin-1');
 
       expect(RbacService.getRoleMatrix).toHaveBeenCalledWith(['super_admin', 'admin', 'auditor']);
-      expect(logAudit).toHaveBeenCalledWith('RBAC_ROLES_VIEWED', 'admin-1', {}, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('RBAC_ROLES_VIEWED', expect.objectContaining({ actorId: 'admin-1' }));
       expect(result).toMatchObject({ dto: 'matrix' });
     });
   });
@@ -101,7 +102,7 @@ describe('AdminRbacService', () => {
 
       const result = await service.getEffectivePermissions('admin', 'admin-1');
 
-      expect(logAudit).toHaveBeenCalledWith('RBAC_EFFECTIVE_PERMISSIONS_VIEWED', 'admin-1', { roleName: 'admin' }, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('RBAC_EFFECTIVE_PERMISSIONS_VIEWED', expect.objectContaining({ actorId: 'admin-1', details: { roleName: 'admin' } }));
       expect(result).toEqual({ dto: 'effective', role: 'admin', perms: ['users:read'] });
     });
   });
@@ -117,7 +118,7 @@ describe('AdminRbacService', () => {
       const result = await service.listOverrides('admin', 'admin-1');
 
       expect(overrideRepo.findByRole).toHaveBeenCalledWith('admin');
-      expect(logAudit).toHaveBeenCalledWith('RBAC_ROLE_PERMISSIONS_VIEWED', 'admin-1', { roleName: 'admin' }, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('RBAC_ROLE_PERMISSIONS_VIEWED', expect.objectContaining({ actorId: 'admin-1', details: { roleName: 'admin' } }));
       expect(result).toMatchObject({ dto: 'list', role: 'admin' });
     });
 
@@ -143,11 +144,7 @@ describe('AdminRbacService', () => {
         expect.objectContaining({ roleName: 'admin', moduleName: 'users', action: 'delete', grantedByUserId: 'admin-1' })
       );
       expect(RbacService.invalidateCache).toHaveBeenCalledWith('admin');
-      expect(logAudit).toHaveBeenCalledWith(
-        'RBAC_PERMISSION_GRANTED',
-        'admin-1',
-        expect.objectContaining({ roleName: 'admin', moduleName: 'users', action: 'delete' }),
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('RBAC_PERMISSION_GRANTED', expect.objectContaining({ actorId: 'admin-1', details: expect.objectContaining({ roleName: 'admin', moduleName: 'users', action: 'delete' }) })
       );
       expect(result).toMatchObject({ dto: 'override', rolePermissionId: 'rp-9' });
 
@@ -180,7 +177,7 @@ describe('AdminRbacService', () => {
 
       expect(overrideRepo.deleteById).toHaveBeenCalledWith('rp-1');
       expect(RbacService.invalidateCache).toHaveBeenCalledWith('admin');
-      expect(logAudit).toHaveBeenCalledWith('RBAC_PERMISSION_REVOKED', 'admin-1', expect.objectContaining({ roleName: 'admin' }), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('RBAC_PERMISSION_REVOKED', expect.objectContaining({ actorId: 'admin-1', details: expect.objectContaining({ roleName: 'admin' }) }));
       expect(result).toEqual({ deleted: true, permissionId: 'rp-1' });
 
       await flush();

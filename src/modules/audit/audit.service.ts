@@ -1,0 +1,139 @@
+// modules/audit/audit.service.ts
+//
+// ÚNICA puerta para registrar un hecho de negocio:
+//
+//   await audit.record('PERSON_ROLE_CHANGED', {
+//     actorId: adminUserId,
+//     entityType: 'User', entityTable: 'users', entityId: userId,
+//     details: { before: { role: 'a' }, after: { role: 'b' } }
+//   });
+//
+// - La acción es una clave del catálogo (./catalog): un typo no compila.
+// - Quién, desde dónde y en qué operación (ip, user-agent, sesión, correlationId) sale solo del
+//   contexto de la operación en curso.
+// - Se escribe DENTRO de la transacción en curso: el cambio y su auditoría quedan juntos o ninguno.
+//   Los intentos fallidos (outcome ≠ success) se escriben aparte, porque esa transacción se va a revertir
+//   y el intento tiene que quedar.
+// - Si la acción tiene `alert: true` en el catálogo, crea también su alerta para el Superadmin.
+// - S3 no se escribe aquí: el worker de archivado exporta los registros por lotes diarios.
+import requestContext from '../../shared/observability/request-context.util';
+import txContext from '../../shared/database/transaction-context';
+import loggerUtilModule from '../../shared/observability/logger.util';
+const { logger } = loggerUtilModule;
+import errorMessageModule from '../../shared/utils/error-message.util';
+const { errorMessage } = errorMessageModule;
+import type { AuditLogOutcome, AuditLogRisk, Prisma } from '../../shared/database/generated/prisma/client';
+import auditLogRepository from './repositories/audit-log.repository';
+import auditAlertRepository from './repositories/audit-alert.repository';
+import catalogModule, { type AuditActionDef, type AuditActionKey } from './catalog';
+const { AUDIT_ACTIONS } = catalogModule;
+
+export interface AuditRecordInput {
+  /** Usuario que ejecuta la acción; 'system' (o null) para procesos automáticos o rutas públicas. */
+  actorId: string | null | undefined;
+  details?: Record<string, unknown>;
+  outcome?: AuditLogOutcome;
+  entityId?: string | null;
+  entityType?: string | null;
+  entityTable?: string | null;
+  httpStatus?: number | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+}
+
+type AuditLogWriter = Pick<typeof auditLogRepository, 'create'>;
+type AuditAlertWriter = Pick<typeof auditAlertRepository, 'create'>;
+
+const UUID_REGEX = /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i;
+// 'system' u otros ids no-UUID no van a la FK users.user_id
+const asUserId = (id: string | null | undefined): string | null => (id && UUID_REGEX.test(id) ? id : null);
+
+const UNKNOWN_ACTION: AuditActionDef = { description: '', category: 'Sin categoría', risk: 'unknown' };
+
+class AuditService {
+  auditLogRepository: AuditLogWriter;
+  auditAlertRepository: AuditAlertWriter;
+
+  constructor(deps: AuditService.Deps = {}) {
+    this.auditLogRepository = deps.auditLogRepository ?? auditLogRepository;
+    this.auditAlertRepository = deps.auditAlertRepository ?? auditAlertRepository;
+  }
+
+  /** La definición de una acción del catálogo. */
+  definition(action: string): AuditActionDef {
+    return (AUDIT_ACTIONS as Record<string, AuditActionDef | undefined>)[action] ?? { ...UNKNOWN_ACTION, description: action };
+  }
+
+  async record(action: AuditActionKey, input: AuditRecordInput): Promise<void> {
+    const def = this.definition(action);
+    const ctx = requestContext.getSafe();
+    const outcome = input.outcome ?? 'success';
+    const independent = outcome !== 'success';
+    const inTransaction = !independent && txContext.activeUnit() !== null;
+
+    try {
+      const log = await this.auditLogRepository.create(
+        {
+          action,
+          description: def.description,
+          category: def.category,
+          risk: def.risk as AuditLogRisk,
+          module: def.module ?? null,
+          outcome,
+          httpStatus: input.httpStatus ?? null,
+          errorCode: input.errorCode ?? null,
+          errorMessage: input.errorMessage ?? null,
+          userId: asUserId(input.actorId ?? ctx.userId),
+          sessionId: ctx.sessionId ?? null,
+          correlationId: ctx.correlationId,
+          ip: ctx.ip ?? null,
+          userAgent: ctx.userAgent,
+          fingerprint: ctx.fingerprintHash,
+          method: ctx.method,
+          path: ctx.path,
+          source: ctx.source,
+          details: (input.details ?? {}) as Prisma.InputJsonValue,
+          entityId: input.entityId ?? null,
+          entityType: input.entityType ?? null,
+          entityTable: input.entityTable ?? null
+        },
+        { independent }
+      );
+
+      if (def.alert) {
+        await this.auditAlertRepository.create(
+          {
+            auditLogId: log.auditLogId,
+            action,
+            category: def.category,
+            risk: def.risk as AuditLogRisk,
+            userId: log.userId,
+            entityId: log.entityId,
+            entityType: log.entityType,
+            message: def.description || action
+          },
+          { independent }
+        );
+      }
+      logger.debug('audit', { action, outcome, correlationId: ctx.correlationId });
+    } catch (error) {
+      // Dentro de una transacción el fallo la revierte (el cambio no queda sin su auditoría). Fuera de
+      // ella el cambio ya está hecho: se reporta y se sigue.
+      if (inTransaction) {
+        throw error;
+      }
+      logger.error('No se pudo registrar la auditoría', { action, correlationId: ctx.correlationId, error: errorMessage(error) });
+    }
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-namespace
+declare namespace AuditService {
+  interface Deps {
+    auditLogRepository?: AuditLogWriter;
+    auditAlertRepository?: AuditAlertWriter;
+  }
+}
+
+export type { AuditActionKey };
+export default Object.assign(new AuditService(), { AuditService });

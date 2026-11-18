@@ -3,10 +3,9 @@ import auditLogRepository from '../repositories/audit-log.repository';
 import userChangeLogRepository from '../repositories/user-change-log.repository';
 import userSessionRepository from '../../iam/repositories/user-session.repository';
 import PaginationHelper from '../../../shared/http/pagination.util';
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = loggerUtilModule;
 import userActivityDtoModule from '../dtos/user-activity.dto';
 const { UserActivityListResponseDTO } = userActivityDtoModule;
+import audit from '../audit.service';
 
 // Whitelist client-safe del feed: hitos que el usuario entiende y le pertenecen. Nada de acciones
 // de solo lectura (*_VIEWED, ruido) ni acciones administrativas. Ampliar acá = aparece en el feed.
@@ -75,13 +74,13 @@ class UserActivityService {
 
     const fetch = { limit: offset + limit, offset: 0 };
 
-    const [audit, changes] = await Promise.all([
+    const [activity, changes] = await Promise.all([
       this.auditLogRepository.findClientSafeByUser(userId, CLIENT_SAFE_AUDIT_ACTIONS, fetch),
       this.userChangeLogRepository.findExternalChangesByUserId(userId, fetch)
     ]);
 
     const merged = [
-      ...audit.rows.map((r): UserActivityDto.Item => ({ __source: 'audit', row: r, at: r.createdAt })),
+      ...activity.rows.map((r): UserActivityDto.Item => ({ __source: 'audit', row: r, at: r.createdAt })),
       ...changes.rows.map((r): UserActivityDto.Item => ({ __source: 'change', row: r, at: r.createdAt }))
     ]
       .sort((a, b) => new Date(b.at ?? 0).getTime() - new Date(a.at ?? 0).getTime())
@@ -89,7 +88,7 @@ class UserActivityService {
 
     const deviceBySession = await this._resolveDevices(merged, userId);
 
-    const totalItems = audit.count + changes.count;
+    const totalItems = activity.count + changes.count;
 
     const metadata = {
       totalItems,
@@ -100,7 +99,12 @@ class UserActivityService {
       filters: {}
     };
 
-    logAudit('RECENT_ACTIVITY_VIEWED', userId, { totalItems, page }, { entityType: 'AuditLog', entityTable: 'audit_logs' });
+    await audit.record('RECENT_ACTIVITY_VIEWED', {
+      actorId: userId,
+      details: { totalItems, page },
+      entityType: 'AuditLog',
+      entityTable: 'audit_logs'
+    });
 
     return UserActivityListResponseDTO(merged, metadata, deviceBySession);
   }
