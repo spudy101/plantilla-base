@@ -1,6 +1,7 @@
-// config/swagger/modules/admin/core/promotional-banner.paths.ts
-
 import commonResponses from '../../../config/swagger/responses/common.responses';
+import { toOpenApi } from '../../../shared/validation/openapi';
+import { ReplaceBannersBody } from '../requests/admin-promotional-banner.request';
+import { AdminBanner, AdminBannerList, BannerImage } from '../responses/admin-promotional-banner.response';
 
 /**
  * ============================================================
@@ -21,80 +22,13 @@ const TAG = 'Admin — Banners Promocionales';
 
 // ─── Schemas ──────────────────────────────────────────────────
 
+// Generados desde los esquemas Zod de requests/ y responses/: la documentación no puede desalinearse de
+// lo que la API valida y devuelve.
 const schemas = {
-  PromotionalBannerAdminItem: {
-    type: 'object',
-    description: 'Banner promocional (vista admin: incluye isActive y sortOrder).',
-    properties: {
-      id: { type: 'string', format: 'uuid' },
-      title: { type: 'string', example: 'Descubre las novedades de Base Project' },
-      text: { type: 'string', example: 'Explora las nuevas funciones y mejoras que trae Base Project para ti.' },
-      tag: { type: 'string', nullable: true, example: 'Nuevo' },
-      buttonRoute: { type: 'string', nullable: true, example: '/hub/inicio', description: 'Ruta interna del front a la que lleva el botón.' },
-      buttonName: { type: 'string', nullable: true, example: 'Explorar', description: 'Texto visible del botón del banner.' },
-      imageUrl: { type: 'string', nullable: true, example: 'https://cdn.base-project.com/banners/novedades.webp' },
-      isActive: { type: 'boolean', example: true },
-      sortOrder: { type: 'integer', nullable: true, minimum: 1, example: 1 }
-    }
-  },
-
-  PromotionalBannerAdminListResponse: {
-    type: 'object',
-    properties: {
-      banners: {
-        type: 'array',
-        description: 'Catálogo completo ordenado por sortOrder ascendente.',
-        items: { $ref: '#/components/schemas/PromotionalBannerAdminItem' }
-      }
-    }
-  },
-
-  PromotionalBannerReplaceRequest: {
-    type: 'object',
-    required: ['banners'],
-    description:
-      'Reemplazo COMPLETO del catálogo: lo que no venga en el arreglo se elimina. ' +
-      'Los banners sin `id` se crean (el backend les asigna uno).',
-    properties: {
-      banners: {
-        type: 'array',
-        maxItems: 20,
-        items: {
-          type: 'object',
-          required: ['title', 'text'],
-          properties: {
-            id: { type: 'string', format: 'uuid', nullable: true, description: 'Omitir (o null) para crear un banner nuevo.' },
-            title: { type: 'string', minLength: 1, maxLength: 120 },
-            text: { type: 'string', minLength: 1, maxLength: 500 },
-            tag: { type: 'string', nullable: true, maxLength: 40 },
-            buttonRoute: { type: 'string', nullable: true, maxLength: 200 },
-            buttonName: { type: 'string', nullable: true, maxLength: 60, description: 'Texto visible del botón del banner.' },
-            imageUrl: {
-              type: 'string',
-              nullable: true,
-              maxLength: 500,
-              description: 'URL devuelta por POST /promotional-banners/image (o una ya existente).'
-            },
-            isActive: { type: 'boolean', default: true },
-            sortOrder: {
-              type: 'integer',
-              nullable: true,
-              minimum: 1,
-              description: 'Si se omite, se asigna la posición del banner en el arreglo (index + 1).'
-            }
-          }
-        }
-      }
-    }
-  },
-
-  PromotionalBannerImageResponse: {
-    type: 'object',
-    properties: {
-      imageUrl: { type: 'string', example: 'https://cdn.base-project.com/banners/novedades.webp' },
-      s3Key: { type: 'string', example: 'promotional/banners/8c6a2f3e-1b2c-4d5e-9f00-aa11bb22cc33.webp' }
-    }
-  }
+  PromotionalBannerAdminItem: toOpenApi(AdminBanner, 'output'),
+  PromotionalBannerAdminListResponse: toOpenApi(AdminBannerList, 'output'),
+  PromotionalBannerReplaceRequest: toOpenApi(ReplaceBannersBody),
+  PromotionalBannerImageResponse: toOpenApi(BannerImage, 'output')
 };
 
 // ─── Paths ────────────────────────────────────────────────────

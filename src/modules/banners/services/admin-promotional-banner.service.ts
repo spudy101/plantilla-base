@@ -1,4 +1,5 @@
-import type BannerDto from '../dtos/admin-promotional-banner.dto';
+import type { StoredBanner } from '../responses/admin-promotional-banner.response';
+import type { BannerInput } from '../requests/admin-promotional-banner.request';
 import { v4 as uuidv4 } from 'uuid';
 import type { Prisma } from '../../../shared/database/generated/prisma/client';
 import AppError from '../../../shared/http/app-error.util';
@@ -7,8 +8,7 @@ const { logger } = loggerUtilModule;
 import S3Util from '../../../shared/infra/s3.util';
 import settingsModule from '../../settings';
 const { systemGlobalConfigRepository } = settingsModule;
-import promotionalBannerDtoModule from '../dtos/admin-promotional-banner.dto';
-const { PromotionalBannerListDTO, PromotionalBannerImageDTO } = promotionalBannerDtoModule;
+import { toAdminBannerList, toBannerImage } from '../responses/admin-promotional-banner.response';
 import auditModule from '../../audit';
 const { audit } = auditModule;
 
@@ -42,7 +42,7 @@ class PromotionalBannerService {
       ...ENTITY_META
     });
 
-    return PromotionalBannerListDTO((config.promotionalBanners ?? []) as unknown as BannerDto.Stored[]);
+    return toAdminBannerList((config.promotionalBanners ?? []) as unknown as StoredBanner[]);
   }
 
   /**
@@ -50,12 +50,12 @@ class PromotionalBannerService {
    * se conservan si vienen y se generan si no. Persistencia snake_case (convención JSONB) — la
    * conversión de/hacia camelCase vive acá y en el DTO, nunca se asigna el JSONB crudo.
    */
-  async replace(banners: PromotionalBannerService.BannerInput[], adminUserId: string) {
+  async replace(banners: BannerInput[], adminUserId: string) {
     const config = await this._getActiveConfig();
     // JSONB: forma libre en el modelo; la describe el DTO
-    const previousBanners = (config.promotionalBanners ?? []) as unknown as BannerDto.Stored[];
+    const previousBanners = (config.promotionalBanners ?? []) as unknown as StoredBanner[];
 
-    const normalized = banners.map((b, index): BannerDto.Stored => ({
+    const normalized = banners.map((b, index): StoredBanner => ({
       id: b.id ?? uuidv4(),
       title: b.title,
       text: b.text,
@@ -86,7 +86,7 @@ class PromotionalBannerService {
       ...ENTITY_META
     });
 
-    return PromotionalBannerListDTO((updated.promotionalBanners ?? []) as unknown as BannerDto.Stored[]);
+    return toAdminBannerList((updated.promotionalBanners ?? []) as unknown as StoredBanner[]);
   }
 
   /**
@@ -109,7 +109,7 @@ class PromotionalBannerService {
       ...ENTITY_META
     });
 
-    return PromotionalBannerImageDTO(imageUrl, s3Key);
+    return toBannerImage(imageUrl, s3Key);
   }
 
   /**
@@ -119,7 +119,7 @@ class PromotionalBannerService {
    * lanza — el catálogo ya quedó persistido y una imagen huérfana no debe romper el PUT.
    * @private
    */
-  async _cleanupOrphanImages(previous: readonly BannerDto.Stored[] | null | undefined, next: readonly BannerDto.Stored[]) {
+  async _cleanupOrphanImages(previous: readonly StoredBanner[] | null | undefined, next: readonly StoredBanner[]) {
     const keptUrls = new Set(next.map(b => b.image_url).filter(Boolean));
     const orphanKeys = [
       ...new Set(
@@ -175,19 +175,6 @@ class PromotionalBannerService {
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 namespace PromotionalBannerService {
-  /** Banner tal como lo manda el panel admin (camelCase). */
-  export interface BannerInput {
-    id?: string;
-    title: string;
-    text: string;
-    tag?: string | null;
-    buttonRoute?: string | null;
-    buttonName?: string | null;
-    imageUrl?: string | null;
-    isActive?: boolean;
-    sortOrder?: number;
-  }
-
   /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
   export interface Deps {
     systemGlobalConfigRepository?: typeof systemGlobalConfigRepository;
