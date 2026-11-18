@@ -77,7 +77,7 @@ Hoy registra: `user_consents`, `user_notification_preferences`, `user_trusted_de
 1. Asegurate de que sus `audit.record` sellen **`entityId`** + **`entityTable`** (sin
    `entityId` no hidrata).
 2. Escribí un component DTO que **enmascare/omita PII** (esta vista NO es self-view). Los componentes viven
-   en `src/modules/audit/dtos/audit-components.dto.ts` (ej. `NotificationPreferenceComponent`).
+   en `src/modules/audit/responses/audit-components.response.ts` (ej. `NotificationPreferenceComponent`).
 3. Sumá la entrada al `ENTITY_REGISTRY`:
    ```js
    mi_tabla: { repository: miRepo, pk: 'mi_tabla_id', entityType: 'MiEntidad', dto: r => MiComponent.build(r) }

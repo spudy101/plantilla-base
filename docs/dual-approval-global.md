@@ -25,7 +25,7 @@ operación que califica **siempre** responde `202` y crea su `approval_request`.
 | Endpoints admin                                                           | `src/modules/approvals/routes/approval-request.routes.ts` (+ controller)                                                                                                                          |
 
 Componentes shared: `src/modules/approvals/middlewares/dual-approval.middleware.ts`,
-`src/modules/approvals/dtos/approval-components.dto.ts` (`ApprovalRequestComponent`, `PendingApprovalComponent`).
+`src/modules/approvals/responses/approval-components.response.ts` (`ApprovalRequestComponent`, `PendingApprovalComponent`).
 El schema Swagger `PendingApproval` vive en `src/config/swagger/schemas/core.schema.ts` (compartido admin+client).
 
 ## API del core · `DualApprovalService`

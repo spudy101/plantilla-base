@@ -114,7 +114,7 @@ depurar una falla real.
 
 ## 5. Swagger
 
-- Los textos compartidos viven en `src/config/swagger/schemas/pii-masking.doc.ts`:
+- Los textos compartidos viven en `src/shared/validation/pii-masking.doc.ts`:
   `MASKED_DOCUMENT_DESC`, `MASKED_PHONE_DESC`, `MASKED_EMAIL_DESC`, `MASKED_ACCOUNT_DESC`,
   `REDACTED_PAYLOAD_DESC`, `UNMASKED_ROUTE_DESC`.
 - ⚠️ **Los `requestBody` y `parameters` NUNCA se documentan como enmascarados**: la entrada va siempre

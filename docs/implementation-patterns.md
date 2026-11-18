@@ -8,14 +8,14 @@
 
 ```ts
 import MyService from '../services/my.service';
-import ApiResponse from '../../../../src/shared/http/app-response.util';
-import errorMiddlewareModule from '../../../../src/shared/http/error.middleware';
+import ApiResponse from '../../../shared/http/app-response.util';
+import errorMiddlewareModule from '../../../shared/http/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
-import routeParamUtilModule from '../../../../src/shared/http/route-param.util';
+import routeParamUtilModule from '../../../shared/http/route-param.util';
 const { routeParam } = routeParamUtilModule;
-import authUserUtilModule from '../../../../src/modules/iam/utils/auth-user.util';
+import authUserUtilModule from '../../iam/utils/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
-import adminAuditContextUtilModule from '../../../../src/modules/audit/utils/admin-audit-context.util';
+import adminAuditContextUtilModule from '../../audit/utils/admin-audit-context.util';
 const { adminAuditContext } = adminAuditContextUtilModule;
 
 class MyController {
@@ -46,15 +46,15 @@ export default new MyController();
 ## Service (con paginación)
 
 ```ts
-import type { AdminAuditContext } from '../../../../src/shared/types/audit-context';
-import AppError from '../../../../src/shared/http/app-error.util';
-import PaginationHelper from '../../../../src/shared/http/pagination.util';
+import type { AdminAuditContext } from '../../../shared/types/audit-context';
+import AppError from '../../../shared/http/app-error.util';
+import PaginationHelper from '../../../shared/http/pagination.util';
 import auditModule from '../../audit';
 const { audit } = auditModule;
-import unitOfWork from '../../../../src/shared/database/unit-of-work';
+import unitOfWork from '../../../shared/database/unit-of-work';
 import myRepository from '../repositories/my.repository';
-import myDtoModule from '../dtos/my.dto';
-const { MyListResponseDTO, MyDetailResponseDTO } = myDtoModule;
+import myResponse from '../responses/my.response';
+const { MyListResponseDTO, MyDetailResponseDTO } = myResponse;
 
 class MyService {
   unitOfWork: typeof unitOfWork;
@@ -134,38 +134,47 @@ export default Object.assign(new MyService(), { MyService });
 > ❌ `export default new MyService()` sin la clase: la guarda de arquitectura lo rechaza (los tests no
 > podrían inyectar dependencias).
 
-## DTO de lista paginada
+## Respuesta (salida, Zod)
 
 ```ts
-import componentsCatalogDtoModule from '../../../../src/modules/catalogs/dtos/catalog-components.dto';
-const { MetadataDTO } = componentsCatalogDtoModule;
-import componentsMyResourceDtoModule from '../../../../shared/dtos/{dominio}/components-myresource.dto';
-const { MyResourceComponent } = componentsMyResourceDtoModule;
-import type defineMyModel from '../../../schemas/{dominio}/models/my.model';
+// responses/my.response.ts
+import { z } from '../../../shared/validation/z';
+import { dateTime } from '../../../shared/validation/output';
+import catalogsModule from '../../catalogs';
+const { MetadataDTO } = catalogsModule.catalogComponentsDto;
+import type { MyEntity } from '../../../shared/database/generated/prisma/client';
 
-function MyListResponseDTO(rows: defineMyModel.Instance[], metadata: Parameters<typeof MetadataDTO.build>[0]) {
+function MyItemDTO(row: MyEntity) {
+  return { myEntityId: row.myEntityId, name: row.name, createdAt: row.createdAt }; // campo a campo
+}
+
+function MyListResponseDTO(rows: MyEntity[], metadata: Parameters<typeof MetadataDTO.build>[0]) {
   return {
-    data: Array.isArray(rows) ? rows.map(r => MyResourceComponent.build(r)) : [],
+    data: Array.isArray(rows) ? rows.map(MyItemDTO) : [],
     metadata: MetadataDTO.build(metadata)
   };
 }
 
-export default { MyListResponseDTO };
+export const MyItemSchema = z.object({ myEntityId: z.uuid(), name: z.string(), createdAt: dateTime() });
+
+export default { MyItemDTO, MyListResponseDTO };
+
+// responses/my.response.test.ts — conformidad: la salida cumple su esquema
+it('ítem', () => expect(MyItemSchema.safeParse(dto.MyItemDTO(fixture)).error?.issues ?? []).toEqual([]));
 ```
 
-> ✅ Siempre `Array.isArray(rows) ? rows.map(...) : []` — nunca asumir que rows es array.
+> ✅ Siempre `Array.isArray(rows) ? rows.map(...) : []`: nunca asumir que rows es array.
 >
-> ✅ **PII:** todo campo PII sale por `EncryptionUtil.safeDecrypt` + `MaskingUtil.maskXxx`, y los JSONB
+> ✅ **PII:** todo campo PII sale por `EncryptionUtil.safeDecrypt` + `MaskingUtil.maskXxx`, y los JSON
 > propios por `MaskingUtil.redactPayload`. Campo nuevo → declararlo en `src/shared/constants/pii-fields.ts`.
-> Ver `docs/pii-masking.md`.
-> ✅ Siempre `MetadataDTO.build(metadata)` — nunca construir el objeto de paginación a mano en el DTO.
+> Ver `docs/pii-masking.md` y `docs/dtos.md`.
 
 ## Repository
 
 ```ts
-import PrismaRepository from '../../../../src/shared/database/prisma.repository';
-import { Prisma } from '../../../../shared/database/generated/prisma/client';
-import type { MyEntity } from '../../../../shared/database/generated/prisma/client';
+import PrismaRepository from '../../../shared/database/prisma.repository';
+import { Prisma } from '../../../shared/database/generated/prisma/client';
+import type { MyEntity } from '../../../shared/database/generated/prisma/client';
 
 const SORTABLE = Object.values(Prisma.MyEntityScalarFieldEnum);
 const SEARCH_FIELDS = ['name', 'description'] as const;
