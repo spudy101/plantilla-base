@@ -412,7 +412,7 @@ const logAudit = (
   const { getSafe } = interopDefault(require('./request-context.util') as typeof import('./request-context.util'));
   const auditContext = context ?? getSafe();
 
-  const { AUDIT_ACTIONS } = interopDefault(require('../constants/auditActions/index') as typeof import('../constants/auditActions/index'));
+  const { AUDIT_ACTIONS } = interopDefault(require('../constants/audit-actions/index') as typeof import('../constants/audit-actions/index'));
   type ActionMeta = { description: string; category: string; module?: string | null; risk: string };
   const actionMeta: ActionMeta = (AUDIT_ACTIONS as Record<string, ActionMeta | undefined>)[action] ?? {
     description: action,
@@ -445,7 +445,7 @@ const logAudit = (
   setImmediate(() => {
     const saves = [_saveToDatabase(auditEntry), _saveToS3(auditEntry)];
 
-    const { AUDIT_ALERT_TRIGGER_ACTIONS } = interopDefault(require('../constants/auditActions/audit-alert-triggers') as typeof import('../constants/auditActions/audit-alert-triggers'));
+    const { AUDIT_ALERT_TRIGGER_ACTIONS } = interopDefault(require('../constants/audit-actions/audit-alert-triggers') as typeof import('../constants/audit-actions/audit-alert-triggers'));
     if (AUDIT_ALERT_TRIGGER_ACTIONS.has(action)) {
       saves.push(_createAlert(auditEntry));
     }

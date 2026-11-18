@@ -50,7 +50,8 @@ class AdminNotificationDeliveryService {
   async list(query: Record<string, unknown>, adminUserId: string) {
     const paginationParams = PaginationHelper.getPaginationParams(query);
     const filters = {
-      processingStatus: PaginationHelper.stringParam(query, 'processingStatus') as string | null,
+      // Validado contra NOTIFICATION_PROCESSING_STATUS (admin-notification-delivery.validator)
+      processingStatus: PaginationHelper.stringParam(query, 'processingStatus') as domainEnumsModule.NotificationProcessingStatus | null,
       channel: _channelParam(PaginationHelper.stringParam(query, 'channel')),
       userId: PaginationHelper.stringParam(query, 'userId'),
       from: PaginationHelper.stringParam(query, 'from'),

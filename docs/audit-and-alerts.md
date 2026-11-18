@@ -116,7 +116,7 @@ Retorna de inmediato; un fallo de persistencia se loguea pero no afecta la respu
 
 ## Estructura de una audit action
 
-Cada acción declarada en `shared/constants/auditActions/*.ts`:
+Cada acción declarada en `shared/constants/audit-actions/*.ts`:
 
 ```js
 INTERNAL_USER_DEACTIVATED: {
@@ -137,7 +137,7 @@ INTERNAL_USER_DEACTIVATED: {
   `sessionId`, `entityId/Type/Table`, `correlationId`, `ip`, `userAgent`, `fingerprint`, `method`, `path`,
   `details`, `source`, `created_at`.
 
-### Organización de archivos (`shared/constants/auditActions/`)
+### Organización de archivos (`shared/constants/audit-actions/`)
 
 ```
 index.ts                       ← registro central (spread de TODOS los archivos) — SIEMPRE agregar el nuevo aquí

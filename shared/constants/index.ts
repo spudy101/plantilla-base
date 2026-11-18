@@ -10,9 +10,9 @@
 
 import config from './config';
 import fieldLabelsModule from './field-labels';
-import auditAlertTriggers from './auditActions/audit-alert-triggers';
-import auditCatalog from './auditActions/audit-catalog';
-import auditActions from './auditActions';
+import auditAlertTriggers from './audit-actions/audit-alert-triggers';
+import auditCatalog from './audit-actions/audit-catalog';
+import auditActions from './audit-actions';
 
 const { FIELD_LABELS, DEFAULT_FIELD_LABEL } = fieldLabelsModule;
 

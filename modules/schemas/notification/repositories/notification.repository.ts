@@ -3,7 +3,7 @@
 // Notificaciones personales (in-app + estado de entrega por canal: push, email, sms).
 import PrismaRepository from '../../../../shared/repositories/prisma.repository';
 import { Prisma } from '../../../../shared/database/generated/prisma/client';
-import type { Notification } from '../../../../shared/database/generated/prisma/client';
+import type { Notification, NotificationProcessingStatus } from '../../../../shared/database/generated/prisma/client';
 import constantsModule from '../../../../shared/constants';
 const { database } = constantsModule;
 import { toCategoryRow } from './notification-category.repository';
@@ -109,7 +109,7 @@ class NotificationRepository extends PrismaRepository {
     return (await this.db()).notification.findMany({ where: { processingStatus: 'pending', scheduledFor: { lte: new Date() } } });
   }
 
-  updateProcessingStatus(notificationId: string, status: string) {
+  updateProcessingStatus(notificationId: string, status: NotificationProcessingStatus) {
     return this.update(notificationId, { processingStatus: status });
   }
 
@@ -298,7 +298,8 @@ class NotificationRepository extends PrismaRepository {
 // eslint-disable-next-line @typescript-eslint/no-namespace
 namespace NotificationRepository {
   export interface AdminFilters {
-    processingStatus?: string | null;
+    /** Validado contra NOTIFICATION_PROCESSING_STATUS (admin-notification-delivery.validator). */
+    processingStatus?: NotificationProcessingStatus | null;
     channel?: Channel | null;
     userId?: string | null;
     from?: string | Date | null;

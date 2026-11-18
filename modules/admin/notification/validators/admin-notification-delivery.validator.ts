@@ -1,7 +1,8 @@
 import { query } from 'express-validator';
 import BaseValidator from '../../../../shared/validators/base.validator';
+import DomainEnums from '../../../../shared/constants/domain-enums';
 
-const VALID_STATUSES = ['pending', 'processing', 'completed', 'partial_failure', 'failed'];
+const VALID_STATUSES: string[] = Object.values(DomainEnums.NOTIFICATION_PROCESSING_STATUS);
 const VALID_CHANNELS = ['email', 'push', 'sms', 'all'];
 
 class AdminNotificationDeliveryValidator {
