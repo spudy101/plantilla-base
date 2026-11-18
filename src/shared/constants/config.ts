@@ -300,7 +300,9 @@ const loadConfig = () => {
       enabled: parseBoolEnv(process.env.ENABLE_WORKERS, true)
     },
     logging: {
-      level: getOptionalEnv('LOG_LEVEL', 'info')
+      level: getOptionalEnv('LOG_LEVEL', 'info'),
+      // Días que se conserva la traza de operaciones (tabla operations); la auditoría tiene su propia retención
+      operationsRetentionDays: parseIntEnv(process.env.OPERATIONS_RETENTION_DAYS, 90)
     },
     // Mock de proveedores externos: mientras no exista la integración real de
     // SMS/biométrico, se simula la aprobación/envío para desbloquear el onboarding

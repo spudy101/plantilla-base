@@ -3,6 +3,9 @@ import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger, logAudit } = loggerUtilModule;
 import { runOperation } from '../../../shared/observability/operation';
 import auditLogRepository from '../repositories/audit-log.repository';
+import operationRepository from '../../../shared/observability/operation.repository';
+import constantsModule from '../../../shared/constants';
+const { logging } = constantsModule;
 import systemGlobalConfigRepository from '../../settings/repositories/system-global-config.repository';
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
@@ -102,6 +105,18 @@ async function _purgeExpiredFromDb(hotYears: number) {
   );
 }
 
+// Diario a las 03:30: la traza de operaciones es de alto volumen y corta retención (no es auditoría).
+const OPERATIONS_RETENTION_CRON = '30 3 * * *';
+const MS_PER_DAY = 86_400_000;
+
+/** Borra las operaciones más viejas que `logging.operationsRetentionDays`. */
+async function purgeOperations(): Promise<number> {
+  const cutoff = new Date(Date.now() - logging.operationsRetentionDays * MS_PER_DAY);
+  const purged = await operationRepository.purgeOlderThan(cutoff);
+  logger.info('audit-archive.worker — operaciones purgadas', { purged, cutoffDate: cutoff.toISOString() });
+  return purged;
+}
+
 /**
  * Registra el cron mensual de retención de auditoría (RF-ADM-03 CA-3).
  * La purga del caliente la gobierna el Superadministrador vía la config global
@@ -117,7 +132,10 @@ function iniciar() {
       await run({ enableDbPurge: config?.auditHotPurgeEnabled === true });
     })
   );
+  cron.schedule(OPERATIONS_RETENTION_CRON, () =>
+    runOperation({ source: 'worker', name: 'operations.retention' }, purgeOperations)
+  );
   logger.info('Worker de retención de auditoría iniciado exitosamente');
 }
 
-export default { run, iniciar };
+export default { run, purgeOperations, iniciar };

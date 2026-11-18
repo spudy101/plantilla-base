@@ -33,6 +33,11 @@ class IntegrationApiLogRepository extends PrismaRepository {
     return (await this.db()).integrationApiLog.create({ data });
   }
 
+  /** Llamadas externas hechas dentro de una operación, en orden cronológico. */
+  async findByCorrelationId(correlationId: string): Promise<IntegrationApiLog[]> {
+    return (await this.db()).integrationApiLog.findMany({ where: { correlationId }, orderBy: { createdAt: 'asc' } });
+  }
+
   /** Lista paginada (drill-down por llamada) con filtros opcionales, con usuario y sesión. */
   async findAllPaginated(
     { product, result, userId, sessionId, from, to }: IntegrationApiLogRepository.Filters = {},

@@ -90,6 +90,19 @@ export default {
     risk: AUDIT_RISKS.MEDIUM
   },
 
+  // ── TRAZA DE OPERACIONES ──────────────────────────────────────
+
+  OPERATION_LIST_VIEWED: {
+    description: 'Listado de operaciones (HTTP, webhooks, workers, sistema) consultado por administrador',
+    category: AUDIT_CATEGORIES.AUDIT,
+    risk: AUDIT_RISKS.MEDIUM
+  },
+  OPERATION_VIEWED: {
+    description: 'Línea de tiempo de una operación consultada por administrador',
+    category: AUDIT_CATEGORIES.AUDIT,
+    risk: AUDIT_RISKS.MEDIUM
+  },
+
   // ── BINDING DOSSIER ───────────────────────────────────────────
 
   BINDING_DOSSIER_LIST_VIEWED: {

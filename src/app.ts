@@ -36,6 +36,7 @@ import adminAuditLogRoutes from './modules/audit/routes/admin-audit-log.routes';
 import adminAuditAlertRoutes from './modules/audit/routes/admin-audit-alert.routes';
 import adminAuditActionCatalogRoutes from './modules/audit/routes/admin-audit-action-catalog.routes';
 import adminSessionTraceRoutes from './modules/audit/routes/admin-session-trace.routes';
+import adminOperationRoutes from './modules/audit/routes/admin-operation.routes';
 import adminNotificationTypeRoutes from './modules/notification/routes/admin-notification-type.routes';
 import adminNotificationCategoryRoutes from './modules/notification/routes/admin-notification-category.routes';
 import adminNotificationDeliveryRoutes from './modules/notification/routes/admin-notification-delivery.routes';
@@ -92,6 +93,7 @@ function adminRouter() {
   router.use('/api/v1/records', adminAuditAlertRoutes);
   router.use('/api/v1/records', adminAuditActionCatalogRoutes);
   router.use('/api/v1/records', adminSessionTraceRoutes);
+  router.use('/api/v1/records', adminOperationRoutes);
   router.use('/api/v1/records', adminConsentTypeRoutes);
   router.use('/api/v1/records', adminUserConsentRoutes);
   router.use('/api/v1/core', adminSystemGlobalConfigRoutes);
