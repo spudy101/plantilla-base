@@ -365,7 +365,7 @@ function SortDTO(data: SortInfo): SortInfo {
  *   const meta = MetadataDTO.build({
  *     totalItems: count,
  *     page, limit,
- *     sortBy: 'created_at', order: 'DESC',
+ *     sortBy: 'createdAt', order: 'DESC',
  *     filters: { isActive: true },
  *   });
  */

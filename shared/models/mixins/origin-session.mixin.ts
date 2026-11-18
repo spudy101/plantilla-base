@@ -68,11 +68,11 @@ function stampOriginSession(instance: Model): void {
 
   const origin = requestContext.originFromContext();
 
-  if (target.origin_session_id == null && origin.origin_session_id != null) {
-    target.origin_session_id = origin.origin_session_id;
+  if (target.origin_session_id == null && origin.originSessionId != null) {
+    target.origin_session_id = origin.originSessionId;
   }
-  if (attrs.origin_correlation_id && target.origin_correlation_id == null && origin.origin_correlation_id != null) {
-    target.origin_correlation_id = origin.origin_correlation_id;
+  if (attrs.origin_correlation_id && target.origin_correlation_id == null && origin.originCorrelationId != null) {
+    target.origin_correlation_id = origin.originCorrelationId;
   }
 }
 

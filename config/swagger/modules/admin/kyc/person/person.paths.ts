@@ -244,7 +244,7 @@ const paginationParams = [
   {
     name: 'sortBy',
     in: 'query',
-    schema: { type: 'string', enum: ['username', 'created_at', 'updated_at', 'is_active'] }
+    schema: { type: 'string', enum: ['username', 'createdAt', 'updatedAt', 'isActive'] }
   },
   { name: 'order', in: 'query', schema: { type: 'string', enum: ['ASC', 'DESC'], default: 'DESC' } }
 ];

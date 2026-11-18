@@ -81,7 +81,7 @@ class NotificationCreationService {
       logger.info('Notificación directa enviada exitosamente', { tipo: tipoNotificacion, email: emailDestino });
 
       return {
-        estado_solicitud: 1,
+        estadoSolicitud: 1,
         message: 'Notificación enviada exitosamente por email.'
       };
     } catch (error) {
@@ -134,14 +134,14 @@ class NotificationCreationService {
       }
 
       logger.info('Notificación creada exitosamente', {
-        notification_id: 'notification_id' in result ? result.notification_id : result.global_notification_id,
+        notificationId: 'notificationId' in result ? result.notificationId : result.globalNotificationId,
         tipo: tipoNotificacion,
         userId,
-        is_global: !userId
+        isGlobal: !userId
       });
 
       return {
-        estado_solicitud: 1,
+        estadoSolicitud: 1,
         message: 'Notificación creada exitosamente.',
         ...result
       };
@@ -208,7 +208,7 @@ class NotificationCreationService {
         .catch(err => {
           logger.error('Error procesando envíos individuales', {
             error: err.message,
-            notification_id: notification.notificationId
+            notificationId: notification.notificationId
           });
         });
     });
@@ -216,8 +216,7 @@ class NotificationCreationService {
     // 5. Refrescar el contador SSE del destinatario (side-effect de fondo, nunca en el flujo principal)
     setImmediate(() => NotificationCountUtil.emitCountUpdate(userId));
 
-    // Contrato de respuesta: la clave sigue en snake_case (la leen controladores y servicios)
-    return { notification_id: notification.notificationId };
+    return { notificationId: notification.notificationId };
   }
 
   /** @private */
@@ -256,7 +255,7 @@ class NotificationCreationService {
         .catch(err => {
           logger.error('Error procesando notificación global', {
             error: err.message,
-            global_notification_id: globalNotification.globalNotificationId
+            globalNotificationId: globalNotification.globalNotificationId
           });
         });
     });
@@ -265,7 +264,7 @@ class NotificationCreationService {
     // conexión SSE abierta recalcula su propio count al recibir { global: true }.
     setImmediate(() => NotificationCountUtil.emitGlobalCountInvalidation());
 
-    return { global_notification_id: globalNotification.globalNotificationId };
+    return { globalNotificationId: globalNotification.globalNotificationId };
   }
 }
 

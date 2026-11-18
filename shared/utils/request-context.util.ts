@@ -142,13 +142,13 @@ export default {
    * Ambos campos son null en workers (`runAsWorker`/`runAsSystem`) y en cualquier
    * creación sistémica: por eso las columnas son nullable.
    *
-   * @returns {{ origin_session_id: string|null, origin_correlation_id: string|null }}
+   * @returns {{ originSessionId: string|null, originCorrelationId: string|null }}
    */
-  originFromContext: (): { origin_session_id: string | null; origin_correlation_id: string | null } => {
+  originFromContext: (): { originSessionId: string | null; originCorrelationId: string | null } => {
     const ctx = storage.getStore();
     return {
-      origin_session_id: ctx?.sessionId ?? null,
-      origin_correlation_id: ctx?.correlationId ?? null
+      originSessionId: ctx?.sessionId ?? null,
+      originCorrelationId: ctx?.correlationId ?? null
     };
   },
 

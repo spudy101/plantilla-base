@@ -53,12 +53,12 @@ class NotificationBatchService {
     await cache.set(
       `global_notif:${globalNotificationId}:batch_state`,
       JSON.stringify({
-        total_users: totalUsers,
-        processed_users: 0,
-        current_batch: 0,
-        batch_size: PUSH_BATCH_SIZE,
+        totalUsers,
+        processedUsers: 0,
+        currentBatch: 0,
+        batchSize: PUSH_BATCH_SIZE,
         status: 'processing',
-        started_at: new Date().toISOString()
+        startedAt: new Date().toISOString()
       }),
       CACHE_TTL_24H
     );
@@ -347,11 +347,12 @@ class NotificationBatchService {
       const stateRaw = await cache.get(stateKey);
 
       if (stateRaw) {
-        const state = (typeof stateRaw === 'string' ? JSON.parse(stateRaw) : stateRaw) as Record<string, unknown> & { processed_users: number };
+        const state = (typeof stateRaw === 'string' ? JSON.parse(stateRaw) : stateRaw) as Record<string, unknown> & { processedUsers?: number };
 
-        state.processed_users += batchSize;
-        state.current_batch = batchNumber;
-        state.last_batch_at = new Date().toISOString();
+        // Un estado escrito antes de pasar a camelCase (TTL 24 h) arranca la cuenta desde 0
+        state.processedUsers = (state.processedUsers ?? 0) + batchSize;
+        state.currentBatch = batchNumber;
+        state.lastBatchAt = new Date().toISOString();
 
         await cache.set(stateKey, JSON.stringify(state), CACHE_TTL_24H);
       }

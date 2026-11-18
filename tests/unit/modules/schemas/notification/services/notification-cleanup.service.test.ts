@@ -52,7 +52,7 @@ describe('NotificationCleanupService', () => {
       // Sin argumento explícito, la ventana por defecto es 90 en ambos repos.
       expect(notificationRepo.deleteOldRead).toHaveBeenCalledWith(90);
       expect(userPushTokenRepo.deleteOldInactive).toHaveBeenCalledWith(90);
-      expect(result).toEqual({ notificaciones_eliminadas: 7, tokens_eliminados: 3 });
+      expect(result).toEqual({ notificacionesEliminadas: 7, tokensEliminados: 3 });
     });
 
     it('propaga la ventana explícita a ambos repos', async () => {
@@ -63,7 +63,7 @@ describe('NotificationCleanupService', () => {
 
       expect(notificationRepo.deleteOldRead).toHaveBeenCalledWith(30);
       expect(userPushTokenRepo.deleteOldInactive).toHaveBeenCalledWith(30);
-      expect(result).toEqual({ notificaciones_eliminadas: 0, tokens_eliminados: 0 });
+      expect(result).toEqual({ notificacionesEliminadas: 0, tokensEliminados: 0 });
     });
 
     it('registra un warn y re-propaga si un repo falla', async () => {
@@ -86,7 +86,7 @@ describe('NotificationCleanupService', () => {
       // deleteExpired no depende de la ventana de retención; deleteOldVerified sí.
       expect(verificationCodeRepo.deleteExpired).toHaveBeenCalledWith();
       expect(verificationCodeRepo.deleteOldVerified).toHaveBeenCalledWith(30);
-      expect(result).toEqual({ expirados_eliminados: 5, verificados_eliminados: 2 });
+      expect(result).toEqual({ expiradosEliminados: 5, verificadosEliminados: 2 });
     });
 
     it('respeta la ventana de retención explícita para los verificados', async () => {
@@ -98,7 +98,7 @@ describe('NotificationCleanupService', () => {
       // La ventana sólo afecta a los verificados; los expirados se borran igual.
       expect(verificationCodeRepo.deleteExpired).toHaveBeenCalledWith();
       expect(verificationCodeRepo.deleteOldVerified).toHaveBeenCalledWith(7);
-      expect(result).toEqual({ expirados_eliminados: 0, verificados_eliminados: 9 });
+      expect(result).toEqual({ expiradosEliminados: 0, verificadosEliminados: 9 });
     });
   });
 });

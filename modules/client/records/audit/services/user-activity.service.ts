@@ -95,7 +95,7 @@ class UserActivityService {
       totalItems,
       page,
       limit,
-      sortBy: 'created_at',
+      sortBy: 'createdAt',
       order: 'DESC',
       filters: {}
     };

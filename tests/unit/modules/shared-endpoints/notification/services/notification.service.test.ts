@@ -256,7 +256,7 @@ describe('NotificationService', () => {
 
   describe('createNotification', () => {
     it('delega en el servicio de creación, loguea y audita', async () => {
-      creationService.crearNotificacion.mockResolvedValue({ notification_id: 'n-1' });
+      creationService.crearNotificacion.mockResolvedValue({ notificationId: 'n-1' });
 
       const result = await service.createNotification({ tipoNotificacion: 'WELCOME', userId: 'u-9' }, 'externo-x');
 
@@ -268,13 +268,13 @@ describe('NotificationService', () => {
         expect.objectContaining({ tipoNotificacion: 'WELCOME', externalService: 'externo-x' }),
         expect.any(Object)
       );
-      expect(result).toEqual({ notification_id: 'n-1' });
+      expect(result).toEqual({ notificationId: 'n-1' });
     });
   });
 
   describe('createDirectNotification', () => {
     it('delega en crearNotificacionDirecta y audita', async () => {
-      creationService.crearNotificacionDirecta.mockResolvedValue({ estado_solicitud: 1 });
+      creationService.crearNotificacionDirecta.mockResolvedValue({ estadoSolicitud: 1 });
 
       const result = await service.createDirectNotification({ tipoNotificacion: 'CODIGO', email: 'a@b.cl' });
 
@@ -285,7 +285,7 @@ describe('NotificationService', () => {
         expect.objectContaining({ tipoNotificacion: 'CODIGO', email: 'a@b.cl' }),
         expect.any(Object)
       );
-      expect(result).toEqual({ estado_solicitud: 1 });
+      expect(result).toEqual({ estadoSolicitud: 1 });
     });
   });
 });

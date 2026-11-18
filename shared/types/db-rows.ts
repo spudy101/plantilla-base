@@ -23,10 +23,8 @@ export interface UserRefRow {
   person?: Maybe<PersonNameRow>;
 }
 
-/** Timestamps de Sequelize (`timestamps: true`), en camelCase o snake_case según el modelo. */
+/** Timestamps de una fila (`createdAt`/`updatedAt`). */
 export interface TimestampsRow {
   createdAt?: Maybe<DbDate>;
   updatedAt?: Maybe<DbDate>;
-  created_at?: Maybe<DbDate>;
-  updated_at?: Maybe<DbDate>;
 }

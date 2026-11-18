@@ -148,7 +148,7 @@ const schemas = {
 const paginationParams = [
   { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1, default: 1 } },
   { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 } },
-  { name: 'sortBy', in: 'query', schema: { type: 'string', default: 'created_at' } },
+  { name: 'sortBy', in: 'query', schema: { type: 'string', default: 'createdAt' } },
   { name: 'order', in: 'query', schema: { type: 'string', enum: ['ASC', 'DESC'], default: 'DESC' } }
 ];
 

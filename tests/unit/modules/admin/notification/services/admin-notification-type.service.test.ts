@@ -139,7 +139,7 @@ describe('NotificationTypeService', () => {
 
   describe('createGlobalNotification', () => {
     it('crea la notificación global, audita y responde vía DTO', async () => {
-      notificationCreation.crearNotificacion.mockResolvedValue({ global_notification_id: 'g-1' });
+      notificationCreation.crearNotificacion.mockResolvedValue({ globalNotificationId: 'g-1' });
 
       const result = await service.createGlobalNotification({ titulo: 'T', contenido: 'C', asunto: 'A' }, ADMIN);
 
@@ -172,7 +172,7 @@ describe('NotificationTypeService', () => {
 
     it('crea la notificación directa, audita y responde vía DTO', async () => {
       userRepo.findByUserId.mockResolvedValue({ userId: 'u-1', isActive: true });
-      notificationCreation.crearNotificacion.mockResolvedValue({ notification_id: 'n-1' });
+      notificationCreation.crearNotificacion.mockResolvedValue({ notificationId: 'n-1' });
 
       const result = await service.createDirectNotification({ userId: 'u-1', titulo: 'T', contenido: 'C', asunto: 'A' }, ADMIN);
 
