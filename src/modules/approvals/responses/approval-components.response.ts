@@ -1,6 +1,8 @@
 // Componentes shared del framework de doble aprobación global (approval_requests).
 // Todas las keys de respuesta en camelCase.
 
+import { z } from '../../../shared/validation/z';
+import { dateTime } from '../../../shared/validation/output';
 import type { DbDate, Maybe } from '../../../shared/types/db-rows';
 
 /** Usuario incluido en la solicitud (Prisma): firstName/lastName viven en Person. */
@@ -112,6 +114,66 @@ class PendingApprovalComponent {
     };
   }
 }
+
+// ============================================================
+// ESQUEMAS DE SALIDA
+// ============================================================
+
+const ApprovalUserRefSchema = z.object({
+  userId: z.uuid(),
+  username: z.string().nullable(),
+  firstName: z.string().nullable(),
+  lastName: z.string().nullable()
+});
+
+const approvalBase = {
+  approvalRequestId: z.uuid(),
+  operationKey: z.string().meta({ example: 'RBAC_ROLE_CHANGE' }),
+  status: z.string().meta({ example: 'pending', description: 'pending | approved | rejected | expired' }),
+  requestedBy: ApprovalUserRefSchema.nullable(),
+  requestedAt: dateTime().nullable(),
+  expiresAt: dateTime().nullable()
+};
+
+export const ApprovalRequestListItemSchema = z.object({
+  ...approvalBase,
+  entityType: z.string().nullable(),
+  entityId: z.string().nullable(),
+  secondApprover: ApprovalUserRefSchema.nullable(),
+  resolvedAt: dateTime().nullable(),
+  createdAt: dateTime().nullable()
+});
+
+export const ApprovalRequestSchema = ApprovalRequestListItemSchema.extend({
+  resolutionNotes: z.string().nullable(),
+  payload: z.unknown().meta({ description: 'Datos de la operación pendiente (lo que se ejecuta al aprobar).' }),
+  result: z.unknown().meta({ description: 'Resultado de la ejecución (al aprobar).' }),
+  originSessionId: z.string().nullable(),
+  updatedAt: dateTime().nullable()
+});
+
+export const PendingApprovalSchema = z
+  .object(approvalBase)
+  .nullable()
+  .meta({ description: 'Solicitud de doble aprobación pendiente sobre esta entidad. null cuando no hay ninguna.' });
+
+export const ApprovalPolicySchema = z
+  .object({
+    enabled: z.boolean().meta({ description: 'Siempre true: el maker-checker está siempre activo.' }),
+    operations: z.array(
+      z.object({
+        operationKey: z.string(),
+        label: z.string().meta({ example: 'Cambio de rol de usuario' }),
+        condition: z.enum(['always', 'threshold']),
+        approverRoles: z.array(z.string()),
+        entityType: z.string(),
+        ttlHours: z.number().int(),
+        thresholdField: z.string().optional(),
+        threshold: z.number().nullable().optional()
+      })
+    )
+  })
+  .meta({ description: 'Política de doble aprobación: operaciones gateadas y sus condiciones.' });
 
 export default {
   ApprovalRequestComponent,

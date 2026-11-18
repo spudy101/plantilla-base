@@ -12,140 +12,25 @@
 // con el ApprovalRequest cuando quedan pendientes.
 
 import commonResponses from '../../../config/swagger/responses/common.responses';
+import { jsonBody, toOpenApi, toParameters } from '../../../shared/validation/openapi';
+import { ApprovalIdParams, ApprovalListQuery, ResolveApprovalBody } from '../requests/approval-request.request';
+import { ApprovalPolicySchema, ApprovalRequestListItemSchema, ApprovalRequestSchema } from '../responses/approval-components.response';
 
 const TAG = 'Admin — Doble Aprobación';
 
 const adminSecurity = [{ bearerAuth: [], idTokenAuth: [] }];
 
-const OPERATION_KEYS = [
-  'RBAC_ROLE_CHANGE',
-  'CLIENT_ACCOUNT_DELETE',
-  'INTERNAL_USER_DELETE'
-];
-const STATUS_VALUES = ['pending', 'approved', 'rejected', 'expired'];
-
 // ─── Schemas ──────────────────────────────────────────────────
 
-const ApprovalUserRef = {
-  type: 'object',
-  nullable: true,
-  properties: {
-    userId: { type: 'string', format: 'uuid' },
-    username: { type: 'string', nullable: true },
-    firstName: { type: 'string', nullable: true },
-    lastName: { type: 'string', nullable: true }
-  }
-};
-
+// Generados desde los esquemas Zod de requests/ y responses/.
 const schemas = {
-  // Nota: el schema `PendingApproval` (badge en listados) vive en el core compartido
-  // (config/swagger/schemas/core.schema.js) para que esté disponible en admin y client.
-
-  ApprovalRequestListItem: {
-    type: 'object',
-    properties: {
-      approvalRequestId: { type: 'string', format: 'uuid' },
-      operationKey: { type: 'string', enum: OPERATION_KEYS },
-      entityType: { type: 'string', nullable: true, example: 'NotificationType' },
-      entityId: { type: 'string', format: 'uuid', nullable: true },
-      status: { type: 'string', enum: STATUS_VALUES },
-      requestedBy: ApprovalUserRef,
-      requestedAt: { type: 'string', format: 'date-time' },
-      secondApprover: ApprovalUserRef,
-      resolvedAt: { type: 'string', format: 'date-time', nullable: true },
-      expiresAt: { type: 'string', format: 'date-time', nullable: true },
-      createdAt: { type: 'string', format: 'date-time' }
-    }
-  },
-
-  ApprovalRequest: {
-    type: 'object',
-    description: 'Detalle de una solicitud de doble aprobación, incluye el payload propuesto.',
-    properties: {
-      approvalRequestId: { type: 'string', format: 'uuid' },
-      operationKey: { type: 'string', enum: OPERATION_KEYS },
-      entityType: { type: 'string', nullable: true, example: 'Role' },
-      entityId: { type: 'string', format: 'uuid', nullable: true },
-      status: { type: 'string', enum: STATUS_VALUES },
-      requestedBy: ApprovalUserRef,
-      requestedAt: { type: 'string', format: 'date-time' },
-      secondApprover: ApprovalUserRef,
-      resolvedAt: { type: 'string', format: 'date-time', nullable: true },
-      resolutionNotes: { type: 'string', nullable: true },
-      expiresAt: { type: 'string', format: 'date-time', nullable: true },
-      payload: {
-        type: 'object',
-        description: 'Datos que el handler registrado usará para ejecutar la acción real al aprobar.',
-        additionalProperties: true
-      },
-      result: {
-        type: 'object',
-        nullable: true,
-        description: 'Salida del handler tras aprobar (ej: id de entidad creada).',
-        additionalProperties: true
-      },
-      originSessionId: {
-        type: 'string',
-        format: 'uuid',
-        nullable: true,
-        description: 'Sesión de origen sellada al crear la solicitud (trazabilidad, RF-ADM-03). null si la creó un worker.'
-      },
-      createdAt: { type: 'string', format: 'date-time' },
-      updatedAt: { type: 'string', format: 'date-time' }
-    }
-  },
-
-  ApprovalPolicy: {
-    type: 'object',
-    description: 'Política de doble aprobación: operaciones gateadas y sus condiciones.',
-    properties: {
-      operations: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            operationKey: { type: 'string', enum: OPERATION_KEYS },
-            label: { type: 'string', example: 'Cambio de rol de usuario' },
-            condition: { type: 'string', enum: ['always', 'threshold'] },
-            approverRoles: { type: 'array', items: { type: 'string' }, example: ['ADMIN'] },
-            entityType: { type: 'string', example: 'User' },
-            ttlHours: { type: 'integer', example: 72 },
-            thresholdField: { type: 'string', nullable: true, example: 'amount' },
-            threshold: { type: 'number', nullable: true, example: 5000000 }
-          }
-        }
-      }
-    }
-  },
-
-  ApprovalResolveRequest: {
-    type: 'object',
-    required: ['decision'],
-    properties: {
-      decision: {
-        type: 'string',
-        enum: ['approve', 'reject'],
-        description: 'Aprobar ejecuta la acción real (handler registrado); rechazar la descarta.'
-      },
-      notes: {
-        type: 'string',
-        nullable: true,
-        maxLength: 2000,
-        description: 'Notas de resolución (opcional).'
-      }
-    }
-  }
+  ApprovalRequestListItem: toOpenApi(ApprovalRequestListItemSchema, 'output'),
+  ApprovalRequest: toOpenApi(ApprovalRequestSchema, 'output'),
+  ApprovalPolicy: toOpenApi(ApprovalPolicySchema, 'output'),
+  ApprovalResolveRequest: toOpenApi(ResolveApprovalBody)
 };
 
 // ─── Parámetros ───────────────────────────────────────────────
-
-const idParam = {
-  name: 'id',
-  in: 'path',
-  required: true,
-  schema: { type: 'string', format: 'uuid' },
-  description: 'UUID de la solicitud de aprobación'
-};
 
 // ─── Respuestas específicas ───────────────────────────────────
 
@@ -206,15 +91,7 @@ const paths = {
       summary: 'Listar solicitudes de doble aprobación',
       description: 'Lista paginada con filtros por `operationKey`, `status` y `entityType`. Requiere `APPROVALS` READ.',
       security: adminSecurity,
-      parameters: [
-        { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1, default: 1 } },
-        { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100, default: 10 } },
-        { name: 'sortBy', in: 'query', schema: { type: 'string' } },
-        { name: 'order', in: 'query', schema: { type: 'string', enum: ['ASC', 'DESC'] } },
-        { name: 'operationKey', in: 'query', schema: { type: 'string', enum: OPERATION_KEYS } },
-        { name: 'status', in: 'query', schema: { type: 'string', enum: STATUS_VALUES } },
-        { name: 'entityType', in: 'query', schema: { type: 'string' } }
-      ],
+      parameters: toParameters(ApprovalListQuery, 'query'),
       responses: {
         200: commonResponses.paginated(
           { $ref: '#/components/schemas/ApprovalRequestListItem' },
@@ -253,7 +130,7 @@ const paths = {
       summary: 'Detalle de una solicitud de aprobación',
       description: 'Incluye el `payload` propuesto y el `result` si ya fue aprobada. Requiere `APPROVALS` READ.',
       security: adminSecurity,
-      parameters: [idParam],
+      parameters: toParameters(ApprovalIdParams, 'path'),
       responses: {
         200: commonResponses.ok(
           { $ref: '#/components/schemas/ApprovalRequest' },
@@ -286,19 +163,8 @@ Al **rechazar** se descarta la operación pendiente.
 > Esta es la vía única de segunda aprobación para TODAS las operaciones gateadas.
       `.trim(),
       security: adminSecurity,
-      parameters: [idParam],
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/ApprovalResolveRequest' },
-            examples: {
-              approve: { summary: 'Aprobar', value: { decision: 'approve', notes: 'Revisado y autorizado.' } },
-              reject: { summary: 'Rechazar', value: { decision: 'reject', notes: 'No cumple con la política vigente.' } }
-            }
-          }
-        }
-      },
+      parameters: toParameters(ApprovalIdParams, 'path'),
+      requestBody: jsonBody('ApprovalResolveRequest'),
       responses: {
         200: commonResponses.ok({ $ref: '#/components/schemas/ApprovalRequest' }, 'Solicitud resuelta exitosamente'),
         ...commonResponses.BadRequest,
