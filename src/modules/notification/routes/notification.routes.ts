@@ -1,6 +1,6 @@
 import express from 'express';
 import { validate } from '../../../shared/validation/validate';
-import { NotificationListQuery } from '../requests/notification.request';
+import { CreateNotificationBody, NotificationListQuery } from '../requests/notification.request';
 const router = express.Router();
 import NotificationController from '../controllers/notification.controller';
 import iamModule from '../../iam';
@@ -13,24 +13,16 @@ import RequestLockMiddleware from '../../../shared/http/request-lock.middleware'
  */
 
 /** GET /count/stream — SSE: stream de conteo en tiempo real */
-router.get(
-  '/count/stream',
-  AuthMiddleware.authenticate,
-  NotificationController.streamUnreadCount
-);
+router.get('/count/stream', AuthMiddleware.authenticate, NotificationController.streamUnreadCount);
 
 /** GET /count — conteo puntual de no leídas */
-router.get(
-  '/count',
-  AuthMiddleware.authenticate,
-  RateLimitMiddleware.apiLimiter(),
-  NotificationController.getUnreadCount
-);
+router.get('/count', AuthMiddleware.authenticate, RateLimitMiddleware.apiLimiter(), NotificationController.getUnreadCount);
 
 /** POST / — creación externa vía X-API-Key */
 router.post(
   '/notifications',
   AuthMiddleware.externalAuthenticate,
+  validate({ body: CreateNotificationBody }),
   NotificationController.createNotification
 );
 

@@ -1,6 +1,9 @@
 // config/swagger/modules/shared-endpoints/notification/notification.paths.ts
 
 import commonResponses from '../../../config/swagger/responses/common.responses';
+import { jsonBody, toOpenApi, toParameters } from '../../../shared/validation/openapi';
+import { CreateNotificationBody, NotificationListQuery } from '../requests/notification.request';
+import { NotificationMixedItemSchema, UnreadCountSchema } from '../responses/notification.response';
 
 /**
  * ============================================================
@@ -21,128 +24,14 @@ import commonResponses from '../../../config/swagger/responses/common.responses'
 
 // ─── Schemas propios del módulo ───────────────────────────────
 
+// Generados desde los esquemas Zod de requests/ y responses/.
 const schemas = {
-  /**
-   * Body para POST /notifications (autenticación X-API-Key, uso de servicios externos).
-   * Refleja los parámetros de NotificationCreationService.crearNotificacion().
-   */
-  NotificationCreateRequest: {
-    type: 'object',
-    required: ['tipoNotificacion', 'userId'],
-    properties: {
-      tipoNotificacion: {
-        type: 'string',
-        example: 'OPERATION_APPROVED',
-        description: 'Código del tipo de notificación (campo `code` en `notification_types`).'
-      },
-      userId: {
-        type: 'string',
-        format: 'uuid',
-        description: 'UUID del usuario destinatario.'
-      },
-      relatedEntity: {
-        type: 'string',
-        format: 'uuid',
-        nullable: true,
-        description: 'UUID de la entidad relacionada (ej: operation_id).'
-      },
-      metadata: {
-        type: 'object',
-        nullable: true,
-        additionalProperties: true,
-        description: 'Variables de reemplazo para los templates del tipo de notificación (ej: `{ nombre, monto, logoUrl }`).'
-      }
-    }
-  },
-
-  /**
-   * Ítem de la bandeja mixta (GET /notifications).
-   * Discriminado por `type`: personal → Notification, global → GlobalNotification.
-   */
-  NotificationMixedItem: {
-    description:
-      'Ítem de la bandeja mixta. El campo `type` indica el origen: `personal` (notificación directa al usuario) o `global` (emitida para todos los usuarios).',
-    oneOf: [
-      {
-        title: 'Personal',
-        allOf: [
-          { $ref: '#/components/schemas/Notification' },
-          {
-            type: 'object',
-            required: ['type'],
-            properties: {
-              type: { type: 'string', enum: ['personal'] }
-            }
-          }
-        ]
-      },
-      {
-        title: 'Global',
-        allOf: [
-          { $ref: '#/components/schemas/GlobalNotification' },
-          {
-            type: 'object',
-            required: ['type'],
-            properties: {
-              type: { type: 'string', enum: ['global'] }
-            }
-          }
-        ]
-      }
-    ],
-    discriminator: {
-      propertyName: 'type'
-    }
-  },
-
-  /** Respuesta de GET /notifications/count y valor inicial del stream SSE. */
-  UnreadCountResponse: {
-    type: 'object',
-    properties: {
-      count: {
-        type: 'integer',
-        minimum: 0,
-        example: 5,
-        description: 'Total de notificaciones no leídas del usuario (personales + globales).'
-      }
-    }
-  }
+  NotificationCreateRequest: toOpenApi(CreateNotificationBody),
+  NotificationMixedItem: toOpenApi(NotificationMixedItemSchema, 'output'),
+  UnreadCountResponse: toOpenApi(UnreadCountSchema, 'output')
 };
 
 // ─── Parámetros de paginación comunes ────────────────────────
-
-const paginationParams = [
-  {
-    name: 'page',
-    in: 'query',
-    schema: { type: 'integer', minimum: 1, default: 1 },
-    description: 'Número de página.'
-  },
-  {
-    name: 'limit',
-    in: 'query',
-    schema: { type: 'integer', minimum: 1, default: 10 },
-    description: 'Ítems por página.'
-  },
-  {
-    name: 'search',
-    in: 'query',
-    schema: { type: 'string' },
-    description: 'Búsqueda por título o cuerpo de la notificación.'
-  },
-  {
-    name: 'sortBy',
-    in: 'query',
-    schema: { type: 'string', default: 'createdAt' },
-    description: 'Campo de ordenamiento.'
-  },
-  {
-    name: 'order',
-    in: 'query',
-    schema: { type: 'string', enum: ['ASC', 'DESC'], default: 'DESC' },
-    description: 'Dirección del ordenamiento.'
-  }
-];
 
 // ─── Paths ────────────────────────────────────────────────────
 
@@ -221,14 +110,7 @@ const paths = {
         'La notificación se encola en el worker y se envía según la configuración del tipo',
         '(push, email) y las preferencias del usuario destinatario.'
       ].join('\n'),
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/NotificationCreateRequest' }
-          }
-        }
-      },
+      requestBody: jsonBody('NotificationCreateRequest'),
       responses: {
         201: commonResponses.created(
           { type: 'object', nullable: true },
@@ -251,7 +133,7 @@ const paths = {
         '',
         'Cada ítem incluye el campo `type` para discriminar entre `personal` y `global`.'
       ].join('\n'),
-      parameters: paginationParams,
+      parameters: toParameters(NotificationListQuery, 'query'),
       responses: {
         200: commonResponses.paginated(
           { $ref: '#/components/schemas/NotificationMixedItem' },
@@ -273,7 +155,7 @@ const paths = {
       operationId: 'getPersonalNotifications',
       description:
         'Solo notificaciones dirigidas directamente al usuario autenticado. Soporta búsqueda por título o cuerpo. Las notificaciones de la página se marcan automáticamente como leídas.',
-      parameters: paginationParams,
+      parameters: toParameters(NotificationListQuery, 'query'),
       responses: {
         200: commonResponses.paginated(
           { $ref: '#/components/schemas/Notification' },
@@ -299,7 +181,7 @@ const paths = {
         'El campo `isRead` refleja si el usuario autenticado ya leyó esa notificación global.',
         'Las notificaciones de la página se marcan como leídas automáticamente.'
       ].join('\n'),
-      parameters: paginationParams,
+      parameters: toParameters(NotificationListQuery, 'query'),
       responses: {
         200: commonResponses.paginated(
           { $ref: '#/components/schemas/GlobalNotification' },

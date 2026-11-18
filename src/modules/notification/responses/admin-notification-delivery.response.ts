@@ -1,3 +1,6 @@
+import { z } from '../../../shared/validation/z';
+import { dateTime } from '../../../shared/validation/output';
+import { PROCESSING_STATUSES } from './notification-components.response';
 import type { Notification } from '../../../shared/database/generated/prisma/client';
 import type notificationRepository from '../repositories/notification.repository';
 type NotificationRepositoryPort = typeof notificationRepository;
@@ -149,3 +152,101 @@ function NotificationDeliveryMetricsDTO(rows: MetricsRow[], range: Record<string
 }
 
 export default { NotificationDeliveryListDTO, NotificationDeliveryDetailDTO, NotificationDeliveryMetricsDTO };
+
+// ── Esquemas de salida ──
+const channelState = (channel: 'email' | 'push' | 'sms') => ({
+  [`${channel}Sent`]: z.boolean(),
+  [`${channel}Error`]: z.string().nullable(),
+  [`${channel}RetryCount`]: z.number().int()
+});
+
+export const NotificationDeliveryItemSchema = z.object({
+  notificationId: z.uuid(),
+  userId: z.uuid(),
+  title: z.string(),
+  body: z.string(),
+  processingStatus: z.enum(PROCESSING_STATUSES).nullable(),
+  ...channelState('email'),
+  ...channelState('push'),
+  ...channelState('sms'),
+  retryCount: z.number().int(),
+  notificationType: z
+    .object({
+      code: z.string().meta({ example: 'OPERATION_APPROVED' }),
+      name: z.string(),
+      category: z
+        .object({
+          code: z.string(),
+          name: z.string(),
+          supportsEmail: z.boolean(),
+          supportsPush: z.boolean(),
+          supportsSms: z.boolean(),
+          isCritical: z.boolean()
+        })
+        .nullable()
+    })
+    .nullable(),
+  createdAt: dateTime(),
+  updatedAt: dateTime()
+});
+
+const channelTimes = (channel: 'email' | 'push' | 'sms') => ({
+  [`${channel}SentAt`]: dateTime().nullable(),
+  [`${channel}NextRetryAt`]: dateTime().nullable()
+});
+
+export const NotificationDeliveryDetailSchema = NotificationDeliveryItemSchema.extend({
+  metadata: z
+    .record(z.string(), z.unknown())
+    .nullable()
+    .meta({ description: 'Variables del mensaje. Los datos personales salen enmascarados.' }),
+  relatedEntityType: z.string().nullable(),
+  relatedEntityId: z.string().nullable(),
+  scheduledFor: dateTime().nullable(),
+  ...channelTimes('email'),
+  ...channelTimes('push'),
+  ...channelTimes('sms')
+});
+
+const ChannelMetricSchema = z.object({
+  attempted: z.number().int(),
+  sent: z.number().int(),
+  failed: z.number().int(),
+  successRate: z
+    .number()
+    .nullable()
+    .meta({ example: 98.5, description: 'Porcentaje enviado/intentado. null si no hubo intentos.' })
+});
+const StatusCountsSchema = z.object({
+  completed: z.number().int(),
+  partialFailure: z.number().int(),
+  failed: z.number().int(),
+  pending: z.number().int(),
+  processing: z.number().int()
+});
+const ChannelsSchema = z.object({ email: ChannelMetricSchema, push: ChannelMetricSchema, sms: ChannelMetricSchema });
+
+export const NotificationDeliveryMetricsSchema = z.object({
+  range: z.object({
+    from: z.unknown().meta({ description: 'Inicio del rango (ISO 8601) o null.' }),
+    to: z.unknown().meta({ description: 'Fin del rango (ISO 8601) o null.' })
+  }),
+  total: z.number().int(),
+  byStatus: StatusCountsSchema,
+  byChannel: ChannelsSchema,
+  byCategory: z.array(
+    z.object({
+      categoryCode: z.string().nullable(),
+      categoryName: z.string().meta({ example: 'Sin categoría' }),
+      total: z.number().int(),
+      byStatus: StatusCountsSchema,
+      byChannel: ChannelsSchema
+    })
+  )
+});
+
+export const NotificationDeliveryRetrySchema = z.object({
+  notificationId: z.uuid(),
+  channel: z.enum(['email', 'push', 'sms', 'all']).meta({ description: 'Canal que se reintenta (puede diferir del pedido).' }),
+  status: z.literal('retry_initiated')
+});

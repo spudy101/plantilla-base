@@ -1,3 +1,5 @@
+import { z } from '../../../shared/validation/z';
+import { dateTime } from '../../../shared/validation/output';
 import iamModule from '../../iam';
 const { authComponentsDto: componentsAuthModule } = iamModule;
 const { VerificationCodeComponent } = componentsAuthModule;
@@ -29,3 +31,12 @@ export default {
   SendVerificationResponseDTO,
   VerifyCodeResponseDTO
 };
+
+// ── Esquemas de salida ──
+export const SendVerificationSchema = z.object({
+  verificationCodeId: z.uuid(),
+  expiresAt: dateTime(),
+  truncatedCode: z.string().optional().meta({ description: 'Código parcial. Solo fuera de producción, para pruebas.' })
+});
+
+export const VerifyCodeSchema = z.object({ verified: z.literal(true) });

@@ -1,6 +1,9 @@
 // config/swagger/modules/shared-endpoints/kyc/person/notification-preference.paths.ts
 
 import commonResponses from '../../../config/swagger/responses/common.responses';
+import { jsonBody, toOpenApi, toParameters } from '../../../shared/validation/openapi';
+import { CategoryCodeParams, UpdatePreferenceBody } from '../requests/notification.request';
+import { CategoryPreferenceViewSchema, PreferenceDeletedSchema } from '../responses/notification-preference.response';
 
 /**
  * ============================================================
@@ -22,87 +25,14 @@ import commonResponses from '../../../config/swagger/responses/common.responses'
 
 // ─── Schemas propios del módulo ───────────────────────────────
 
-const preferenceFields = {
-  allowPush: { type: 'boolean', description: 'Habilitar (`true`) o deshabilitar (`false`) las notificaciones push.' },
-  allowEmail: { type: 'boolean', description: 'Habilitar (`true`) o deshabilitar (`false`) las notificaciones por email.' },
-  allowSms: { type: 'boolean', description: 'Habilitar (`true`) o deshabilitar (`false`) las notificaciones por SMS.' },
-  quietHoursStart: {
-    type: 'string',
-    nullable: true,
-    pattern: '^\\d{2}:\\d{2}(:\\d{2})?$',
-    example: '22:00',
-    description: 'Inicio del horario silencioso `HH:MM`/`HH:MM:SS`. `null` para desactivar.'
-  },
-  quietHoursEnd: {
-    type: 'string',
-    nullable: true,
-    pattern: '^\\d{2}:\\d{2}(:\\d{2})?$',
-    example: '08:00',
-    description:
-      'Fin del horario silencioso `HH:MM`/`HH:MM:SS`. Soporta rangos que cruzan medianoche (`22:00` → `08:00`). `null` para desactivar.'
-  }
-};
-
+// Generados desde los esquemas Zod de requests/ y responses/.
 const schemas = {
-  /** Body para PUT /notifications/preferences/global. Al menos un campo es obligatorio. */
-  UpdateGlobalPreferenceRequest: {
-    type: 'object',
-    description: 'Al menos uno de los campos debe estar presente. Los campos omitidos no se modifican.',
-    properties: { ...preferenceFields }
-  },
-
-  /** Body para PUT /notifications/preferences/category/{code}. Al menos un campo es obligatorio. */
-  UpdateCategoryPreferenceRequest: {
-    type: 'object',
-    description: 'Al menos uno de los campos debe estar presente. Pisa a la preferencia global para esa categoría.',
-    properties: { ...preferenceFields }
-  },
-
-  /**
-   * Item de la respuesta de GET /notifications/preferences/categories: una categoría activa con la
-   * preferencia EFECTIVA del usuario ya resuelta (override de categoría → global → default).
-   */
-  CategoryPreferenceView: {
-    allOf: [
-      { $ref: '#/components/schemas/NotificationCategory' },
-      {
-        type: 'object',
-        properties: {
-          isSilenceable: {
-            type: 'boolean',
-            description: 'Si es `false` (categoría crítica o no-silenciable), el front debe ocultar los quiet hours.'
-          },
-          preference: {
-            type: 'object',
-            properties: {
-              source: {
-                type: 'string',
-                enum: ['category', 'global', 'default'],
-                description: 'De dónde salió el valor efectivo: override de la categoría, preferencia global o default.'
-              },
-              allowPush: { type: 'boolean' },
-              allowEmail: { type: 'boolean' },
-              allowSms: { type: 'boolean' },
-              quietHoursStart: { type: 'string', nullable: true, example: '22:00' },
-              quietHoursEnd: { type: 'string', nullable: true, example: '08:00' }
-            }
-          }
-        }
-      }
-    ]
-  }
+  UpdatePreferenceRequest: toOpenApi(UpdatePreferenceBody),
+  CategoryPreferenceView: toOpenApi(CategoryPreferenceViewSchema, 'output'),
+  PreferenceDeleted: toOpenApi(PreferenceDeletedSchema, 'output')
 };
 
 // ─── Paths ────────────────────────────────────────────────────
-
-const categoryCodeParam = {
-  name: 'categoryCode',
-  in: 'path',
-  required: true,
-  schema: { type: 'string', pattern: '^[A-Z0-9_]{2,100}$' },
-  example: 'SECURITY',
-  description: 'Código de la categoría de notificación (MAYÚSCULAS/números/guion bajo).'
-};
 
 const paths = {
   // ── GET /notifications/preferences ──
@@ -176,12 +106,7 @@ const paths = {
         '⚠️ Al menos uno de los campos (`allowPush`, `allowEmail`, `allowSms`, `quietHoursStart`,',
         '`quietHoursEnd`) debe estar presente.'
       ].join('\n'),
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': { schema: { $ref: '#/components/schemas/UpdateGlobalPreferenceRequest' } }
-        }
-      },
+      requestBody: jsonBody('UpdatePreferenceRequest'),
       responses: {
         200: commonResponses.ok(
           { $ref: '#/components/schemas/UserNotificationPreference' },
@@ -209,13 +134,8 @@ const paths = {
         '⚠️ Al menos uno de los campos (`allowPush`, `allowEmail`, `allowSms`, `quietHoursStart`,',
         '`quietHoursEnd`) debe estar presente. Devuelve `404` si la categoría no existe o está inactiva.'
       ].join('\n'),
-      parameters: [categoryCodeParam],
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': { schema: { $ref: '#/components/schemas/UpdateCategoryPreferenceRequest' } }
-        }
-      },
+      parameters: toParameters(CategoryCodeParams, 'path'),
+      requestBody: jsonBody('UpdatePreferenceRequest'),
       responses: {
         200: commonResponses.ok(
           { $ref: '#/components/schemas/UserNotificationPreference' },
@@ -237,7 +157,7 @@ const paths = {
         'Elimina el override de la categoría: el usuario vuelve a regirse por su preferencia global',
         'para esa categoría. Devuelve `404` si la categoría no existe o está inactiva.'
       ].join('\n'),
-      parameters: [categoryCodeParam],
+      parameters: toParameters(CategoryCodeParams, 'path'),
       responses: {
         200: commonResponses.ok(
           {
