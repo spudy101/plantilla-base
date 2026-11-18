@@ -1,3 +1,5 @@
+import { z } from '../../../shared/validation/z';
+import { dateTime } from '../../../shared/validation/output';
 import type { ProviderFallbackEvent } from '../../../shared/database/generated/prisma/client';
 import type { IntegrationLogRow } from '../repositories/integration-api-log.repository';
 import type integrationApiLogRepository from '../repositories/integration-api-log.repository';
@@ -139,6 +141,86 @@ function FallbackEventDTO(row: ProviderFallbackEvent) {
     affectedProcessesCount: row.affectedProcessesCount
   };
 }
+
+// ============================================================
+// ESQUEMAS DE SALIDA — describen (y documentan) lo que arman las funciones de arriba
+// ============================================================
+
+const CircuitView = z.object({
+  state: z.string().meta({ example: 'CLOSED', description: 'CLOSED | OPEN | HALF_OPEN' }),
+  failures: z.number().int(),
+  openedAt: z.string().nullable()
+});
+const availability = z.enum(['Disponible', 'Degradado', 'No disponible']);
+
+export const FallbackEventSchema = z.object({
+  fallbackEventId: z.uuid(),
+  provider: z.string().meta({ example: 'aws_ses' }),
+  circuitProduct: z.string().meta({ example: 'ses' }),
+  startedAt: dateTime(),
+  endedAt: dateTime().nullable(),
+  active: z.boolean(),
+  durationSeconds: z.number().int().nullable(),
+  affectedProcessesCount: z.number().int().nullable()
+});
+
+export const IntegrationDashboardSchema = z.object({
+  summary: z.object({
+    totalCalls: z.number().int(),
+    success: z.number().int(),
+    failed: z.number().int(),
+    circuitOpen: z.number().int(),
+    successRate: z.number().meta({ description: 'Porcentaje de éxito (sin contar circuito abierto).' }),
+    activeFallbacks: z.number().int(),
+    degraded: z.number().int().meta({ description: 'Proveedores degradados o no disponibles.' })
+  }),
+  products: z.array(
+    z.object({
+      product: z.string().meta({ example: 'ses' }),
+      availabilityStatus: availability,
+      circuit: CircuitView,
+      totalCalls: z.number().int(),
+      success: z.number().int(),
+      failed: z.number().int(),
+      circuitOpen: z.number().int(),
+      systemError: z.number().int(),
+      successRate: z.number(),
+      avgResponseMs: z.number().nullable()
+    })
+  ),
+  recentFallbacks: z.array(FallbackEventSchema),
+  metadata: z.object({ from: z.unknown(), to: z.unknown(), generatedAt: z.string(), minSuccessRate: z.number() })
+});
+
+export const ProvidersHealthSchema = z.object({
+  providers: z.array(
+    z.object({ product: z.string(), availabilityStatus: availability, circuit: CircuitView, successRate: z.number(), avgResponseMs: z.number().nullable() })
+  ),
+  activeFallbacks: z.number().int(),
+  generatedAt: z.string()
+});
+
+export const IntegrationLogItemSchema = z.object({
+  apiLogId: z.uuid(),
+  product: z.string(),
+  endpoint: z.string(),
+  result: z.string(),
+  responseTimeMs: z.number().int().nullable(),
+  errorCode: z.string().nullable(),
+  isSystemError: z.boolean(),
+  notificationId: z.string().nullable(),
+  createdAt: dateTime(),
+  user: z.object({ userId: z.uuid(), username: z.string().nullable() }).nullable(),
+  session: z
+    .object({ sessionId: z.uuid(), ipAddress: z.string().nullable(), userAgent: z.string().nullable(), status: z.string(), startedAt: dateTime() })
+    .nullable()
+});
+
+export const IntegrationLogDetailSchema = IntegrationLogItemSchema.extend({
+  errorMessage: z.string().nullable(),
+  requestPayload: z.unknown().meta({ description: 'Payload enviado al proveedor (sanitizado).' }),
+  responsePayload: z.unknown().meta({ description: 'Respuesta del proveedor (sanitizada).' })
+});
 
 export default {
   IntegrationDashboardDTO,

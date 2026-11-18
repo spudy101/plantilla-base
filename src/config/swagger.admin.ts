@@ -32,6 +32,7 @@ import auditAlertPaths from '../modules/audit/docs/audit-alert.paths';
 import auditActionCatalogPaths from '../modules/audit/docs/audit-action-catalog.paths';
 import sessionTracePaths from '../modules/audit/docs/session-trace.paths';
 import operationPaths from '../modules/audit/docs/operation.paths';
+import integrationMonitoringPaths from '../modules/integration/docs/integration-monitoring.paths';
 import notificationDeliveryPaths from '../modules/notification/docs/notification-delivery.paths';
 
 // ─── Módulos Admin — Consentimientos ──────────────────────────
@@ -71,6 +72,7 @@ const allPaths = {
   ...auditActionCatalogPaths.paths,
   ...sessionTracePaths.paths,
   ...operationPaths.paths,
+  ...integrationMonitoringPaths.paths,
   ...notificationDeliveryPaths.paths,
   ...consentTypePaths.paths,
   ...userConsentAuditPaths.paths,
@@ -103,6 +105,7 @@ const allModuleSchemas = {
   ...auditActionCatalogPaths.schemas,
   ...sessionTracePaths.schemas,
   ...operationPaths.schemas,
+  ...integrationMonitoringPaths.schemas,
   ...notificationDeliveryPaths.schemas,
   ...systemGlobalConfigPaths.schemas,
   ...promotionalBannerAdminPaths.schemas,
