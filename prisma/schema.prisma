@@ -340,8 +340,10 @@ model IntegrationApiLog {
   responsePayload Json?                    @map("response_payload")
   isSystemError   Boolean                  @default(false) @map("is_system_error")
   notificationId  String?                  @map("notification_id") @db.Uuid
+  correlationId   String?                  @map("correlation_id") @db.VarChar(100)
   createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  @@index([correlationId], map: "idx_integration_api_logs_correlation_id")
   @@index([createdAt], map: "idx_integration_api_logs_created_at")
   @@index([notificationId], map: "idx_integration_api_logs_notification_id")
   @@index([product], map: "idx_integration_api_logs_product")
@@ -444,6 +446,34 @@ model Notification {
   @@index([userId, createdAt], map: "idx_notifications_user_id_created_at")
   @@index([userId, isRead, createdAt], map: "idx_notifications_user_id_is_read_created_at")
   @@map("notifications")
+}
+
+/// Una fila por operación (petición HTTP, webhook, ciclo de worker o tarea de sistema): se inserta al
+/// empezar (running) y se actualiza al terminar. operation_id = correlationId de logs, auditoría y llamadas
+/// externas. Ver docs/ARCHITECTURE.md (Auditoría, operaciones y logs).
+model Operation {
+  operationId     String          @id(map: "pk_operations") @map("operation_id") @db.VarChar(100)
+  parentId        String?         @map("parent_id") @db.VarChar(100)
+  clientRequestId String?         @map("client_request_id") @db.VarChar(128)
+  source          OperationSource
+  name            String          @db.VarChar(255)
+  userId          String?         @map("user_id") @db.Uuid
+  sessionId       String?         @map("session_id") @db.Uuid
+  ip              String?         @db.VarChar(45)
+  status          OperationStatus @default(running)
+  httpStatus      Int?            @map("http_status") @db.SmallInt
+  errorCode       String?         @map("error_code") @db.VarChar(100)
+  errorMessage    String?         @map("error_message")
+  startedAt       DateTime        @default(now()) @map("started_at") @db.Timestamptz(6)
+  endedAt         DateTime?       @map("ended_at") @db.Timestamptz(6)
+  durationMs      Int?            @map("duration_ms")
+
+  @@index([startedAt], map: "idx_operations_started_at")
+  @@index([status, startedAt], map: "idx_operations_status_started_at")
+  @@index([userId, startedAt], map: "idx_operations_user_started_at")
+  @@index([source, startedAt], map: "idx_operations_source_started_at")
+  @@index([parentId], map: "idx_operations_parent_id")
+  @@map("operations")
 }
 
 model PersonContact {
@@ -993,6 +1023,23 @@ model VerificationCode {
   @@index([type], map: "idx_verification_codes_type")
   @@index([verifiedAt], map: "idx_verification_codes_verified_at")
   @@map("verification_codes")
+}
+
+enum OperationSource {
+  http
+  webhook
+  worker
+  system
+
+  @@map("enum_operations_source")
+}
+
+enum OperationStatus {
+  running
+  success
+  failure
+
+  @@map("enum_operations_status")
 }
 
 enum ApprovalRequestStatus {

@@ -186,6 +186,8 @@ class ErrorMiddleware {
     const errorCode = err.code || ERROR_CODES.INTERNAL_ERROR;
 
     ErrorMiddleware._logError(err, req, statusCode, errorCode);
+    // El cierre de la operación (shared/observability/operation.ts) lo guarda en `operations`
+    res.locals.operationError = { code: errorCode, message: err.message };
 
     // La route puede declarar su acción de dominio (AuditAction.declare). Si el
     // fallo ocurrió ya dentro del handler, se audita ESA acción con outcome

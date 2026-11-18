@@ -90,6 +90,7 @@ describe('PII · cifrado de la extensión de Prisma contra Postgres', () => {
     const person = await requestContext.run(
       {
         correlationId: 'corr-pii-test',
+        name: 'test',
         ip: null,
         userAgent: null,
         fingerprintHash: null,

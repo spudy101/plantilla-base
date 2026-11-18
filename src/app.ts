@@ -8,11 +8,8 @@ import compression from 'compression';
 import cookieParser from 'cookie-parser';
 
 import SecurityMiddleware from './shared/http/security.middleware';
-import CorrelationMiddleware from './shared/http/correlation.middleware';
 import ErrorMiddleware from './shared/http/error.middleware';
-import auditContextMiddleware from './shared/observability/audit-context.middleware';
-import loggerUtilModule from './shared/observability/logger.util';
-const { httpLogger } = loggerUtilModule;
+import { operationMiddleware } from './shared/observability/operation';
 import redisClient from './shared/infra/redis.util';
 import databaseHealth from './shared/database/database-health';
 import swaggerAdminDocs from './config/swagger.admin';
@@ -167,7 +164,7 @@ function createApp() {
   app.set('trust proxy', 1);
 
   // ⚠️ El orden importa
-  app.use(CorrelationMiddleware.addCorrelationId); // 1. Correlation ID (primero)
+  app.use(operationMiddleware); // 1. Operación: id, contexto, fila en `operations` y log HTTP (primero)
   app.use(SecurityMiddleware.helmet()); // 2. Seguridad
   app.use(SecurityMiddleware.cors());
   app.use(SecurityMiddleware.addSecurityHeaders);
@@ -175,9 +172,7 @@ function createApp() {
   app.use(express.json({ limit: '10mb' })); // 3. Body parsers
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
   app.use(handleMalformedJson);
-  app.use(auditContextMiddleware); // 4. Contexto de la operación (necesita body + correlationId)
   app.use(compression());
-  app.use(httpLogger); // 5. Log HTTP (necesita correlationId)
 
   app.get('/health', health);
   app.get('/', (req, res) =>

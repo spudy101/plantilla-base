@@ -7,7 +7,7 @@ import notificationRetryService from '../services/notification-retry.service';
 import notificationCleanupService from '../services/notification-cleanup.service';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
-import requestContext from '../../../shared/observability/request-context.util';
+import { runOperation } from '../../../shared/observability/operation';
 
 class NotificationWorker {
   /**
@@ -16,7 +16,7 @@ class NotificationWorker {
   static iniciar() {
     // Procesar notificaciones programadas cada 5 minutos
     cron.schedule('*/5 * * * *', () =>
-      requestContext.runAsWorker('notification.scheduled', async () => {
+      runOperation({ source: 'worker', name: 'notification.scheduled' }, async () => {
         logger.info('Ejecutando worker: procesar notificaciones programadas');
 
         const scheduled = await notificationSchedulerService.procesarNotificacionesProgramadas();
@@ -33,7 +33,7 @@ class NotificationWorker {
 
     // Reintentar push fallidos cada 10 minutos
     cron.schedule('*/10 * * * *', () =>
-      requestContext.runAsWorker('notification.push-retry', async () => {
+      runOperation({ source: 'worker', name: 'notification.push-retry' }, async () => {
         logger.info('Ejecutando worker: reintentar push fallidos');
         await notificationRetryService.reintentarEnviosPush();
       })
@@ -41,7 +41,7 @@ class NotificationWorker {
 
     // Reintentar emails fallidos cada 15 minutos
     cron.schedule('*/15 * * * *', () =>
-      requestContext.runAsWorker('notification.email-retry', async () => {
+      runOperation({ source: 'worker', name: 'notification.email-retry' }, async () => {
         logger.info('Ejecutando worker: reintentar emails fallidos');
         await notificationRetryService.reintentarEnviosEmail();
       })
@@ -49,7 +49,7 @@ class NotificationWorker {
 
     // Reintentar SMS fallidos cada 15 minutos (offset :05/:20/:35/:50 para no colisionar con email/push)
     cron.schedule('5-59/15 * * * *', () =>
-      requestContext.runAsWorker('notification.sms-retry', async () => {
+      runOperation({ source: 'worker', name: 'notification.sms-retry' }, async () => {
         logger.info('Ejecutando worker: reintentar SMS fallidos');
         await notificationRetryService.reintentarEnviosSms();
       })
@@ -57,7 +57,7 @@ class NotificationWorker {
 
     // Limpieza de notificaciones antiguas - diario a las 3 AM
     cron.schedule('0 3 * * *', () =>
-      requestContext.runAsWorker('notification.cleanup', async () => {
+      runOperation({ source: 'worker', name: 'notification.cleanup' }, async () => {
         logger.info('Ejecutando worker: limpieza de notificaciones antiguas');
         await notificationCleanupService.limpiarNotificacionesAntiguas();
       })
@@ -65,7 +65,7 @@ class NotificationWorker {
 
     // Limpieza de codigos de verificacion - diario a las 4 AM
     cron.schedule('0 4 * * *', () =>
-      requestContext.runAsWorker('notification.cleanup-codes', async () => {
+      runOperation({ source: 'worker', name: 'notification.cleanup-codes' }, async () => {
         logger.info('Ejecutando worker: limpieza de codigos de verificacion');
         const result = await notificationCleanupService.limpiarCodigosVerificacion();
         logger.info('Worker limpieza codigos completado', result);

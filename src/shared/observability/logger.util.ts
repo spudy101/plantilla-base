@@ -1,7 +1,6 @@
 // === RF-OPS-01: Pipeline DevSecOps, Infraestructura Base ===
 // src/utils/logger.util.ts
 import { interopDefault } from '../utils/interop.util';
-import type { NextFunction, Request, Response } from 'express';
 import path from 'node:path';
 import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
@@ -130,10 +129,13 @@ const consoleFormat = winston.format.combine(
 // ==============================================
 
 const isLocal = server.nodeEnv === 'development' && server.localhost === 'true';
+// En producción la consola va en JSON (CloudWatch Logs Insights filtra por correlationId); en el resto,
+// legible y con colores.
+const isProduction = server.nodeEnv === 'production';
 
 const transports = [
   new winston.transports.Console({
-    format: consoleFormat,
+    format: isProduction ? jsonFormat : consoleFormat,
     level: logging.level || 'info'
   }),
   ...(isLocal
@@ -455,50 +457,12 @@ const logAudit = (
 };
 
 // ==============================================
-// HTTP LOGGER MIDDLEWARE
-// ==============================================
-
-// Nivel de log para una respuesta HTTP según su status code:
-//   400/404/422 → info  (el usuario lo resuelve solo: corrige input, recurso ausente)
-//   resto ≥ 400 → warn  (5xx + 401/403/409/429: admin/seguridad/infra resuelve la causa raíz)
-//   < 400       → info  (respuesta esperada)
-const USER_RESOLVABLE_HTTP_STATUSES = new Set([400, 404, 422]);
-const _resolveHttpLogLevel = (status: number) => {
-  if (USER_RESOLVABLE_HTTP_STATUSES.has(status)) {
-    return 'info';
-  }
-  return status >= 400 ? 'warn' : 'info';
-};
-
-const httpLogger = (req: Request, res: Response, next: NextFunction) => {
-  const start = Date.now();
-
-  res.on('finish', () => {
-    const logData = {
-      correlationId: req.correlationId,
-      method: req.method,
-      url: req.originalUrl,
-      status: res.statusCode,
-      duration: `${Date.now() - start}ms`,
-      ip: req.ip,
-      userAgent: req.get('user-agent'),
-      userId: req.user?.userId
-    };
-
-    logger[_resolveHttpLogLevel(res.statusCode)]('HTTP Request', logData);
-  });
-
-  next();
-};
-
-// ==============================================
 // EXPORTS
 // ==============================================
 
 export default {
   logger,
   logAudit,
-  httpLogger,
   sanitizeForLog,
   SENSITIVE_FIELDS
 };

@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import requestContext from '../../../shared/observability/request-context.util';
+import { runOperation } from '../../../shared/observability/operation';
 import approvalRequestRepository from '../repositories/approval-request.repository';
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
@@ -15,7 +15,7 @@ const CRON_EXPRESSION = '0 3 * * *';
 class DualApprovalExpirationWorker {
   static iniciar() {
     cron.schedule(CRON_EXPRESSION, () =>
-      requestContext.runAsWorker('dual-approval-expiration.expire', async () => {
+      runOperation({ source: 'worker', name: 'dual-approval-expiration.expire' }, async () => {
         logger.info('Ejecutando worker: expiración de solicitudes de doble aprobación');
         const result = await DualApprovalExpirationWorker._processExpired();
         logger.info('Worker de expiración de doble aprobación completado', result);

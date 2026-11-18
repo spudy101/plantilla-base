@@ -3,7 +3,7 @@ import { Redis } from 'ioredis';
 import type { RedisOptions } from 'ioredis';
 import loggerUtilModule from '../observability/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import requestContext from '../observability/request-context.util';
+import { runOperation } from '../observability/operation';
 import constantsModule from '../constants';
 const { redis: redisConfig } = constantsModule;
 import errorMessageModule from '../utils/error-message.util';
@@ -81,7 +81,7 @@ class RedisClient {
     }
     this._outageAudited = true;
     logger.error('Redis no disponible — modo degradado activado', { source, error: reason });
-    requestContext.runAsSystem('redis.outage', () =>
+    void runOperation({ source: 'system', name: 'redis.outage' }, () =>
       logAudit(
         'REDIS_CONNECTION_LOST',
         'system',
@@ -103,7 +103,7 @@ class RedisClient {
     }
     this._outageAudited = false;
     logger.info('Redis reconectado tras incidente');
-    requestContext.runAsSystem('redis.restored', () =>
+    void runOperation({ source: 'system', name: 'redis.restored' }, () =>
       logAudit(
         'REDIS_CONNECTION_RESTORED',
         'system',
