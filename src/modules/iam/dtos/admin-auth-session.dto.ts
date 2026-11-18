@@ -56,7 +56,8 @@ function AuthAttemptDTO(log: AttemptRow) {
     ipAddress: log.ip || null,
     userAgent: log.userAgent || null,
     timestamp: log.createdAt,
-    errorMessage: log.errorMessage || null
+    // Los rechazos 401/403 guardan el motivo en details (ver error.middleware)
+    errorMessage: (log.details as { errorMessage?: string } | null)?.errorMessage ?? null
   };
 }
 

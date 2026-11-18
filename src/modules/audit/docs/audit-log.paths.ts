@@ -32,9 +32,6 @@ const schemas = {
       },
       risk: { type: 'string', enum: ['low', 'medium', 'high', 'critical', 'unknown'] },
       outcome: { type: 'string', enum: ['success', 'failure', 'warning', 'attempt'] },
-      httpStatus: { type: 'integer', nullable: true, example: 422 },
-      errorCode: { type: 'string', nullable: true, example: 'VALIDATION_ERROR' },
-      errorMessage: { type: 'string', nullable: true },
       userId: { type: 'string', format: 'uuid', nullable: true },
       sessionId: {
         type: 'string',
@@ -71,8 +68,6 @@ const schemas = {
         example: 'persons',
         description: 'Tabla de BD donde vive la entidad afectada.'
       },
-      method: { type: 'string', nullable: true, example: 'POST' },
-      path: { type: 'string', nullable: true, example: '/client/api/kyc/screenings' },
       ip: { type: 'string', nullable: true, example: '190.114.45.227' },
       source: { type: 'string', enum: ['http', 'worker', 'system', 'unknown'] },
       createdAt: { type: 'string', format: 'date-time' }

@@ -20,16 +20,12 @@ const CSV_COLUMNS = [
   'category',
   'risk',
   'outcome',
-  'http_status',
-  'error_code',
   'user_id',
   'session_id',
   'entity_id',
   'entity_type',
   'correlation_id',
   'ip',
-  'method',
-  'path',
   'source',
   'created_at'
 ];
