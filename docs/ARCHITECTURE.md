@@ -39,6 +39,8 @@ src/
     infra/             redis, s3, circuit breaker, retry, bus de eventos
     observability/     logger, contexto de la operación (AsyncLocalStorage), traza de operaciones
     constants/         constantes técnicas y configuración de entorno
+    types/             tipos globales (augmentations de Express, etc.)
+    utils/             helpers genéricos mínimos (interop, mensajes de error)
 
 prisma/                schema, migraciones y seeds
 tests/                 helpers y tests de integración
@@ -60,6 +62,8 @@ modules/notification/
   dtos/                forma de la salida (lista blanca, enmascarado de PII)
   workers/             tareas periódicas
   providers/           integraciones externas (SES, SNS, …)
+  middlewares/         middlewares con reglas del dominio (p. ej. auth y RBAC en iam)
+  utils/               helpers propios del dominio
   docs/                documentación OpenAPI de sus rutas
 ```
 

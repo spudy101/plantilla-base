@@ -1,20 +1,20 @@
 // src/server.ts — punto de entrada: conecta la infraestructura, arranca workers, levanta HTTP y apaga en orden.
 import type { Server } from 'node:http';
-import databaseHealth from '../shared/database/database-health';
-import redisClient from '../shared/utils/redis.util';
-import loggerUtilModule from '../shared/utils/logger.util';
+import databaseHealth from './shared/database/database-health';
+import redisClient from './shared/infra/redis.util';
+import loggerUtilModule from './shared/observability/logger.util';
 const { logger } = loggerUtilModule;
-import constantsModule from '../shared/constants';
+import constantsModule from './shared/constants';
 const { server, workers } = constantsModule;
-import errorMessageModule from '../shared/utils/error-message.util';
+import errorMessageModule from './shared/utils/error-message.util';
 const { errorMessage } = errorMessageModule;
-import NotificationWorker from '../modules/schemas/notification/workers/notification-worker';
-import SessionExpirationWorker from '../modules/schemas/kyc/iam/workers/session-expiration.worker';
-import AuditArchiveWorker from '../modules/schemas/records/audit/workers/audit-archive.worker';
-import DualApprovalExpirationWorker from '../modules/schemas/core/workers/dual-approval-expiration.worker';
-import dualApprovalBootstrapModule from '../modules/schemas/core/dual-approval.bootstrap';
+import NotificationWorker from './modules/notification/workers/notification-worker';
+import SessionExpirationWorker from './modules/iam/workers/session-expiration.worker';
+import AuditArchiveWorker from './modules/audit/workers/audit-archive.worker';
+import DualApprovalExpirationWorker from './modules/approvals/workers/dual-approval-expiration.worker';
+import dualApprovalBootstrapModule from './modules/approvals/dual-approval.bootstrap';
 const { registerDualApprovalHandlers } = dualApprovalBootstrapModule;
-import NotificationEmitter from '../modules/schemas/notification/utils/notification-emitter.util';
+import NotificationEmitter from './modules/notification/utils/notification-emitter.util';
 import circuitBreakerBootstrapModule from './circuit-breaker.bootstrap';
 const { registerCircuitBreakerCallbacks } = circuitBreakerBootstrapModule;
 import app from './app';
@@ -64,7 +64,9 @@ function setupShutdown(httpServer: Server) {
     }, SHUTDOWN_TIMEOUT_MS).unref();
 
     try {
-      await new Promise<void>((resolve, reject) => httpServer.close(err => (err ? reject(err) : resolve())));
+      await new Promise<void>((resolve, reject) => {
+        httpServer.close(err => (err ? reject(err) : resolve()));
+      });
       await databaseHealth.closeDatabase();
       await redisClient.disconnect();
       await NotificationEmitter.close();

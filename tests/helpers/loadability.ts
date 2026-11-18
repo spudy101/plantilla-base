@@ -2,7 +2,7 @@
 //
 // Helper compartido para los load-tests de cargabilidad (Tier 1). Centraliza el
 // recorrido del árbol de archivos y las exclusiones para que cada test de área
-// (shared/, modules/admin, modules/client, modules/schemas, modules/shared-endpoints)
+// (src/shared, src/modules)
 // solo declare QUÉ subárbol cubre, sin duplicar la mecánica.
 //
 // Cada archivo de área llama a `describeLoadability(baseDir)` y obtiene un bloque
@@ -16,12 +16,10 @@ const ROOT = path.resolve(__dirname, '..', '..');
 // Archivos de arranque / con efectos secundarios al importar (levantan servidor,
 // abren puertos, etc.). No forman parte de la superficie que estos tests cubren.
 const EXCLUDES = [
-  /[\\/]servers[\\/]/,
   /[\\/]node_modules[\\/]/,
   /[\\/]generated[\\/]/, // cliente de Prisma generado
-  /[\\/]app\.ts$/, // modules/{admin,client}/app.ts: montan la app Express
-  /\.server\.ts$/,
-  /\.app\.ts$/
+  /[\\/]src[\\/](app|server)\.ts$/, // arman la app Express / levantan el servidor
+  /\.test\.ts$/
 ];
 
 /**
@@ -43,7 +41,7 @@ function collectModuleFiles(dir: string): string[] {
 
 /**
  * Declara el bloque `describe` de cargabilidad para un subárbol relativo a la raíz.
- * @param baseDir Ruta relativa a la raíz del repo (p. ej. 'modules/admin').
+ * @param baseDir Ruta relativa a la raíz del repo (p. ej. 'src/modules').
  */
 function describeLoadability(baseDir: string): void {
   describe(`cargabilidad · ${baseDir}/`, () => {

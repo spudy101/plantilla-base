@@ -23,7 +23,7 @@ function walk(dir: string): string[] {
 
 const rel = (file: string) => path.relative(ROOT, file).split(path.sep).join('/');
 const read = (file: string) => fs.readFileSync(file, 'utf8');
-const sourceFiles = [...walk(path.join(ROOT, 'modules')), ...walk(path.join(ROOT, 'shared'))];
+const sourceFiles = walk(path.join(ROOT, 'src')).filter(f => !f.endsWith('.test.ts'));
 const isService = (f: string) => f.endsWith('.service.ts');
 const isRepository = (f: string) => f.endsWith('.repository.ts');
 
@@ -47,12 +47,10 @@ describe('SOLID — guardas de arquitectura', () => {
   const applicationFiles = sourceFiles.filter(f => APPLICATION_LAYER.test(f));
   const projectFiles = [
     ...sourceFiles,
-    ...walk(path.join(ROOT, 'src')),
-    ...walk(path.join(ROOT, 'config')),
     ...walk(path.join(ROOT, 'prisma'))
   ];
   const ormLayer = (f: string) =>
-    isRepository(f) || rel(f).startsWith('shared/database/') || rel(f).startsWith('shared/repositories/');
+    isRepository(f) || rel(f).startsWith('src/shared/database/');
 
   it('nadie importa sequelize (el ORM es Prisma)', () => {
     const offenders = projectFiles.filter(f => SEQUELIZE_REQUIRE.test(read(f))).map(rel);
@@ -68,7 +66,7 @@ describe('SOLID — guardas de arquitectura', () => {
 
   it('los enums generados se leen desde shared/constants/domain-enums (única puerta, con chequeo de exhaustividad)', () => {
     const offenders = sourceFiles
-      .filter(f => !ormLayer(f) && rel(f) !== 'shared/constants/domain-enums.ts' && PRISMA_ENUMS_REQUIRE.test(read(f)))
+      .filter(f => !ormLayer(f) && rel(f) !== 'src/shared/constants/domain-enums.ts' && PRISMA_ENUMS_REQUIRE.test(read(f)))
       .map(rel);
     expect(offenders).toEqual([]);
   });
@@ -93,7 +91,7 @@ describe('SOLID — guardas de arquitectura', () => {
 
   it('todo repositorio extiende PrismaRepository (L)', () => {
     const offenders = sourceFiles
-      .filter(f => isRepository(f) && !rel(f).startsWith('shared/repositories/'))
+      .filter(f => isRepository(f) && !rel(f).startsWith('src/shared/database/'))
       .filter(f => !/extends\s+PrismaRepository\b/.test(read(f)))
       .map(rel);
     expect(offenders).toEqual([]);
