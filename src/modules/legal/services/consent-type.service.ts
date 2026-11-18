@@ -2,7 +2,7 @@ import type { ConsentType } from '../../../shared/database/generated/prisma/clie
 import type { AdminAuditContext } from '../../../shared/types/audit-context';
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import PaginationHelper from '../../../shared/http/pagination.util';
 import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
@@ -12,6 +12,7 @@ import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
 import consentTypeDtoModule from '../dtos/consent-type.dto';
 const { ConsentTypeListDTO, ConsentTypeDTO } = consentTypeDtoModule;
+import audit from '../../audit/audit.service';
 
 class ConsentTypeService {
   consentTypeRepository: typeof consentTypeRepository;
@@ -32,12 +33,12 @@ class ConsentTypeService {
     const paginationParams = PaginationHelper.getPaginationParams(query);
     const { rows, count } = await this.consentTypeRepository.findAllPaginated({}, paginationParams, PaginationHelper.stringParam(query, 'search'));
 
-    logAudit(
-      'CONSENT_TYPE_LIST_VIEWED',
-      adminUserId,
-      { totalItems: count, page: paginationParams.page },
-      { entityType: 'ConsentType', entityTable: 'consent_types' }
-    );
+    await audit.record('CONSENT_TYPE_LIST_VIEWED', {
+      actorId: adminUserId,
+      details: { totalItems: count, page: paginationParams.page },
+      entityType: 'ConsentType',
+      entityTable: 'consent_types'
+    });
 
     return {
       data: rows.map(r => ConsentTypeListDTO(r)),
@@ -57,12 +58,13 @@ class ConsentTypeService {
       throw AppError.notFound('Tipo de consentimiento no encontrado');
     }
 
-    logAudit(
-      'CONSENT_TYPE_DETAIL_VIEWED',
-      adminUserId,
-      { code: record.code },
-      { entityType: 'ConsentType', entityTable: 'consent_types', entityId: consentTypeId }
-    );
+    await audit.record('CONSENT_TYPE_DETAIL_VIEWED', {
+      actorId: adminUserId,
+      details: { code: record.code },
+      entityType: 'ConsentType',
+      entityTable: 'consent_types',
+      entityId: consentTypeId
+    });
 
     return ConsentTypeDTO(record);
   }
@@ -85,12 +87,13 @@ class ConsentTypeService {
       isActive: true
     });
 
-    logAudit(
-      'CONSENT_TYPE_CREATED',
-      auditCtx.adminUserId,
-      { code: record.code, name: record.name },
-      { entityType: 'ConsentType', entityTable: 'consent_types', entityId: record.consentTypeId }
-    );
+    await audit.record('CONSENT_TYPE_CREATED', {
+      actorId: auditCtx.adminUserId,
+      details: { code: record.code, name: record.name },
+      entityType: 'ConsentType',
+      entityTable: 'consent_types',
+      entityId: record.consentTypeId
+    });
 
     logger.info('ConsentTypeService.create', { code: record.code, adminUserId: auditCtx.adminUserId });
     this._notifyAdmin('creado', record, auditCtx);
@@ -112,12 +115,13 @@ class ConsentTypeService {
       throw AppError.notFound('Tipo de consentimiento no encontrado');
     }
 
-    logAudit(
-      'CONSENT_TYPE_UPDATED',
-      auditCtx.adminUserId,
-      { consentTypeId, changes: body },
-      { entityType: 'ConsentType', entityTable: 'consent_types', entityId: consentTypeId }
-    );
+    await audit.record('CONSENT_TYPE_UPDATED', {
+      actorId: auditCtx.adminUserId,
+      details: { consentTypeId, changes: body },
+      entityType: 'ConsentType',
+      entityTable: 'consent_types',
+      entityId: consentTypeId
+    });
 
     this._notifyAdmin('actualizado', updated, auditCtx);
     return ConsentTypeDTO(updated);

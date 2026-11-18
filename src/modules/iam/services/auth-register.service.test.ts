@@ -97,6 +97,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 // mockConstants es la MISMA referencia devuelta por la factory.
 const mockConstants = {
@@ -152,8 +153,8 @@ import NotificationUtilModule from '../../notification/services/notification-cre
 const NotificationUtil = mocked(NotificationUtilModule);
 import prismaModule from '../../../shared/database/prisma';
 const prisma = mocked(prismaModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 
 import service from './auth-register.service';
 
@@ -221,7 +222,7 @@ describe('AuthRegisterService', () => {
       );
       expect(userConsentRepository.grant).toHaveBeenCalledTimes(1); // solo privacy policy (comunicaciones=false)
       expect(JwtUtil.generateAccessToken).toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith('USER_REGISTERED', 'u-1', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('USER_REGISTERED', expect.objectContaining({ actorId: 'u-1' }));
       expect(result).toMatchObject({ dto: true, userId: 'u-1', tokens: { accessToken: 'access-tok', refreshToken: 'refresh-tok', expiresIn: '15m' } });
 
       await flush();
@@ -401,7 +402,7 @@ describe('AuthRegisterService', () => {
       expect(resetCredentialsRepository.createResetToken).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'u-1', email: 'x@x.com', type: 'password' })
       );
-      expect(logAudit).toHaveBeenCalledWith('CREDENTIALS_RESET_REQUESTED', 'u-1', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('CREDENTIALS_RESET_REQUESTED', expect.objectContaining({ actorId: 'u-1' }));
 
       await flush();
       expect(NotificationUtil.crearNotificacionDirecta).toHaveBeenCalledWith(
@@ -463,7 +464,7 @@ describe('AuthRegisterService', () => {
 
       expect(userRepository.updatePassword).toHaveBeenCalledWith('u-1', 'Nueva123!');
       expect(tx.commit).toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith('PASSWORD_RESET_CONFIRMED', 'u-1', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('PASSWORD_RESET_CONFIRMED', expect.objectContaining({ actorId: 'u-1' }));
       expect(TokenBlacklistUtil.invalidateUserSessions).toHaveBeenCalledWith('u-1');
       expect(result).toBeNull();
     });
@@ -498,7 +499,7 @@ describe('AuthRegisterService', () => {
         expect.objectContaining({ totpEnabled: false, totpSecret: null, smsMfaEnabled: false, preferredMfaMethod: 'none' })
       );
       expect(KycSharedUtil.logChange).toHaveBeenCalledTimes(2);
-      expect(logAudit).toHaveBeenCalledWith('MFA_RESET_CONFIRMED', 'u-1', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('MFA_RESET_CONFIRMED', expect.objectContaining({ actorId: 'u-1' }));
       // No se invalidan sesiones en reset de MFA (solo en password).
       expect(TokenBlacklistUtil.invalidateUserSessions).not.toHaveBeenCalled();
       expect(result).toBeNull();

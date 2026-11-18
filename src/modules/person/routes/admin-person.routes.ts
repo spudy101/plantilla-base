@@ -10,7 +10,6 @@ import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import RbacMiddleware from '../../iam/middlewares/rbac.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 import rbacModule from '../../../shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
@@ -28,7 +27,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   PersonValidator.listQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PERSON_LIST_VIEWED', { entityType: 'User', entityTable: 'users' }),
   PersonController.list
 );
 
@@ -46,7 +44,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   PersonValidator.listQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PERSON_DELETED_LIST_VIEWED', { entityType: 'User', entityTable: 'users' }),
   PersonController.listDeleted
 );
 
@@ -61,7 +58,6 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.CLIENTS_LIST, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuditAction.declare('PERSON_ROLE_OPTIONS_VIEWED', { entityType: 'RbacRole', entityTable: 'roles' }),
   PersonController.listRoleOptions
 );
 
@@ -78,7 +74,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   BaseValidator.uuidParam('userId', 'El usuario'),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PERSON_VIEWED', { entityType: 'User', entityTable: 'users' }),
   PersonController.getById
 );
 
@@ -98,7 +93,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   PersonValidator.create(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PERSON_CREATED', { entityType: 'User', entityTable: 'users' }),
   PersonController.create
 );
 
@@ -116,7 +110,6 @@ router.put(
   BaseValidator.uuidParam('userId', 'El usuario'),
   PersonValidator.activate(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PERSON_ACTIVATED', { entityType: 'User', entityTable: 'users' }),
   PersonController.activate
 );
 
@@ -134,7 +127,6 @@ router.put(
   BaseValidator.uuidParam('userId', 'El usuario'),
   PersonValidator.deactivate(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PERSON_DEACTIVATED', { entityType: 'User', entityTable: 'users' }),
   PersonController.deactivate
 );
 
@@ -153,7 +145,6 @@ router.put(
   BaseValidator.uuidParam('userId', 'El usuario'),
   PersonValidator.resetPassword(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PERSON_PASSWORD_RESET', { entityType: 'User', entityTable: 'users' }),
   PersonController.resetPassword
 );
 
@@ -171,7 +162,6 @@ router.put(
   BaseValidator.uuidParam('userId', 'El usuario'),
   PersonValidator.disableMFA(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PERSON_MFA_DISABLED', { entityType: 'User', entityTable: 'users' }),
   PersonController.disableMFA
 );
 
@@ -192,7 +182,6 @@ router.put(
   BaseValidator.uuidParam('userId', 'El usuario'),
   PersonValidator.changeEmail(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PERSON_EMAIL_CHANGED', { entityType: 'User', entityTable: 'users' }),
   PersonController.changeEmail
 );
 
@@ -212,7 +201,6 @@ router.put(
   BaseValidator.uuidParam('userId', 'El usuario'),
   PersonValidator.changeNationalId(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PERSON_NATIONAL_ID_CHANGED', { entityType: 'User', entityTable: 'users' }),
   PersonController.changeNationalId
 );
 
@@ -232,7 +220,6 @@ router.put(
   BaseValidator.uuidParam('userId', 'El usuario'),
   PersonValidator.changeRole(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PERSON_ROLE_CHANGED', { entityType: 'User', entityTable: 'users' }),
   PersonController.changeRole
 );
 
@@ -253,7 +240,6 @@ router.delete(
   BaseValidator.uuidParam('userId', 'El usuario'),
   PersonValidator.deleteAccount(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PERSON_ACCOUNT_DELETED', { entityType: 'User', entityTable: 'users' }),
   PersonController.deleteAccount
 );
 

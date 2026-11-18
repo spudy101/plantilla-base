@@ -27,6 +27,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
   logAudit: jest.fn()
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('../dtos/privacy-policy-admin.dto', () => ({
   ListPrivacyPoliciesResponseDTO: jest.fn(() => ({ dto: 'list' })),
@@ -44,7 +45,9 @@ const redisClient = mocked(redisClientModule);
 import NotificationCreationServiceModule from '../../notification/services/notification-creation.service';
 const NotificationCreationService = mocked(NotificationCreationServiceModule);
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit, logger } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const { logger } = mocked(loggerUtilModule);
+const logAudit = mocked(auditServiceModule).record;
 import privacyPolicyAdminDtoModuleModule from '../dtos/privacy-policy-admin.dto';
 const privacyPolicyAdminDtoModule = mocked(privacyPolicyAdminDtoModuleModule);
 const {
@@ -81,11 +84,7 @@ describe('PrivacyPolicyAdminService', () => {
         [{ id: 1 }],
         expect.objectContaining({ filters: { search: 'v1', isActive: true } })
       );
-      expect(logAudit).toHaveBeenCalledWith(
-        'PRIVACY_POLICY_LIST_VIEWED',
-        USER_ID,
-        expect.objectContaining({ totalItems: 1 }),
-        expect.anything()
+      expect(logAudit).toHaveBeenCalledWith('PRIVACY_POLICY_LIST_VIEWED', expect.objectContaining({ actorId: USER_ID, details: expect.objectContaining({ totalItems: 1 }) })
       );
       expect(result).toEqual({ dto: 'list' });
     });
@@ -103,11 +102,7 @@ describe('PrivacyPolicyAdminService', () => {
 
       const result = await service.getVersionDetail('p1', USER_ID);
 
-      expect(logAudit).toHaveBeenCalledWith(
-        'PRIVACY_POLICY_DETAIL_VIEWED',
-        USER_ID,
-        { version: '1.0' },
-        expect.objectContaining({ entityId: 'p1' })
+      expect(logAudit).toHaveBeenCalledWith('PRIVACY_POLICY_DETAIL_VIEWED', expect.objectContaining({ actorId: USER_ID, details: { version: '1.0' }, entityId: 'p1' })
       );
       expect(PrivacyPolicyDetailResponseDTO).toHaveBeenCalledWith({ privacyPolicyId: 'p1', version: '1.0' });
       expect(result).toEqual({ dto: 'detail' });
@@ -154,11 +149,7 @@ describe('PrivacyPolicyAdminService', () => {
       // SHA-256 en hex son 64 caracteres.
       expect(created.documentHash).toMatch(/^[a-f0-9]{64}$/);
 
-      expect(logAudit).toHaveBeenCalledWith(
-        'PRIVACY_POLICY_VERSION_CREATED',
-        USER_ID,
-        expect.objectContaining({ version: '1.1', s3Key: expectedKey }),
-        expect.objectContaining({ entityId: 'p-new' })
+      expect(logAudit).toHaveBeenCalledWith('PRIVACY_POLICY_VERSION_CREATED', expect.objectContaining({ actorId: USER_ID, details: expect.objectContaining({ version: '1.1', s3Key: expectedKey }), entityId: 'p-new' })
       );
       expect(PrivacyPolicyCreatedResponseDTO).toHaveBeenCalled();
       expect(result).toEqual({ dto: 'created' });

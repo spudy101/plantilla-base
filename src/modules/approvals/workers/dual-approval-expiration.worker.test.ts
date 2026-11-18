@@ -13,12 +13,13 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
   logAudit: jest.fn()
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 import { mocked } from 'tests/helpers/mock';
 import approvalRepoModule from '../repositories/approval-request.repository';
 const approvalRepo = mocked(approvalRepoModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import DualApprovalExpirationWorker from './dual-approval-expiration.worker';
 
 const request = (id: string) => ({ approvalRequestId: id, operationKey: 'OP', entityType: 'User', entityId: 'u-1', expiresAt: new Date() });
@@ -35,6 +36,6 @@ describe('DualApprovalExpirationWorker._processExpired', () => {
     expect(approvalRepo.markExpired).toHaveBeenCalledWith('r-1', expect.any(Date));
     expect(approvalRepo.markExpired).toHaveBeenCalledWith('r-2', expect.any(Date));
     expect(logAudit).toHaveBeenCalledTimes(1);
-    expect(logAudit).toHaveBeenCalledWith('DUAL_APPROVAL_EXPIRED', 'system', expect.objectContaining({ approvalRequestId: 'r-1' }), expect.any(Object));
+    expect(logAudit).toHaveBeenCalledWith('DUAL_APPROVAL_EXPIRED', expect.objectContaining({ actorId: 'system', details: expect.objectContaining({ approvalRequestId: 'r-1' }) }));
   });
 });

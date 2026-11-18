@@ -9,7 +9,6 @@ import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import BaseValidator from '../../../shared/http/base.validator';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 import constantsModule from '../../../shared/constants';
 const { RBAC_MODULES, RBAC_ACTIONS } = constantsModule;
 
@@ -21,7 +20,6 @@ router.get(
   RateLimitMiddleware.apiLimiter(),
   AdminNotificationDeliveryValidator.listQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('NOTIFICATION_DELIVERY_LIST_VIEWED', { entityType: 'Notification', entityTable: 'notifications' }),
   AdminNotificationDeliveryController.list
 );
 
@@ -34,10 +32,6 @@ router.get(
   RateLimitMiddleware.apiLimiter(),
   AdminNotificationDeliveryValidator.metricsQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('NOTIFICATION_DELIVERY_METRICS_VIEWED', {
-    entityType: 'Notification',
-    entityTable: 'notifications'
-  }),
   AdminNotificationDeliveryController.metrics
 );
 
@@ -49,7 +43,6 @@ router.get(
   RateLimitMiddleware.apiLimiter(),
   ...BaseValidator.uuidParam('id', 'La notificación'),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('NOTIFICATION_DELIVERY_VIEWED', { entityType: 'Notification', entityTable: 'notifications' }),
   AdminNotificationDeliveryController.getById
 );
 
@@ -62,7 +55,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   ...BaseValidator.uuidParam('id', 'La notificación'),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('NOTIFICATION_DELIVERY_RETRY_REQUESTED', { entityType: 'Notification', entityTable: 'notifications' }),
   AdminNotificationDeliveryController.retry
 );
 

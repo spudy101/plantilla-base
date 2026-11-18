@@ -15,10 +15,11 @@ import EncryptionUtil from '../../../shared/security/encryption.util';
 import domainEnumsModule from '../../../shared/constants/domain-enums';
 const { NOTIFICATION_PROCESSING_STATUS } = domainEnumsModule;
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
+import audit from '../../audit/audit.service';
 
 
 const TOKEN_LOG_PREVIEW_LENGTH = 20;
@@ -239,22 +240,26 @@ class NotificationSendingService {
         });
       } else {
         await this.notificationRepo.recordPushError(notificationId, 'Todos los envíos fallaron');
-        logAudit(
-          'PUSH_DELIVERY_FAILED',
-          null,
-          { notificationId, userId, error: 'Todos los tokens fallaron' },
-          { entityId: notificationId, entityType: 'Notification', entityTable: 'notifications', outcome: 'failure' }
-        );
+        await audit.record('PUSH_DELIVERY_FAILED', {
+          actorId: null,
+          details: { notificationId, userId, error: 'Todos los tokens fallaron' },
+          entityId: notificationId,
+          entityType: 'Notification',
+          entityTable: 'notifications',
+          outcome: 'failure'
+        });
       }
     } catch (error) {
       logger.warn('Error al enviar push individual', { error: errorMessage(error), userId });
       await this.notificationRepo.recordPushError(notificationId, errorMessage(error));
-      logAudit(
-        'PUSH_DELIVERY_FAILED',
-        null,
-        { notificationId, userId, error: errorMessage(error) },
-        { entityId: notificationId, entityType: 'Notification', entityTable: 'notifications', outcome: 'failure' }
-      );
+      await audit.record('PUSH_DELIVERY_FAILED', {
+        actorId: null,
+        details: { notificationId, userId, error: errorMessage(error) },
+        entityId: notificationId,
+        entityType: 'Notification',
+        entityTable: 'notifications',
+        outcome: 'failure'
+      });
       // error ya registrado en notificationRepo.recordPushError — no re-lanzar
     }
   }
@@ -294,12 +299,14 @@ class NotificationSendingService {
     } catch (error) {
       logger.warn('Error al enviar email individual', { error: errorMessage(error), userId });
       await this.notificationRepo.recordEmailError(notificationId, errorMessage(error));
-      logAudit(
-        'EMAIL_DELIVERY_FAILED',
-        null,
-        { notificationId, userId, error: errorMessage(error) },
-        { entityId: notificationId, entityType: 'Notification', entityTable: 'notifications', outcome: 'failure' }
-      );
+      await audit.record('EMAIL_DELIVERY_FAILED', {
+        actorId: null,
+        details: { notificationId, userId, error: errorMessage(error) },
+        entityId: notificationId,
+        entityType: 'Notification',
+        entityTable: 'notifications',
+        outcome: 'failure'
+      });
     }
   }
 
@@ -344,22 +351,26 @@ class NotificationSendingService {
       } else {
         const errorMsg = result?.error || 'Envío SMS fallido';
         await this.notificationRepo.recordSmsError(notificationId, errorMsg);
-        logAudit(
-          'SMS_DELIVERY_FAILED',
-          null,
-          { notificationId, userId, error: errorMsg },
-          { entityId: notificationId, entityType: 'Notification', entityTable: 'notifications', outcome: 'failure' }
-        );
+        await audit.record('SMS_DELIVERY_FAILED', {
+          actorId: null,
+          details: { notificationId, userId, error: errorMsg },
+          entityId: notificationId,
+          entityType: 'Notification',
+          entityTable: 'notifications',
+          outcome: 'failure'
+        });
       }
     } catch (error) {
       logger.warn('Error al enviar SMS individual', { error: errorMessage(error), userId });
       await this.notificationRepo.recordSmsError(notificationId, errorMessage(error));
-      logAudit(
-        'SMS_DELIVERY_FAILED',
-        null,
-        { notificationId, userId, error: errorMessage(error) },
-        { entityId: notificationId, entityType: 'Notification', entityTable: 'notifications', outcome: 'failure' }
-      );
+      await audit.record('SMS_DELIVERY_FAILED', {
+        actorId: null,
+        details: { notificationId, userId, error: errorMessage(error) },
+        entityId: notificationId,
+        entityType: 'Notification',
+        entityTable: 'notifications',
+        outcome: 'failure'
+      });
     }
   }
 

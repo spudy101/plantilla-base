@@ -180,6 +180,7 @@ export default {
     risk: AUDIT_RISKS.MEDIUM
   },
   REFRESH_TOKEN_REUSE_ATTACK: {
+    alert: true,
     description: 'Posible ataque de reuso de refresh token detectado — sesión comprometida',
     category: AUDIT_CATEGORIES.AUTH,
     module: AUDIT_MODULES.CLIENT,

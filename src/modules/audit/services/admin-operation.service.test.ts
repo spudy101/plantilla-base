@@ -4,6 +4,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() }
 }));
+jest.mock('../audit.service', () => ({ record: jest.fn() }));
 
 import adminOperationServiceModule from './admin-operation.service';
 const { AdminOperationService } = adminOperationServiceModule;

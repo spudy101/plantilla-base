@@ -73,6 +73,7 @@ export default {
     risk: AUDIT_RISKS.CRITICAL
   },
   BIOMETRIC_LOGIN_REPLAY_ATTACK: {
+    alert: true,
     description: 'Posible ataque de replay detectado — sign count no incremental',
     category: AUDIT_CATEGORIES.BIOMETRIC,
     module: AUDIT_MODULES.CLIENT,
@@ -137,6 +138,7 @@ export default {
     risk: AUDIT_RISKS.MEDIUM
   },
   CONSENT_RECORD_FAILED: {
+    alert: true,
     description: 'No se pudo persistir la constancia de un consentimiento (habeas data)',
     category: AUDIT_CATEGORIES.KYC,
     module: AUDIT_MODULES.CLIENT,

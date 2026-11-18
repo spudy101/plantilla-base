@@ -9,7 +9,6 @@ import RbacMiddleware from '../middlewares/rbac.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 import constantsModule from '../../../shared/constants';
 const { RBAC_MODULES, RBAC_ACTIONS } = constantsModule;
 
@@ -21,7 +20,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AdminAuthSessionValidator.listSessions(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('AUTH_SESSION_LIST_VIEWED', { entityType: 'AuthSession', entityTable: 'user_sessions' }),
   AdminAuthSessionController.listSessions
 );
 
@@ -33,7 +31,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AdminAuthSessionValidator.sessionsByUser(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('AUTH_SESSION_BY_USER_VIEWED', { entityType: 'InternalUser' }),
   AdminAuthSessionController.getSessionsByUser
 );
 
@@ -46,7 +43,6 @@ router.patch(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AdminAuthSessionValidator.revokeSession(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('AUTH_SESSION_REVOKED', { entityType: 'AuthSession' }),
   AdminAuthSessionController.revokeSession
 );
 
@@ -58,7 +54,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AdminAuthSessionValidator.listAttempts(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('AUTH_ATTEMPTS_LIST_VIEWED', { entityType: 'AuditLog', entityTable: 'audit_logs' }),
   AdminAuthSessionController.listAttempts
 );
 
@@ -70,7 +65,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AdminAuthSessionValidator.attemptsByUser(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('AUTH_ATTEMPTS_BY_USER_VIEWED', { entityType: 'InternalUser' }),
   AdminAuthSessionController.getAttemptsByUser
 );
 

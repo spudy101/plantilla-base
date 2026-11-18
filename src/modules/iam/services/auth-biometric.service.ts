@@ -22,7 +22,7 @@ const { verifyEs256Signature } = es256SignatureUtilModule;
 import NotificationUtil from '../../notification/services/notification-creation.service';
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
 import authBiometricDtoModule from '../dtos/auth-biometric.dto';
@@ -34,6 +34,7 @@ const {
 } = authBiometricDtoModule;
 import authLoginDtoModule from '../dtos/auth-login.dto';
 const { LoginResponseDTO } = authLoginDtoModule;
+import audit from '../../audit/audit.service';
 
 // ============================================================
 // CONSTANTES
@@ -121,12 +122,12 @@ class AuthBiometricService {
       type: 'registration'
     });
 
-    logAudit(
-      'BIOMETRIC_REGISTER_START',
-      userId,
-      {},
-      { entityId: device.userTrustedDeviceId, entityType: 'UserTrustedDevice', entityTable: 'user_trusted_devices' }
-    );
+    await audit.record('BIOMETRIC_REGISTER_START', {
+      actorId: userId,
+      entityId: device.userTrustedDeviceId,
+      entityType: 'UserTrustedDevice',
+      entityTable: 'user_trusted_devices'
+    });
 
     return BiometricRegisterStartDTO({
       challenge,
@@ -177,17 +178,13 @@ class AuthBiometricService {
     // Verificar la firma ES256
     const isValid = this._verifySignature({ publicKey, challenge, signature });
     if (!isValid) {
-      logAudit(
-        'BIOMETRIC_REGISTER_INVALID_SIGNATURE',
-        userId,
-        {},
-        {
-          entityId: device.userTrustedDeviceId,
-          entityType: 'UserTrustedDevice',
-          entityTable: 'user_trusted_devices',
-          outcome: 'failure'
-        }
-      );
+      await audit.record('BIOMETRIC_REGISTER_INVALID_SIGNATURE', {
+        actorId: userId,
+        entityId: device.userTrustedDeviceId,
+        entityType: 'UserTrustedDevice',
+        entityTable: 'user_trusted_devices',
+        outcome: 'failure'
+      });
       throw AppError.unauthorized('Firma biométrica inválida');
     }
 
@@ -206,14 +203,15 @@ class AuthBiometricService {
       signCount: 0
     });
 
-    logAudit(
-      'BIOMETRIC_REGISTER_SUCCESS',
-      userId,
-      {
+    await audit.record('BIOMETRIC_REGISTER_SUCCESS', {
+      actorId: userId,
+      details: {
         deviceId: device.userTrustedDeviceId
       },
-      { entityId: credential.biometricCredentialId, entityType: 'BiometricCredential', entityTable: 'biometric_credentials' }
-    );
+      entityId: credential.biometricCredentialId,
+      entityType: 'BiometricCredential',
+      entityTable: 'biometric_credentials'
+    });
 
     setImmediate(() => {
       this.userRepository
@@ -260,12 +258,13 @@ class AuthBiometricService {
       type: 'authentication'
     });
 
-    logAudit(
-      'BIOMETRIC_LOGIN_START',
-      user.userId,
-      { nationalId },
-      { entityId: user.userId, entityType: 'User', entityTable: 'users' }
-    );
+    await audit.record('BIOMETRIC_LOGIN_START', {
+      actorId: user.userId,
+      details: { nationalId },
+      entityId: user.userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     return BiometricLoginStartDTO({ challenge, userId: user.userId });
   }
@@ -358,14 +357,15 @@ class AuthBiometricService {
       })
     ]);
 
-    logAudit(
-      'BIOMETRIC_LOGIN_SUCCESS',
-      userId,
-      {
+    await audit.record('BIOMETRIC_LOGIN_SUCCESS', {
+      actorId: userId,
+      details: {
         deviceId: device.userTrustedDeviceId
       },
-      { entityId: credentialId, entityType: 'BiometricCredential', entityTable: 'biometric_credentials' }
-    );
+      entityId: credentialId,
+      entityType: 'BiometricCredential',
+      entityTable: 'biometric_credentials'
+    });
 
     return LoginResponseDTO({
       user,
@@ -415,12 +415,14 @@ class AuthBiometricService {
 
     // Verificar sign_count — debe ser mayor al guardado (anti-replay)
     if (signCount <= credential.signCount) {
-      logAudit(
-        'BIOMETRIC_LOGIN_REPLAY_ATTACK',
-        userId,
-        { signCount },
-        { entityId: credentialId, entityType: 'BiometricCredential', entityTable: 'biometric_credentials', outcome: 'failure' }
-      );
+      await audit.record('BIOMETRIC_LOGIN_REPLAY_ATTACK', {
+        actorId: userId,
+        details: { signCount },
+        entityId: credentialId,
+        entityType: 'BiometricCredential',
+        entityTable: 'biometric_credentials',
+        outcome: 'failure'
+      });
       throw AppError.unauthorized('Sign count inválido — posible ataque de replay');
     }
 
@@ -432,17 +434,13 @@ class AuthBiometricService {
     });
 
     if (!isValid) {
-      logAudit(
-        'BIOMETRIC_LOGIN_INVALID_SIGNATURE',
-        userId,
-        {},
-        {
-          entityId: credentialId,
-          entityType: 'BiometricCredential',
-          entityTable: 'biometric_credentials',
-          outcome: 'failure'
-        }
-      );
+      await audit.record('BIOMETRIC_LOGIN_INVALID_SIGNATURE', {
+        actorId: userId,
+        entityId: credentialId,
+        entityType: 'BiometricCredential',
+        entityTable: 'biometric_credentials',
+        outcome: 'failure'
+      });
       throw AppError.unauthorized('Firma biométrica inválida');
     }
   }
@@ -457,12 +455,12 @@ class AuthBiometricService {
   async getCredentials(userId: string) {
     const credentials = await this.biometricCredentialRepository.findAllByUser(userId);
 
-    logAudit(
-      'BIOMETRIC_CREDENTIALS_VIEWED',
-      userId,
-      { count: credentials.length },
-      { entityType: 'BiometricCredential', entityTable: 'biometric_credentials' }
-    );
+    await audit.record('BIOMETRIC_CREDENTIALS_VIEWED', {
+      actorId: userId,
+      details: { count: credentials.length },
+      entityType: 'BiometricCredential',
+      entityTable: 'biometric_credentials'
+    });
 
     return BiometricCredentialListDTO(credentials);
   }
@@ -479,12 +477,12 @@ class AuthBiometricService {
 
     await this.biometricCredentialRepository.deactivate(biometricCredentialId);
 
-    logAudit(
-      'BIOMETRIC_CREDENTIAL_DELETED',
-      userId,
-      {},
-      { entityId: biometricCredentialId, entityType: 'BiometricCredential', entityTable: 'biometric_credentials' }
-    );
+    await audit.record('BIOMETRIC_CREDENTIAL_DELETED', {
+      actorId: userId,
+      entityId: biometricCredentialId,
+      entityType: 'BiometricCredential',
+      entityTable: 'biometric_credentials'
+    });
 
     return null;
   }

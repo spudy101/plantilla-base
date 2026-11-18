@@ -5,7 +5,6 @@ import AuthRegisterValidator from '../validators/auth-register.validator';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 import PiiMaskingMiddleware from '../../../shared/security/pii-masking.middleware';
 
 // === RF-AUTH-01: Registro de Usuario (confirmación de correo y celular) ===
@@ -29,7 +28,6 @@ router.post(
   PiiMaskingMiddleware.allowUnmasked(),
   AuthRegisterValidator.register(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('USER_REGISTERED', { entityType: 'User', entityTable: 'users' }),
   AuthRegisterController.register
 );
 
@@ -43,7 +41,6 @@ router.post(
   RequestLockMiddleware.forPublicEndpoints(),
   AuthRegisterValidator.requestResetCredentials(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('CREDENTIALS_RESET_REQUESTED', { entityType: 'User', entityTable: 'users' }),
   AuthRegisterController.requestResetCredentials
 );
 

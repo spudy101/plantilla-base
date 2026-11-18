@@ -8,11 +8,9 @@ import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import RbacMiddleware from '../../iam/middlewares/rbac.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 import rbacModule from '../../../shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
-const AUDIT_META = { entityType: 'NotificationCategory', entityTable: 'notification_categories' };
 
 /** GET /admin/api/v1/notification/notification-categories */
 router.get(
@@ -23,7 +21,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   NotificationCategoryValidator.listQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('NOTIFICATION_CATEGORY_LIST_VIEWED', AUDIT_META),
   NotificationCategoryController.list
 );
 
@@ -36,7 +33,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   BaseValidator.uuidParam('notificationCategoryId', 'La categoría de notificación'),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('NOTIFICATION_CATEGORY_VIEWED', AUDIT_META),
   NotificationCategoryController.getById
 );
 
@@ -49,7 +45,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   NotificationCategoryValidator.create(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('NOTIFICATION_CATEGORY_CREATED', AUDIT_META),
   NotificationCategoryController.create
 );
 
@@ -62,7 +57,6 @@ router.patch(
   RequestLockMiddleware.forAuthenticatedUsers(),
   NotificationCategoryValidator.update(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('NOTIFICATION_CATEGORY_UPDATED', AUDIT_META),
   NotificationCategoryController.update
 );
 
@@ -75,7 +69,6 @@ router.delete(
   RequestLockMiddleware.forAuthenticatedUsers(),
   BaseValidator.uuidParam('notificationCategoryId', 'La categoría de notificación'),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('NOTIFICATION_CATEGORY_DELETED', AUDIT_META),
   NotificationCategoryController.remove
 );
 

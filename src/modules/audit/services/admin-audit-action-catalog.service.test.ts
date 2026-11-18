@@ -10,6 +10,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
+jest.mock('../audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('../../../shared/http/pagination.util', () => ({
   stringParam: jest.requireActual('../../../shared/http/pagination.util').default.stringParam,
@@ -23,7 +24,7 @@ jest.mock('../../catalogs/dtos/catalog-components.dto', () => ({
 }));
 
 // Catálogo determinista: 3 acciones repartidas entre 3 categorías, 3 módulos y 3 riesgos.
-jest.mock('../../../shared/constants/audit-actions', () => ({
+jest.mock('../catalog', () => ({
   AUDIT_ACTIONS: {
     USER_LOGIN: { description: 'Inicio de sesión', category: 'SEGURIDAD', risk: 'LOW', module: 'IAM' },
     USER_DELETED: { description: 'Usuario eliminado', category: 'ADMINISTRACION', risk: 'HIGH', module: 'IAM' },
@@ -39,8 +40,8 @@ import PaginationHelperModule from '../../../shared/http/pagination.util';
 const PaginationHelper = mocked(PaginationHelperModule);
 import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
 const { MetadataDTO } = mocked(componentsCatalogDtoModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import service from './admin-audit-action-catalog.service';
 
 const ADMIN = 'admin-1';
@@ -59,11 +60,7 @@ describe('AdminAuditActionCatalogService', () => {
       // Orden alfabético español: ADMINISTRACION, DATOS, SEGURIDAD
       expect(data.map(d => d.category)).toEqual(['ADMINISTRACION', 'DATOS', 'SEGURIDAD']);
       expect(data.every(d => d.actionsCount === 1)).toBe(true);
-      expect(logAudit).toHaveBeenCalledWith(
-        'AUDIT_ACTION_CATALOG_CATEGORIES_VIEWED',
-        ADMIN,
-        { totalCategories: 3 },
-        expect.objectContaining({ entityType: 'AuditActionCatalog' })
+      expect(logAudit).toHaveBeenCalledWith('AUDIT_ACTION_CATALOG_CATEGORIES_VIEWED', expect.objectContaining({ actorId: ADMIN, details: { totalCategories: 3 }, entityType: 'AuditActionCatalog' })
       );
     });
   });
@@ -74,11 +71,7 @@ describe('AdminAuditActionCatalogService', () => {
 
       expect(data.map(d => d.risk)).toEqual(['LOW', 'MEDIUM', 'HIGH']);
       expect(data.map(d => d.actionsCount)).toEqual([2, 0, 1]);
-      expect(logAudit).toHaveBeenCalledWith(
-        'AUDIT_ACTION_CATALOG_RISKS_VIEWED',
-        ADMIN,
-        { totalRisks: 3 },
-        expect.anything()
+      expect(logAudit).toHaveBeenCalledWith('AUDIT_ACTION_CATALOG_RISKS_VIEWED', expect.objectContaining({ actorId: ADMIN, details: { totalRisks: 3 } })
       );
     });
   });
@@ -89,11 +82,7 @@ describe('AdminAuditActionCatalogService', () => {
 
       const byModule = Object.fromEntries(data.map(d => [d.module, d.actionsCount]));
       expect(byModule).toEqual({ IAM: 2, PERFIL: 1 });
-      expect(logAudit).toHaveBeenCalledWith(
-        'AUDIT_ACTION_CATALOG_MODULES_VIEWED',
-        ADMIN,
-        { totalModules: 2 },
-        expect.anything()
+      expect(logAudit).toHaveBeenCalledWith('AUDIT_ACTION_CATALOG_MODULES_VIEWED', expect.objectContaining({ actorId: ADMIN, details: { totalModules: 2 } })
       );
     });
   });
@@ -105,11 +94,7 @@ describe('AdminAuditActionCatalogService', () => {
       expect(result.data.map(a => a.action)).toEqual(['PROFILE_VIEWED', 'USER_DELETED', 'USER_LOGIN']);
       expect(result.data[0]).toMatchObject({ action: 'PROFILE_VIEWED', module: 'PERFIL', risk: 'LOW' });
       expect(MetadataDTO.build).toHaveBeenCalledWith(expect.objectContaining({ totalItems: 3, sortBy: 'action', order: 'ASC' }));
-      expect(logAudit).toHaveBeenCalledWith(
-        'AUDIT_ACTION_CATALOG_ACTIONS_LISTED',
-        ADMIN,
-        { totalItems: 3, filters: [] },
-        expect.anything()
+      expect(logAudit).toHaveBeenCalledWith('AUDIT_ACTION_CATALOG_ACTIONS_LISTED', expect.objectContaining({ actorId: ADMIN, details: { totalItems: 3, filters: [] } })
       );
     });
 
@@ -162,11 +147,7 @@ describe('AdminAuditActionCatalogService', () => {
       const result = service.listActions({ module: 'IAM' }, ADMIN);
 
       expect(MetadataDTO.build).toHaveBeenCalledWith(expect.objectContaining({ filters: { module: 'IAM' } }));
-      expect(logAudit).toHaveBeenCalledWith(
-        'AUDIT_ACTION_CATALOG_ACTIONS_LISTED',
-        ADMIN,
-        expect.objectContaining({ filters: ['module'] }),
-        expect.anything()
+      expect(logAudit).toHaveBeenCalledWith('AUDIT_ACTION_CATALOG_ACTIONS_LISTED', expect.objectContaining({ actorId: ADMIN, details: expect.objectContaining({ filters: ['module'] }) })
       );
       expect(result.data.map(a => a.action)).toEqual(['USER_DELETED', 'USER_LOGIN']);
     });

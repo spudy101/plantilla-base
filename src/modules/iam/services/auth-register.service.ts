@@ -16,7 +16,7 @@ import userSessionRepository from '../repositories/user-session.repository';
 import NotificationUtil from '../../notification/services/notification-creation.service';
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import unitOfWork from '../../../shared/database/unit-of-work';
 import CredentialResetService from './auth-register/credential-reset.service';
 import SessionIssuerService from './auth-login/session-issuer.service';
@@ -27,6 +27,7 @@ const { RBAC_ROLES, notifications } = constantsModule;
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage, isOperationalError } = errorMessageModule;
+import audit from '../../audit/audit.service';
 
 
 // === RF-AUTH-01: Registro de Usuario (confirmación de correo y celular) ===
@@ -137,12 +138,13 @@ class AuthRegisterService {
     // Los tokens de autorización los emite nuestro propio sistema (RS256).
     const tokens = await this._issueAuthTokens(dbResult.user.userId, auditContext);
 
-    logAudit(
-      'USER_REGISTERED',
-      dbResult.user.userId,
-      { nationalId },
-      { entityId: dbResult.user.userId, entityType: 'User', entityTable: 'users' }
-    );
+    await audit.record('USER_REGISTERED', {
+      actorId: dbResult.user.userId,
+      details: { nationalId },
+      entityId: dbResult.user.userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     setImmediate(() => {
       this.verificationCodeRepository

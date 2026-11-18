@@ -6,7 +6,6 @@ import AuthMiddleware from '../../iam/middlewares/auth.middleware';
 import RbacMiddleware from '../../iam/middlewares/rbac.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
 import rbacModule from '../../../shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
@@ -18,7 +17,6 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.SYSTEM_CONFIG, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuditAction.declare('SYSTEM_GLOBAL_CONFIG_VIEWED', { entityType: 'SystemGlobalConfig', entityTable: 'system_global_config' }),
   SystemGlobalConfigController.getConfig
 );
 
@@ -31,7 +29,6 @@ router.patch(
   RequestLockMiddleware.forAuthenticatedUsers(),
   SystemGlobalConfigValidator.update(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('SYSTEM_GLOBAL_CONFIG_UPDATED', { entityType: 'SystemGlobalConfig', entityTable: 'system_global_config' }),
   SystemGlobalConfigController.updateConfig
 );
 

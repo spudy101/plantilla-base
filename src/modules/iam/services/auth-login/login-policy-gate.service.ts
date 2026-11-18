@@ -9,11 +9,12 @@ import userRepository from '../../repositories/user.repository';
 import privacyPolicyRepository from '../../../legal/repositories/privacy-policy.repository';
 import consentRecorder from '../../../legal/services/consent-recorder.service';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import constantsModule from '../../../../shared/constants';
 const { INTERNAL_ROLE_NAMES } = constantsModule;
 import authLoginDtoModule from '../../dtos/auth-login.dto';
 const { PolicyUpdateRequiredDTO } = authLoginDtoModule;
+import audit, { type AuditActionKey } from '../../../audit/audit.service';
 
 class LoginPolicyGateService {
   userRepository: typeof userRepository;
@@ -46,7 +47,7 @@ class LoginPolicyGateService {
     user: UserWith<'login'>,
     acceptPolicy: boolean | undefined,
     ip: string | null,
-    { blockedAuditAction, source }: { blockedAuditAction: string; source: string }
+    { blockedAuditAction, source }: { blockedAuditAction: AuditActionKey; source: string }
   ) {
     const activePolicy = await this.privacyPolicyRepository.findActive();
 
@@ -68,15 +69,16 @@ class LoginPolicyGateService {
       return null;
     }
 
-    logAudit(
-      blockedAuditAction,
-      user.userId,
-      {
+    await audit.record(blockedAuditAction, {
+      actorId: user.userId,
+      details: {
         userVersion: user.privacyPolicyVersion || 'ninguna',
         activeVersion: activePolicy.version
       },
-      { entityType: 'PrivacyPolicy', entityTable: 'privacy_policies', outcome: 'failure' }
-    );
+      entityType: 'PrivacyPolicy',
+      entityTable: 'privacy_policies',
+      outcome: 'failure'
+    });
 
     return PolicyUpdateRequiredDTO({
       currentVersion: user.privacyPolicyVersion || null,
@@ -105,12 +107,12 @@ class LoginPolicyGateService {
         })
       );
 
-    logAudit(
-      'PRIVACY_POLICY_ACCEPTED',
-      user.userId,
-      { version: activePolicy.version, ip: ip || null },
-      { entityType: 'PrivacyPolicy', entityTable: 'privacy_policies' }
-    );
+    await audit.record('PRIVACY_POLICY_ACCEPTED', {
+      actorId: user.userId,
+      details: { version: activePolicy.version, ip: ip || null },
+      entityType: 'PrivacyPolicy',
+      entityTable: 'privacy_policies'
+    });
   }
 }
 

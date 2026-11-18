@@ -42,6 +42,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn(), debug: jest.fn() },
   logAudit: jest.fn()
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('../../../shared/constants', () => ({
   notifications: { ses: { fromEmail: 'no-reply@test.cl', logoUrl: 'https://logo.test/x.png' } },
@@ -57,8 +58,8 @@ import ProviderApiLoggerModule from '../../../shared/observability/integration-a
 const ProviderApiLogger = mocked(ProviderApiLoggerModule);
 import emailSuppressionModule from './email-suppression.service';
 const emailSuppression = mocked(emailSuppressionModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import service from './email-notification.service';
 
 const DEST = 'user@test.cl';
@@ -147,11 +148,7 @@ describe('EmailNotificationService', () => {
       const result = await service.enviarEmail(DEST, 'S', '<p>hi</p>', '', 'notif-3');
 
       expect(result).toBeNull();
-      expect(logAudit).toHaveBeenCalledWith(
-        'EMAIL_SUPPRESSED_SEND_SKIPPED',
-        'system',
-        expect.objectContaining({ notificationId: 'notif-3' }),
-        expect.objectContaining({ entityType: 'EmailBounceSuppression' })
+      expect(logAudit).toHaveBeenCalledWith('EMAIL_SUPPRESSED_SEND_SKIPPED', expect.objectContaining({ actorId: 'system', details: expect.objectContaining({ notificationId: 'notif-3' }), entityType: 'EmailBounceSuppression' })
       );
       expect(withRetry).not.toHaveBeenCalled();
     });
@@ -196,7 +193,7 @@ describe('EmailNotificationService', () => {
       const result = await service.enviarEmailConAdjuntos(DEST, 'S', '<p>hi</p>', adjuntos);
 
       expect(result).toBeNull();
-      expect(logAudit).toHaveBeenCalledWith('EMAIL_SUPPRESSED_SEND_SKIPPED', 'system', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('EMAIL_SUPPRESSED_SEND_SKIPPED', expect.objectContaining({ actorId: 'system' }));
     });
 
     it('lanza error si el circuit breaker está abierto', async () => {

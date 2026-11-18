@@ -20,13 +20,12 @@ import verificationCodeRepository from '../../notification/repositories/verifica
 import NotificationUtil from '../../notification/services/notification-creation.service';
 import SmsService from '../../notification/services/sms.service';
 import AppError from '../../../shared/http/app-error.util';
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = loggerUtilModule;
 import mfaDtoModule from '../dtos/mfa.dto';
 const { PasswordValidationResponseDTO, MFAStatusResponseDTO, PreferredMethodResponseDTO } = mfaDtoModule;
 import MfaAccount from './mfa/mfa-account';
 import TotpMfaService from './mfa/totp-mfa.service';
 import SmsMfaService from './mfa/sms-mfa.service';
+import audit from '../../audit/audit.service';
 
 const ENTITY = { entityType: 'User', entityTable: 'users' };
 
@@ -103,19 +102,20 @@ class MFAService {
     const user = await this.account.getUserSecure(userId);
     const isValid = await this.userRepository.verifyPassword(password, user.passwordHash);
 
-    logAudit(
-      'MFA_PASSWORD_VALIDATED',
-      userId,
-      { username, success: isValid },
-      { entityId: userId, ...ENTITY, outcome: isValid ? 'success' : 'failure' }
-    );
+    await audit.record('MFA_PASSWORD_VALIDATED', {
+      actorId: userId,
+      details: { username, success: isValid },
+      entityId: userId,
+      ...ENTITY,
+      outcome: isValid ? 'success' : 'failure'
+    });
 
     return PasswordValidationResponseDTO({ valid: isValid, username });
   }
 
   async getStatus(userId: string, username: string | null) {
     const user = await this.account.getUserSecure(userId);
-    logAudit('MFA_STATUS_VIEWED', userId, { username }, { entityId: userId, ...ENTITY });
+    await audit.record('MFA_STATUS_VIEWED', { actorId: userId, details: { username }, entityId: userId, ...ENTITY });
     return MFAStatusResponseDTO({
       userId: user.userId,
       username,
@@ -155,7 +155,12 @@ class MFAService {
       });
     });
 
-    logAudit('MFA_PREFERRED_METHOD_UPDATED', userId, { username, preferredMethod }, { entityId: userId, ...ENTITY });
+    await audit.record('MFA_PREFERRED_METHOD_UPDATED', {
+      actorId: userId,
+      details: { username, preferredMethod },
+      entityId: userId,
+      ...ENTITY
+    });
 
     return PreferredMethodResponseDTO({ userId, username, preferredMfaMethod: preferredMethod });
   }

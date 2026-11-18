@@ -11,7 +11,6 @@ import RequestLockMiddleware from '../../../shared/http/request-lock.middleware'
 import RbacMiddleware from '../../iam/middlewares/rbac.middleware';
 import UploadMiddleware from '../../../shared/http/upload.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 import rbacModule from '../../../shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
@@ -27,7 +26,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   PrivacyPolicyAdminValidator.listQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PRIVACY_POLICY_LIST_VIEWED', { entityType: 'PrivacyPolicy', entityTable: 'privacy_policies' }),
   PrivacyPolicyAdminController.listVersions
 );
 
@@ -43,7 +41,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   BaseValidator.uuidParam('privacyPolicyId', 'La política de privacidad'),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PRIVACY_POLICY_DETAIL_VIEWED', { entityType: 'PrivacyPolicy', entityTable: 'privacy_policies' }),
   PrivacyPolicyAdminController.getVersionDetail
 );
 
@@ -70,7 +67,6 @@ router.post(
   UploadMiddleware.handleMulterError,
   PrivacyPolicyAdminValidator.createVersion(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('PRIVACY_POLICY_VERSION_CREATED', { entityType: 'PrivacyPolicy', entityTable: 'privacy_policies' }),
   PrivacyPolicyAdminController.createVersion
 );
 

@@ -1,15 +1,17 @@
 import cron from 'node-cron';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import { runOperation } from '../../../shared/observability/operation';
 import auditLogRepository from '../repositories/audit-log.repository';
 import operationRepository from '../../../shared/observability/operation.repository';
 import constantsModule from '../../../shared/constants';
 const { logging } = constantsModule;
 import systemGlobalConfigRepository from '../../settings/repositories/system-global-config.repository';
+import S3Util from '../../../shared/infra/s3.util';
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
+import audit from '../audit.service';
 
 
 // [RF-AUTH-01] | CA-07 | Retención mínima 5 años
@@ -85,29 +87,49 @@ async function _purgeExpiredFromDb(hotYears: number) {
   logger.warn('audit-archive.worker — iniciando purga de BD', { count, cutoffDate: cutoff.toISOString() });
 
   // SFC/RF-ADM-03: la purga destructiva de auditoría debe quedar auditada (inicio).
-  logAudit(
-    'AUDIT_LOG_PURGE_EXECUTED',
-    'system',
-    { status: 'initiated', candidateCount: count, cutoffDate: cutoff.toISOString(), hotYears },
-    PURGE_AUDIT_META
-  );
+  await audit.record('AUDIT_LOG_PURGE_EXECUTED', {
+    actorId: 'system',
+    details: { status: 'initiated', candidateCount: count, cutoffDate: cutoff.toISOString(), hotYears },
+    ...PURGE_AUDIT_META
+  });
 
   await auditLogRepository.purgeCreatedBefore(cutoff);
 
   logger.info('audit-archive.worker — purga completada', { purged: count });
 
   // SFC/RF-ADM-03: confirmación de la purga ejecutada (fin) — quién/cuántos/cutoff.
-  logAudit(
-    'AUDIT_LOG_PURGE_EXECUTED',
-    'system',
-    { status: 'completed', purgedCount: count, cutoffDate: cutoff.toISOString(), hotYears },
-    PURGE_AUDIT_META
-  );
+  await audit.record('AUDIT_LOG_PURGE_EXECUTED', {
+    actorId: 'system',
+    details: { status: 'completed', purgedCount: count, cutoffDate: cutoff.toISOString(), hotYears },
+    ...PURGE_AUDIT_META
+  });
 }
 
 // Diario a las 03:30: la traza de operaciones es de alto volumen y corta retención (no es auditoría).
 const OPERATIONS_RETENTION_CRON = '30 3 * * *';
 const MS_PER_DAY = 86_400_000;
+
+// Diario a las 02:15 (UTC): exporta a S3 el día anterior completo como un único JSONL.
+const ARCHIVE_EXPORT_CRON = '15 2 * * *';
+
+/**
+ * Copia fría de la auditoría: un objeto por día (audit-logs/AAAA/MM/DD.jsonl), una línea por registro.
+ * Sobrescribe la key del día: reintentar o re-exportar es seguro. Devuelve cuántos registros exportó.
+ */
+async function exportDay(day: Date): Promise<number> {
+  const from = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate()));
+  const to = new Date(from.getTime() + MS_PER_DAY);
+  const rows = await auditLogRepository.findCreatedBetween(from, to);
+  if (rows.length === 0) {
+    logger.info('audit-archive.worker — sin registros para exportar', { day: from.toISOString().slice(0, 10) });
+    return 0;
+  }
+  const [yyyy, mm, dd] = from.toISOString().slice(0, 10).split('-');
+  const key = `audit-logs/${yyyy}/${mm}/${dd}.jsonl`;
+  await S3Util.uploadArchive(key, `${rows.map(r => JSON.stringify(r)).join('\n')}\n`);
+  logger.info('audit-archive.worker — día exportado a S3', { key, count: rows.length });
+  return rows.length;
+}
 
 /** Borra las operaciones más viejas que `logging.operationsRetentionDays`. */
 async function purgeOperations(): Promise<number> {
@@ -132,10 +154,13 @@ function iniciar() {
       await run({ enableDbPurge: config?.auditHotPurgeEnabled === true });
     })
   );
+  cron.schedule(ARCHIVE_EXPORT_CRON, () =>
+    runOperation({ source: 'worker', name: 'audit-archive.export' }, () => exportDay(new Date(Date.now() - MS_PER_DAY)))
+  );
   cron.schedule(OPERATIONS_RETENTION_CRON, () =>
     runOperation({ source: 'worker', name: 'operations.retention' }, purgeOperations)
   );
   logger.info('Worker de retención de auditoría iniciado exitosamente');
 }
 
-export default { run, purgeOperations, iniciar };
+export default { run, exportDay, purgeOperations, iniciar };

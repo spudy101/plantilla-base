@@ -11,12 +11,13 @@
 import RbacService from './rbac.service';
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import constantsModule from '../../../shared/constants';
 const { RBAC_ROLES, notifications } = constantsModule;
 import NotificationCreationService from '../../notification/services/notification-creation.service';
 import rolePermissionOverrideRepository from '../repositories/role-permission-override.repository';
 import adminRbacDtoModule from '../dtos/admin-rbac.dto';
+import audit from '../../audit/audit.service';
 const {
   RbacCatalogDTO,
   RoleMatrixDTO,
@@ -47,18 +48,23 @@ class AdminRbacService {
   // ============================================================
 
   getCatalog(userId: string) {
-    logAudit('RBAC_CATALOG_VIEWED', userId, {}, { entityType: 'RbacCatalog', entityTable: 'roles' });
+    void audit.record('RBAC_CATALOG_VIEWED', { actorId: userId, entityType: 'RbacCatalog', entityTable: 'roles' });
     return RbacCatalogDTO(this.RbacService.listCatalog());
   }
 
   async getRoles(userId: string) {
     const roleNames = Object.values(RBAC_ROLES);
-    logAudit('RBAC_ROLES_VIEWED', userId, {}, { entityType: 'RbacRole', entityTable: 'roles' });
+    await audit.record('RBAC_ROLES_VIEWED', { actorId: userId, entityType: 'RbacRole', entityTable: 'roles' });
     return RoleMatrixDTO(await this.RbacService.getRoleMatrix(roleNames));
   }
 
   async getEffectivePermissions(roleName: string | null, userId: string) {
-    logAudit('RBAC_EFFECTIVE_PERMISSIONS_VIEWED', userId, { roleName }, { entityType: 'RbacRole', entityTable: 'roles' });
+    await audit.record('RBAC_EFFECTIVE_PERMISSIONS_VIEWED', {
+      actorId: userId,
+      details: { roleName },
+      entityType: 'RbacRole',
+      entityTable: 'roles'
+    });
     // Sin rol en el token no hay permisos efectivos
     return EffectivePermissionsDTO(roleName, roleName ? await this.RbacService.getEffectivePermissions(roleName) : {});
   }
@@ -71,12 +77,12 @@ class AdminRbacService {
   async listOverrides(roleName: string, userId: string) {
     this._assertValidRole(roleName);
     const overrides = await this.rolePermissionOverrideRepository.findByRole(roleName);
-    logAudit(
-      'RBAC_ROLE_PERMISSIONS_VIEWED',
-      userId,
-      { roleName },
-      { entityType: 'RbacRole', entityTable: 'role_permission_overrides' }
-    );
+    await audit.record('RBAC_ROLE_PERMISSIONS_VIEWED', {
+      actorId: userId,
+      details: { roleName },
+      entityType: 'RbacRole',
+      entityTable: 'role_permission_overrides'
+    });
     return RolePermissionsListDTO(roleName, overrides);
   }
 
@@ -101,16 +107,17 @@ class AdminRbacService {
 
     await this.RbacService.invalidateCache(roleName);
 
-    logAudit(
-      'RBAC_PERMISSION_GRANTED',
-      grantedByUserId,
-      {
+    await audit.record('RBAC_PERMISSION_GRANTED', {
+      actorId: grantedByUserId,
+      details: {
         roleName,
         moduleName,
         action
       },
-      { entityId: override.rolePermissionId, entityType: 'RbacPermission', entityTable: 'role_permission_overrides' }
-    );
+      entityId: override.rolePermissionId,
+      entityType: 'RbacPermission',
+      entityTable: 'role_permission_overrides'
+    });
 
     setImmediate(() => {
       this.NotificationCreationService.crearNotificacion({
@@ -137,16 +144,17 @@ class AdminRbacService {
     await this.rolePermissionOverrideRepository.deleteById(permissionId);
     await this.RbacService.invalidateCache(override.roleName);
 
-    logAudit(
-      'RBAC_PERMISSION_REVOKED',
-      adminUserId,
-      {
+    await audit.record('RBAC_PERMISSION_REVOKED', {
+      actorId: adminUserId,
+      details: {
         roleName: override.roleName,
         moduleName: override.moduleName,
         action: override.action
       },
-      { entityId: permissionId, entityType: 'RbacPermission', entityTable: 'role_permission_overrides' }
-    );
+      entityId: permissionId,
+      entityType: 'RbacPermission',
+      entityTable: 'role_permission_overrides'
+    });
 
     setImmediate(() => {
       this.NotificationCreationService.crearNotificacion({

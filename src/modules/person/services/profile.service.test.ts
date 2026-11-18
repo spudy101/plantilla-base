@@ -44,6 +44,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
   logAudit: jest.fn()
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 // DTOs passthrough: objetos etiquetados para verificar qué recibieron.
 jest.mock('../dtos/profile.dto', () => ({
@@ -88,8 +89,8 @@ import KycSharedUtilModule from '../utils/kyc-shared.util';
 const KycSharedUtil = mocked(KycSharedUtilModule);
 import ProfileHelperModule from '../helpers/profile.helper';
 const ProfileHelper = mocked(ProfileHelperModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import kycModule from '../dtos/person-components.dto';
 const { PersonContactComponent, PersonLocationComponent } = mocked(kycModule);
 import profileDtoModule from '../dtos/profile.dto';
@@ -134,11 +135,7 @@ describe('ProfileService', () => {
 
       expect(userRepository.findByUserId).toHaveBeenCalledWith('u-1', 'basic');
       expect(profileDto.BasicProfileDTO).toHaveBeenCalledWith(user, ['ct'], ['c']);
-      expect(logAudit).toHaveBeenCalledWith(
-        'PROFILE_VIEWED',
-        'u-1',
-        {},
-        { entityId: 'u-1', entityType: 'User', entityTable: 'users' }
+      expect(logAudit).toHaveBeenCalledWith('PROFILE_VIEWED', expect.objectContaining({ actorId: 'u-1', entityId: 'u-1', entityType: 'User', entityTable: 'users' })
       );
       expect(result).toEqual({ dto: 'basic', args: [user, ['ct'], ['c']] });
     });
@@ -162,7 +159,7 @@ describe('ProfileService', () => {
 
       expect(userRepository.findByUserId).toHaveBeenCalledWith('u-1', 'full');
       expect(profileDto.ExtendedProfileDTO).toHaveBeenCalledWith(user, [], []);
-      expect(logAudit).toHaveBeenCalledWith('PROFILE_EXTENDED_VIEWED', 'u-1', {}, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('PROFILE_EXTENDED_VIEWED', expect.objectContaining({ actorId: 'u-1' }));
     });
 
     it('usuario inexistente: lanza AppError.notFound', async () => {
@@ -179,11 +176,7 @@ describe('ProfileService', () => {
 
       expect(personContactRepository.findByPersonIdWithPrefixes).toHaveBeenCalledWith('p-1');
       expect(PersonContactComponent.build).toHaveBeenCalledWith({ email: 'a@b.cl' });
-      expect(logAudit).toHaveBeenCalledWith(
-        'PROFILE_CONTACT_VIEWED',
-        'u-1',
-        { personId: 'p-1' },
-        { entityId: 'u-1', entityType: 'User', entityTable: 'users' }
+      expect(logAudit).toHaveBeenCalledWith('PROFILE_CONTACT_VIEWED', { actorId: 'u-1', details: { personId: 'p-1' }, entityId: 'u-1', entityType: 'User', entityTable: 'users' }
       );
       expect(result).toEqual({ built: 'contact', c: { email: 'a@b.cl' } });
     });
@@ -201,7 +194,7 @@ describe('ProfileService', () => {
       const result = await service.getLocation('p-1', 'u-1');
 
       expect(PersonLocationComponent.build).toHaveBeenCalledWith({ cityId: 3 });
-      expect(logAudit).toHaveBeenCalledWith('PROFILE_LOCATION_VIEWED', 'u-1', { personId: 'p-1' }, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('PROFILE_LOCATION_VIEWED', expect.objectContaining({ actorId: 'u-1', details: { personId: 'p-1' } }));
       expect(result).toEqual({ built: 'location', l: { cityId: 3 } });
     });
   });
@@ -235,11 +228,7 @@ describe('ProfileService', () => {
       // _logProfileFieldChanges: gender + birth_date + location => 3 registros de cambio.
       expect(KycSharedUtil.logChange).toHaveBeenCalledTimes(3);
       expect(transaction.commit).toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith(
-        'PROFILE_UPDATED',
-        'u-1',
-        { updatedFields: ['username', 'avatarId', 'genderId', 'location', 'birthDate'] },
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('PROFILE_UPDATED', expect.objectContaining({ actorId: 'u-1', details: { updatedFields: ['username', 'avatarId', 'genderId', 'location', 'birthDate'] } })
       );
 
       await flush();
@@ -289,7 +278,7 @@ describe('ProfileService', () => {
         expect.objectContaining({ userId: 'u-1', personId: 'p-1', newEmail: 'nuevo@b.cl', changedByRole: 'user' })
       );
       expect(transaction.commit).toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith('PROFILE_EMAIL_UPDATED', 'u-1', { newEmail: 'nuevo@b.cl' }, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('PROFILE_EMAIL_UPDATED', expect.objectContaining({ actorId: 'u-1', details: { newEmail: 'nuevo@b.cl' } }));
 
       await flush();
       expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(
@@ -335,7 +324,7 @@ describe('ProfileService', () => {
         expect.objectContaining({ personId: 'p-1', phone: '911112222', phonePrefixId: 'pp-1', phoneType: 'mobile' })
       );
       expect(transaction.commit).toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith('PROFILE_PHONE_UPDATED', 'u-1', { phoneType: 'mobile' }, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('PROFILE_PHONE_UPDATED', expect.objectContaining({ actorId: 'u-1', details: { phoneType: 'mobile' } }));
 
       await flush();
       expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(
@@ -369,7 +358,7 @@ describe('ProfileService', () => {
         expect.objectContaining({ userId: 'u-1', newPassword: 'new', changedByRole: 'user' })
       );
       expect(transaction.commit).toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith('PASSWORD_CHANGED', 'u-1', {}, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('PASSWORD_CHANGED', expect.objectContaining({ actorId: 'u-1' }));
 
       await flush();
       expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(
@@ -454,7 +443,7 @@ describe('ProfileService', () => {
         expect.objectContaining({ userId: 'u-1', personId: 'p-1', username: 'ana', changedByRole: 'user' })
       );
       expect(transaction.commit).toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith('ACCOUNT_DELETED', 'u-1', {}, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('ACCOUNT_DELETED', expect.objectContaining({ actorId: 'u-1' }));
 
       await flush();
       expect(NotificationUtil.crearNotificacionDirecta).toHaveBeenCalledWith(

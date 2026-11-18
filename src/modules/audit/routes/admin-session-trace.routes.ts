@@ -10,7 +10,6 @@ import RbacMiddleware from '../../iam/middlewares/rbac.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../middlewares/audit-action.middleware';
 import constantsModule from '../../../shared/constants';
 const { RBAC_MODULES, RBAC_ACTIONS } = constantsModule;
 
@@ -22,7 +21,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AdminSessionTraceValidator.listSessions(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('SESSION_TRACE_LIST_VIEWED', { entityType: 'AuthSession', entityTable: 'user_sessions' }),
   AdminSessionTraceController.list
 );
 
@@ -34,7 +32,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AdminSessionTraceValidator.sessionTimeline(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('SESSION_TRACE_VIEWED', { entityType: 'AuthSession', entityTable: 'user_sessions' }),
   AdminSessionTraceController.timeline
 );
 
@@ -46,7 +43,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AdminSessionTraceValidator.sessionEntities(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('SESSION_TRACE_ENTITIES_VIEWED', { entityType: 'AuthSession', entityTable: 'user_sessions' }),
   AdminSessionTraceController.entities
 );
 

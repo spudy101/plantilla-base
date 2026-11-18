@@ -42,6 +42,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('../../../shared/constants', () => ({
   notifications: { ses: { logoUrl: 'https://logo' } }
@@ -55,7 +56,9 @@ const NotificationUtil = mocked(NotificationUtilModule);
 import PaginationHelperModule from '../../../shared/http/pagination.util';
 const PaginationHelper = mocked(PaginationHelperModule);
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit, logger } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const { logger } = mocked(loggerUtilModule);
+const logAudit = mocked(auditServiceModule).record;
 import service from './consent-type.service';
 
 const ADMIN_ID = 'admin-1';
@@ -80,11 +83,7 @@ describe('ConsentTypeService', () => {
       expect(consentTypeRepository.findAllPaginated).toHaveBeenCalledWith({}, PAG, 'x');
       expect(result.data).toEqual([{ list: 'PP' }, { list: 'CC' }]);
       expect(result.metadata).toEqual({ meta: expect.objectContaining({ totalItems: 2, page: 1 }) });
-      expect(logAudit).toHaveBeenCalledWith(
-        'CONSENT_TYPE_LIST_VIEWED',
-        ADMIN_ID,
-        expect.objectContaining({ totalItems: 2 }),
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('CONSENT_TYPE_LIST_VIEWED', expect.objectContaining({ actorId: ADMIN_ID, details: expect.objectContaining({ totalItems: 2 }) })
       );
     });
   });
@@ -100,11 +99,7 @@ describe('ConsentTypeService', () => {
       consentTypeRepository.findById.mockResolvedValue({ code: 'PP', consentTypeId: 'ct-1' });
       const result = await service.getById('ct-1', ADMIN_ID);
       expect(result).toEqual({ detail: 'PP' });
-      expect(logAudit).toHaveBeenCalledWith(
-        'CONSENT_TYPE_DETAIL_VIEWED',
-        ADMIN_ID,
-        expect.objectContaining({ code: 'PP' }),
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('CONSENT_TYPE_DETAIL_VIEWED', expect.objectContaining({ actorId: ADMIN_ID, details: expect.objectContaining({ code: 'PP' }) })
       );
     });
   });
@@ -132,7 +127,7 @@ describe('ConsentTypeService', () => {
         expect.objectContaining({ code: 'PRIVACY', name: 'Política', isMandatory: true, isRevocable: false, isActive: true })
       );
       expect(result).toEqual({ detail: 'PRIVACY' });
-      expect(logAudit).toHaveBeenCalledWith('CONSENT_TYPE_CREATED', ADMIN_ID, expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('CONSENT_TYPE_CREATED', expect.objectContaining({ actorId: ADMIN_ID }));
 
       await flush();
       expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(
@@ -185,7 +180,7 @@ describe('ConsentTypeService', () => {
         expect.objectContaining({ name: 'Nuevo', description: 'desc', isActive: true })
       );
       expect(result).toEqual({ detail: 'PP' });
-      expect(logAudit).toHaveBeenCalledWith('CONSENT_TYPE_UPDATED', ADMIN_ID, expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('CONSENT_TYPE_UPDATED', expect.objectContaining({ actorId: ADMIN_ID }));
 
       await flush();
       expect(NotificationUtil.crearNotificacion).toHaveBeenCalled();

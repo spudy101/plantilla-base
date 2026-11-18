@@ -10,7 +10,6 @@ import AuthMiddleware from '../middlewares/auth.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 
 // ============================================================
 // PUBLIC
@@ -27,7 +26,6 @@ router.post(
   RequestLockMiddleware.forPublicEndpoints(),
   AuthBiometricValidator.loginStart(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('BIOMETRIC_LOGIN_START', { entityType: 'User', entityTable: 'users' }),
   AuthBiometricController.loginStart
 );
 
@@ -41,7 +39,6 @@ router.post(
   RequestLockMiddleware.forPublicEndpoints(),
   AuthBiometricValidator.loginFinish(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('BIOMETRIC_LOGIN_SUCCESS', { entityType: 'BiometricCredential', entityTable: 'biometric_credentials' }),
   AuthBiometricController.loginFinish
 );
 
@@ -60,7 +57,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AuthBiometricValidator.registerStart(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('BIOMETRIC_REGISTER_START', { entityType: 'UserTrustedDevice', entityTable: 'user_trusted_devices' }),
   AuthBiometricController.registerStart
 );
 
@@ -74,7 +70,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AuthBiometricValidator.registerFinish(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('BIOMETRIC_REGISTER_SUCCESS', { entityType: 'BiometricCredential', entityTable: 'biometric_credentials' }),
   AuthBiometricController.registerFinish
 );
 
@@ -86,10 +81,6 @@ router.get(
   '/biometric/credentials',
   AuthMiddleware.authenticate,
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuditAction.declare('BIOMETRIC_CREDENTIALS_VIEWED', {
-    entityType: 'BiometricCredential',
-    entityTable: 'biometric_credentials'
-  }),
   AuthBiometricController.getCredentials
 );
 
@@ -103,10 +94,6 @@ router.delete(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AuthBiometricValidator.deleteCredential(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('BIOMETRIC_CREDENTIAL_DELETED', {
-    entityType: 'BiometricCredential',
-    entityTable: 'biometric_credentials'
-  }),
   AuthBiometricController.deleteCredential
 );
 

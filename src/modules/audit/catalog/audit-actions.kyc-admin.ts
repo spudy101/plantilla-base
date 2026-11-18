@@ -62,6 +62,7 @@ export default {
     risk: AUDIT_RISKS.CRITICAL
   },
   PERSON_MFA_DISABLED: {
+    alert: true,
     description: 'MFA/TOTP de usuario deshabilitado por administrador',
     category: AUDIT_CATEGORIES.PERSONS,
     module: AUDIT_MODULES.ADMIN,
@@ -74,6 +75,7 @@ export default {
     risk: AUDIT_RISKS.CRITICAL
   },
   PERSON_NATIONAL_ID_CHANGED: {
+    alert: true,
     description: 'Número de identificación de usuario modificado por administrador',
     category: AUDIT_CATEGORIES.PERSONS,
     module: AUDIT_MODULES.ADMIN,
@@ -86,6 +88,7 @@ export default {
     risk: AUDIT_RISKS.HIGH
   },
   PERSON_ACCOUNT_DELETED: {
+    alert: true,
     description: 'Cuenta de usuario eliminada permanentemente por administrador',
     category: AUDIT_CATEGORIES.PERSONS,
     module: AUDIT_MODULES.ADMIN,
@@ -135,12 +138,14 @@ export default {
     risk: AUDIT_RISKS.LOW
   },
   NOTIFICATION_TYPE_UPDATED: {
+    alert: true,
     description: 'Template de tipo de notificación actualizado por administrador',
     category: AUDIT_CATEGORIES.NOTIFICATIONS,
     module: AUDIT_MODULES.ADMIN,
     risk: AUDIT_RISKS.HIGH
   },
   GLOBAL_NOTIFICATION_SENT: {
+    alert: true,
     description: 'Notificación global enviada a todos los usuarios por administrador',
     category: AUDIT_CATEGORIES.NOTIFICATIONS,
     module: AUDIT_MODULES.ADMIN,
@@ -168,6 +173,7 @@ export default {
     risk: AUDIT_RISKS.LOW
   },
   PRIVACY_POLICY_VERSION_CREATED: {
+    alert: true,
     description: 'Nueva versión de política de privacidad publicada y activada por administrador',
     category: AUDIT_CATEGORIES.PRIVACY_POLICIES,
     module: AUDIT_MODULES.ADMIN,

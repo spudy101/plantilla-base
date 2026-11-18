@@ -14,7 +14,6 @@ import AuthMiddleware from '../../iam/middlewares/auth.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
 import { markOperationSource } from '../../../shared/observability/operation';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 
 const WEBHOOK_BODY_LIMIT = '256kb';
 
@@ -27,10 +26,6 @@ router.post(
   RateLimitMiddleware.apiLimiter(),
   EmailBounceWebhookValidator.webhook(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('EMAIL_BOUNCE_WEBHOOK_RECEIVED', {
-    entityType: 'EmailBounceSuppression',
-    entityTable: 'email_bounce_suppressions'
-  }),
   EmailBounceWebhookController.process
 );
 

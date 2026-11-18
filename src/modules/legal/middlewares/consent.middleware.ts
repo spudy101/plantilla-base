@@ -1,11 +1,12 @@
 import type { NextFunction, Request, Response } from 'express';
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import errorMiddlewareModule from '../../../shared/http/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
 import userConsentRepository from '../repositories/user-consent.repository';
 import consentTypeRepository from '../repositories/consent-type.repository';
+import audit from '../../audit/audit.service';
 
 // Nota: para gatear una operación por un consentimiento OBLIGATORIO, usa requireConsent() como middleware
 // de ruta. Si tu dominio necesita exigir varios consentimientos en un solo submit (acumular todas las
@@ -31,12 +32,12 @@ class ConsentMiddleware {
       const consentType = await consentTypeRepository.findByCode(consentTypeCode);
       if (!consentType) {
         logger.warn('ConsentMiddleware: tipo de consentimiento no configurado', { consentTypeCode, userId });
-        logAudit(
-          'CONSENT_VERIFIED_FAIL',
-          userId,
-          { reason: 'consent_type_not_found', consentTypeCode },
-          { entityType: 'UserConsent', outcome: 'failure' }
-        );
+        await audit.record('CONSENT_VERIFIED_FAIL', {
+          actorId: userId,
+          details: { reason: 'consent_type_not_found', consentTypeCode },
+          entityType: 'UserConsent',
+          outcome: 'failure'
+        });
         throw AppError.forbidden(`El tipo de consentimiento "${consentTypeCode}" no está configurado`, {
           code: 'CONSENT_TYPE_NOT_FOUND'
         });
@@ -56,28 +57,28 @@ class ConsentMiddleware {
       const isValid = existing && !existing.revokedAt;
 
       if (!isValid) {
-        logAudit(
-          'CONSENT_VERIFIED_FAIL',
-          userId,
-          {
+        await audit.record('CONSENT_VERIFIED_FAIL', {
+          actorId: userId,
+          details: {
             reason: 'no_valid_consent',
             consentTypeCode,
             consentTypeId: consentType.consentTypeId
           },
-          { entityType: 'UserConsent', outcome: 'failure' }
-        );
+          entityType: 'UserConsent',
+          outcome: 'failure'
+        });
         throw AppError.forbidden('No se encontró un consentimiento válido y vigente para continuar con esta operación', {
           code: 'CONSENT_REQUIRED',
           consentTypeCode
         });
       }
 
-      logAudit(
-        'CONSENT_VERIFIED_OK',
-        userId,
-        { consentTypeCode, consentTypeId: consentType.consentTypeId },
-        { entityType: 'UserConsent', entityId: existing?.userConsentId }
-      );
+      await audit.record('CONSENT_VERIFIED_OK', {
+        actorId: userId,
+        details: { consentTypeCode, consentTypeId: consentType.consentTypeId },
+        entityType: 'UserConsent',
+        entityId: existing?.userConsentId
+      });
 
       next();
     });

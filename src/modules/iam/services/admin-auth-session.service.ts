@@ -7,7 +7,7 @@ import RefreshTokenStore from '../utils/refresh-token-store.util';
 import TokenBlacklistUtil from '../utils/token-blacklist.util';
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
 import NotificationCreationService from '../../notification/services/notification-creation.service';
@@ -16,6 +16,7 @@ import domainEnumsModule from '../../../shared/constants/domain-enums';
 const { USER_SESSION_STATUS } = domainEnumsModule;
 import adminAuthSessionDtoModule from '../dtos/admin-auth-session.dto';
 const { SessionListDTO, AuthAttemptListDTO } = adminAuthSessionDtoModule;
+import audit from '../../audit/audit.service';
 
 const AUTH_CATEGORY = 'Autenticación';
 const DEFAULT_DATE_FROM = new Date('2000-01-01');
@@ -56,12 +57,12 @@ class AdminAuthSessionService {
 
     const { rows, count } = await this.userSessionRepository.findPaginatedWithDeviceAndUser(where, pagination);
 
-    logAudit(
-      'AUTH_SESSION_LIST_VIEWED',
-      adminUserId,
-      { totalItems: count },
-      { entityType: 'AuthSession', entityTable: 'user_sessions' }
-    );
+    await audit.record('AUTH_SESSION_LIST_VIEWED', {
+      actorId: adminUserId,
+      details: { totalItems: count },
+      entityType: 'AuthSession',
+      entityTable: 'user_sessions'
+    });
 
     const filters: Record<string, unknown> = {};
     const sessionIdParam = PaginationHelper.stringParam(query, 'sessionId');
@@ -92,12 +93,12 @@ class AdminAuthSessionService {
 
     const { rows, count } = await this.userSessionRepository.findPaginatedWithDeviceAndUser(where, pagination);
 
-    logAudit(
-      'AUTH_SESSION_BY_USER_VIEWED',
-      adminUserId,
-      { targetUserId: userId },
-      { entityId: userId, entityType: 'InternalUser' }
-    );
+    await audit.record('AUTH_SESSION_BY_USER_VIEWED', {
+      actorId: adminUserId,
+      details: { targetUserId: userId },
+      entityId: userId,
+      entityType: 'InternalUser'
+    });
 
     return SessionListDTO(rows, {
       totalItems: count,
@@ -141,17 +142,17 @@ class AdminAuthSessionService {
       })
     );
 
-    logAudit(
-      'AUTH_SESSION_REVOKED',
-      adminUserId,
-      {
+    await audit.record('AUTH_SESSION_REVOKED', {
+      actorId: adminUserId,
+      details: {
         targetUserId: session.userId,
         jti: session.jti,
         before: { status: 'active' },
         after: { status: 'revoked_by_admin' }
       },
-      { entityId: sessionId, entityType: 'AuthSession' }
-    );
+      entityId: sessionId,
+      entityType: 'AuthSession'
+    });
 
     setImmediate(() => {
       this.NotificationCreationService.crearNotificacion({
@@ -201,12 +202,12 @@ class AdminAuthSessionService {
     const { rows, count } = await this.auditLogRepository.findAuthAttemptsPaginated(criteria, pagination);
 
     const scope = query.scope || 'all';
-    logAudit(
-      'AUTH_ATTEMPTS_LIST_VIEWED',
-      adminUserId,
-      { totalItems: count, scope },
-      { entityType: 'AuditLog', entityTable: 'audit_logs' }
-    );
+    await audit.record('AUTH_ATTEMPTS_LIST_VIEWED', {
+      actorId: adminUserId,
+      details: { totalItems: count, scope },
+      entityType: 'AuditLog',
+      entityTable: 'audit_logs'
+    });
 
     return AuthAttemptListDTO(rows, {
       totalItems: count,
@@ -225,12 +226,12 @@ class AdminAuthSessionService {
     const { rows, count } = await this.auditLogRepository.findAuthAttemptsPaginated(criteria, pagination);
 
     const scope = query.scope || 'all';
-    logAudit(
-      'AUTH_ATTEMPTS_BY_USER_VIEWED',
-      adminUserId,
-      { targetUserId: userId, scope },
-      { entityId: userId, entityType: 'InternalUser' }
-    );
+    await audit.record('AUTH_ATTEMPTS_BY_USER_VIEWED', {
+      actorId: adminUserId,
+      details: { targetUserId: userId, scope },
+      entityId: userId,
+      entityType: 'InternalUser'
+    });
 
     return AuthAttemptListDTO(rows, {
       totalItems: count,

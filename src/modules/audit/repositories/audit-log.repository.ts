@@ -15,9 +15,14 @@ export type AuditLogWithExecutor = AuditLog & { executor: UserRef | null };
 const SORTABLE = Object.values(Prisma.AuditLogScalarFieldEnum);
 
 class AuditLogRepository extends PrismaRepository {
-  /** Registra una entrada (lo usa logAudit; fuera de la transacción del flujo). */
-  create(data: Prisma.AuditLogUncheckedCreateInput): Promise<AuditLog> {
-    return this.independentDb().auditLog.create({ data });
+  /**
+   * Registra una entrada. Por defecto dentro de la transacción en curso (el hecho y su auditoría se
+   * guardan juntos o ninguno); `independent` la escribe aparte (intentos fallidos: la transacción se va
+   * a revertir y el intento debe quedar).
+   */
+  async create(data: Prisma.AuditLogUncheckedCreateInput, { independent = false } = {}): Promise<AuditLog> {
+    const db = independent ? this.independentDb() : await this.db();
+    return db.auditLog.create({ data });
   }
 
   /**
@@ -129,6 +134,11 @@ class AuditLogRepository extends PrismaRepository {
   }
 
   // ── Retención (worker de archivado, RF-ADM-03) ──────────────────────────────
+
+  /** Registros creados en [from, to), en orden: la exportación diaria a S3. */
+  async findCreatedBetween(from: Date, to: Date): Promise<AuditLog[]> {
+    return (await this.db()).auditLog.findMany({ where: { createdAt: { gte: from, lt: to } }, orderBy: { createdAt: 'asc' } });
+  }
 
   /** Cuántos registros se crearon hasta `cutoff` inclusive (aviso de próximos a vencer). */
   async countCreatedUpTo(cutoff: Date): Promise<number> {

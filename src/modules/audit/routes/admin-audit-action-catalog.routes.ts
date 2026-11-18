@@ -7,7 +7,6 @@ import RbacMiddleware from '../../iam/middlewares/rbac.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../middlewares/audit-action.middleware';
 import constantsModule from '../../../shared/constants';
 const { RBAC_MODULES, RBAC_ACTIONS } = constantsModule;
 
@@ -17,7 +16,6 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.AUDIT_ACTION_CATALOG, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuditAction.declare('AUDIT_ACTION_CATALOG_CATEGORIES_VIEWED', { entityType: 'AuditActionCatalog' }),
   AdminAuditActionCatalogController.categories
 );
 
@@ -27,7 +25,6 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.AUDIT_ACTION_CATALOG, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuditAction.declare('AUDIT_ACTION_CATALOG_RISKS_VIEWED', { entityType: 'AuditActionCatalog' }),
   AdminAuditActionCatalogController.risks
 );
 
@@ -37,7 +34,6 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.AUDIT_ACTION_CATALOG, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuditAction.declare('AUDIT_ACTION_CATALOG_MODULES_VIEWED', { entityType: 'AuditActionCatalog' }),
   AdminAuditActionCatalogController.modules
 );
 
@@ -49,7 +45,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AdminAuditActionCatalogValidator.listActionsQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('AUDIT_ACTION_CATALOG_ACTIONS_LISTED', { entityType: 'AuditActionCatalog' }),
   AdminAuditActionCatalogController.actions
 );
 

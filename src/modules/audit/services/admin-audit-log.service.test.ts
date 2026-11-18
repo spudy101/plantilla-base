@@ -20,6 +20,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
   logAudit: jest.fn()
 }));
+jest.mock('../audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('../../../shared/http/pagination.util', () => ({
   stringParam: jest.requireActual('../../../shared/http/pagination.util').default.stringParam,
@@ -49,7 +50,9 @@ import { mocked, Loose, fixture } from 'tests/helpers/mock';
 import ExcelJSModule from 'exceljs';
 const ExcelJS = mocked(ExcelJSModule);
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit, logger } = mocked(loggerUtilModule);
+import auditServiceModule from '../audit.service';
+const { logger } = mocked(loggerUtilModule);
+const logAudit = mocked(auditServiceModule).record;
 import PaginationHelperModule from '../../../shared/http/pagination.util';
 const PaginationHelper = mocked(PaginationHelperModule);
 import auditLogRepoModule from '../repositories/audit-log.repository';
@@ -86,11 +89,7 @@ describe('AdminAuditLogService', () => {
       expect(result.data).toHaveLength(2);
       expect(result.data[0]).toMatchObject({ dto: 'list', audit_log_id: 'a-1' });
       expect(result.metadata).toMatchObject({ totalItems: 2, page: 1 });
-      expect(logAudit).toHaveBeenCalledWith(
-        'AUDIT_LOG_LISTED',
-        ADMIN,
-        expect.objectContaining({ totalItems: 2 }),
-        expect.objectContaining({ entityType: 'AuditLog' })
+      expect(logAudit).toHaveBeenCalledWith('AUDIT_LOG_LISTED', expect.objectContaining({ actorId: ADMIN, details: expect.objectContaining({ totalItems: 2 }), entityType: 'AuditLog' })
       );
     });
   });
@@ -109,11 +108,7 @@ describe('AdminAuditLogService', () => {
       const result = await service.getById('a-1', ADMIN);
 
       expect(result).toMatchObject({ dto: 'detail', audit_log_id: 'a-1' });
-      expect(logAudit).toHaveBeenCalledWith(
-        'AUDIT_LOG_VIEWED',
-        ADMIN,
-        { auditLogId: 'a-1' },
-        expect.objectContaining({ entityId: 'a-1', entityType: 'AuditLog' })
+      expect(logAudit).toHaveBeenCalledWith('AUDIT_LOG_VIEWED', expect.objectContaining({ actorId: ADMIN, details: { auditLogId: 'a-1' }, entityId: 'a-1', entityType: 'AuditLog' })
       );
     });
   });
@@ -133,11 +128,7 @@ describe('AdminAuditLogService', () => {
       const wroteQuoted = res.write.mock.calls.some(([line]) => typeof line === 'string' && line.includes('"texto, con coma"'));
       expect(wroteQuoted).toBe(true);
       expect(res.end).toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith(
-        'AUDIT_LOG_EXPORTED',
-        ADMIN,
-        expect.objectContaining({ format: 'csv', count: 1 }),
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('AUDIT_LOG_EXPORTED', expect.objectContaining({ actorId: ADMIN, details: expect.objectContaining({ format: 'csv', count: 1 }) })
       );
       expect(logger.info).toHaveBeenCalled();
     });

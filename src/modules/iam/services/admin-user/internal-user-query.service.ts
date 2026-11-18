@@ -11,8 +11,6 @@ import userSessionRepository from '../../repositories/user-session.repository';
 import userChangeLogRepository from '../../../audit/repositories/user-change-log.repository';
 import DualApprovalService from '../../../approvals/services/dual-approval.service';
 import PaginationHelper from '../../../../shared/http/pagination.util';
-import loggerUtilModule from '../../../../shared/observability/logger.util';
-const { logAudit } = loggerUtilModule;
 import componentsCatalogDtoModule from '../../../catalogs/dtos/catalog-components.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
 import constantsModule from '../../../../shared/constants';
@@ -27,6 +25,7 @@ const {
 } = adminUserDtoModule;
 import internalUserGuardsModule from './internal-user-guards';
 const { InternalUserGuards } = internalUserGuardsModule;
+import audit from '../../../audit/audit.service';
 
 const ENTITY = { entityType: 'InternalUser', entityTable: 'users' };
 
@@ -68,7 +67,11 @@ class InternalUserQueryService {
 
     await this.DualApprovalService.annotatePending('User', rows, 'userId');
 
-    logAudit('INTERNAL_USER_LIST_VIEWED', adminUserId, { totalItems: count }, { ...ENTITY });
+    await audit.record('INTERNAL_USER_LIST_VIEWED', {
+      actorId: adminUserId,
+      details: { totalItems: count },
+      ...ENTITY
+    });
 
     const activeFilters: Record<string, unknown> = {};
     if (roleIdParam) {
@@ -104,7 +107,11 @@ class InternalUserQueryService {
     const filters: UserRepositoryFilters = { roleIds, onlyDeleted: true };
     const { rows, count } = await this.userRepository.findAllPaginated(filters, paginationParams, PaginationHelper.stringParam(query, 'search'));
 
-    logAudit('INTERNAL_USER_DELETED_LIST_VIEWED', adminUserId, { totalItems: count }, { ...ENTITY });
+    await audit.record('INTERNAL_USER_DELETED_LIST_VIEWED', {
+      actorId: adminUserId,
+      details: { totalItems: count },
+      ...ENTITY
+    });
 
     return {
       data: rows.map(InternalUserListDTO),
@@ -124,25 +131,35 @@ class InternalUserQueryService {
    */
   async listRoleOptions(adminUserId: string) {
     const roles = await this.roleRepository.findByNames(INTERNAL_ROLE_NAMES, { exclude: SUPERADMIN_ROLE_NAMES });
-    logAudit(
-      'INTERNAL_USER_ROLE_OPTIONS_VIEWED',
-      adminUserId,
-      { totalItems: roles.length },
-      { entityType: 'RbacRole', entityTable: 'roles' }
-    );
+    await audit.record('INTERNAL_USER_ROLE_OPTIONS_VIEWED', {
+      actorId: adminUserId,
+      details: { totalItems: roles.length },
+      entityType: 'RbacRole',
+      entityTable: 'roles'
+    });
     return roles.map(RoleOptionDTO);
   }
 
   async getById(userId: string, adminUserId: string) {
     const user = await this.guards.getInternalUserOrFail(userId);
-    logAudit('INTERNAL_USER_VIEWED', adminUserId, { targetUserId: userId }, { entityId: userId, ...ENTITY });
+    await audit.record('INTERNAL_USER_VIEWED', {
+      actorId: adminUserId,
+      details: { targetUserId: userId },
+      entityId: userId,
+      ...ENTITY
+    });
     return InternalUserDTO(user);
   }
 
   async listSessions(userId: string, adminUserId: string) {
     await this.guards.getInternalUserOrFail(userId);
     const sessions = await this.userSessionRepository.findActiveByUser(userId);
-    logAudit('INTERNAL_USER_SESSIONS_VIEWED', adminUserId, { targetUserId: userId }, { entityId: userId, ...ENTITY });
+    await audit.record('INTERNAL_USER_SESSIONS_VIEWED', {
+      actorId: adminUserId,
+      details: { targetUserId: userId },
+      entityId: userId,
+      ...ENTITY
+    });
     return sessions.map(UserSessionDTO);
   }
 
@@ -151,7 +168,12 @@ class InternalUserQueryService {
     const paginationParams = PaginationHelper.getPaginationParams(query);
     const { rows, count } = await this.userChangeLogRepository.findByUserId(userId, paginationParams);
 
-    logAudit('INTERNAL_USER_CHANGE_LOGS_VIEWED', adminUserId, { targetUserId: userId }, { entityId: userId, ...ENTITY });
+    await audit.record('INTERNAL_USER_CHANGE_LOGS_VIEWED', {
+      actorId: adminUserId,
+      details: { targetUserId: userId },
+      entityId: userId,
+      ...ENTITY
+    });
 
     return {
       data: rows.map(UserChangeLogDTO),

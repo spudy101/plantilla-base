@@ -1,11 +1,12 @@
 import cron from 'node-cron';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import { runOperation } from '../../../shared/observability/operation';
 import approvalRequestRepository from '../repositories/approval-request.repository';
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
+import audit from '../../audit/audit.service';
 
 
 // Cron hardcodeado (convención del repo: los workers no leen el cron de env vars).
@@ -38,22 +39,19 @@ class DualApprovalExpirationWorker {
           continue;
         }
 
-        logAudit(
-          'DUAL_APPROVAL_EXPIRED',
-          'system',
-          {
+        await audit.record('DUAL_APPROVAL_EXPIRED', {
+          actorId: 'system',
+          details: {
             approvalRequestId: request.approvalRequestId,
             operationKey: request.operationKey,
             entityType: request.entityType,
             entityId: request.entityId,
             expiresAt: request.expiresAt
           },
-          {
-            entityId: request.approvalRequestId,
-            entityType: 'ApprovalRequest',
-            entityTable: 'approval_requests'
-          }
-        );
+          entityId: request.approvalRequestId,
+          entityType: 'ApprovalRequest',
+          entityTable: 'approval_requests'
+        });
 
         count++;
       } catch (error) {

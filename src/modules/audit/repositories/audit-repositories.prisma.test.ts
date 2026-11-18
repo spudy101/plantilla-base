@@ -80,19 +80,35 @@ describe('AuditLogRepository — filtros de negocio a WHERE', () => {
   });
 });
 
-describe('Auditoría fuera de la transacción del flujo', () => {
-  it('create de audit_logs y audit_alerts usa el cliente por defecto aunque haya una unidad activa', async () => {
-    const unitClient = { auditLog: { create: jest.fn() }, auditAlert: { create: jest.fn() } };
-    const unit = { prisma: jest.fn().mockResolvedValue(unitClient) };
+describe('Auditoría dentro de la transacción del flujo', () => {
+  const unitClient = () => ({ auditLog: { create: jest.fn() }, auditAlert: { create: jest.fn() } });
+
+  it('create de audit_logs y audit_alerts usa la transacción de la unidad activa (el cambio y su auditoría, juntos)', async () => {
+    const client = unitClient();
+    const unit = { prisma: jest.fn().mockResolvedValue(client) };
 
     await txContext.runInUnit(unit, async () => {
       await auditLogRepository.create({ action: 'X', risk: 'low', outcome: 'success', source: 'http' });
       await auditAlertRepository.create({ action: 'X', risk: 'high' });
     });
 
+    expect(client.auditLog.create).toHaveBeenCalled();
+    expect(client.auditAlert.create).toHaveBeenCalled();
+    expect(mockDb.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it('independent: escribe con el cliente por defecto aunque haya unidad (intentos fallidos que deben quedar)', async () => {
+    const client = unitClient();
+    const unit = { prisma: jest.fn().mockResolvedValue(client) };
+
+    await txContext.runInUnit(unit, async () => {
+      await auditLogRepository.create({ action: 'X', risk: 'low', outcome: 'failure', source: 'http' }, { independent: true });
+      await auditAlertRepository.create({ action: 'X', risk: 'high' }, { independent: true });
+    });
+
     expect(mockDb.auditLog.create).toHaveBeenCalled();
     expect(mockDb.auditAlert.create).toHaveBeenCalled();
-    expect(unit.prisma).not.toHaveBeenCalled();
+    expect(client.auditLog.create).not.toHaveBeenCalled();
   });
 });
 

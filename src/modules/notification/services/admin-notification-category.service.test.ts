@@ -31,6 +31,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('../dtos/admin-notification-category.dto', () => ({
   NotificationCategoryAdminDTO: (cat: Loose) => ({ dto: 'category', id: cat.notificationCategoryId, code: cat.code }),
@@ -42,8 +43,8 @@ import categoryRepoModule from '../repositories/notification-category.repository
 const categoryRepo = mocked(categoryRepoModule);
 import typeRepoModule from '../repositories/notification-type.repository';
 const typeRepo = mocked(typeRepoModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import service from './admin-notification-category.service';
 
 const ADMIN = 'admin-1';
@@ -62,7 +63,7 @@ describe('NotificationCategoryService', () => {
       expect(categoryRepo.findAllPaginated).toHaveBeenCalledWith({}, expect.any(Object), 'foo');
       expect(result.data).toHaveLength(1);
       expect(result.metadata.filters).toMatchObject({ search: 'foo' });
-      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_CATEGORY_LIST_VIEWED', ADMIN, { totalItems: 1 }, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_CATEGORY_LIST_VIEWED', expect.objectContaining({ actorId: ADMIN, details: { totalItems: 1 } }));
     });
   });
 
@@ -78,7 +79,7 @@ describe('NotificationCategoryService', () => {
       const result = await service.getById('c-1', ADMIN);
 
       expect(result).toMatchObject({ dto: 'category', code: 'ALERTS' });
-      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_CATEGORY_VIEWED', ADMIN, { code: 'ALERTS' }, expect.objectContaining({ entityId: 'c-1' }));
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_CATEGORY_VIEWED', expect.objectContaining({ actorId: ADMIN, details: { code: 'ALERTS' }, entityId: 'c-1' }));
     });
   });
 
@@ -98,7 +99,7 @@ describe('NotificationCategoryService', () => {
 
       expect(categoryRepo.create).toHaveBeenCalledWith({ code: 'ALERTS', name: 'Alertas', supportsEmail: true });
       expect(result).toMatchObject({ dto: 'category', code: 'ALERTS' });
-      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_CATEGORY_CREATED', ADMIN, { code: 'ALERTS' }, expect.objectContaining({ entityId: 'c-9' }));
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_CATEGORY_CREATED', expect.objectContaining({ actorId: ADMIN, details: { code: 'ALERTS' }, entityId: 'c-9' }));
     });
 
     it('re-lanza si la creación falla y no audita', async () => {
@@ -136,11 +137,7 @@ describe('NotificationCategoryService', () => {
 
       expect(categoryRepo.update).toHaveBeenCalledWith('c-1', { name: 'Nuevo', isActive: false });
       expect(result).toMatchObject({ dto: 'category' });
-      expect(logAudit).toHaveBeenCalledWith(
-        'NOTIFICATION_CATEGORY_UPDATED',
-        ADMIN,
-        expect.objectContaining({ updatedFields: ['name', 'isActive'] }),
-        expect.objectContaining({ entityId: 'c-1' })
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_CATEGORY_UPDATED', expect.objectContaining({ actorId: ADMIN, details: expect.objectContaining({ updatedFields: ['name', 'isActive'] }), entityId: 'c-1' })
       );
     });
   });
@@ -167,7 +164,7 @@ describe('NotificationCategoryService', () => {
 
       expect(categoryRepo.delete).toHaveBeenCalledWith('c-1');
       expect(result).toEqual({ notificationCategoryId: 'c-1', deleted: true });
-      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_CATEGORY_DELETED', ADMIN, { code: 'ALERTS' }, expect.objectContaining({ entityId: 'c-1' }));
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_CATEGORY_DELETED', expect.objectContaining({ actorId: ADMIN, details: { code: 'ALERTS' }, entityId: 'c-1' }));
     });
   });
 });

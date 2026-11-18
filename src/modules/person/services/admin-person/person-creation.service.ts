@@ -15,13 +15,14 @@ import KycSharedUtil from '../../utils/kyc-shared.util';
 import NotificationUtil from '../../../notification/services/notification-creation.service';
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import ProfileHelper from '../../helpers/profile.helper';
 import constantsModule from '../../../../shared/constants';
 const { notifications, RBAC_ROLES } = constantsModule;
 
 import adminPersonDtoModule from '../../dtos/admin-person.dto';
 const { CreateUserDTO } = adminPersonDtoModule;
+import audit from '../../../audit/audit.service';
 
 class PersonCreationService {
   unitOfWork: typeof unitOfWork;
@@ -69,15 +70,16 @@ class PersonCreationService {
     });
 
     // Después del commit: un error acá ya no intenta revertir la transacción confirmada
-    logAudit(
-      'PERSON_CREATED',
-      auditContext.adminUserId,
-      {
+    await audit.record('PERSON_CREATED', {
+      actorId: auditContext.adminUserId,
+      details: {
         roleId: role.roleId,
         roleName: role.name
       },
-      { entityId: user.userId, entityType: 'User', entityTable: 'users' }
-    );
+      entityId: user.userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     setImmediate(() => this._sendCreateNotifications(userData, user, auditContext, temporaryPassword));
 

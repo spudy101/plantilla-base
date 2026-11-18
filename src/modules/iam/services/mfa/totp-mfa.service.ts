@@ -11,10 +11,11 @@ import TotpUtil from '../../../../shared/security/totp.util';
 import EncryptionUtil from '../../../../shared/security/encryption.util';
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import mfaDtoModule from '../../dtos/mfa.dto';
 const { TOTPSetupResponseDTO, TOTPActivationResponseDTO, TOTPVerificationResponseDTO } = mfaDtoModule;
 import MfaAccount from './mfa-account';
+import audit from '../../../audit/audit.service';
 
 const ENTITY = { entityType: 'User', entityTable: 'users' };
 
@@ -47,7 +48,7 @@ class TotpMfaService {
 
     await this.userRepository.update(userId, { totpSecret: EncryptionUtil.encrypt(secretCode) });
 
-    logAudit('MFA_TOTP_SETUP', userId, { username }, { entityId: userId, ...ENTITY });
+    await audit.record('MFA_TOTP_SETUP', { actorId: userId, details: { username }, entityId: userId, ...ENTITY });
 
     return TOTPSetupResponseDTO({ otpauthUrl, secretCode, username });
   }
@@ -86,7 +87,12 @@ class TotpMfaService {
     });
 
     // TOTP activado — crítico, modifica seguridad de la cuenta
-    logAudit('MFA_TOTP_ACTIVATED', userId, { username }, { entityId: userId, ...ENTITY });
+    await audit.record('MFA_TOTP_ACTIVATED', {
+      actorId: userId,
+      details: { username },
+      entityId: userId,
+      ...ENTITY
+    });
     this._notify('TOTP_ACTIVADO', userId, firstName);
 
     return TOTPActivationResponseDTO({ userId, username, totpEnabled: true });
@@ -102,12 +108,13 @@ class TotpMfaService {
     const isValid = TotpUtil.verify(totpCode, secret);
 
     // Registrar verificación — exitosa o fallida
-    logAudit(
-      isValid ? 'MFA_VERIFIED' : 'MFA_FAILED',
-      userId,
-      { username, success: isValid },
-      { entityId: userId, ...ENTITY, outcome: isValid ? 'success' : 'failure' }
-    );
+    await audit.record(isValid ? 'MFA_VERIFIED' : 'MFA_FAILED', {
+      actorId: userId,
+      details: { username, success: isValid },
+      entityId: userId,
+      ...ENTITY,
+      outcome: isValid ? 'success' : 'failure'
+    });
 
     return TOTPVerificationResponseDTO({ valid: isValid, username });
   }
@@ -144,7 +151,12 @@ class TotpMfaService {
     });
 
     // TOTP desactivado — crítico, reduce seguridad de la cuenta
-    logAudit('MFA_TOTP_DEACTIVATED', userId, { username }, { entityId: userId, ...ENTITY });
+    await audit.record('MFA_TOTP_DEACTIVATED', {
+      actorId: userId,
+      details: { username },
+      entityId: userId,
+      ...ENTITY
+    });
     this._notify('TOTP_ELIMINADO', userId, firstName);
 
     return TOTPActivationResponseDTO({ userId, username, totpEnabled: false });

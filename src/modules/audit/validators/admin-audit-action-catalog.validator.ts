@@ -1,6 +1,6 @@
 import { query } from 'express-validator';
 import BaseValidator from '../../../shared/http/base.validator';
-import auditactionsModule from '../../../shared/constants/audit-actions';
+import auditactionsModule from '../catalog';
 const { AUDIT_CATEGORIES, AUDIT_RISKS, AUDIT_MODULES } = auditactionsModule;
 
 const CATEGORIES = Object.values(AUDIT_CATEGORIES);

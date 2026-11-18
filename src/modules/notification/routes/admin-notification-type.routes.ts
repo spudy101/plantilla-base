@@ -10,7 +10,6 @@ import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import RbacMiddleware from '../../iam/middlewares/rbac.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 import rbacModule from '../../../shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
@@ -28,7 +27,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   NotificationTypeValidator.listQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('NOTIFICATION_TYPE_LIST_VIEWED', { entityType: 'NotificationType', entityTable: 'notification_types' }),
   NotificationTypeController.list
 );
 
@@ -48,7 +46,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   NotificationTypeValidator.createGlobalNotification(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('GLOBAL_NOTIFICATION_SENT', { entityType: 'GlobalNotification', entityTable: 'global_notifications' }),
   NotificationTypeController.createGlobalNotification
 );
 
@@ -68,7 +65,6 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   NotificationTypeValidator.createDirectNotification(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('DIRECT_NOTIFICATION_SENT', { entityType: 'Notification', entityTable: 'notifications' }),
   NotificationTypeController.createDirectNotification
 );
 
@@ -90,7 +86,6 @@ router.patch(
   BaseValidator.uuidParam('notificationTypeId', 'El tipo de notificación'),
   NotificationTypeValidator.update(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('NOTIFICATION_TYPE_UPDATED', { entityType: 'NotificationType', entityTable: 'notification_types' }),
   NotificationTypeController.update
 );
 

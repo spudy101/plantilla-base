@@ -21,6 +21,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
   logAudit: jest.fn()
 }));
+jest.mock('../audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('../dtos/user-activity.dto', () => ({
   UserActivityListResponseDTO: jest.fn((merged, metadata, deviceBySession) => ({ merged, metadata, deviceBySession }))
@@ -33,8 +34,8 @@ import userChangeLogRepositoryModule from '../repositories/user-change-log.repos
 const userChangeLogRepository = mocked(userChangeLogRepositoryModule);
 import userSessionRepositoryModule from '../../iam/repositories/user-session.repository';
 const userSessionRepository = mocked(userSessionRepositoryModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import userActivityDtoModule from '../dtos/user-activity.dto';
 const { UserActivityListResponseDTO } = mocked(userActivityDtoModule);
 import service from './user-activity.service';
@@ -84,11 +85,7 @@ describe('UserActivityService', () => {
       expect(deviceMap.get('sess1')).toEqual({ deviceId: 'd1', name: 'iPhone' });
       expect(deviceMap.get('sess2')).toBeNull();
 
-      expect(logAudit).toHaveBeenCalledWith(
-        'RECENT_ACTIVITY_VIEWED',
-        USER_ID,
-        { totalItems: 2, page: 1 },
-        expect.anything()
+      expect(logAudit).toHaveBeenCalledWith('RECENT_ACTIVITY_VIEWED', expect.objectContaining({ actorId: USER_ID, details: { totalItems: 2, page: 1 } })
       );
       expect(result.metadata).toEqual(expect.objectContaining({ totalItems: 2, page: 1, order: 'DESC' }));
     });

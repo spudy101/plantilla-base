@@ -2,7 +2,8 @@
 import { Redis } from 'ioredis';
 import type { RedisOptions } from 'ioredis';
 import loggerUtilModule from '../observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
+import { auditInfraEvent } from '../observability/audit-hook';
 import { runOperation } from '../observability/operation';
 import constantsModule from '../constants';
 const { redis: redisConfig } = constantsModule;
@@ -71,7 +72,7 @@ class RedisClient {
    * Audita la caída de Redis en la transición conectado→caído, una sola vez por
    * incidente. Solo emite si veníamos conectados (isConnected === true), de modo
    * que un fallo de conexión en el arranque no genere una alerta espuria.
-   * logAudit no depende de Redis (escribe en BD/S3), por lo que es seguro aquí.
+   * La auditoría no depende de Redis (escribe en BD), por lo que es seguro aquí.
    *
    * @private
    */
@@ -82,12 +83,13 @@ class RedisClient {
     this._outageAudited = true;
     logger.error('Redis no disponible — modo degradado activado', { source, error: reason });
     void runOperation({ source: 'system', name: 'redis.outage' }, () =>
-      logAudit(
-        'REDIS_CONNECTION_LOST',
-        'system',
-        { source, error: reason ?? undefined },
-        { outcome: 'failure', entityType: 'RedisConnection', entityTable: null }
-      )
+      auditInfraEvent({
+        action: 'REDIS_CONNECTION_LOST',
+        actorId: 'system',
+        details: { source, error: reason ?? undefined },
+        outcome: 'failure',
+        entityType: 'RedisConnection'
+      })
     );
   }
 
@@ -104,12 +106,7 @@ class RedisClient {
     this._outageAudited = false;
     logger.info('Redis reconectado tras incidente');
     void runOperation({ source: 'system', name: 'redis.restored' }, () =>
-      logAudit(
-        'REDIS_CONNECTION_RESTORED',
-        'system',
-        {},
-        { outcome: 'success', entityType: 'RedisConnection', entityTable: null }
-      )
+      auditInfraEvent({ action: 'REDIS_CONNECTION_RESTORED', actorId: 'system', entityType: 'RedisConnection' })
     );
   }
 

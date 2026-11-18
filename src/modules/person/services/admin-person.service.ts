@@ -7,7 +7,7 @@ import roleRepository from '../../iam/repositories/role.repository';
 import NotificationUtil from '../../notification/services/notification-creation.service';
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import ProfileHelper from '../helpers/profile.helper';
 import DualApprovalService from '../../approvals/services/dual-approval.service';
 import constantsModule from '../../../shared/constants';
@@ -18,6 +18,7 @@ import PersonQueryService from './admin-person/person-query.service';
 import PersonCreationService from './admin-person/person-creation.service';
 import PersonAccessService from './admin-person/person-access.service';
 import PersonCredentialsService from './admin-person/person-credentials.service';
+import audit from '../../audit/audit.service';
 
 /**
  * ============================================================
@@ -150,12 +151,12 @@ class PersonService {
       return result;
     });
 
-    logAudit(
-      'PERSON_ACCOUNT_DELETED',
-      auditContext.adminUserId,
-      {},
-      { entityId: userId, entityType: 'User', entityTable: 'users' }
-    );
+    await audit.record('PERSON_ACCOUNT_DELETED', {
+      actorId: auditContext.adminUserId,
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     const { deletedEmail } = result;
     if (deletedEmail) {

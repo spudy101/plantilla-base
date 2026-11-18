@@ -1,12 +1,13 @@
 import type { RequestAuditContext } from '../../../shared/types/audit-context';
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import unitOfWork from '../../../shared/database/unit-of-work';
 import consentTypeRepository from '../repositories/consent-type.repository';
 import userConsentRepository from '../repositories/user-consent.repository';
 import userConsentDtoModule from '../dtos/user-consent.dto';
 const { MyConsentCatalogDTO, ConsentGrantedDTO } = userConsentDtoModule;
+import audit from '../../audit/audit.service';
 
 class UserConsentService {
   unitOfWork: typeof unitOfWork;
@@ -34,12 +35,11 @@ class UserConsentService {
     const grantedByTypeId = new Map(currentConsents.map(c => [c.consentTypeId, c]));
     const data = consentTypes.map(type => MyConsentCatalogDTO(type, grantedByTypeId.get(type.consentTypeId) || null));
 
-    logAudit(
-      'CONSENT_CATALOG_VIEWED',
-      userId,
-      { totalItems: data.length, grantedCount: currentConsents.length },
-      { entityTable: 'consent_types' }
-    );
+    await audit.record('CONSENT_CATALOG_VIEWED', {
+      actorId: userId,
+      details: { totalItems: data.length, grantedCount: currentConsents.length },
+      entityTable: 'consent_types'
+    });
 
     return data;
   }
@@ -86,16 +86,17 @@ class UserConsentService {
     });
 
     for (const entry of auditEntries) {
-      logAudit(
-        'CONSENT_GRANTED',
-        userId,
-        {
+      await audit.record('CONSENT_GRANTED', {
+        actorId: userId,
+        details: {
           consentTypeCode: entry.consentTypeCode,
           consentTypeId: entry.consentTypeId,
           privacyPolicyId: entry.privacyPolicyId
         },
-        { entityType: 'UserConsent', entityId: entry.userConsentId, entityTable: 'user_consents' }
-      );
+        entityType: 'UserConsent',
+        entityId: entry.userConsentId,
+        entityTable: 'user_consents'
+      });
     }
 
     logger.info('UserConsentService.grant', { userId, count: granted.length });
@@ -132,12 +133,13 @@ class UserConsentService {
       return revoked;
     });
 
-    logAudit(
-      'CONSENT_REVOKED',
-      userId,
-      { consentTypeId, reason: auditCtx.reason || null },
-      { entityType: 'UserConsent', entityId: revoked.userConsentId, entityTable: 'user_consents' }
-    );
+    await audit.record('CONSENT_REVOKED', {
+      actorId: userId,
+      details: { consentTypeId, reason: auditCtx.reason || null },
+      entityType: 'UserConsent',
+      entityId: revoked.userConsentId,
+      entityTable: 'user_consents'
+    });
 
     logger.info('UserConsentService.revokeMarketing', { userId, consentTypeId });
     return { message: 'Consentimiento revocado exitosamente' };

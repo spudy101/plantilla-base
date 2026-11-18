@@ -7,7 +7,6 @@ import RbacMiddleware from '../../iam/middlewares/rbac.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 import constantsModule from '../../../shared/constants';
 const { RBAC_MODULES, RBAC_ACTIONS } = constantsModule;
 
@@ -19,7 +18,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AdminUserConsentValidator.listQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('CONSENT_LIST_VIEWED', { entityType: 'UserConsent', entityTable: 'user_consents' }),
   AdminUserConsentController.list
 );
 
@@ -31,7 +29,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   AdminUserConsentValidator.userId(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('CONSENT_HISTORY_VIEWED', { entityType: 'UserConsent', entityTable: 'user_consents' }),
   AdminUserConsentController.getHistoryByUser
 );
 

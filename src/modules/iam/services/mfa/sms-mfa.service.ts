@@ -13,7 +13,7 @@ import NotificationUtil from '../../../notification/services/notification-creati
 import SmsService from '../../../notification/services/sms.service';
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import constantsModule from '../../../../shared/constants';
 const { MOCKS } = constantsModule;
 import mfaDtoModule from '../../dtos/mfa.dto';
@@ -22,6 +22,7 @@ import MfaAccount from './mfa-account';
 import errorMessageModule from '../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
+import audit from '../../../audit/audit.service';
 
 
 const OTP_EXPIRATION_MINUTES = 15;
@@ -78,7 +79,7 @@ class SmsMfaService {
 
     this._sendActivationSms(userId, phone, user.person?.contact?.phonePrimaryPrefixId ?? null, code);
 
-    logAudit('MFA_SMS_SETUP', userId, { username }, { entityId: userId, ...ENTITY });
+    await audit.record('MFA_SMS_SETUP', { actorId: userId, details: { username }, entityId: userId, ...ENTITY });
 
     const truncatedCode = `****${code.slice(-MASKED_CODE_VISIBLE_DIGITS)}`;
     return SMSActivationRequestResponseDTO({
@@ -117,7 +118,7 @@ class SmsMfaService {
       });
     });
 
-    logAudit('MFA_SMS_ACTIVATED', userId, { username }, { entityId: userId, ...ENTITY });
+    await audit.record('MFA_SMS_ACTIVATED', { actorId: userId, details: { username }, entityId: userId, ...ENTITY });
     this._notify('SMS_MFA_ACTIVADO', userId, firstName);
 
     return SMSMFAActivationResponseDTO({ userId, username, smsMfaEnabled: true });
@@ -149,7 +150,12 @@ class SmsMfaService {
       });
     });
 
-    logAudit('MFA_SMS_DEACTIVATED', userId, { username }, { entityId: userId, ...ENTITY });
+    await audit.record('MFA_SMS_DEACTIVATED', {
+      actorId: userId,
+      details: { username },
+      entityId: userId,
+      ...ENTITY
+    });
     this._notify('SMS_MFA_DESACTIVADO', userId, firstName);
 
     return SMSMFAActivationResponseDTO({ userId, username, smsMfaEnabled: false });

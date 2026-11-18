@@ -19,6 +19,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('../../../shared/constants', () => ({
   notifications: { sns: { bounceTopicArn: 'arn:aws:sns:us-east-1:1:bounces' } }
@@ -29,8 +30,8 @@ import emailSuppressionServiceModule from './email-suppression.service';
 const emailSuppressionService = mocked(emailSuppressionServiceModule);
 import snsSignatureUtilModule from '../../../shared/security/sns-signature.util';
 const { verifySnsSignature, confirmSnsSubscription } = mocked(snsSignatureUtilModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import service from './email-bounce-webhook.service';
 
 const TOPIC = 'arn:aws:sns:us-east-1:1:bounces';
@@ -93,11 +94,7 @@ describe('EmailBounceWebhookService', () => {
       const result = await service.process({ Type: 'SubscriptionConfirmation', TopicArn: TOPIC });
 
       expect(confirmSnsSubscription).toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith(
-        'EMAIL_BOUNCE_SUBSCRIPTION_CONFIRMED',
-        'system',
-        expect.objectContaining({ topicArn: TOPIC }),
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('EMAIL_BOUNCE_SUBSCRIPTION_CONFIRMED', expect.objectContaining({ actorId: 'system', details: expect.objectContaining({ topicArn: TOPIC }) })
       );
       expect(result).toEqual({ type: 'SubscriptionConfirmation', confirmed: true, processed: 0, suppressed: 0 });
     });
@@ -155,11 +152,7 @@ describe('EmailBounceWebhookService', () => {
         email: 'a@x.com',
         errorCode: 'General'
       });
-      expect(logAudit).toHaveBeenCalledWith(
-        'EMAIL_BOUNCE_WEBHOOK_RECEIVED',
-        'system',
-        expect.objectContaining({ recipients: 2, suppressed: 2, bounceSubType: 'General', feedbackId: 'fb-1' }),
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('EMAIL_BOUNCE_WEBHOOK_RECEIVED', expect.objectContaining({ actorId: 'system', details: expect.objectContaining({ recipients: 2, suppressed: 2, bounceSubType: 'General', feedbackId: 'fb-1' }) })
       );
       expect(result).toEqual({ type: 'Notification', processed: 2, suppressed: 2 });
     });

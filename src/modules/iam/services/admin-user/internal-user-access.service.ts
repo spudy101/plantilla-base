@@ -12,13 +12,14 @@ import NotificationCreationService from '../../../notification/services/notifica
 import DualApprovalService from '../../../approvals/services/dual-approval.service';
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import constantsModule from '../../../../shared/constants';
 const { notifications } = constantsModule;
 import adminUserDtoModule from '../../dtos/admin-user.dto';
 const { InternalUserDTO } = adminUserDtoModule;
 import internalUserGuardsModule from './internal-user-guards';
 const { InternalUserGuards, displayName } = internalUserGuardsModule;
+import audit from '../../../audit/audit.service';
 
 const ENTITY = { entityType: 'InternalUser', entityTable: 'users' };
 
@@ -107,12 +108,12 @@ class InternalUserAccessService {
     // efecto de inmediato (los JWT vigentes llevan el roleName anterior).
     await this.guards.invalidateSessions(userId, 'role_changed');
 
-    logAudit(
-      'INTERNAL_USER_ROLE_CHANGED',
-      auditCtx.adminUserId,
-      { before: { role: oldRoleName }, after: { role: newRole.name } },
-      { entityId: userId, ...ENTITY }
-    );
+    await audit.record('INTERNAL_USER_ROLE_CHANGED', {
+      actorId: auditCtx.adminUserId,
+      details: { before: { role: oldRoleName }, after: { role: newRole.name } },
+      entityId: userId,
+      ...ENTITY
+    });
 
     const nombre = displayName(user);
     setImmediate(() => {
@@ -171,12 +172,12 @@ class InternalUserAccessService {
       await this.guards.invalidateSessions(userId, 'account_deactivated');
     }
 
-    logAudit(
-      isActive ? 'INTERNAL_USER_ACTIVATED' : 'INTERNAL_USER_DEACTIVATED',
-      auditCtx.adminUserId,
-      { before: { isActive: !isActive }, after: { isActive } },
-      { entityId: userId, ...ENTITY }
-    );
+    await audit.record(isActive ? 'INTERNAL_USER_ACTIVATED' : 'INTERNAL_USER_DEACTIVATED', {
+      actorId: auditCtx.adminUserId,
+      details: { before: { isActive: !isActive }, after: { isActive } },
+      entityId: userId,
+      ...ENTITY
+    });
 
     const nombre = displayName(user);
     const accion = isActive ? 'activado' : 'desactivado';
@@ -210,7 +211,12 @@ class InternalUserAccessService {
     const user = await this.guards.getInternalUserOrFail(userId);
     this.guards.assertNotDeleted(user);
     await this.guards.invalidateSessions(userId, 'closed_by_admin');
-    logAudit('INTERNAL_USER_SESSIONS_CLOSED', auditCtx.adminUserId, { targetUserId: userId }, { entityId: userId, ...ENTITY });
+    await audit.record('INTERNAL_USER_SESSIONS_CLOSED', {
+      actorId: auditCtx.adminUserId,
+      details: { targetUserId: userId },
+      entityId: userId,
+      ...ENTITY
+    });
 
     const nombre = displayName(user);
     setImmediate(() => {

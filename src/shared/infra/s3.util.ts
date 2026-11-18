@@ -358,6 +358,22 @@ class S3Util {
    *   );
    *   // url = 'https://xxx.cloudfront.net/legal/privacy-policy-v1.1.pdf'
    */
+  /**
+   * Copia de archivo (retención fría) en el bucket privado: clase STANDARD_IA. Sobrescribe si la key existe,
+   * así el que la llama puede reintentar sin duplicar.
+   */
+  static async uploadArchive(s3Key: string, body: string, contentType = 'application/x-ndjson'): Promise<void> {
+    await S3Util.s3Client.send(
+      new PutObjectCommand({
+        Bucket: S3Util.bucketName,
+        Key: s3Key,
+        Body: Buffer.from(body),
+        ContentType: contentType,
+        StorageClass: 'STANDARD_IA'
+      })
+    );
+  }
+
   static async uploadPublicDocument(fileBuffer: Buffer, s3Key: string, contentType = 'application/pdf') {
     try {
       if (!fileBuffer) {

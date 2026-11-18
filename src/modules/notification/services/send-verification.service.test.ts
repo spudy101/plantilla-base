@@ -33,6 +33,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
   logAudit: jest.fn()
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 // EXTERNAL_PROVIDERS mutable: se alterna por prueba para forzar código determinista '123456'.
 jest.mock('../../../shared/constants', () => ({
@@ -57,7 +58,9 @@ const NotificationUtil = mocked(NotificationUtilModule);
 import SmsServiceModule from './sms.service';
 const SmsService = mocked(SmsServiceModule);
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit, logger } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const { logger } = mocked(loggerUtilModule);
+const logAudit = mocked(auditServiceModule).record;
 import constantsModule from '../../../shared/constants';
 const constants = mocked(constantsModule);
 import sendVerificationDtoModule from '../dtos/send-verification.dto';
@@ -106,7 +109,7 @@ describe('SendVerificationService', () => {
         // attempts no se envía: el repositorio no lo acepta y la columna arranca en 0
         expect.objectContaining({ type: 'email', contactValue: 'a@b.cl' })
       );
-      expect(logAudit).toHaveBeenCalledWith('VERIFICATION_CODE_SENT', null, expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('VERIFICATION_CODE_SENT', expect.objectContaining({ actorId: null }));
       // Email → sin truncatedCode (MOCKS off).
       expect(SendVerificationResponseDTO).toHaveBeenCalledWith(
         expect.objectContaining({ verificationCode: { verificationCodeId: 'vc-1' }, truncatedCode: null })
@@ -208,11 +211,7 @@ describe('SendVerificationService', () => {
       });
 
       expect(verificationCodeRepo.incrementAttempts).toHaveBeenCalledWith('vc-1');
-      expect(logAudit).toHaveBeenCalledWith(
-        'VERIFICATION_CODE_FAILED',
-        null,
-        expect.objectContaining({ attempts: 2 }),
-        expect.objectContaining({ outcome: 'failure' })
+      expect(logAudit).toHaveBeenCalledWith('VERIFICATION_CODE_FAILED', expect.objectContaining({ actorId: null, details: expect.objectContaining({ attempts: 2 }), outcome: 'failure' })
       );
     });
 
@@ -227,7 +226,7 @@ describe('SendVerificationService', () => {
       const result = await service.verifyCode({ type: 'email', contact: 'a@b.cl', code: '123456' });
 
       expect(verificationCodeRepo.markAsVerified).toHaveBeenCalledWith('vc-1');
-      expect(logAudit).toHaveBeenCalledWith('VERIFICATION_CODE_VERIFIED', null, expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('VERIFICATION_CODE_VERIFIED', expect.objectContaining({ actorId: null }));
       expect(result).toEqual({ verified: true });
     });
   });

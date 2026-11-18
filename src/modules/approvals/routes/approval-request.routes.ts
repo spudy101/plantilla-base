@@ -7,7 +7,6 @@ import RbacMiddleware from '../../iam/middlewares/rbac.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
-import AuditAction from '../../audit/middlewares/audit-action.middleware';
 import rbacModule from '../../../shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
@@ -18,7 +17,6 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.DUAL_APPROVAL, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuditAction.declare('APPROVAL_POLICY_VIEWED', { entityType: 'ApprovalRequest', entityTable: 'approval_requests' }),
   ApprovalRequestController.getPolicy
 );
 
@@ -31,7 +29,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   ApprovalRequestValidator.listQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('APPROVAL_REQUEST_LIST_VIEWED', { entityType: 'ApprovalRequest', entityTable: 'approval_requests' }),
   ApprovalRequestController.list
 );
 
@@ -44,7 +41,6 @@ router.get(
   RequestLockMiddleware.forAuthenticatedUsers(),
   ApprovalRequestValidator.idParam(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('APPROVAL_REQUEST_VIEWED', { entityType: 'ApprovalRequest', entityTable: 'approval_requests' }),
   ApprovalRequestController.getById
 );
 

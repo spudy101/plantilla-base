@@ -15,6 +15,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('../../../shared/observability/request-context.util', () => ({
   originFromContext: jest.fn().mockReturnValue({ origin_session: 'sess-1' })
@@ -36,8 +37,8 @@ jest.mock('../../notification/services/notification-creation.service', () => ({
 }));
 
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import systemGlobalConfigRepositoryModule from '../repositories/system-global-config.repository';
 const systemGlobalConfigRepository = mocked(systemGlobalConfigRepositoryModule);
 import notificationCreationServiceModule from '../../notification/services/notification-creation.service';
@@ -79,7 +80,7 @@ describe('SystemGlobalConfigService', () => {
       const result = await service.getConfig('admin-1');
 
       expect(systemGlobalConfigRepository.findActive).toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith('SYSTEM_GLOBAL_CONFIG_VIEWED', 'admin-1', {}, expect.objectContaining({ entityId: 'cfg-1' }));
+      expect(logAudit).toHaveBeenCalledWith('SYSTEM_GLOBAL_CONFIG_VIEWED', expect.objectContaining({ actorId: 'admin-1', entityId: 'cfg-1' }));
       expect(result).toMatchObject({ dto: 'config', configId: 'cfg-1' });
     });
 
@@ -109,11 +110,7 @@ describe('SystemGlobalConfigService', () => {
         auditRetentionHotYears: 2,
         auditHotPurgeEnabled: true
       });
-      expect(logAudit).toHaveBeenCalledWith(
-        'SYSTEM_GLOBAL_CONFIG_UPDATED',
-        'admin-1',
-        expect.objectContaining({ updatedFields: ['currency', 'auditRetentionHotYears', 'auditHotPurgeEnabled'], configVersion: { before: 3, after: 4 } }),
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('SYSTEM_GLOBAL_CONFIG_UPDATED', expect.objectContaining({ actorId: 'admin-1', details: expect.objectContaining({ updatedFields: ['currency', 'auditRetentionHotYears', 'auditHotPurgeEnabled'], configVersion: { before: 3, after: 4 } }) })
       );
       expect(result).toMatchObject({ dto: 'config', configVersion: 4 });
 

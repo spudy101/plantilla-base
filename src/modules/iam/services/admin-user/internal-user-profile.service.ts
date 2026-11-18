@@ -13,7 +13,7 @@ import KycSharedUtil from '../../../person/utils/kyc-shared.util';
 import NotificationCreationService from '../../../notification/services/notification-creation.service';
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import auditDiffUtilModule from '../../../audit/utils/audit-diff.util';
 const { buildAuditDiff } = auditDiffUtilModule;
 import constantsModule from '../../../../shared/constants';
@@ -22,6 +22,7 @@ import adminUserDtoModule from '../../dtos/admin-user.dto';
 const { InternalUserDTO, InternalUserCreatedDTO } = adminUserDtoModule;
 import internalUserGuardsModule from './internal-user-guards';
 const { InternalUserGuards } = internalUserGuardsModule;
+import audit from '../../../audit/audit.service';
 
 class InternalUserProfileService {
   userRepository: typeof userRepository;
@@ -79,12 +80,13 @@ class InternalUserProfileService {
       role
     });
 
-    logAudit(
-      'INTERNAL_USER_CREATED',
-      auditCtx.adminUserId,
-      { roleId: role.roleId, roleName: role.name },
-      { entityId: user.userId, entityType: 'InternalUser', entityTable: 'users' }
-    );
+    await audit.record('INTERNAL_USER_CREATED', {
+      actorId: auditCtx.adminUserId,
+      details: { roleId: role.roleId, roleName: role.name },
+      entityId: user.userId,
+      entityType: 'InternalUser',
+      entityTable: 'users'
+    });
 
     setImmediate(() => {
       const { logoUrl } = notifications.ses;
@@ -133,12 +135,13 @@ class InternalUserProfileService {
       secondLastName: data.secondLastName ?? person.secondLastName
     });
 
-    logAudit(
-      'INTERNAL_USER_UPDATED',
-      auditCtx.adminUserId,
-      { before, after },
-      { entityId: userId, entityType: 'InternalUser', entityTable: 'persons' }
-    );
+    await audit.record('INTERNAL_USER_UPDATED', {
+      actorId: auditCtx.adminUserId,
+      details: { before, after },
+      entityId: userId,
+      entityType: 'InternalUser',
+      entityTable: 'persons'
+    });
 
     const fresh = await this.userRepository.findByUserId(userId, 'basic');
     return InternalUserDTO(fresh);

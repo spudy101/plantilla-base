@@ -14,11 +14,12 @@ import { interopDefault } from './shared/utils/interop.util';
 import CircuitBreaker from './shared/infra/circuit-breaker.util';
 import { runOperation } from './shared/observability/operation';
 import loggerUtilModule from './shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import providerFallbackRepository from './modules/integration/repositories/provider-fallback-event.repository';
 import errorMessageModule from './shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
+import audit from './modules/audit/audit.service';
 
 
 const MS_PER_SECOND = 1000;
@@ -60,10 +61,13 @@ function _onOpen(product: string, openedAt: number | null) {
         circuitProduct: product,
         startedAt: new Date(openedAt ?? Date.now())
       });
-      logAudit('PROVIDER_FALLBACK_ACTIVATED', null, {
+      await audit.record('PROVIDER_FALLBACK_ACTIVATED', {
+        actorId: null,
+        details: {
         provider: _providerName(product),
         product,
         openedAt: new Date(openedAt ?? Date.now()).toISOString()
+      }
       });
       logger.warn(`[CircuitBreaker] Fallback activado para ${product}`);
     } catch (err) {
@@ -87,13 +91,16 @@ function _onClose(product: string, openedAt: number | null) {
       });
 
       const durationSeconds = startedAt ? Math.round((endedAt.getTime() - startedAt.getTime()) / MS_PER_SECOND) : null;
-      logAudit('PROVIDER_FALLBACK_RESOLVED', null, {
+      await audit.record('PROVIDER_FALLBACK_RESOLVED', {
+        actorId: null,
+        details: {
         provider: _providerName(product),
         product,
         openedAt: startedAt?.toISOString(),
         endedAt: endedAt.toISOString(),
         durationSeconds,
         affectedCount
+      }
       });
       logger.info(`[CircuitBreaker] Fallback resuelto para ${product}`, { affectedCount });
     } catch (err) {

@@ -12,9 +12,10 @@ import TokenBlacklistUtil from '../../utils/token-blacklist.util';
 import redisClient from '../../../../shared/infra/redis.util';
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import constantsModule from '../../../../shared/constants';
 const { SECURITY, AUTH_ERROR_CODES, jwt: jwtConfig } = constantsModule;
+import audit from '../../../audit/audit.service';
 
 class TokenRefreshService {
   userRepository: typeof userRepository;
@@ -132,12 +133,13 @@ class TokenRefreshService {
     //    actualizar la fila en BD. Todos fire-and-forget.
     this._applyRotationSideEffects(decoded, { refreshTokenStr, refreshTs, newJti });
 
-    logAudit(
-      'TOKEN_REFRESHED',
-      decoded.userId,
-      { jti: decoded.jti, newJti },
-      { entityId: decoded.userId, entityType: 'User', entityTable: 'users' }
-    );
+    await audit.record('TOKEN_REFRESHED', {
+      actorId: decoded.userId,
+      details: { jti: decoded.jti, newJti },
+      entityId: decoded.userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     const tokens = {
       accessToken: newAccessToken,
@@ -234,12 +236,14 @@ class TokenRefreshService {
 
     // Evento forense de seguridad (Opción A): incidente distinto de "el request falló".
     // Se mantiene aunque la ruta declare TOKEN_REFRESHED y el middleware loguee el fallo.
-    logAudit(
-      'REFRESH_TOKEN_REUSE_ATTACK',
-      decoded.userId,
-      { jti: decoded.jti },
-      { entityId: decoded.userId, entityType: 'User', entityTable: 'users', outcome: 'failure' }
-    );
+    await audit.record('REFRESH_TOKEN_REUSE_ATTACK', {
+      actorId: decoded.userId,
+      details: { jti: decoded.jti },
+      entityId: decoded.userId,
+      entityType: 'User',
+      entityTable: 'users',
+      outcome: 'failure'
+    });
 
     TokenBlacklistUtil.invalidateUserSessions(decoded.userId).catch(err =>
       logger.warn('Error invalidando sesiones tras reuse attack', { error: err.message })
@@ -271,12 +275,13 @@ class TokenRefreshService {
     TokenBlacklistUtil.blacklistSession(sessionId).catch(err =>
       logger.warn('Error invalidando sesión en blacklist por tope absoluto', { error: err.message, sessionId })
     );
-    logAudit(
-      'SESSION_ABSOLUTE_EXPIRED',
-      userId,
-      { startedAt: session.startedAt, limitHours: SECURITY.ABSOLUTE_SESSION_LIFETIME_HOURS },
-      { entityId: sessionId, entityType: 'UserSession', entityTable: 'user_sessions' }
-    );
+    await audit.record('SESSION_ABSOLUTE_EXPIRED', {
+      actorId: userId,
+      details: { startedAt: session.startedAt, limitHours: SECURITY.ABSOLUTE_SESSION_LIFETIME_HOURS },
+      entityId: sessionId,
+      entityType: 'UserSession',
+      entityTable: 'user_sessions'
+    });
     throw AppError.unauthorized('La sesión alcanzó su duración máxima (8 horas). Por favor inicia sesión nuevamente.', {
       code: AUTH_ERROR_CODES.SESSION_ABSOLUTE_LIFETIME
     });

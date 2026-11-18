@@ -11,9 +11,10 @@ import DeviceFingerprintUtil from '../../../../shared/security/device-fingerprin
 import NotificationUtil from '../../../notification/services/notification-creation.service';
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import constantsModule from '../../../../shared/constants';
 const { notifications } = constantsModule;
+import audit from '../../../audit/audit.service';
 
 class LoginDeviceService {
   trustedDeviceRepository: typeof trustedDeviceRepository;
@@ -71,17 +72,13 @@ class LoginDeviceService {
     if (existing.status === 'blocked') {
       // Evento forense de seguridad (Opción A): política de dispositivo bloqueado.
       // Se mantiene pese al log genérico del middleware al propagar el throw.
-      logAudit(
-        'LOGIN_BLOCKED_DEVICE',
-        userId,
-        {},
-        {
-          entityId: existing.userTrustedDeviceId,
-          entityType: 'UserTrustedDevice',
-          entityTable: 'userTrustedDevices',
-          outcome: 'failure'
-        }
-      );
+      await audit.record('LOGIN_BLOCKED_DEVICE', {
+        actorId: userId,
+        entityId: existing.userTrustedDeviceId,
+        entityType: 'UserTrustedDevice',
+        entityTable: 'userTrustedDevices',
+        outcome: 'failure'
+      });
       throw AppError.forbidden('Este dispositivo ha sido bloqueado. Desbloquéalo desde otro dispositivo de confianza.');
     }
 
@@ -121,12 +118,13 @@ class LoginDeviceService {
       lastSeenAt: new Date()
     });
 
-    logAudit(
-      'TRUSTED_DEVICE_ADDED_FIRST',
-      user.userId,
-      { deviceName },
-      { entityId: user.userId, entityType: 'User', entityTable: 'users' }
-    );
+    await audit.record('TRUSTED_DEVICE_ADDED_FIRST', {
+      actorId: user.userId,
+      details: { deviceName },
+      entityId: user.userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     return {
       requiresApproval: false,
@@ -161,14 +159,15 @@ class LoginDeviceService {
       lastSeenAt: new Date()
     });
 
-    logAudit(
-      'TRUSTED_DEVICE_PENDING',
-      user.userId,
-      {
+    await audit.record('TRUSTED_DEVICE_PENDING', {
+      actorId: user.userId,
+      details: {
         deviceName
       },
-      { entityId: device.userTrustedDeviceId, entityType: 'UserTrustedDevice', entityTable: 'user_trusted_devices' }
-    );
+      entityId: device.userTrustedDeviceId,
+      entityType: 'UserTrustedDevice',
+      entityTable: 'user_trusted_devices'
+    });
 
     // Notificación informativa (fire-and-forget — no bloquea el flujo)
     const firstName = user.person?.firstName || 'Usuario';

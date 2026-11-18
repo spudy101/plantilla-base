@@ -11,6 +11,7 @@ const { AUDIT_CATEGORIES, AUDIT_RISKS, AUDIT_MODULES } = auditCatalogModule;
 
 export default {
   DUAL_APPROVAL_REQUESTED: {
+    alert: true,
     description: 'Operación sensible quedó pendiente de segunda aprobación (maker)',
     category: AUDIT_CATEGORIES.DUAL_APPROVAL,
     risk: AUDIT_RISKS.HIGH,
@@ -18,6 +19,7 @@ export default {
   },
 
   DUAL_APPROVAL_APPROVED: {
+    alert: true,
     description: 'Segundo aprobador autorizó la operación — se ejecutó la acción real (checker)',
     category: AUDIT_CATEGORIES.DUAL_APPROVAL,
     risk: AUDIT_RISKS.HIGH,
@@ -25,6 +27,7 @@ export default {
   },
 
   DUAL_APPROVAL_REJECTED: {
+    alert: true,
     description: 'Segundo aprobador rechazó la operación pendiente (checker)',
     category: AUDIT_CATEGORIES.DUAL_APPROVAL,
     risk: AUDIT_RISKS.HIGH,
@@ -32,6 +35,7 @@ export default {
   },
 
   DUAL_APPROVAL_AUTO_APPROVED: {
+    alert: true,
     description: 'super_admin auto-aprobó una operación sensible — cuatro ojos omitido por rol (maker === checker)',
     category: AUDIT_CATEGORIES.DUAL_APPROVAL,
     risk: AUDIT_RISKS.HIGH,

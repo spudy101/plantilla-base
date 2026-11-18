@@ -36,6 +36,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('../../../shared/constants', () => ({
   notifications: { ses: { logoUrl: 'https://logo.test/x.png' } }
@@ -57,8 +58,8 @@ import userRepoModule from '../../iam/repositories/user.repository';
 const userRepo = mocked(userRepoModule);
 import notificationCreationModule from './notification-creation.service';
 const notificationCreation = mocked(notificationCreationModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import service from './admin-notification-type.service';
 
 const ADMIN = 'admin-1';
@@ -76,11 +77,7 @@ describe('NotificationTypeService', () => {
 
       expect(typeRepo.findAllPaginated).toHaveBeenCalledWith({}, expect.any(Object), 'foo');
       expect(result.data).toHaveLength(1);
-      expect(logAudit).toHaveBeenCalledWith(
-        'NOTIFICATION_TYPE_LIST_VIEWED',
-        ADMIN,
-        expect.objectContaining({ totalItems: 1 }),
-        expect.objectContaining({ entityType: 'NotificationType' })
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_TYPE_LIST_VIEWED', expect.objectContaining({ actorId: ADMIN, details: expect.objectContaining({ totalItems: 1 }), entityType: 'NotificationType' })
       );
     });
   });
@@ -120,11 +117,7 @@ describe('NotificationTypeService', () => {
 
       expect(typeRepo.update).toHaveBeenCalledWith('t-1', { name: 'Nuevo', priority: 5, notificationCategoryId: 'c-1' });
       expect(result).toMatchObject({ dto: 'type' });
-      expect(logAudit).toHaveBeenCalledWith(
-        'NOTIFICATION_TYPE_UPDATED',
-        ADMIN,
-        expect.objectContaining({ updatedFields: ['name', 'priority', 'notificationCategoryId'] }),
-        expect.objectContaining({ entityId: 't-1' })
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_TYPE_UPDATED', expect.objectContaining({ actorId: ADMIN, details: expect.objectContaining({ updatedFields: ['name', 'priority', 'notificationCategoryId'] }), entityId: 't-1' })
       );
     });
 
@@ -147,11 +140,7 @@ describe('NotificationTypeService', () => {
         expect.objectContaining({ tipoNotificacion: 'NOTIFICACION_GENERAL', userId: null })
       );
       expect(result).toMatchObject({ dto: 'global', titulo: 'T' });
-      expect(logAudit).toHaveBeenCalledWith(
-        'GLOBAL_NOTIFICATION_SENT',
-        ADMIN,
-        { titulo: 'T' },
-        expect.objectContaining({ entityId: 'g-1', entityType: 'GlobalNotification' })
+      expect(logAudit).toHaveBeenCalledWith('GLOBAL_NOTIFICATION_SENT', expect.objectContaining({ actorId: ADMIN, details: { titulo: 'T' }, entityId: 'g-1', entityType: 'GlobalNotification' })
       );
     });
   });
@@ -180,11 +169,7 @@ describe('NotificationTypeService', () => {
         expect.objectContaining({ tipoNotificacion: 'NOTIFICACION_GENERAL', userId: 'u-1' })
       );
       expect(result).toMatchObject({ dto: 'direct', userId: 'u-1' });
-      expect(logAudit).toHaveBeenCalledWith(
-        'DIRECT_NOTIFICATION_SENT',
-        ADMIN,
-        { userId: 'u-1', titulo: 'T' },
-        expect.objectContaining({ entityId: 'n-1', entityType: 'Notification' })
+      expect(logAudit).toHaveBeenCalledWith('DIRECT_NOTIFICATION_SENT', expect.objectContaining({ actorId: ADMIN, details: { userId: 'u-1', titulo: 'T' }, entityId: 'n-1', entityType: 'Notification' })
       );
     });
   });

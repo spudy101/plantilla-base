@@ -9,9 +9,8 @@ import PaginationHelper from '../../../shared/http/pagination.util';
 import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
 import AppError from '../../../shared/http/app-error.util';
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = loggerUtilModule;
 import integrationMonitoringDtoModule from '../dtos/integration-monitoring.dto';
+import audit from '../../audit/audit.service';
 const {
   IntegrationDashboardDTO,
   buildProductView,
@@ -66,7 +65,11 @@ class IntegrationMonitoringService {
 
     const productViews = products.map(p => buildProductView(stats.byProduct[p], circuitMap.get(p), MIN_SUCCESS_RATE));
 
-    logAudit('INTEGRATION_DASHBOARD_VIEWED', adminUserId, { from: from.toISOString(), to: to.toISOString() }, { ...ENTITY });
+    await audit.record('INTEGRATION_DASHBOARD_VIEWED', {
+      actorId: adminUserId,
+      details: { from: from.toISOString(), to: to.toISOString() },
+      ...ENTITY
+    });
 
     return IntegrationDashboardDTO({
       summary: stats.summary,
@@ -96,7 +99,11 @@ class IntegrationMonitoringService {
     const providers = products.map(p => buildProductView(stats.byProduct[p], circuitMap.get(p), MIN_SUCCESS_RATE));
     const activeFallbacks = providers.filter(p => p.availabilityStatus === 'No disponible').length;
 
-    logAudit('PROVIDER_HEALTH_DASHBOARD_VIEWED', adminUserId, { activeFallbacks }, { ...ENTITY });
+    await audit.record('PROVIDER_HEALTH_DASHBOARD_VIEWED', {
+      actorId: adminUserId,
+      details: { activeFallbacks },
+      ...ENTITY
+    });
 
     return {
       providers: providers.map(p => ({
@@ -127,7 +134,11 @@ class IntegrationMonitoringService {
 
     const { rows, count } = await this.integrationApiLogRepository.findAllPaginated(filters, paginationParams);
 
-    logAudit('INTEGRATION_LOGS_VIEWED', adminUserId, { totalItems: count }, { ...ENTITY });
+    await audit.record('INTEGRATION_LOGS_VIEWED', {
+      actorId: adminUserId,
+      details: { totalItems: count },
+      ...ENTITY
+    });
 
     const activeFilters = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== null));
 
@@ -150,7 +161,12 @@ class IntegrationMonitoringService {
       throw AppError.notFound('Registro de llamada no encontrado');
     }
 
-    logAudit('INTEGRATION_LOG_DETAIL_VIEWED', adminUserId, { apiLogId }, { ...ENTITY, entityId: apiLogId });
+    await audit.record('INTEGRATION_LOG_DETAIL_VIEWED', {
+      actorId: adminUserId,
+      details: { apiLogId },
+      ...ENTITY,
+      entityId: apiLogId
+    });
 
     return IntegrationLogDetailDTO(record);
   }
@@ -169,7 +185,11 @@ class IntegrationMonitoringService {
 
     const { rows, count } = await this.providerFallbackRepository.findAllPaginated(filters, paginationParams);
 
-    logAudit('PROVIDER_FALLBACK_HISTORY_VIEWED', adminUserId, { totalItems: count }, { ...FALLBACK_ENTITY });
+    await audit.record('PROVIDER_FALLBACK_HISTORY_VIEWED', {
+      actorId: adminUserId,
+      details: { totalItems: count },
+      ...FALLBACK_ENTITY
+    });
 
     const activeFilters = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== null && v !== false));
 

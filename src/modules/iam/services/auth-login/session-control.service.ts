@@ -8,9 +8,10 @@ import RefreshTokenStore from '../../utils/refresh-token-store.util';
 import TokenBlacklistUtil from '../../utils/token-blacklist.util';
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import constantsModule from '../../../../shared/constants';
 const { SECURITY } = constantsModule;
+import audit from '../../../audit/audit.service';
 
 class SessionControlService {
   userSessionRepository: typeof userSessionRepository;
@@ -61,12 +62,12 @@ class SessionControlService {
       })
     );
 
-    logAudit(
-      'SESSION_CLOSED_BY_USER',
-      userId,
-      {},
-      { entityId: sessionId, entityType: 'UserSession', entityTable: 'user_sessions' }
-    );
+    await audit.record('SESSION_CLOSED_BY_USER', {
+      actorId: userId,
+      entityId: sessionId,
+      entityType: 'UserSession',
+      entityTable: 'user_sessions'
+    });
 
     return { sessionId, status: 'closed' };
   }
@@ -101,12 +102,13 @@ class SessionControlService {
       );
     }
 
-    logAudit(
-      'LOGOUT_OTHERS',
-      userId,
-      { closedCount: others.length },
-      { entityId: userId, entityType: 'User', entityTable: 'users' }
-    );
+    await audit.record('LOGOUT_OTHERS', {
+      actorId: userId,
+      details: { closedCount: others.length },
+      entityId: userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     return { closedCount: others.length };
   }
@@ -157,14 +159,15 @@ class SessionControlService {
       );
     }
 
-    logAudit(
-      'PREVIOUS_DEVICE_SESSIONS_CLOSED',
-      userId,
-      {
+    await audit.record('PREVIOUS_DEVICE_SESSIONS_CLOSED', {
+      actorId: userId,
+      details: {
         closedCount: previous.length
       },
-      { entityId: deviceId, entityType: 'UserTrustedDevice', entityTable: 'user_trusted_devices' }
-    );
+      entityId: deviceId,
+      entityType: 'UserTrustedDevice',
+      entityTable: 'user_trusted_devices'
+    });
   }
 
   /** @private */
@@ -199,14 +202,15 @@ class SessionControlService {
       })
     );
 
-    logAudit(
-      'SESSION_LIMIT_ENFORCED',
-      userId,
-      {
+    await audit.record('SESSION_LIMIT_ENFORCED', {
+      actorId: userId,
+      details: {
         activeCount
       },
-      { entityId: oldest.userSessionId, entityType: 'UserSession', entityTable: 'user_sessions' }
-    );
+      entityId: oldest.userSessionId,
+      entityType: 'UserSession',
+      entityTable: 'user_sessions'
+    });
   }
 }
 

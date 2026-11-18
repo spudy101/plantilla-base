@@ -10,6 +10,8 @@ import cookieParser from 'cookie-parser';
 import SecurityMiddleware from './shared/http/security.middleware';
 import ErrorMiddleware from './shared/http/error.middleware';
 import { operationMiddleware } from './shared/observability/operation';
+import { registerAuditSink } from './shared/observability/audit-hook';
+import audit, { type AuditActionKey } from './modules/audit/audit.service';
 import redisClient from './shared/infra/redis.util';
 import databaseHealth from './shared/database/database-health';
 import swaggerAdminDocs from './config/swagger.admin';
@@ -160,6 +162,9 @@ async function health(req: Request, res: Response) {
 }
 
 function createApp() {
+  // Los eventos de infraestructura que audita shared/ (worker caído, Redis, 401/403) llegan al módulo de auditoría
+  registerAuditSink(({ action, ...input }) => audit.record(action as AuditActionKey, { actorId: input.actorId ?? null, ...input }));
+
   const app = express();
 
   // Detrás del ALB: la IP real y el protocolo llegan en X-Forwarded-*

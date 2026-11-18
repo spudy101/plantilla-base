@@ -155,6 +155,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
   logAudit: jest.fn()
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 // ── Constantes (el módulo real valida .env y hace process.exit) ──────────────
 jest.mock('../../../shared/constants', () => ({
@@ -224,8 +225,8 @@ import SmsServiceModule from '../../notification/services/sms.service';
 const SmsService = mocked(SmsServiceModule);
 import LoginRateLimiterModule from '../utils/login-rate-limiter.util';
 const LoginRateLimiter = mocked(LoginRateLimiterModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 
 import service from './auth-login.service';
 
@@ -326,7 +327,7 @@ describe('AuthLoginService', () => {
       expect(userLoginAttemptRepository.recordAttempt).toHaveBeenCalledWith(
         expect.objectContaining({ success: false })
       );
-      expect(logAudit).toHaveBeenCalledWith('LOGIN_FAILED', 'u-1', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('LOGIN_FAILED', expect.objectContaining({ actorId: 'u-1' }));
     });
 
     it('con password incorrecta que supera el tope lanza 429 y notifica el bloqueo', async () => {
@@ -339,7 +340,7 @@ describe('AuthLoginService', () => {
       expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(
         expect.objectContaining({ tipoNotificacion: 'ACCOUNT_BLOCKED' })
       );
-      expect(logAudit).toHaveBeenCalledWith('ACCOUNT_BLOCKED', 'u-1', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('ACCOUNT_BLOCKED', expect.objectContaining({ actorId: 'u-1' }));
     });
 
     it('devuelve PolicyUpdateRequiredDTO si la política está desactualizada y no se aceptó', async () => {
@@ -410,7 +411,7 @@ describe('AuthLoginService', () => {
       expect(userLoginAttemptRepository.recordAttempt).toHaveBeenCalledWith(
         expect.objectContaining({ success: true })
       );
-      expect(logAudit).toHaveBeenCalledWith('LOGIN_SUCCESS', 'u-1', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('LOGIN_SUCCESS', expect.objectContaining({ actorId: 'u-1' }));
     });
 
     it('lanza 403 si el dispositivo existente está bloqueado', async () => {
@@ -449,7 +450,7 @@ describe('AuthLoginService', () => {
       expect(userLoginAttemptRepository.recordAttempt).toHaveBeenCalledWith(
         expect.objectContaining({ failureReason: 'Codigo TOTP incorrecto' })
       );
-      expect(logAudit).toHaveBeenCalledWith('MFA_FAILED', 'u-1', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('MFA_FAILED', expect.objectContaining({ actorId: 'u-1' }));
     });
 
     it('lanza 401 si falta el token de reto MFA (session)', async () => {
@@ -545,11 +546,7 @@ describe('AuthLoginService', () => {
         details: { code: 'SESSION_COMPROMISED' }
       });
       expect(TokenBlacklistUtil.invalidateUserSessions).toHaveBeenCalledWith('u-1');
-      expect(logAudit).toHaveBeenCalledWith(
-        'REFRESH_TOKEN_REUSE_ATTACK',
-        'u-1',
-        expect.any(Object),
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('REFRESH_TOKEN_REUSE_ATTACK', expect.objectContaining({ actorId: 'u-1' })
       );
     });
 
@@ -575,7 +572,7 @@ describe('AuthLoginService', () => {
         refreshToken: 'refresh-token',
         expiresIn: 3600
       });
-      expect(logAudit).toHaveBeenCalledWith('TOKEN_REFRESHED', 'u-1', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('TOKEN_REFRESHED', expect.objectContaining({ actorId: 'u-1' }));
     });
 
     it('lanza 401 si el usuario ya no existe o está inactivo', async () => {
@@ -605,7 +602,7 @@ describe('AuthLoginService', () => {
       expect(userSessionRepository.closeSession).toHaveBeenCalledWith('sess-1', 'logout');
       expect(TokenBlacklistUtil.blacklistAccessToken).toHaveBeenCalledWith('a', 999);
       expect(TokenBlacklistUtil.blacklistRefreshToken).toHaveBeenCalledWith('r');
-      expect(logAudit).toHaveBeenCalledWith('LOGOUT', 'u-1', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('LOGOUT', expect.objectContaining({ actorId: 'u-1' }));
       expect(result).toBeNull();
     });
   });
@@ -617,7 +614,7 @@ describe('AuthLoginService', () => {
       expect(TokenBlacklistUtil.invalidateUserSessions).toHaveBeenCalledWith('u-1');
       expect(userSessionRepository.closeAllByUser).toHaveBeenCalledWith('u-1', 'logout_all');
       expect(trustedDeviceRepository.deleteAllByUser).toHaveBeenCalledWith('u-1');
-      expect(logAudit).toHaveBeenCalledWith('LOGOUT_ALL', 'u-1', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('LOGOUT_ALL', expect.objectContaining({ actorId: 'u-1' }));
       expect(result).toBeNull();
 
       await flush();
@@ -635,14 +632,14 @@ describe('AuthLoginService', () => {
       trustedDeviceRepository.findAllByUserWithSessions.mockResolvedValue([{ id: 1 }, { id: 2 }]);
       const result = await service.getTrustedDevices('u-1', 'fp-1', 'sess-1');
       expect(result).toMatchObject({ total: 2 });
-      expect(logAudit).toHaveBeenCalledWith('TRUSTED_DEVICES_VIEWED', 'u-1', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('TRUSTED_DEVICES_VIEWED', expect.objectContaining({ actorId: 'u-1' }));
     });
 
     it('lista dispositivos pendientes y audita', async () => {
       trustedDeviceRepository.findAllPending.mockResolvedValue([{ id: 1 }]);
       const result = await service.getPendingDevices('u-1');
       expect(result).toMatchObject({ total: 1 });
-      expect(logAudit).toHaveBeenCalledWith('PENDING_DEVICES_VIEWED', 'u-1', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('PENDING_DEVICES_VIEWED', expect.objectContaining({ actorId: 'u-1' }));
     });
   });
 
@@ -657,7 +654,7 @@ describe('AuthLoginService', () => {
       trustedDeviceRepository.rename.mockResolvedValue(trustedDevice({ deviceName: 'Nuevo' }));
       const result = await service.renameDevice('u-1', 'dev-1', 'Nuevo');
       expect(result).toMatchObject({ deviceName: 'Nuevo' });
-      expect(logAudit).toHaveBeenCalledWith('TRUSTED_DEVICE_RENAMED', 'u-1', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('TRUSTED_DEVICE_RENAMED', expect.objectContaining({ actorId: 'u-1' }));
     });
   });
 
@@ -691,7 +688,7 @@ describe('AuthLoginService', () => {
       const result = await service.blockDevice('u-1', 'dev-2', 'fp-1');
       expect(DeviceBlocklistUtil.block).toHaveBeenCalledWith('u-1', 'fp-2');
       expect(result).toMatchObject({ status: 'blocked' });
-      expect(logAudit).toHaveBeenCalledWith('TRUSTED_DEVICE_BLOCKED', 'u-1', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('TRUSTED_DEVICE_BLOCKED', expect.objectContaining({ actorId: 'u-1' }));
     });
   });
 
@@ -714,7 +711,7 @@ describe('AuthLoginService', () => {
       const result = await service.unblockDevice('u-1', 'dev-2', 'fp-1');
       expect(DeviceBlocklistUtil.unblock).toHaveBeenCalledWith('u-1', 'fp-2');
       expect(result).toMatchObject({ status: 'pending' });
-      expect(logAudit).toHaveBeenCalledWith('TRUSTED_DEVICE_UNBLOCKED', 'u-1', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('TRUSTED_DEVICE_UNBLOCKED', expect.objectContaining({ actorId: 'u-1' }));
     });
   });
 
@@ -736,7 +733,7 @@ describe('AuthLoginService', () => {
 
       const result = await service.approveDevice('u-1', 'dev-2', 'fp-1');
       expect(result).toMatchObject({ status: 'trusted' });
-      expect(logAudit).toHaveBeenCalledWith('TRUSTED_DEVICE_APPROVED', 'u-1', expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('TRUSTED_DEVICE_APPROVED', expect.objectContaining({ actorId: 'u-1' }));
     });
   });
 

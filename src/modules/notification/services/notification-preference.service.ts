@@ -1,6 +1,4 @@
 import AppError from '../../../shared/http/app-error.util';
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = loggerUtilModule;
 // eslint-disable-next-line max-len
 import userNotificationPreferenceRepository from '../repositories/user-notification-preference.repository';
 import notificationCategoryRepository from '../repositories/notification-category.repository';
@@ -8,6 +6,7 @@ import notificationPreferenceDtoModule from '../dtos/notification-preference.dto
 const { UpdatePreferenceResponseDTO, CategoryPreferencesViewDTO } = notificationPreferenceDtoModule;
 import componentsNotificationDtoModule from '../dtos/notification-components.dto';
 const { UserNotificationPreferenceComponent } = componentsNotificationDtoModule;
+import audit from '../../audit/audit.service';
 
 /** Extrae del body solo las keys de preferencia presentes (undefined => no se toca). */
 /** Preferencias tal como llegan del body (camelCase). */
@@ -55,16 +54,13 @@ class NotificationPreferenceService {
 
     const preference = await this.userNotificationPreferenceRepository.upsertGlobalPreference(userId, updateData);
 
-    logAudit(
-      'NOTIFICATION_GLOBAL_PREFERENCE_UPDATED',
-      userId,
-      { ...updateData },
-      {
-        entityId: preference.userNotificationPreferenceId,
-        entityType: 'UserNotificationPreference',
-        entityTable: 'user_notification_preferences'
-      }
-    );
+    await audit.record('NOTIFICATION_GLOBAL_PREFERENCE_UPDATED', {
+      actorId: userId,
+      details: { ...updateData },
+      entityId: preference.userNotificationPreferenceId,
+      entityType: 'UserNotificationPreference',
+      entityTable: 'user_notification_preferences'
+    });
 
     return new UpdatePreferenceResponseDTO(preference);
   }
@@ -84,16 +80,13 @@ class NotificationPreferenceService {
 
     const preference = await this.userNotificationPreferenceRepository.upsertCategoryPreference(userId, categoryCode, updateData);
 
-    logAudit(
-      'NOTIFICATION_CATEGORY_PREFERENCE_UPDATED',
-      userId,
-      { notificationCategoryCode: categoryCode, ...updateData },
-      {
-        entityId: preference.userNotificationPreferenceId,
-        entityType: 'UserNotificationPreference',
-        entityTable: 'user_notification_preferences'
-      }
-    );
+    await audit.record('NOTIFICATION_CATEGORY_PREFERENCE_UPDATED', {
+      actorId: userId,
+      details: { notificationCategoryCode: categoryCode, ...updateData },
+      entityId: preference.userNotificationPreferenceId,
+      entityType: 'UserNotificationPreference',
+      entityTable: 'user_notification_preferences'
+    });
 
     return new UpdatePreferenceResponseDTO(preference);
   }
@@ -109,12 +102,12 @@ class NotificationPreferenceService {
 
     await this.userNotificationPreferenceRepository.deleteCategoryPreference(userId, categoryCode);
 
-    logAudit(
-      'NOTIFICATION_CATEGORY_PREFERENCE_DELETED',
-      userId,
-      { notificationCategoryCode: categoryCode },
-      { entityType: 'UserNotificationPreference', entityTable: 'user_notification_preferences' }
-    );
+    await audit.record('NOTIFICATION_CATEGORY_PREFERENCE_DELETED', {
+      actorId: userId,
+      details: { notificationCategoryCode: categoryCode },
+      entityType: 'UserNotificationPreference',
+      entityTable: 'user_notification_preferences'
+    });
 
     return { notificationCategoryCode: categoryCode };
   }
@@ -125,12 +118,12 @@ class NotificationPreferenceService {
   async getPreferences(userId: string) {
     const preferences = await this.userNotificationPreferenceRepository.findAllByUser(userId);
 
-    logAudit(
-      'NOTIFICATION_PREFERENCES_VIEWED',
-      userId,
-      { totalItems: preferences.length },
-      { entityType: 'UserNotificationPreference', entityTable: 'user_notification_preferences' }
-    );
+    await audit.record('NOTIFICATION_PREFERENCES_VIEWED', {
+      actorId: userId,
+      details: { totalItems: preferences.length },
+      entityType: 'UserNotificationPreference',
+      entityTable: 'user_notification_preferences'
+    });
 
     return UserNotificationPreferenceComponent.buildArray(preferences);
   }
@@ -149,12 +142,12 @@ class NotificationPreferenceService {
     const global = stored.find(p => !p.notificationCategoryCode) || null;
     const overrides = new Map(stored.flatMap(p => (p.notificationCategoryCode ? [[p.notificationCategoryCode, p] as const] : [])));
 
-    logAudit(
-      'NOTIFICATION_PREFERENCES_VIEWED',
-      userId,
-      { totalItems: categories.length },
-      { entityType: 'UserNotificationPreference', entityTable: 'user_notification_preferences' }
-    );
+    await audit.record('NOTIFICATION_PREFERENCES_VIEWED', {
+      actorId: userId,
+      details: { totalItems: categories.length },
+      entityType: 'UserNotificationPreference',
+      entityTable: 'user_notification_preferences'
+    });
 
     return CategoryPreferencesViewDTO.buildArray(categories, overrides, global);
   }

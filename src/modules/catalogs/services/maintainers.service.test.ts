@@ -22,6 +22,7 @@ jest.mock('../../iam/repositories/role.repository', () => ({ findAllPaginated: j
 jest.mock('../../notification/repositories/notification-type.repository', () => ({ findAllPaginated: jest.fn() }));
 
 jest.mock('../../../shared/observability/logger.util', () => ({ logAudit: jest.fn() }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 jest.mock('../../../shared/infra/redis.util', () => ({ get: jest.fn(), set: jest.fn() }));
 
 jest.mock('../../../shared/http/pagination.util', () => ({
@@ -55,8 +56,8 @@ import phonePrefixRepositoryModule from '../repositories/phone-prefix.repository
 const phonePrefixRepository = mocked(phonePrefixRepositoryModule);
 import privacyPolicyRepositoryModule from '../../legal/repositories/privacy-policy.repository';
 const privacyPolicyRepository = mocked(privacyPolicyRepositoryModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import redisClientModule from '../../../shared/infra/redis.util';
 const redisClient = mocked(redisClientModule);
 import PaginationHelperModule from '../../../shared/http/pagination.util';
@@ -91,11 +92,7 @@ describe('MaintainersService', () => {
         { page: 2, limit: 10, offset: 10, sortBy: 'name', order: 'ASC' },
         null
       );
-      expect(logAudit).toHaveBeenCalledWith(
-        'MAINTAINER_GENDERS_VIEWED',
-        'user-1',
-        { totalItems: 25, page: 2 },
-        { entityType: 'Catalog', entityTable: null }
+      expect(logAudit).toHaveBeenCalledWith('MAINTAINER_GENDERS_VIEWED', { actorId: 'user-1', details: { totalItems: 25, page: 2 }, entityType: 'Catalog', entityTable: null }
       );
       expect(result).toEqual({
         dto: 'genders',
@@ -123,11 +120,7 @@ describe('MaintainersService', () => {
         'chile'
       );
       // userId por defecto es null en rutas públicas.
-      expect(logAudit).toHaveBeenCalledWith(
-        'MAINTAINER_PHONE_PREFIXES_VIEWED',
-        null,
-        { totalItems: 0, page: 2 },
-        { entityType: 'Catalog', entityTable: null }
+      expect(logAudit).toHaveBeenCalledWith('MAINTAINER_PHONE_PREFIXES_VIEWED', { actorId: null, details: { totalItems: 0, page: 2 }, entityType: 'Catalog', entityTable: null }
       );
       expect(result.metadata.filters).toEqual({ search: 'chile', isActive: true });
     });
@@ -141,11 +134,7 @@ describe('MaintainersService', () => {
       const result = await service.listDocumentTypes({}, 'user-9');
 
       expect(documentTypeRepository.findAllVisibleToClient).toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith(
-        'MAINTAINER_DOCUMENT_TYPES_VIEWED',
-        'user-9',
-        { totalItems: 2 },
-        { entityType: 'Catalog', entityTable: null }
+      expect(logAudit).toHaveBeenCalledWith('MAINTAINER_DOCUMENT_TYPES_VIEWED', { actorId: 'user-9', details: { totalItems: 2 }, entityType: 'Catalog', entityTable: null }
       );
       expect(result).toEqual({
         dto: 'documentTypes',
@@ -164,11 +153,7 @@ describe('MaintainersService', () => {
 
       expect(privacyPolicyRepository.findActive).not.toHaveBeenCalled();
       expect(redisClient.set).not.toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith(
-        'PRIVACY_POLICY_VIEWED',
-        null,
-        { version: 'v3' },
-        { entityType: 'Catalog', entityTable: null }
+      expect(logAudit).toHaveBeenCalledWith('PRIVACY_POLICY_VIEWED', { actorId: null, details: { version: 'v3' }, entityType: 'Catalog', entityTable: null }
       );
       expect(result).toBe(cached);
     });
@@ -185,11 +170,7 @@ describe('MaintainersService', () => {
         { dto: 'privacyPolicy', version: 'v5' },
         43200
       );
-      expect(logAudit).toHaveBeenCalledWith(
-        'PRIVACY_POLICY_VIEWED',
-        null,
-        { version: 'v5' },
-        { entityType: 'Catalog', entityTable: null }
+      expect(logAudit).toHaveBeenCalledWith('PRIVACY_POLICY_VIEWED', { actorId: null, details: { version: 'v5' }, entityType: 'Catalog', entityTable: null }
       );
     });
 

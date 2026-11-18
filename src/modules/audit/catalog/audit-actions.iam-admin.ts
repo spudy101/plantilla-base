@@ -21,6 +21,7 @@ export default {
     risk: AUDIT_RISKS.MEDIUM
   },
   INTERNAL_USER_CREATED: {
+    alert: true,
     description: 'Nuevo usuario interno creado por administrador',
     category: AUDIT_CATEGORIES.INTERNAL_USERS,
     risk: AUDIT_RISKS.CRITICAL
@@ -31,16 +32,19 @@ export default {
     risk: AUDIT_RISKS.HIGH
   },
   INTERNAL_USER_ROLE_CHANGED: {
+    alert: true,
     description: 'Rol de usuario interno modificado por administrador',
     category: AUDIT_CATEGORIES.INTERNAL_USERS,
     risk: AUDIT_RISKS.CRITICAL
   },
   INTERNAL_USER_ACTIVATED: {
+    alert: true,
     description: 'Usuario interno activado por administrador',
     category: AUDIT_CATEGORIES.INTERNAL_USERS,
     risk: AUDIT_RISKS.HIGH
   },
   INTERNAL_USER_DEACTIVATED: {
+    alert: true,
     description: 'Usuario interno desactivado por administrador',
     category: AUDIT_CATEGORIES.INTERNAL_USERS,
     risk: AUDIT_RISKS.HIGH
@@ -61,6 +65,7 @@ export default {
     risk: AUDIT_RISKS.MEDIUM
   },
   INTERNAL_USER_SESSIONS_CLOSED: {
+    alert: true,
     description: 'Sesiones activas de usuario interno cerradas por administrador',
     category: AUDIT_CATEGORIES.INTERNAL_USERS,
     risk: AUDIT_RISKS.HIGH
@@ -99,11 +104,13 @@ export default {
     risk: AUDIT_RISKS.LOW
   },
   RBAC_PERMISSION_GRANTED: {
+    alert: true,
     description: 'Permiso otorgado a un rol por administrador',
     category: AUDIT_CATEGORIES.RBAC,
     risk: AUDIT_RISKS.CRITICAL
   },
   RBAC_PERMISSION_REVOKED: {
+    alert: true,
     description: 'Permiso revocado de un rol por administrador',
     category: AUDIT_CATEGORIES.RBAC,
     risk: AUDIT_RISKS.CRITICAL

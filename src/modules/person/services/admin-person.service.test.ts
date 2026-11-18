@@ -74,6 +74,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
+jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 // AppError real-ish: factories que devuelven Error con statusCode/code para poder usar .rejects.
 // Dos roles de cliente para poder probar el cambio entre ellos (la plantilla trae solo CLIENTE).
@@ -139,8 +140,8 @@ import ProfileHelperModule from '../helpers/profile.helper';
 const ProfileHelper = mocked(ProfileHelperModule);
 import DualApprovalServiceModule from '../../approvals/services/dual-approval.service';
 const DualApprovalService = mocked(DualApprovalServiceModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logAudit } = mocked(loggerUtilModule);
+import auditServiceModule from '../../audit/audit.service';
+const logAudit = mocked(auditServiceModule).record;
 import service from './admin-person.service';
 
 const flushMacrotasks = () => new Promise(resolve => { setImmediate(resolve); });
@@ -186,11 +187,7 @@ describe('PersonService (admin)', () => {
         { page: 1, limit: 10, sortBy: 'created_at', order: 'DESC' },
         null
       );
-      expect(logAudit).toHaveBeenCalledWith(
-        'PERSON_LIST_VIEWED',
-        AUDIT_CTX.adminUserId,
-        { totalItems: 2, page: 1 },
-        { entityType: 'User', entityTable: 'users' }
+      expect(logAudit).toHaveBeenCalledWith('PERSON_LIST_VIEWED', { actorId: AUDIT_CTX.adminUserId, details: { totalItems: 2, page: 1 }, entityType: 'User', entityTable: 'users' }
       );
       expect(result.data).toEqual([
         { dto: 'UserListItemDTO', id: 'u1' },
@@ -234,7 +231,7 @@ describe('PersonService (admin)', () => {
         expect.any(Object),
         null
       );
-      expect(logAudit).toHaveBeenCalledWith('PERSON_DELETED_LIST_VIEWED', 'admin-1', { totalItems: 1, page: 1 }, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('PERSON_DELETED_LIST_VIEWED', expect.objectContaining({ actorId: 'admin-1', details: { totalItems: 1, page: 1 } }));
       expect(result.data).toEqual([{ dto: 'UserListItemDTO', id: 'ud1' }]);
     });
   });
@@ -246,7 +243,7 @@ describe('PersonService (admin)', () => {
       const result = await service.listRoleOptions('admin-1');
 
       expect(roleRepository.findByNames).toHaveBeenCalledWith(['cliente', 'cliente_verificado']);
-      expect(logAudit).toHaveBeenCalledWith('PERSON_ROLE_OPTIONS_VIEWED', 'admin-1', { totalItems: 2 }, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('PERSON_ROLE_OPTIONS_VIEWED', expect.objectContaining({ actorId: 'admin-1', details: { totalItems: 2 } }));
       expect(result).toEqual([{ dto: 'RoleOptionDTO', id: 'rc1' }, { dto: 'RoleOptionDTO', id: 'rc2' }]);
     });
   });
@@ -258,7 +255,7 @@ describe('PersonService (admin)', () => {
       const result = await service.getById('u1', 'admin-1');
 
       expect(userRepository.findByUserId).toHaveBeenCalledWith('u1', 'full');
-      expect(logAudit).toHaveBeenCalledWith('PERSON_VIEWED', 'admin-1', { targetUserId: 'u1' }, expect.objectContaining({ entityId: 'u1' }));
+      expect(logAudit).toHaveBeenCalledWith('PERSON_VIEWED', expect.objectContaining({ actorId: 'admin-1', details: { targetUserId: 'u1' }, entityId: 'u1' }));
       expect(result).toEqual({ dto: 'UserDTO', id: 'u1' });
     });
 
@@ -301,11 +298,7 @@ describe('PersonService (admin)', () => {
         expect.objectContaining({ authUsername: 'user_uuid-fixed', personId: 'p1', roleId: 'rc1', password: 'TempPass123!' })
       );
       expect(txn.commit).toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith(
-        'PERSON_CREATED',
-        AUDIT_CTX.adminUserId,
-        { roleId: 'rc1', roleName: 'cliente' },
-        expect.objectContaining({ entityId: 'u1' })
+      expect(logAudit).toHaveBeenCalledWith('PERSON_CREATED', expect.objectContaining({ actorId: AUDIT_CTX.adminUserId, details: { roleId: 'rc1', roleName: 'cliente' }, entityId: 'u1' })
       );
       expect(result).toEqual({ dto: 'CreateUserDTO', id: 'u1', pwd: 'TempPass123!' });
 
@@ -352,7 +345,7 @@ describe('PersonService (admin)', () => {
         expect.objectContaining({ changeType: 'account_status', previousValue: 'inactive', newValue: 'active' })
       );
       expect(txn.commit).toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith('PERSON_ACTIVATED', AUDIT_CTX.adminUserId, expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('PERSON_ACTIVATED', expect.objectContaining({ actorId: AUDIT_CTX.adminUserId }));
       expect(result).toEqual({ dto: 'ToggleUserStatusDTO', action: 'activate' });
 
       await flushMacrotasks();
@@ -365,7 +358,7 @@ describe('PersonService (admin)', () => {
       const result = await service.deactivate('u1', AUDIT_CTX);
 
       expect(userRepository.setActiveStatus).toHaveBeenCalledWith('u1', false);
-      expect(logAudit).toHaveBeenCalledWith('PERSON_DEACTIVATED', AUDIT_CTX.adminUserId, expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('PERSON_DEACTIVATED', expect.objectContaining({ actorId: AUDIT_CTX.adminUserId }));
       expect(result).toEqual({ dto: 'ToggleUserStatusDTO', action: 'deactivate' });
     });
 
@@ -402,7 +395,7 @@ describe('PersonService (admin)', () => {
 
       expect(userRepository.updatePassword).toHaveBeenCalledWith('u1', 'TempPass123!');
       expect(KycSharedUtil.logChange).toHaveBeenCalledWith(expect.objectContaining({ changeType: 'password' }));
-      expect(logAudit).toHaveBeenCalledWith('PERSON_PASSWORD_RESET', AUDIT_CTX.adminUserId, {}, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('PERSON_PASSWORD_RESET', expect.objectContaining({ actorId: AUDIT_CTX.adminUserId }));
       expect(result).toEqual({ dto: 'ResetPasswordDTO', id: 'u1' });
 
       await flushMacrotasks();
@@ -437,11 +430,7 @@ describe('PersonService (admin)', () => {
         expect.objectContaining({ userId: 'u1', personId: 'p1', newEmail: 'new@test.com', skipVerificationCheck: true })
       );
       expect(txn.commit).toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith(
-        'PERSON_EMAIL_CHANGED',
-        AUDIT_CTX.adminUserId,
-        { before: { email: 'old@test.com' }, after: { email: 'new@test.com' } },
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('PERSON_EMAIL_CHANGED', expect.objectContaining({ actorId: AUDIT_CTX.adminUserId, details: { before: { email: 'old@test.com' }, after: { email: 'new@test.com' } } })
       );
       expect(result).toEqual({ dto: 'ChangeEmailDTO', oldE: 'old@test.com', newE: 'new@test.com' });
 
@@ -476,11 +465,7 @@ describe('PersonService (admin)', () => {
       const result = await service.changeNationalId('u1', 'new', AUDIT_CTX);
 
       expect(txn.commit).toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith(
-        'PERSON_NATIONAL_ID_CHANGED',
-        AUDIT_CTX.adminUserId,
-        { before: { nationalId: 'old' }, after: { nationalId: 'new' } },
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('PERSON_NATIONAL_ID_CHANGED', expect.objectContaining({ actorId: AUDIT_CTX.adminUserId, details: { before: { nationalId: 'old' }, after: { nationalId: 'new' } } })
       );
       expect(result).toEqual({ dto: 'ChangeNationalIdDTO', oldN: 'old', newN: 'new' });
 
@@ -531,7 +516,7 @@ describe('PersonService (admin)', () => {
         smsMfaEnabled: false
       });
       expect(KycSharedUtil.logChange).toHaveBeenCalledWith(expect.objectContaining({ changeType: 'mfa_status' }));
-      expect(logAudit).toHaveBeenCalledWith('PERSON_MFA_DISABLED', AUDIT_CTX.adminUserId, expect.any(Object), expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('PERSON_MFA_DISABLED', expect.objectContaining({ actorId: AUDIT_CTX.adminUserId }));
       expect(result).toEqual({ dto: 'DisableMFADTO', id: 'u1' });
 
       await flushMacrotasks();
@@ -565,11 +550,7 @@ describe('PersonService (admin)', () => {
       const result = await service.changeRole('u1', 'rc2', AUDIT_CTX);
 
       expect(userRepository.update).toHaveBeenCalledWith('u1', { roleId: 'rc2' });
-      expect(logAudit).toHaveBeenCalledWith(
-        'PERSON_ROLE_CHANGED',
-        AUDIT_CTX.adminUserId,
-        { before: { role: 'CLIENTE' }, after: { role: 'CLIENTE_VERIFICADO' } },
-        expect.any(Object)
+      expect(logAudit).toHaveBeenCalledWith('PERSON_ROLE_CHANGED', expect.objectContaining({ actorId: AUDIT_CTX.adminUserId, details: { before: { role: 'CLIENTE' }, after: { role: 'CLIENTE_VERIFICADO' } } })
       );
       expect(result).toEqual({ dto: 'ChangeRoleDTO', oldR: 'CLIENTE', newR: 'CLIENTE_VERIFICADO' });
 
@@ -676,7 +657,7 @@ describe('PersonService (admin)', () => {
         expect.objectContaining({ userId: 'u1', personId: 'p1', email: 'juan@test.com', changedByRole: 'admin' })
       );
       expect(txn.commit).toHaveBeenCalled();
-      expect(logAudit).toHaveBeenCalledWith('PERSON_ACCOUNT_DELETED', AUDIT_CTX.adminUserId, {}, expect.any(Object));
+      expect(logAudit).toHaveBeenCalledWith('PERSON_ACCOUNT_DELETED', expect.objectContaining({ actorId: AUDIT_CTX.adminUserId }));
       expect(result).toBeNull();
 
       await flushMacrotasks();

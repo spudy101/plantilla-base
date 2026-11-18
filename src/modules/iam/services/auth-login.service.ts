@@ -16,7 +16,7 @@ import NotificationUtil from '../../notification/services/notification-creation.
 import SmsService from '../../notification/services/sms.service';
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger, logAudit } = loggerUtilModule;
+const { logger } = loggerUtilModule;
 import LoginRateLimiter from '../utils/login-rate-limiter.util';
 import constantsModule from '../../../shared/constants';
 const {
@@ -37,6 +37,7 @@ import SessionIssuerService from './auth-login/session-issuer.service';
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
+import audit from '../../audit/audit.service';
 
 
 // ============================================================
@@ -143,12 +144,13 @@ class AuthLoginService {
     // tiene un método MFA preferido, emitimos el reto correspondiente en lugar de
     // completar el login directamente.
     if (user.preferredMfaMethod === 'totp') {
-      logAudit(
-        'MFA_REQUIRED',
-        user.userId,
-        { nationalId, challengeType: 'SOFTWARE_TOKEN_MFA' },
-        { entityId: user.userId, entityType: 'User', entityTable: 'users' }
-      );
+      await audit.record('MFA_REQUIRED', {
+        actorId: user.userId,
+        details: { nationalId, challengeType: 'SOFTWARE_TOKEN_MFA' },
+        entityId: user.userId,
+        entityType: 'User',
+        entityTable: 'users'
+      });
 
       // El token de reto prueba que la contraseña ya pasó el paso 1: verify-mfa lo
       // exige antes de aceptar el código TOTP (reemplaza al `session` de Cognito).
@@ -220,15 +222,17 @@ class AuthLoginService {
       // Evento forense de seguridad (Opción A): se mantiene a propósito pese al log
       // genérico que el middleware emite al propagar el throw. El intento queda además
       // persistido en user_login_attempts. No es duplicación a corregir.
-      logAudit(
-        'MFA_FAILED',
-        user.userId,
-        {
+      await audit.record('MFA_FAILED', {
+        actorId: user.userId,
+        details: {
           nationalId,
           reason: 'Codigo TOTP incorrecto'
         },
-        { entityId: user.userId, entityType: 'User', entityTable: 'users', outcome: 'failure' }
-      );
+        entityId: user.userId,
+        entityType: 'User',
+        entityTable: 'users',
+        outcome: 'failure'
+      });
 
       throw AppError.badRequest('Código TOTP incorrecto');
     }
@@ -341,29 +345,33 @@ class AuthLoginService {
     // Eventos forenses de seguridad (Opción A): LOGIN_FAILED y ACCOUNT_BLOCKED se mantienen
     // a propósito pese al log genérico que el middleware emite al propagar el throw. El intento
     // queda además persistido en user_login_attempts. No son duplicación a corregir.
-    logAudit(
-      'LOGIN_FAILED',
-      user.userId,
-      {
+    await audit.record('LOGIN_FAILED', {
+      actorId: user.userId,
+      details: {
         nationalId,
         reason,
         blocked: blockSecs !== null
       },
-      { entityId: user.userId, entityType: 'User', entityTable: 'users', outcome: 'failure' }
-    );
+      entityId: user.userId,
+      entityType: 'User',
+      entityTable: 'users',
+      outcome: 'failure'
+    });
 
     if (blockSecs !== null) {
       const minutes = Math.ceil(blockSecs / 60);
-      logAudit(
-        'ACCOUNT_BLOCKED',
-        user.userId,
-        {
+      await audit.record('ACCOUNT_BLOCKED', {
+        actorId: user.userId,
+        details: {
           nationalId,
           blockSecs,
           reason: `${MAX} intentos fallidos consecutivos`
         },
-        { entityId: user.userId, entityType: 'User', entityTable: 'users', outcome: 'failure' }
-      );
+        entityId: user.userId,
+        entityType: 'User',
+        entityTable: 'users',
+        outcome: 'failure'
+      });
 
       // Notificar al usuario que su cuenta quedó bloqueada (fire-and-forget)
       this.NotificationUtil.crearNotificacion({
@@ -470,16 +478,17 @@ class AuthLoginService {
       originSessionId: sessionId
     });
 
-    logAudit(
-      'LOGIN_SUCCESS',
-      user.userId,
-      {
+    await audit.record('LOGIN_SUCCESS', {
+      actorId: user.userId,
+      details: {
         nationalId,
         fingerprintHash,
         deviceId: deviceResult.deviceId
       },
-      { entityId: user.userId, entityType: 'User', entityTable: 'users' }
-    );
+      entityId: user.userId,
+      entityType: 'User',
+      entityTable: 'users'
+    });
 
     return LoginResponseDTO({
       user,
