@@ -1,9 +1,8 @@
 // shared/database/prisma.ts
 //
-// Cliente único de Prisma para toda la app (docs/prisma-migration.md). Usa el driver adapter de
-// Postgres (`@prisma/adapter-pg`, requerido en Prisma 7) con la MISMA conexión que hoy usa Sequelize:
-// variables DB_*, esquema DB_SCHEMA y TLS salvo en localhost (con el bundle CA de RDS si está
-// configurado). Durante la migración conviven los dos ORMs contra la misma base.
+// Cliente único de Prisma para toda la app. Usa el driver adapter de Postgres (`@prisma/adapter-pg`,
+// requerido en Prisma 7) con las variables DB_*, el esquema DB_SCHEMA y TLS salvo en localhost (con el
+// bundle CA de RDS si está configurado).
 //
 // Solo lo importan los repositorios y shared/database: los services dependen de los repositorios.
 // Crear el cliente no abre conexiones: el pool de pg conecta en la primera consulta.

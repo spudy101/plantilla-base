@@ -6,7 +6,7 @@
 // de cada mutación, la guarda de categoría inexistente/inactiva (AppError.notFound) y las dos
 // vistas de lectura (crudas y efectivas ya resueltas). Se usa el AppError real para el statusCode.
 
-jest.mock('shared/models', () => ({ sequelize: { transaction: jest.fn() } }));
+jest.mock('shared/database/prisma', () => ({ __esModule: true, default: { $transaction: jest.fn() } }));
 jest.mock('shared/utils/logger.util', () => ({ logAudit: jest.fn() }));
 
 jest.mock('modules/schemas/kyc/person/repositories/user-notification-preference.repository', () => ({
@@ -33,8 +33,8 @@ jest.mock('shared/dtos/notification/components-notification.dto', () => ({
 
 import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
-import modelsModule from 'shared/models';
-const { sequelize } = mocked(modelsModule);
+import prismaModule from 'shared/database/prisma';
+const prisma = mocked(prismaModule);
 import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
 import prefRepoModule from 'modules/schemas/kyc/person/repositories/user-notification-preference.repository';
@@ -61,7 +61,7 @@ describe('NotificationPreferenceService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     transaction = makeTransaction();
-    sequelize.transaction.mockImplementation(managedTransaction(transaction));
+    prisma.$transaction.mockImplementation(managedTransaction(transaction));
   });
 
   describe('updateGlobalPreference', () => {

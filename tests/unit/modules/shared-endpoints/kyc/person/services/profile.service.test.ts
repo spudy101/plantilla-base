@@ -7,7 +7,7 @@
 // ramas de error (rollback + repropagacion). Se usa el
 // AppError real para assertar statusCode. Las notificaciones fire-and-forget se vacian con `flush`.
 
-jest.mock('shared/models', () => ({ sequelize: { transaction: jest.fn() } }));
+jest.mock('shared/database/prisma', () => ({ __esModule: true, default: { $transaction: jest.fn() } }));
 
 jest.mock('modules/schemas/kyc/iam/repositories/user.repository', () => ({ findByUserId: jest.fn() }));
 jest.mock('modules/schemas/kyc/person/repositories/person.repository', () => ({ findById: jest.fn() }));
@@ -68,8 +68,8 @@ jest.mock('shared/dtos/kyc', () => ({
 
 import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
-import modelsModule from 'shared/models';
-const { sequelize } = mocked(modelsModule);
+import prismaModule from 'shared/database/prisma';
+const prisma = mocked(prismaModule);
 import userRepositoryModule from 'modules/schemas/kyc/iam/repositories/user.repository';
 const userRepository = mocked(userRepositoryModule);
 import personRepositoryModule from 'modules/schemas/kyc/person/repositories/person.repository';
@@ -116,7 +116,7 @@ describe('ProfileService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     transaction = makeTransaction();
-    sequelize.transaction.mockImplementation(managedTransaction(transaction));
+    prisma.$transaction.mockImplementation(managedTransaction(transaction));
   });
 
   // ============================================================
@@ -304,7 +304,7 @@ describe('ProfileService', () => {
       await expect(
         service.updateEmail({ email: 'x@b.cl', currentPassword: 'p' }, 'u-x', 'p-1', 'Ana', {})
       ).rejects.toMatchObject({ statusCode: 404 });
-      expect(sequelize.transaction).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
     it('si updateEmailLogic falla: rollback y repropaga', async () => {

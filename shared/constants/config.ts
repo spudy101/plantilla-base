@@ -66,7 +66,7 @@ const validateNodeEnv = (warnings: string[]): void => {
 };
 
 const validateDatabase = (errors: string[]): void => {
-  const required = ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_DIALECT'];
+  const required = ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'];
   for (const key of required) {
     if (!process.env[key]) {
       errors.push(`DB — variable requerida faltante: ${key}`);
@@ -171,7 +171,6 @@ const _buildDatabaseConfig = () => ({
   name: getRequiredEnv('DB_NAME'),
   user: getRequiredEnv('DB_USER'),
   password: getRequiredEnv('DB_PASSWORD'),
-  dialect: getRequiredEnv('DB_DIALECT'),
   logging: parseBoolEnv(process.env.DB_LOGGING, false),
   schema: getOptionalEnv('DB_SCHEMA', 'public'),
   // [RF-OPS-01][CA-05]: path al bundle CA de RDS para validación

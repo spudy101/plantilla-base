@@ -361,23 +361,17 @@ class DualApprovalService {
   // ── Annotate de pendientes en listados ────────────────────────────────────────
 
   /**
-   * Anota cada instancia de `rows` con `pendingApproval` (objeto | null) en una sola query batch.
-   * Detecta el id de cada fila por su PK de Sequelize (override con `idField`).
-   * Devuelve las mismas `rows` (mutadas) para encadenar.
+   * Anota cada fila de `rows` con `pendingApproval` (objeto | null) en una sola query batch.
+   * `idField`: el campo con el id de la entidad (`userId`, `roleId`…); las filas de Prisma son objetos
+   * planos, así que no se puede deducir. Devuelve las mismas `rows` (mutadas) para encadenar.
    */
   // eslint-disable-next-line class-methods-use-this
-  async annotatePending<R extends DualApprovalService.AnnotatableRow>(entityType: string, rows: R[], idField: string | null = null) {
+  async annotatePending<R extends DualApprovalService.AnnotatableRow>(entityType: string, rows: R[], idField: string) {
     if (!Array.isArray(rows) || rows.length === 0) {
       return rows;
     }
 
-    // Instancias de Sequelize: la PK sale de la clase del modelo (constructor.primaryKeyAttribute)
-    const pkField = idField ?? (rows[0]?.constructor as { primaryKeyAttribute?: string } | undefined)?.primaryKeyAttribute ?? null;
-    if (!pkField) {
-      return rows;
-    }
-
-    // Instancias de modelo o filas planas: se lee la PK y se anota pendingApproval por nombre
+    const pkField = idField;
     const asRecord = (r: R) => r as unknown as Record<string, unknown>;
     const ids = rows.map(r => asRecord(r)[pkField]).filter((id): id is string => typeof id === 'string' && id !== '');
     const pendings = await this.approvalRequestRepository.findPendingByEntityIds(entityType, ids);
@@ -514,7 +508,7 @@ function _assertSegregation(request: ApprovalRequest, approverUserId: string) {
   }
 }
 
-// Guarda en `result` solo datos serializables y acotados (evita persistir instancias Sequelize).
+// Guarda en `result` solo datos serializables y acotados (evita persistir objetos con referencias o ciclos).
 function _sanitizeResult(result: unknown) {
   if (result === null || result === undefined) {
     return null;

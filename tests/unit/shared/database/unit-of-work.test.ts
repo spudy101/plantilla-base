@@ -1,23 +1,22 @@
 // tests/unit/shared/database/unit-of-work.test.ts
 //
-// Unit of Work (SOLID: D): los services piden unidades de trabajo a este puerto y no al ORM.
-// Fase 2 de docs/prisma-migration.md: run() abre la transacción de Sequelize y, si un repositorio
-// Prisma la pide, una interactiva de Prisma (perezosa) que se publica en transaction-context.
+// Unit of Work (SOLID: D): los services piden unidades de trabajo a este puerto y no al ORM. run() abre
+// una transacción interactiva de Prisma y la publica en transaction-context para los repositorios.
 
-jest.mock('shared/models', () => ({ sequelize: { transaction: jest.fn() } }));
+jest.mock('shared/database/prisma', () => ({ __esModule: true, default: { $transaction: jest.fn() } }));
 
 import { mocked, fixture } from 'tests/helpers/mock';
 import { managedTransaction } from 'tests/helpers/transaction';
-import modelsModule from 'shared/models';
-const { sequelize } = mocked(modelsModule);
+import prismaModule from 'shared/database/prisma';
+const prisma = mocked(prismaModule);
 import unitOfWork from 'shared/database/unit-of-work';
-const { SequelizeUnitOfWork } = unitOfWork;
+const { PrismaUnitOfWork } = unitOfWork;
 import txContext from 'shared/database/transaction-context';
 
 /** Prisma falso: `$transaction(fn)` le da `txClient` a fn y termina cuando fn termina. */
 function fakePrisma(events: string[] = []) {
   const txClient = { id: 'prisma-tx' };
-  const prisma = {
+  const client = {
     $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
       events.push('prisma:open');
       try {
@@ -30,43 +29,29 @@ function fakePrisma(events: string[] = []) {
       }
     })
   };
-  return { prisma, txClient };
+  return { client, txClient };
 }
 
-function sequelizeTx(events: string[] = []) {
-  return {
-    id: 'sequelize-tx',
-    commit: jest.fn(async () => { events.push('sequelize:commit'); }),
-    rollback: jest.fn(async () => { events.push('sequelize:rollback'); })
-  };
-}
-
-describe('SequelizeUnitOfWork', () => {
+describe('PrismaUnitOfWork', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('run(work) abre una transacción gestionada de Sequelize, le pasa la transacción a work y devuelve su resultado', async () => {
-    const tx = sequelizeTx();
-    sequelize.transaction.mockImplementation(managedTransaction(tx));
+  it('run(work) usa el cliente único por defecto, con los timeouts y las opciones del llamador', async () => {
+    const tx = { commit: jest.fn(), rollback: jest.fn() };
+    prisma.$transaction.mockImplementation(managedTransaction(tx));
     const work = jest.fn().mockResolvedValue('ok');
 
-    await expect(unitOfWork.run(work, fixture({ isolationLevel: 'SERIALIZABLE' }))).resolves.toBe('ok');
-    expect(sequelize.transaction).toHaveBeenCalledWith({ isolationLevel: 'SERIALIZABLE' }, expect.any(Function));
-    expect(work).toHaveBeenCalledWith(tx);
+    await expect(unitOfWork.run(work, fixture({ isolationLevel: 'Serializable' }))).resolves.toBe('ok');
+    expect(prisma.$transaction).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({ isolationLevel: 'Serializable', maxWait: 5_000, timeout: 15_000 })
+    );
+    expect(work).toHaveBeenCalledTimes(1);
     expect(tx.commit).toHaveBeenCalled();
   });
 
-  it('si ningún repositorio Prisma la pide, no abre transacción de Prisma (sin segunda conexión)', async () => {
-    const { prisma } = fakePrisma();
-    const uow = new SequelizeUnitOfWork(fixture({ sequelize: { transaction: managedTransaction(sequelizeTx()) }, prisma }));
-
-    await uow.run(async () => 'listo');
-
-    expect(prisma.$transaction).not.toHaveBeenCalled();
-  });
-
-  it('un repositorio Prisma dentro de run() recibe el cliente de la transacción; se abre una sola vez', async () => {
-    const { prisma, txClient } = fakePrisma();
-    const uow = new SequelizeUnitOfWork(fixture({ sequelize: { transaction: managedTransaction(sequelizeTx()) }, prisma }));
+  it('dentro de run() la unidad activa entrega el cliente de la transacción', async () => {
+    const { client, txClient } = fakePrisma();
+    const uow = new PrismaUnitOfWork(fixture({ prisma: client }));
 
     const clients = await uow.run(async () => {
       const unit = txContext.activeUnit();
@@ -74,79 +59,48 @@ describe('SequelizeUnitOfWork', () => {
     });
 
     expect(clients).toEqual([txClient, txClient]);
-    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
-    expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), expect.objectContaining({ timeout: 15_000 }));
+    expect(client.$transaction).toHaveBeenCalledTimes(1);
   });
 
-  it('confirma primero la de Prisma y después la de Sequelize', async () => {
+  it('si work lanza, Prisma revierte y el error llega al llamador', async () => {
     const events: string[] = [];
-    const { prisma } = fakePrisma(events);
-    const uow = new SequelizeUnitOfWork(fixture({ sequelize: { transaction: managedTransaction(sequelizeTx(events)) }, prisma }));
-
-    await uow.run(async () => {
-      await txContext.activeUnit()!.prisma();
-      events.push('work');
-    });
-
-    expect(events).toEqual(['prisma:open', 'work', 'prisma:commit', 'sequelize:commit']);
-  });
-
-  it('si work lanza, revierte las dos y propaga el error de work', async () => {
-    const events: string[] = [];
-    const { prisma } = fakePrisma(events);
-    const uow = new SequelizeUnitOfWork(fixture({ sequelize: { transaction: managedTransaction(sequelizeTx(events)) }, prisma }));
+    const { client } = fakePrisma(events);
+    const uow = new PrismaUnitOfWork(fixture({ prisma: client }));
 
     await expect(
       uow.run(async () => {
-        await txContext.activeUnit()!.prisma();
-        throw new Error('regla de negocio');
+        events.push('work');
+        throw new Error('boom');
       })
-    ).rejects.toThrow('regla de negocio');
-
-    expect(events).toEqual(['prisma:open', 'prisma:rollback', 'sequelize:rollback']);
+    ).rejects.toThrow('boom');
+    expect(events).toEqual(['prisma:open', 'work', 'prisma:rollback']);
   });
 
-  it('un run() dentro de otro se une a la unidad activa (misma transacción, no abre otra)', async () => {
-    const tx = sequelizeTx();
-    const transaction = jest.fn(managedTransaction(tx));
-    const uow = new SequelizeUnitOfWork(fixture({ sequelize: { transaction }, prisma: fakePrisma().prisma }));
+  it('un run() anidado se une a la unidad activa (no abre otra transacción)', async () => {
+    const { client, txClient } = fakePrisma();
+    const uow = new PrismaUnitOfWork(fixture({ prisma: client }));
 
-    const inner = await uow.run(async outerTx => uow.run(async innerTx => [outerTx, innerTx]));
+    const inner = await uow.run(() => uow.run(async () => txContext.activeUnit()!.prisma()));
 
-    expect(inner).toEqual([tx, tx]);
-    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(inner).toBe(txClient);
+    expect(client.$transaction).toHaveBeenCalledTimes(1);
   });
 
-  it('fuera de run() no hay unidad activa', async () => {
-    expect(txContext.activeUnit()).toBeNull();
-    const uow = new SequelizeUnitOfWork(fixture({ sequelize: { transaction: managedTransaction(sequelizeTx()) } }));
-    await uow.run(async () => expect(txContext.activeUnit()).not.toBeNull());
+  it('fuera de run() no hay unidad activa', () => {
     expect(txContext.activeUnit()).toBeNull();
   });
 
-  // Lo programado en segundo plano dentro de run() (logAudit, notificaciones en setImmediate) hereda el
-  // AsyncLocalStorage: no debe usar la transacción ya cerrada ni abrir una que nadie confirmaría.
-  it('lo que work deja en segundo plano corre sin unidad activa (la unidad se cierra al terminar work)', async () => {
-    const { prisma } = fakePrisma();
-    const uow = new SequelizeUnitOfWork(fixture({ sequelize: { transaction: managedTransaction(sequelizeTx()) }, prisma }));
-    let later: Promise<unknown> = Promise.resolve();
+  it('lo que work dejó en segundo plano ya no ve la unidad (no usa una transacción cerrada)', async () => {
+    const { client } = fakePrisma();
+    const uow = new PrismaUnitOfWork(fixture({ prisma: client }));
+    let late: Promise<unknown> | null = null;
 
     await uow.run(async () => {
-      later = new Promise(resolve => {
+      late = new Promise(resolve => {
         setImmediate(() => resolve(txContext.activeUnit()));
       });
     });
 
-    await expect(later).resolves.toBeNull();
-    expect(prisma.$transaction).not.toHaveBeenCalled();
-  });
-
-  it('acepta una instancia de Sequelize inyectada (útil en tests o con otra conexión)', async () => {
-    const fakeSequelize = { transaction: jest.fn(managedTransaction(sequelizeTx())) };
-    const uow = new SequelizeUnitOfWork(fixture({ sequelize: fakeSequelize }));
-
-    await expect(uow.run(async () => 'ok')).resolves.toBe('ok');
-    expect(fakeSequelize.transaction).toHaveBeenCalled();
-    expect(sequelize.transaction).not.toHaveBeenCalled();
+    await expect(late).resolves.toBeNull();
   });
 });

@@ -6,7 +6,6 @@
 
 import { randomUUID } from 'node:crypto';
 import prisma from '../../shared/database/prisma';
-import db from '../../shared/models';
 import unitOfWork from '../../shared/database/unit-of-work';
 import userRepository from '../../modules/schemas/kyc/iam/repositories/user.repository';
 import userConsentRepository from '../../modules/schemas/records/legal/repositories/user-consent.repository';
@@ -41,7 +40,6 @@ describe('Legal (consentimientos y política) · Prisma contra Postgres', () => 
     await prisma.consentType.deleteMany({ where: { consentTypeId } });
     await prisma.role.deleteMany({ where: { roleId } });
     await prisma.$disconnect();
-    await db.sequelize.close();
   });
 
   it('otorgar dos veces deja un solo consentimiento vigente; revocar lo cierra', async () => {

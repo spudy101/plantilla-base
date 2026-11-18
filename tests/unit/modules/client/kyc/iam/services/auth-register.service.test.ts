@@ -88,9 +88,7 @@ jest.mock('modules/schemas/notification/services/notification-creation.service',
 jest.mock('shared/utils/request-context.util', () => ({
   originFromContext: jest.fn(() => ({}))
 }));
-jest.mock('shared/models', () => ({
-  sequelize: { transaction: jest.fn() }
-}));
+jest.mock('shared/database/prisma', () => ({ __esModule: true, default: { $transaction: jest.fn() } }));
 jest.mock('modules/client/kyc/iam/dtos/auth-register.dto', () => ({
   RegisterResponseDTO: jest.fn(x => ({ dto: true, userId: x.user?.userId, tokens: x.tokens }))
 }));
@@ -152,8 +150,8 @@ import TokenBlacklistUtilModule from 'shared/utils/token-blacklist.util';
 const TokenBlacklistUtil = mocked(TokenBlacklistUtilModule);
 import NotificationUtilModule from 'modules/schemas/notification/services/notification-creation.service';
 const NotificationUtil = mocked(NotificationUtilModule);
-import modelsModule from 'shared/models';
-const { sequelize } = mocked(modelsModule);
+import prismaModule from 'shared/database/prisma';
+const prisma = mocked(prismaModule);
 import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
 
@@ -183,7 +181,7 @@ function armHappyRegister() {
   personContactRepository.findByEmail.mockResolvedValue(null);
   personRepository.findByNationalId.mockResolvedValue(null);
 
-  sequelize.transaction.mockImplementation(
+  prisma.$transaction.mockImplementation(
     managedTransaction({
       commit: jest.fn().mockResolvedValue(undefined),
       rollback: jest.fn().mockResolvedValue(undefined)
@@ -244,7 +242,7 @@ describe('AuthRegisterService', () => {
     it('registra los consentimientos DENTRO de la transacción del alta, con la política activa', async () => {
       armHappyRegister();
       const tx = { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn() };
-      sequelize.transaction.mockImplementation(managedTransaction(tx));
+      prisma.$transaction.mockImplementation(managedTransaction(tx));
 
       await service.register(VALID_USER_DATA, { ip: '9.9.9.9' });
 
@@ -257,7 +255,7 @@ describe('AuthRegisterService', () => {
     it('crea la preferencia de notificación por defecto DENTRO de la transacción del alta', async () => {
       armHappyRegister();
       const tx = { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn() };
-      sequelize.transaction.mockImplementation(managedTransaction(tx));
+      prisma.$transaction.mockImplementation(managedTransaction(tx));
 
       await service.register(VALID_USER_DATA, {});
 
@@ -276,7 +274,7 @@ describe('AuthRegisterService', () => {
     it('si falla la preferencia por defecto, el alta se revierte', async () => {
       armHappyRegister();
       const tx = { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn() };
-      sequelize.transaction.mockImplementation(managedTransaction(tx));
+      prisma.$transaction.mockImplementation(managedTransaction(tx));
       userNotificationPreferenceRepository.createGlobal.mockRejectedValue(new Error('db down'));
 
       await expect(service.register(VALID_USER_DATA, {})).rejects.toMatchObject({ statusCode: 500 });
@@ -287,7 +285,7 @@ describe('AuthRegisterService', () => {
     it('si falla el registro del consentimiento, el alta se revierte (sin constancia no hay cuenta)', async () => {
       armHappyRegister();
       const tx = { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn() };
-      sequelize.transaction.mockImplementation(managedTransaction(tx));
+      prisma.$transaction.mockImplementation(managedTransaction(tx));
       userConsentRepository.grant.mockRejectedValue(new Error('db down'));
 
       await expect(service.register(VALID_USER_DATA, {})).rejects.toMatchObject({ statusCode: 500 });
@@ -359,7 +357,7 @@ describe('AuthRegisterService', () => {
     it('mapea un error NO operativo a internal tras el rollback de la transacción', async () => {
       armHappyRegister();
       const tx = { commit: jest.fn(), rollback: jest.fn().mockResolvedValue(undefined) };
-      sequelize.transaction.mockImplementation(managedTransaction(tx));
+      prisma.$transaction.mockImplementation(managedTransaction(tx));
       roleRepository.findByName.mockResolvedValue({ roleId: 'r' });
       personRepository.create.mockRejectedValue(new Error('db boom')); // error crudo, no operativo
 
@@ -430,7 +428,7 @@ describe('AuthRegisterService', () => {
   describe('confirmResetCredentials', () => {
     function txOk() {
       const tx = { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn().mockResolvedValue(undefined) };
-      sequelize.transaction.mockImplementation(managedTransaction(tx));
+      prisma.$transaction.mockImplementation(managedTransaction(tx));
       return tx;
     }
 

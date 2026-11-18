@@ -56,7 +56,6 @@ jest.mock('shared/constants', () => ({
   notifications: { ses: { logoUrl: 'https://logo.test/x.png' } }
 }));
 
-jest.mock('shared/models', () => ({}));
 
 import { mocked, Loose } from 'tests/helpers/mock';
 import notificationRepoModule from 'modules/schemas/notification/repositories/notification.repository';

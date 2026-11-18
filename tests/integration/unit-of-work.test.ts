@@ -1,15 +1,14 @@
 // tests/integration/unit-of-work.test.ts
 //
 // Unit of Work contra Postgres real (esquema aislado de tests/test-env.ts; `npm run db:test:prepare`).
-// Verifica la convivencia de la fase 2 de docs/prisma-migration.md: dentro de unitOfWork.run() una
-// escritura de Sequelize (con la transacción que recibe work) y una de Prisma (tomada del contexto, como
-// hace PrismaRepository) se confirman juntas o se revierten juntas, y fuera de run() no se ven a medias.
+// Dentro de unitOfWork.run() las escrituras se confirman juntas o se revierten juntas, los repositorios
+// toman solos la transacción del contexto (PrismaRepository#db) y desde afuera no se ve nada a medias.
 
 import { randomUUID } from 'node:crypto';
 import unitOfWork from '../../shared/database/unit-of-work';
 import txContext from '../../shared/database/transaction-context';
 import prisma from '../../shared/database/prisma';
-import db from '../../shared/models';
+import genderRepository from '../../modules/schemas/kyc/maintainers/repositories/gender.repository';
 
 const PREFIX = `uow-it-${randomUUID().slice(0, 8)}`;
 
@@ -18,32 +17,33 @@ async function namesInDb(): Promise<string[]> {
   return rows.map(r => r.name);
 }
 
-describe('Unit of Work · Sequelize + Prisma contra Postgres', () => {
+async function txClient() {
+  return txContext.activeUnit()!.prisma();
+}
+
+describe('Unit of Work contra Postgres', () => {
   afterEach(async () => {
     await prisma.gender.deleteMany({ where: { name: { startsWith: PREFIX } } });
   });
 
   afterAll(async () => {
     await prisma.$disconnect();
-    await db.sequelize.close();
   });
 
-  it('confirma juntas una escritura de Sequelize y una de Prisma', async () => {
-    await unitOfWork.run(async transaction => {
-      await db.Gender.create({ name: `${PREFIX}-sequelize` }, { transaction });
-      const tx = await txContext.activeUnit()!.prisma();
-      await tx.gender.create({ data: { name: `${PREFIX}-prisma` } });
+  it('confirma juntas las escrituras del trabajo', async () => {
+    await unitOfWork.run(async () => {
+      await (await txClient()).gender.create({ data: { name: `${PREFIX}-a` } });
+      await (await txClient()).gender.create({ data: { name: `${PREFIX}-b` } });
     });
 
-    expect(await namesInDb()).toEqual([`${PREFIX}-prisma`, `${PREFIX}-sequelize`]);
+    expect(await namesInDb()).toEqual([`${PREFIX}-a`, `${PREFIX}-b`]);
   });
 
-  it('si el trabajo lanza, no queda ninguna de las dos', async () => {
+  it('si el trabajo lanza, no queda ninguna', async () => {
     await expect(
-      unitOfWork.run(async transaction => {
-        await db.Gender.create({ name: `${PREFIX}-sequelize` }, { transaction });
-        const tx = await txContext.activeUnit()!.prisma();
-        await tx.gender.create({ data: { name: `${PREFIX}-prisma` } });
+      unitOfWork.run(async () => {
+        await (await txClient()).gender.create({ data: { name: `${PREFIX}-a` } });
+        await (await txClient()).gender.create({ data: { name: `${PREFIX}-b` } });
         throw new Error('regla de negocio');
       })
     ).rejects.toThrow('regla de negocio');
@@ -51,14 +51,16 @@ describe('Unit of Work · Sequelize + Prisma contra Postgres', () => {
     expect(await namesInDb()).toEqual([]);
   });
 
-  it('lo escrito por Prisma dentro de run() no se ve desde afuera hasta el commit', async () => {
+  it('un repositorio dentro de run() ve lo escrito en la transacción; desde afuera no se ve hasta el commit', async () => {
+    let seenByRepository = false;
     let seenOutside: string[] = ['sin consultar'];
     await unitOfWork.run(async () => {
-      const tx = await txContext.activeUnit()!.prisma();
-      await tx.gender.create({ data: { name: `${PREFIX}-pendiente` } });
+      await (await txClient()).gender.create({ data: { name: `${PREFIX}-pendiente` } });
+      seenByRepository = await genderRepository.exists({ name: `${PREFIX}-pendiente` }); // toma la transacción del contexto
       seenOutside = await namesInDb(); // cliente único: otra conexión, fuera de la transacción
     });
 
+    expect(seenByRepository).toBe(true);
     expect(seenOutside).toEqual([]);
     expect(await namesInDb()).toEqual([`${PREFIX}-pendiente`]);
   });

@@ -23,26 +23,20 @@ reclamación, la fila apunta a su sesión, y la sesión a su dispositivo, IP y v
 
 ---
 
-## Cómo se rellena (el hook central)
+## Cómo se rellena (la extensión de Prisma)
 
-`shared/models/mixins/origin-session.mixin.ts` exporta `stampOriginSession(instance)`, registrado **una
-sola vez** en `shared/models/index.ts` como hook global del `sequelize`:
-
-```js
-sequelize.addHook('beforeCreate', stampOriginSession);
-sequelize.addHook('beforeBulkCreate', instances => { for (const i of instances) stampOriginSession(i); });
-```
-
-`stampOriginSession` mira si el modelo **declara** `origin_session_id` y, si viene vacío, lo completa desde
+`piiExtension` (`shared/database/prisma-extensions.ts`), aplicada al cliente único, completa
+`originSessionId` y `originCorrelationId` al **crear** una fila de un modelo que los declara, desde
 `requestContext.originFromContext()` (que lee el `sessionId`/`correlationId` del `AsyncLocalStorage`). El
 `sessionId` lo inyecta al store `auth.middleware` tras autenticar, así que cualquier `create()` río abajo
-lo hereda **sin pasar nada por parámetro**.
+lo hereda **sin pasar nada por parámetro**. Qué modelos los declaran sale de los metadatos que genera
+`npm run prisma:generate` (`shared/database/generated/prisma-metadata.ts`).
 
-Reglas que respeta el hook:
+Reglas:
 - **Solo al CREAR, nunca al actualizar.** Un retry de admin o de worker corre en otro contexto y no debe
   pisar el origen real.
 - **Un valor explícito del call-site siempre gana.** Login y biométrico pasan el `sessionId` recién creado a
-  mano (el contexto todavía no lo tiene); el hook ve el campo no-nulo y no lo toca.
+  mano (el contexto todavía no lo tiene); la extensión ve el campo no-nulo y no lo toca.
 - **`null` en workers/sistema y en flujos sin sesión** (registro público, "olvidé mi contraseña"): por eso
   las columnas son **nullable**.
 
@@ -50,29 +44,16 @@ Reglas que respeta el hook:
 
 ## ✅ Checklist para una tabla NUEVA
 
-1. **Modelo** (`...model.js`): spread los campos.
-   ```js
-   import originSessionMixinModule from '<ruta>/shared/models/mixins/origin-session.mixin';
-   const { originSessionModelFields } = originSessionMixinModule;
-   // dentro del objeto de atributos de sequelize.define:
-   ...originSessionModelFields()
-   ```
-2. **Migración** (el `create-*.ts` **original** — en este repo se editan las migraciones originales y se
-   corre `db:reset`, no se crean `ALTER` nuevos):
-   ```js
-   import originSessionMixinModule from '../shared/models/mixins/origin-session.mixin';
-   const { originSessionMigrationColumns } = originSessionMixinModule;
-   // dentro del objeto de columnas del createTable:
-   ...originSessionMigrationColumns(Sequelize),
-   // y un índice:
-   await queryInterface.addIndex({ tableName: 'mi_tabla', schema: SCHEMA }, ['origin_session_id'], {
-     name: 'idx_mi_tabla_origin_session_id'
-   });
-   ```
-3. **Listo.** El hook global la rellena sola. No hace falta tocar ningún repositorio.
+1. **Schema** (`prisma/schema.prisma`): las dos columnas y su índice.
+   ```prisma
+   originSessionId     String? @map("origin_session_id") @db.Uuid
+   originCorrelationId String? @map("origin_correlation_id") @db.VarChar(128)
 
-> Las 14 tablas previas al mixin declaran los campos **inline** (mismo resultado). Para tablas nuevas usá los
-> helpers: menos repetición y una sola fuente de la definición.
+   @@index([originSessionId], map: "idx_mi_tabla_origin_session_id")
+   ```
+2. **Migración**: `npm run db:migrate:dev -- --name <qué-cambia>` (ver [`database.md`](database.md#cambiar-el-esquema)).
+3. **Listo.** La extensión las rellena sola (`npm run prisma:generate` actualiza los metadatos). No hace falta
+   tocar ningún repositorio.
 
 ### ¿Cuándo NO ponerla?
 Infra/sistema, catálogos y la sesión misma no la llevan: `audit_logs` (usa `session_id`), `audit_alerts`,

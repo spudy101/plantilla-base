@@ -57,8 +57,8 @@ crudas de terceros se dejan tal cual (ver §5).
 
 ### Capa B — los DTOs (la que manda)
 
-Cada DTO enmascara en origen. Como la PII llega **cifrada** (el hook `afterFind` no corre en includes
-anidados), el patrón es siempre descifrar y después enmascarar:
+Cada DTO enmascara en origen. La extensión de Prisma ya entrega la PII descifrada, pero el DTO la pasa
+igual por `safeDecrypt` (defensa ante datos legados o filas armadas a mano) y después enmascara:
 
 ```js
 // ✅ patrón correcto en un DTO
@@ -131,7 +131,7 @@ depurar una falla real.
 
 ## Reglas
 
-- ❌ Nunca leer el campo crudo del modelo en un DTO: el `afterFind` no corre en includes anidados.
+- ❌ Nunca exponer el campo sin enmascarar: siempre `safeDecrypt` + `MaskingUtil`.
 - ❌ Nunca enmascarar un `requestBody`, ni en el código ni en Swagger.
 - ✅ El enmascaramiento se arregla **en el DTO**; la red de `ApiResponse` es respaldo, no excusa.
 - ✅ Un campo PII nuevo se declara en `pii-fields.ts`, no se enmascara a mano en cada DTO.

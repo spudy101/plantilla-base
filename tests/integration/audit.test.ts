@@ -7,7 +7,6 @@
 
 import { randomUUID } from 'node:crypto';
 import prisma from '../../shared/database/prisma';
-import db from '../../shared/models';
 import unitOfWork from '../../shared/database/unit-of-work';
 import auditLogRepository from '../../modules/schemas/records/audit/repositories/audit-log.repository';
 import auditAlertRepository from '../../modules/schemas/records/audit/repositories/audit-alert.repository';
@@ -41,7 +40,6 @@ describe('Auditoría · Prisma contra Postgres', () => {
     await prisma.person.deleteMany({ where: { personId } });
     await prisma.role.deleteMany({ where: { roleId } });
     await prisma.$disconnect();
-    await db.sequelize.close();
   });
 
   it('la auditoría escrita dentro de una unidad que se revierte queda igual (va fuera de la transacción)', async () => {

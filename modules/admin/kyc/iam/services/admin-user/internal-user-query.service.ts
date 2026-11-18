@@ -66,7 +66,7 @@ class InternalUserQueryService {
 
     const { rows, count } = await this.userRepository.findAllPaginated(filters, paginationParams, PaginationHelper.stringParam(query, 'search'));
 
-    await this.DualApprovalService.annotatePending('User', rows);
+    await this.DualApprovalService.annotatePending('User', rows, 'userId');
 
     logAudit('INTERNAL_USER_LIST_VIEWED', adminUserId, { totalItems: count }, { ...ENTITY });
 

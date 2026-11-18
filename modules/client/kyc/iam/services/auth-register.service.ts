@@ -296,8 +296,7 @@ class AuthRegisterService {
   async _createUserInDB(data: AuthRegisterService.NewUserData) {
     // Alta atómica: persona, contacto, usuario, preferencia de notificación y consentimientos se
     // confirman juntos o no queda nada. La constancia del consentimiento es el entregable de habeas
-    // data: sin ella no hay cuenta (antes era best-effort después del commit, mientras users estaba en
-    // Sequelize y el resto en Prisma; docs/prisma-migration.md, grupos 2, 3 y 6).
+    // data: sin ella no hay cuenta.
     const result = await this.unitOfWork.run(async () => {
       const result = await this._createAllEntities(data);
       await this._createDefaultNotificationPreference(result.user.userId);
