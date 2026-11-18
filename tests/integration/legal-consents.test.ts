@@ -5,12 +5,12 @@
 // con `users` en Prisma (grupo 6), el registro graba los consentimientos en la misma unidad del alta.
 
 import { randomUUID } from 'node:crypto';
-import prisma from '../../shared/database/prisma';
-import unitOfWork from '../../shared/database/unit-of-work';
-import userRepository from '../../modules/schemas/kyc/iam/repositories/user.repository';
-import userConsentRepository from '../../modules/schemas/records/legal/repositories/user-consent.repository';
-import privacyPolicyAdminRepository from '../../modules/schemas/records/legal/repositories/privacy-policy-admin.repository';
-import privacyPolicyRepository from '../../modules/schemas/records/legal/repositories/privacy-policy.repository';
+import prisma from '../../src/shared/database/prisma';
+import unitOfWork from '../../src/shared/database/unit-of-work';
+import userRepository from '../../src/modules/iam/repositories/user.repository';
+import userConsentRepository from '../../src/modules/legal/repositories/user-consent.repository';
+import privacyPolicyAdminRepository from '../../src/modules/legal/repositories/privacy-policy-admin.repository';
+import privacyPolicyRepository from '../../src/modules/legal/repositories/privacy-policy.repository';
 
 const TAG = `legal-it-${randomUUID().slice(0, 8)}`;
 let roleId: string;

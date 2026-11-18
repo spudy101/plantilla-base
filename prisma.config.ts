@@ -4,7 +4,7 @@
 // Ver docs/prisma-migration.md.
 import 'dotenv/config';
 import { defineConfig } from 'prisma/config';
-import { databaseUrl } from './shared/database/database-url';
+import { databaseUrl } from './src/shared/database/database-url';
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',

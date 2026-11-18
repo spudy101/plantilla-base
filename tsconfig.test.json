@@ -6,12 +6,9 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "shared/*": ["shared/*"],
-      "modules/*": ["modules/*"],
-      "config/*": ["config/*"],
       "tests/*": ["tests/*"]
     }
   },
-  "include": ["src/**/*", "modules/**/*", "shared/**/*", "config/**/*", "tests/**/*", "prisma/**/*.ts", "prisma.config.ts", "scripts/*.ts", "scripts/lib/*.ts", "scripts/prisma-migration/*.ts"],
-  "exclude": ["node_modules", "dist", "coverage", "scripts/ts-migration"]
+  "include": ["src/**/*", "tests/**/*", "prisma/**/*.ts", "prisma.config.ts", "scripts/*.ts", "scripts/lib/*.ts"],
+  "exclude": ["node_modules", "dist", "coverage"]
 }

@@ -44,10 +44,7 @@
   },
   "nodemonConfig": {
     "watch": [
-      "src",
-      "modules",
-      "shared",
-      "config"
+      "src"
     ],
     "ext": "ts,json",
     "ignore": [

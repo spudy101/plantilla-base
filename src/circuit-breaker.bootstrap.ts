@@ -10,13 +10,13 @@
 //
 // Todo corre dentro de requestContext.runAsSystem (source:'system').
 
-import { interopDefault } from '../shared/utils/interop.util';
-import CircuitBreaker from '../shared/utils/circuit-breaker.util';
-import requestContext from '../shared/utils/request-context.util';
-import loggerUtilModule from '../shared/utils/logger.util';
+import { interopDefault } from './shared/utils/interop.util';
+import CircuitBreaker from './shared/infra/circuit-breaker.util';
+import requestContext from './shared/observability/request-context.util';
+import loggerUtilModule from './shared/observability/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import providerFallbackRepository from '../modules/schemas/integration/repositories/provider-fallback-event.repository';
-import errorMessageModule from '../shared/utils/error-message.util';
+import providerFallbackRepository from './modules/integration/repositories/provider-fallback-event.repository';
+import errorMessageModule from './shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -44,7 +44,7 @@ async function _contarProcesosAfectados(product: string, startedAt: Date | null,
     }
     // require diferido: como antes con shared/models, no cargar repositorios al importar el bootstrap
     const smsDeliveryAttemptRepository = interopDefault(
-      require('../modules/schemas/notification/repositories/sms-delivery-attempt.repository') as typeof import('../modules/schemas/notification/repositories/sms-delivery-attempt.repository')
+      require('./modules/notification/repositories/sms-delivery-attempt.repository') as typeof import('./modules/notification/repositories/sms-delivery-attempt.repository')
     );
     return await smsDeliveryAttemptRepository.countFailedBetween(startedAt, endedAt);
   } catch {

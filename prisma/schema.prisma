@@ -1,6 +1,6 @@
 generator client {
   provider        = "prisma-client"
-  output          = "../shared/database/generated/prisma"
+  output          = "../src/shared/database/generated/prisma"
   previewFeatures = ["partialIndexes"]
   moduleFormat    = "cjs"
 }

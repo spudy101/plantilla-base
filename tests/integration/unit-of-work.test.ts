@@ -5,10 +5,10 @@
 // toman solos la transacción del contexto (PrismaRepository#db) y desde afuera no se ve nada a medias.
 
 import { randomUUID } from 'node:crypto';
-import unitOfWork from '../../shared/database/unit-of-work';
-import txContext from '../../shared/database/transaction-context';
-import prisma from '../../shared/database/prisma';
-import genderRepository from '../../modules/schemas/kyc/maintainers/repositories/gender.repository';
+import unitOfWork from '../../src/shared/database/unit-of-work';
+import txContext from '../../src/shared/database/transaction-context';
+import prisma from '../../src/shared/database/prisma';
+import genderRepository from '../../src/modules/catalogs/repositories/gender.repository';
 
 const PREFIX = `uow-it-${randomUUID().slice(0, 8)}`;
 

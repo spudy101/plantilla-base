@@ -24,9 +24,6 @@ const sharedConfig = {
   resetMocks: false,
   restoreMocks: false,
   moduleNameMapper: {
-    '^shared/(.*)$': '<rootDir>/shared/$1',
-    '^modules/(.*)$': '<rootDir>/modules/$1',
-    '^config/(.*)$': '<rootDir>/config/$1',
     '^tests/helpers$': '<rootDir>/tests/helpers/index.ts',
     '^tests/helpers/(.*)$': '<rootDir>/tests/helpers/$1'
   }
@@ -35,37 +32,16 @@ const sharedConfig = {
 module.exports = {
   ...sharedConfig,
 
-  testMatch: ['**/tests/unit/**/*.test.ts', '**/tests/integration/**/*.test.ts'],
+  testMatch: ['<rootDir>/src/**/*.test.ts', '<rootDir>/tests/**/*.test.ts'],
 
   collectCoverageFrom: [
-    // Capas de aplicación
-    'modules/**/*.service.ts',
-    'modules/**/*.controller.ts',
-    'modules/**/*.dto.ts',
-    'modules/**/*.validator.ts',
-
-    // Utils / workers / helpers de módulo
-    'modules/**/utils/*.util.ts',
-    'modules/**/workers/*.worker.ts',
-    'modules/**/helpers/*.helper.ts',
-
-    // Shared utils, middlewares, validators, services
-    'shared/utils/*.util.ts',
-    'shared/middlewares/*.middleware.ts',
-    'shared/validators/*.validator.ts',
-    'shared/services/*.service.ts',
-    'shared/repositories/base.repository.ts',
-
-    // Shared DTOs (componentes con lógica de mapeo/transformación)
-    'shared/dtos/**/*.ts',
-
-    // Repositorios (capa de acceso a datos)
-    'modules/**/*.repository.ts',
-
-    // Exclusiones: archivos de arranque / bootstrap
+    'src/**/*.ts',
+    '!src/**/*.test.ts',
+    '!src/**/generated/**',
+    '!src/**/docs/**',
+    '!src/config/**',
     '!src/app.ts',
-    '!src/server.ts',
-    '!**/node_modules/**'
+    '!src/server.ts'
   ],
 
   coverageDirectory: 'coverage',
@@ -77,7 +53,7 @@ module.exports = {
     {
       ...sharedConfig,
       displayName: 'unit',
-      testMatch: ['<rootDir>/tests/unit/**/*.test.ts'],
+      testMatch: ['<rootDir>/src/**/*.test.ts', '<rootDir>/tests/unit/**/*.test.ts'],
       maxWorkers: 3
     },
     {

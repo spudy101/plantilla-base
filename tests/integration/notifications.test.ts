@@ -6,15 +6,15 @@
 // globales con skipDuplicates y los contadores que se incrementan en la base.
 
 import { randomUUID } from 'node:crypto';
-import prisma from '../../shared/database/prisma';
-import notificationRepository from '../../modules/schemas/notification/repositories/notification.repository';
-import notificationTypeRepository from '../../modules/schemas/notification/repositories/notification-type.repository';
-import notificationCategoryRepository from '../../modules/schemas/notification/repositories/notification-category.repository';
-import globalNotificationRepository from '../../modules/schemas/notification/repositories/global-notification.repository';
-import globalNotificationReadRepository from '../../modules/schemas/notification/repositories/global-notification-read.repository';
-import preferenceRepository from '../../modules/schemas/kyc/person/repositories/user-notification-preference.repository';
-import verificationCodeRepository from '../../modules/schemas/notification/repositories/verification-code.repository';
-import emailBounceSuppressionRepository from '../../modules/schemas/notification/repositories/email-bounce-suppression.repository';
+import prisma from '../../src/shared/database/prisma';
+import notificationRepository from '../../src/modules/notification/repositories/notification.repository';
+import notificationTypeRepository from '../../src/modules/notification/repositories/notification-type.repository';
+import notificationCategoryRepository from '../../src/modules/notification/repositories/notification-category.repository';
+import globalNotificationRepository from '../../src/modules/notification/repositories/global-notification.repository';
+import globalNotificationReadRepository from '../../src/modules/notification/repositories/global-notification-read.repository';
+import preferenceRepository from '../../src/modules/notification/repositories/user-notification-preference.repository';
+import verificationCodeRepository from '../../src/modules/notification/repositories/verification-code.repository';
+import emailBounceSuppressionRepository from '../../src/modules/notification/repositories/email-bounce-suppression.repository';
 
 const TAG = `notif-it-${randomUUID().slice(0, 8)}`;
 const CODE = TAG.toUpperCase().replace(/-/g, '_');
