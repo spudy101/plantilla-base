@@ -11,7 +11,15 @@ export default {
   },
 
   get authComponentsDto() {
-    return interopDefault(require('./responses/auth-components.response') as typeof import('./responses/auth-components.response'));
+    return interopDefault(
+      require('./responses/auth-components.response') as typeof import('./responses/auth-components.response')
+    );
+  },
+
+  /** Esquemas de salida (Zod) de los componentes de auth: UserRef, UserSession, UserChangeLog. */
+  get authSchemas() {
+    const m = require('./responses/auth-components.response') as typeof import('./responses/auth-components.response');
+    return { UserRefSchema: m.UserRefSchema, UserSessionSchema: m.UserSessionSchema, UserChangeLogSchema: m.UserChangeLogSchema };
   },
 
   get AuthMiddleware() {
@@ -23,7 +31,9 @@ export default {
   },
 
   get trustedDeviceRepository() {
-    return interopDefault(require('./repositories/auth-trusted-device.repository') as typeof import('./repositories/auth-trusted-device.repository'));
+    return interopDefault(
+      require('./repositories/auth-trusted-device.repository') as typeof import('./repositories/auth-trusted-device.repository')
+    );
   },
 
   get biometricRepository() {
@@ -31,11 +41,15 @@ export default {
   },
 
   get resetCredentialsRepository() {
-    return interopDefault(require('./repositories/reset-credentials.repository') as typeof import('./repositories/reset-credentials.repository'));
+    return interopDefault(
+      require('./repositories/reset-credentials.repository') as typeof import('./repositories/reset-credentials.repository')
+    );
   },
 
   get rolePermissionOverrideRepository() {
-    return interopDefault(require('./repositories/role-permission-override.repository') as typeof import('./repositories/role-permission-override.repository'));
+    return interopDefault(
+      require('./repositories/role-permission-override.repository') as typeof import('./repositories/role-permission-override.repository')
+    );
   },
 
   get roleRepository() {
@@ -43,7 +57,9 @@ export default {
   },
 
   get userSessionRepository() {
-    return interopDefault(require('./repositories/user-session.repository') as typeof import('./repositories/user-session.repository'));
+    return interopDefault(
+      require('./repositories/user-session.repository') as typeof import('./repositories/user-session.repository')
+    );
   },
 
   get userRepository() {

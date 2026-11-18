@@ -1,3 +1,5 @@
+import { z } from '../../../shared/validation/z';
+import { dateTime } from '../../../shared/validation/output';
 import type auditLogRepository from '../repositories/audit-log.repository';
 import type changeLogRepository from '../repositories/change-log.repository';
 type AuditLogRepositoryPort = typeof auditLogRepository;
@@ -12,7 +14,9 @@ type AuditRow = Awaited<ReturnType<AuditLogRepositoryPort['findClientSafeByUser'
 type ChangeRow = Awaited<ReturnType<ChangeLogRepositoryPort['findExternalChangesByUserId']>>['rows'][number];
 
 /** Ítem del feed mezclado: unión discriminada por __source. */
-type FeedItem = { __source: 'audit'; row: AuditRow; at: Date | undefined } | { __source: 'change'; row: ChangeRow; at: Date | undefined };
+type FeedItem =
+  | { __source: 'audit'; row: AuditRow; at: Date | undefined }
+  | { __source: 'change'; row: ChangeRow; at: Date | undefined };
 
 /** Dispositivo que ejecutó la acción (solo sesiones del propio usuario). */
 type DeviceRef = { deviceId: string; name: string | null } | null;
@@ -85,3 +89,29 @@ declare namespace UserActivityDto {
 }
 
 export default UserActivityDto;
+
+// ── Esquema de salida ──
+export const UserActivityItemSchema = z
+  .object({
+    activityId: z.uuid(),
+    source: z.enum(['audit_log', 'user_change_log']).meta({
+      description:
+        '`audit_log` = acción del propio usuario; `user_change_log` = cambio sobre su cuenta (suyo, de un admin o del sistema).'
+    }),
+    action: z
+      .string()
+      .meta({ example: 'LOGIN_SUCCESS', description: 'Acción de auditoría, o tipo de cambio (`email`, `password`…).' }),
+    description: z.string().nullable().meta({ example: 'Actualización del correo electrónico' }),
+    category: z.string().nullable().meta({ example: 'profile' }),
+    outcome: z.string().nullable().meta({ example: 'success' }),
+    changedByRole: z.string().meta({ example: 'user', description: 'user | admin | system' }),
+    ip: z.string().nullable(),
+    device: z
+      .object({ deviceId: z.uuid(), name: z.string().nullable().meta({ example: 'iPhone de Camilo' }) })
+      .nullable()
+      .meta({
+        description: 'Dispositivo del propio usuario que hizo la acción. null si fue un admin, el sistema o no hay dispositivo.'
+      }),
+    occurredAt: dateTime().nullable()
+  })
+  .meta({ description: 'Evento del feed de actividad del propio usuario. Nunca expone details, valores ni datos de terceros.' });

@@ -1,6 +1,8 @@
 // Componentes reutilizables de auditoría — RF-ADM-03
 
 import MaskingUtil from '../../../shared/security/masking.util';
+import { z } from '../../../shared/validation/z';
+import { dateTime } from '../../../shared/validation/output';
 import type { DbDate, Maybe } from '../../../shared/types/db-rows';
 
 /** Usuario adjunto a una fila de auditoría (Prisma): firstName/lastName viven en Person. */
@@ -229,3 +231,70 @@ export default {
   NotificationPreferenceComponent,
   TrustedDeviceComponent
 };
+
+// ============================================================
+// ESQUEMAS DE SALIDA
+// ============================================================
+
+const RISKS = ['low', 'medium', 'high', 'critical', 'unknown'] as const;
+const OUTCOMES = ['success', 'failure', 'warning', 'attempt'] as const;
+
+export const AuditUserRefSchema = z.object({
+  userId: z.uuid(),
+  username: z.string().nullish().meta({ example: 'admin01' }),
+  fullName: z.string().nullable().meta({ example: 'María García' })
+});
+
+export const AuditLogSchema = z
+  .object({
+    auditLogId: z.uuid(),
+    action: z.string().meta({ example: 'PERSON_LIST_VIEWED', description: 'Código de la acción (catálogo de auditoría).' }),
+    description: z.string().nullable(),
+    category: z.string().nullable().meta({ example: 'KYC' }),
+    module: z.string().nullable().meta({ example: 'admin', description: 'Origen de la acción: admin | client | system.' }),
+    risk: z.enum(RISKS),
+    outcome: z.enum(OUTCOMES),
+    userId: z.uuid().nullable(),
+    sessionId: z.uuid().nullable().meta({ description: 'Sesión desde la que se originó la acción. null en workers/sistema.' }),
+    executor: AuditUserRefSchema.nullable().meta({ description: 'Usuario que ejecutó la acción. null si fue el sistema.' }),
+    entityId: z.string().nullable().meta({ description: 'ID de la entidad afectada.' }),
+    entityType: z.string().nullable().meta({ example: 'Person' }),
+    entityTable: z.string().nullable().meta({ example: 'persons' }),
+    ip: z.string().nullable(),
+    source: z.string().meta({ example: 'http', description: 'http | worker | system | unknown' }),
+    createdAt: dateTime()
+  })
+  .meta({ description: 'Registro de auditoría. Inmutable (append-only).' });
+
+export const AuditLogDetailSchema = AuditLogSchema.extend({
+  correlationId: z.string().nullable().meta({ description: 'Operación que lo produjo (ver /audit/operations/{operationId}).' }),
+  userAgent: z.string().nullable(),
+  fingerprint: z.string().nullable(),
+  details: z
+    .record(z.string(), z.unknown())
+    .nullable()
+    .meta({
+      description:
+        'Datos de la acción (JSON). En actualizaciones trae `before` y `after`. Los datos personales salen enmascarados.'
+    })
+});
+
+export const AuditAlertSchema = z
+  .object({
+    alertId: z.uuid(),
+    auditLogId: z.uuid().nullable().meta({ description: 'Registro de auditoría que originó la alerta.' }),
+    action: z.string().meta({ example: 'RBAC_PERMISSION_GRANTED' }),
+    category: z.string().nullable().meta({ example: 'RBAC' }),
+    risk: z.enum(RISKS),
+    userId: z.uuid().nullable().meta({ description: 'Usuario que realizó la acción.' }),
+    user: AuditUserRefSchema.nullable(),
+    entityId: z.string().nullable(),
+    entityType: z.string().nullable().meta({ example: 'ApprovalRequest' }),
+    message: z.string().nullable(),
+    acknowledged: z.boolean().meta({ description: 'Si un administrador ya reconoció la alerta.' }),
+    acknowledgedBy: z.uuid().nullable(),
+    acknowledgedByUser: AuditUserRefSchema.nullable(),
+    acknowledgedAt: dateTime().nullable(),
+    createdAt: dateTime()
+  })
+  .meta({ description: 'Alerta generada al registrar una acción de riesgo alto o crítico.' });

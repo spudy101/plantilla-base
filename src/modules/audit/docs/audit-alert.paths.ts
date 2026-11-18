@@ -1,4 +1,7 @@
 import commonResponses from '../../../config/swagger/responses/common.responses';
+import { jsonBody, toOpenApi, toParameters } from '../../../shared/validation/openapi';
+import { AcknowledgeAlertsBody, AuditAlertIdParams, AuditAlertListQuery } from '../requests/audit.request';
+import { AuditAlertSchema } from '../responses/audit-components.response';
 
 /**
  * ============================================================
@@ -13,81 +16,10 @@ import commonResponses from '../../../config/swagger/responses/common.responses'
  *   POST  /admin/api/v1/records/audit/audit-alerts/acknowledge-bulk
  */
 
+// Generados desde los esquemas Zod de requests/ y responses/.
 const schemas = {
-  AuditAlert: {
-    type: 'object',
-    description: `Alerta de auditoría generada automáticamente cuando se registra una acción crítica en:
-- Roles / RBAC (permisos otorgados o revocados, rol de usuario modificado)
-- Motor de Reglas / Productos (conjuntos de reglas y políticas creados, activados o eliminados)
-- Entidades (creadas, actualizadas, estado modificado)
-- Parámetros del sistema (SystemGlobalConfig actualizado)
-- **Integridad de expedientes de vinculación** (RF-USR-05): acción \`BINDING_INTEGRITY_VIOLATION_DETECTED\` — el hash HMAC-SHA256 del expediente sellado no coincide con el contenido almacenado, indicando una posible manipulación posterior al sellado. Riesgo: \`critical\`.`,
-    properties: {
-      alertId: { type: 'string', format: 'uuid' },
-      auditLogId: {
-        type: 'string',
-        format: 'uuid',
-        nullable: true,
-        description: 'Referencia al audit_log que originó la alerta.'
-      },
-      action: {
-        type: 'string',
-        example: 'RBAC_PERMISSION_GRANTED',
-        description:
-          'Acción que generó la alerta. Ejemplos: `RBAC_PERMISSION_GRANTED`, `SYSTEM_GLOBAL_CONFIG_UPDATED`, `DUAL_APPROVAL_REQUESTED`.'
-      },
-      category: {
-        type: 'string',
-        nullable: true,
-        example: 'RBAC',
-        description: 'Categoría de la acción. Ej: RBAC, Vinculación, Motor de Reglas.'
-      },
-      risk: { type: 'string', enum: ['low', 'medium', 'high', 'critical', 'unknown'] },
-      userId: { type: 'string', format: 'uuid', nullable: true, description: 'Usuario que realizó la acción.' },
-      user: {
-        type: 'object',
-        nullable: true,
-        description: 'Información del usuario que realizó la acción.',
-        properties: {
-          userId: { type: 'string', format: 'uuid' },
-          username: { type: 'string', example: 'jdoe' },
-          fullName: { type: 'string', nullable: true, example: 'John Doe' }
-        }
-      },
-      entityId: { type: 'string', nullable: true, description: 'ID de la entidad afectada.' },
-      entityType: { type: 'string', nullable: true, example: 'ApprovalRequest', description: 'Tipo de entidad afectada.' },
-      message: { type: 'string', nullable: true, description: 'Descripción legible de la alerta.' },
-      acknowledged: { type: 'boolean', default: false, description: 'Si el Superadmin ya reconoció la alerta.' },
-      acknowledgedBy: { type: 'string', format: 'uuid', nullable: true, description: 'UUID del admin que reconoció la alerta.' },
-      acknowledgedByUser: {
-        type: 'object',
-        nullable: true,
-        description: 'Información del admin que reconoció la alerta. Null si aún no fue reconocida.',
-        properties: {
-          userId: { type: 'string', format: 'uuid' },
-          username: { type: 'string', example: 'admin01' },
-          fullName: { type: 'string', nullable: true, example: 'María García' }
-        }
-      },
-      acknowledgedAt: { type: 'string', format: 'date-time', nullable: true },
-      createdAt: { type: 'string', format: 'date-time' }
-    }
-  }
-};
-
-const paginationParams = [
-  { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1, default: 1 } },
-  { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 } },
-  { name: 'sortBy', in: 'query', schema: { type: 'string', default: 'createdAt' } },
-  { name: 'order', in: 'query', schema: { type: 'string', enum: ['ASC', 'DESC'], default: 'DESC' } }
-];
-
-const alertIdParam = {
-  name: 'alertId',
-  in: 'path',
-  required: true,
-  description: 'UUID de la alerta de auditoría.',
-  schema: { type: 'string', format: 'uuid' }
+  AuditAlert: toOpenApi(AuditAlertSchema, 'output'),
+  AcknowledgeAlertsRequest: toOpenApi(AcknowledgeAlertsBody)
 };
 
 const paths = {
@@ -101,19 +33,7 @@ const paths = {
 **Acceso:** SUPERADMIN y AUDITOR_INTERNO (solo lectura). Las acciones de reconocimiento (acknowledge) son exclusivas del SUPERADMIN.
 
 El campo \`metadata.pendingCount\` indica el total de alertas pendientes sin reconocer — útil para mostrar un badge en el panel.`,
-      parameters: [
-        ...paginationParams,
-        {
-          name: 'acknowledged',
-          in: 'query',
-          schema: { type: 'boolean' },
-          description: 'Filtrar por estado de reconocimiento. Omitir para ver todas.'
-        },
-        { name: 'dateFrom', in: 'query', schema: { type: 'string', format: 'date-time' }, description: 'Desde esta fecha.' },
-        { name: 'dateTo', in: 'query', schema: { type: 'string', format: 'date-time' }, description: 'Hasta esta fecha.' },
-        { name: 'action', in: 'query', schema: { type: 'string' }, description: 'Filtrar por código de acción.' },
-        { name: 'category', in: 'query', schema: { type: 'string' }, description: 'Filtrar por categoría.' }
-      ],
+      parameters: toParameters(AuditAlertListQuery, 'query'),
       responses: {
         200: {
           description: 'Alertas obtenidas exitosamente.',
@@ -162,7 +82,7 @@ El campo \`metadata.pendingCount\` indica el total de alertas pendientes sin rec
 
 Una alerta reconocida deja de aparecer en el contador de pendientes del panel.
 El registro de quién y cuándo reconoció queda guardado en \`acknowledgedBy\` y \`acknowledgedAt\`.`,
-      parameters: [alertIdParam],
+      parameters: toParameters(AuditAlertIdParams, 'path'),
       responses: {
         200: commonResponses.ok({ $ref: '#/components/schemas/AuditAlert' }, 'Alerta reconocida exitosamente.'),
         ...commonResponses.NotFound,
@@ -184,27 +104,7 @@ El registro de quién y cuándo reconoció queda guardado en \`acknowledgedBy\` 
 Solo afecta a alertas que aún no han sido reconocidas — las ya reconocidas son ignoradas sin error.
 
 Devuelve \`acknowledged\` (cuántas se marcaron) y \`requested\` (cuántas se enviaron).`,
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': {
-            schema: {
-              type: 'object',
-              required: ['alertIds'],
-              properties: {
-                alertIds: {
-                  type: 'array',
-                  minItems: 1,
-                  maxItems: 100,
-                  items: { type: 'string', format: 'uuid' },
-                  example: ['uuid-1', 'uuid-2', 'uuid-3'],
-                  description: 'Lista de IDs de alertas a reconocer (máximo 100 por llamada).'
-                }
-              }
-            }
-          }
-        }
-      },
+      requestBody: jsonBody('AcknowledgeAlertsRequest'),
       responses: {
         200: commonResponses.ok(
           {

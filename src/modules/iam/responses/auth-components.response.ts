@@ -1,5 +1,7 @@
 import EncryptionUtil from '../../../shared/security/encryption.util';
 import MaskingUtil from '../../../shared/security/masking.util';
+import { z } from '../../../shared/validation/z';
+import { dateTime } from '../../../shared/validation/output';
 import type { DbDate, Maybe, UserRefRow } from '../../../shared/types/db-rows';
 
 /** Fila de Prisma (verification_codes migró en la fase 5, grupo 3). */
@@ -302,7 +304,11 @@ class UserSessionComponent {
 // ============================================================
 
 class TrustedDeviceComponent {
-  static build(device: Maybe<TrustedDeviceRow>, currentFingerprintHash: string | null = null, currentSessionId: string | null = null) {
+  static build(
+    device: Maybe<TrustedDeviceRow>,
+    currentFingerprintHash: string | null = null,
+    currentSessionId: string | null = null
+  ) {
     if (!device) {
       return null;
     }
@@ -391,3 +397,48 @@ export default {
   UserSessionComponent,
   TrustedDeviceComponent
 };
+
+// ============================================================
+// ESQUEMAS DE SALIDA
+// ============================================================
+
+export const UserRefSchema = z.object({
+  userId: z.uuid(),
+  username: z.string().nullish().meta({ example: 'jdoe' }),
+  fullName: z.string().nullable().meta({ example: 'John Doe' })
+});
+
+export const UserSessionSchema = z.object({
+  sessionId: z.uuid(),
+  status: z.string().meta({ example: 'active', description: 'active | closed' }),
+  ipAddress: z.string().nullable().meta({ example: '190.114.45.227' }),
+  userAgent: z.string().nullable(),
+  startedAt: dateTime(),
+  lastAccessAt: dateTime(),
+  closedAt: dateTime().nullable(),
+  closeReason: z.string().nullable().meta({ example: 'revoked_by_admin' }),
+  createdAt: dateTime(),
+  user: UserRefSchema.nullable()
+});
+
+export const UserChangeLogSchema = z
+  .object({
+    logId: z.uuid(),
+    userId: z.uuid().nullable().meta({ description: 'Usuario afectado por el cambio.' }),
+    user: UserRefSchema.nullable(),
+    changedByUserId: z.uuid().nullable().meta({ description: 'Usuario que hizo el cambio.' }),
+    changedByRole: z.string().meta({ example: 'admin', description: 'user | admin | system' }),
+    changedBy: UserRefSchema.nullable().meta({ description: 'null si lo hizo el sistema.' }),
+    changeType: z.string().meta({ example: 'email', description: 'Campo o entidad que cambió.' }),
+    previousValue: z
+      .string()
+      .nullable()
+      .meta({ description: 'Valor anterior. Correos, documentos y teléfonos salen enmascarados; contraseñas como `hidden`.' }),
+    newValue: z.string().nullable().meta({ description: 'Valor nuevo. Mismo enmascaramiento que `previousValue`.' }),
+    changeReason: z.string().nullable(),
+    ipAddress: z.string().nullable(),
+    userAgent: z.string().nullable(),
+    originSessionId: z.uuid().nullable().meta({ description: 'Sesión desde la que se hizo. null si fue un worker.' }),
+    createdAt: dateTime()
+  })
+  .meta({ description: 'Cambio sobre los datos de una cuenta (vista sobre audit_logs).' });
