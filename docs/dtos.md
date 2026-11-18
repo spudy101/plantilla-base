@@ -1,97 +1,97 @@
-# DTOs — guía de onboarding
+# Respuestas (`responses/`) — guía de onboarding
 
-> Detalle aquí. PII/descifrado: `docs/encryption-pii.md`.
+> Resumen en `docs/ARCHITECTURE.md` ("Entrada y salida"). PII/descifrado: `docs/encryption-pii.md`.
 > **Enmascaramiento de PII en la respuesta: `docs/pii-masking.md`.**
+
+Cada módulo arma lo que devuelve la API en `src/modules/<dominio>/responses/`. Cada archivo tiene dos cosas:
+
+1. **la función que arma la salida** desde las filas de Prisma (`XxxDTO(...)` o `XxxComponent.build(...)`), y
+2. **su esquema Zod de salida** (`XxxSchema`), al final del archivo, que tipa y documenta esa salida.
+
+Una prueba de conformidad (`*.response.test.ts`) corre cada función sobre un ejemplo y exige que cumpla su
+esquema. Si agregás un campo a la salida y no al esquema (o al revés), falla, y Swagger no se desalinea.
 
 ## Reglas base
 
-- Nunca `{ ...row }` — mapear campo a campo (una fila puede traer columnas internas: hashes, secretos).
+- Nunca `{ ...row }`: mapear campo a campo (una fila puede traer columnas internas: hashes, secretos).
 - Todas las keys del JSON de respuesta en **camelCase** (excepción: valores de enum de BD, ver abajo).
 - Los `*_hash` nunca se incluyen.
-- **PII siempre `safeDecrypt` + máscara** (`MaskingUtil`); los JSONB propios, por `redactPayload` — ver `pii-masking.md`.
-
-## Arquitectura en 2 capas
-
-**Capa 1 — Componentes shared (`shared/dtos/{dominio}/`)**: clases con métodos estáticos
-`build()`, `buildList()`, `buildDetail()`, `buildArray()`. Mapean desde las filas de Prisma (campos camelCase).
-Cada módulo tiene sus componentes en `src/modules/<dominio>/dtos/*-components.dto.ts`; otro módulo los usa a través del `index.ts` del dueño.
-
-```
-shared/dtos/
-  audit/  core/  kyc/  notification/     (+ index.ts por dominio)
-  kyc/components-catalog.dto.ts → MetadataDTO, PaginationDTO, SortDTO (paginación)
-  kyc/components-person.dto.ts  → PersonComponent, PersonContactComponent, …
-  core/components-approval.dto.ts → ApprovalRequestComponent, PendingApprovalComponent
-```
-
-**Capa 2 — DTOs de módulo (`modules/{servidor}/{dominio}/dtos/`)**: importan y **delegan** en los
-componentes shared. No repiten mapeo.
+- **PII siempre `safeDecrypt` + máscara** (`MaskingUtil`); los JSON propios, por `redactPayload`. Ver `pii-masking.md`.
+- Una pieza que usan varias respuestas se arma **una sola vez** en el `*-components.response.ts` del módulo
+  dueño; las demás respuestas delegan en ella. Otro módulo la usa a través del `index.ts` del dueño.
 
 ```ts
-// ✅ delega
-import componentsAuditDtoModule from '../../../../src/modules/audit/dtos/audit-components.dto';
-const { ConsentTypeComponent } = componentsAuditDtoModule;
-const ConsentTypeListDTO = record => ConsentTypeComponent.buildList(record);
+// ✅ delega en el componente
+const ConsentTypeListDTO = (record: ConsentTypeRow) => ConsentTypeComponent.buildList(record);
 
 // ❌ mapeo duplicado
-const ConsentTypeListDTO = record => ({ id: record.consent_type_id, name: record.name });
+const ConsentTypeListDTO = (record: ConsentTypeRow) => ({ id: record.consentTypeId, name: record.name });
 ```
 
-> Si el componente shared no refleja todas las columnas del modelo, es un bug: corregirlo en shared antes de usarlo.
+## Componentes
 
-## Convención de métodos de componente
-
-```js
+```ts
 class XyzComponent {
-  static build(record, options = {}) {
-    if (!record) return null; /* mapea campo a campo */
+  static build(record: Maybe<XyzRow>) {
+    if (!record) return null; // guarda defensiva
+    return { xyzId: record.xyzId, name: record.name, createdAt: record.createdAt }; // campo a campo
   }
-  static buildArray(rows, options = {}) {
-    return Array.isArray(rows) ? rows.map(r => this.build(r, options)) : [];
+  static buildArray(rows: Maybe<XyzRow[]>) {
+    return Array.isArray(rows) ? rows.map(r => XyzComponent.build(r)) : [];
   }
-  // buildList (item liviano de lista) / buildDetail (con relaciones) según el dominio
+  // buildList (ítem liviano de lista) / buildDetail (con relaciones) según el dominio
 }
 ```
 
-- `options` controla relaciones a incluir: `{ includeContact: true, includeReviewedBy: true, ... }`.
-- Siempre guardas defensivos (`if (!record) return null`, `Array.isArray(...) ? ... : []`).
+Las opciones de `build` (`{ includeRole: true, includeContact: true }`) se agregan solo cuando hay un llamador
+real que las usa; los campos que aparecen según una opción van `.optional()` en el esquema.
 
-## DTO de lista paginada (patrón)
+## Esquemas de salida
 
 ```ts
-import componentsCatalogDtoModule from '../../../../src/modules/catalogs/dtos/catalog-components.dto';
-const { MetadataDTO } = componentsCatalogDtoModule;
-import componentsMyresourceDtoModule from '../../../../shared/dtos/{dominio}/components-myresource.dto';
-const { MyResourceComponent } = componentsMyresourceDtoModule;
+import { z } from '../../../shared/validation/z';
+import { dateTime, listOf } from '../../../shared/validation/output';
+import piiMaskingDoc from '../../../shared/validation/pii-masking.doc';
 
-function MyListResponseDTO(rows, metadata) {
+export const XyzSchema = z.object({
+  xyzId: z.uuid(),
+  name: z.string().meta({ example: 'Ejemplo' }),
+  email: z.string().nullable().meta({ example: '****n@example.com', description: piiMaskingDoc.MASKED_EMAIL_DESC }),
+  createdAt: dateTime() // Date en el código, string ISO en el JSON
+});
+export const XyzListSchema = listOf(XyzSchema); // { data: Xyz[], metadata }
+```
+
+- Lo que puede venir `null` lleva `.nullable()`; lo que puede no venir, `.optional()`.
+- `description` y `example` van en `.meta({...})` y salen tal cual en Swagger.
+- Si otro módulo necesita tu esquema, exponelo en tu `index.ts` (ver `personModule.personSchemas`).
+
+La prueba de conformidad sigue siempre la misma forma:
+
+```ts
+const ok = (schema, value) => expect(schema.safeParse(value).error?.issues ?? []).toEqual([]);
+it('xyz', () => ok(XyzSchema, components.XyzComponent.build(fixture)));
+```
+
+## Lista paginada
+
+```ts
+function ListXyzResponseDTO(rows: XyzRow[], metadata: Parameters<typeof MetadataDTO.build>[0]) {
   return {
-    data: Array.isArray(rows) ? rows.map(r => MyResourceComponent.build(r)) : [],
+    data: Array.isArray(rows) ? rows.map(r => XyzComponent.build(r)) : [],
     metadata: MetadataDTO.build(metadata) // nunca armar el objeto de paginación a mano
   };
 }
 ```
 
-El service arma `metadata` manualmente (`{ totalItems, page, limit, sortBy, order, filters }`) y se lo
-pasa al DTO. El controller devuelve el resultado directo (ApiResponse aplana `{ data, metadata }`).
+El service arma `metadata` (`{ totalItems, page, limit, sortBy, order, filters }`) y se lo pasa al DTO. En
+Swagger se documenta con `commonResponses.paginated({ $ref: '#/components/schemas/Xyz' })`.
 
 ## Excepción de snake_case: valores de enum
 
-Las **keys** siempre camelCase; pero los **valores** de enum/estado de BD se mantienen en snake_case
-(`pendiente_renovacion`, `bank_transfer`, `pending_second_approval`, …), tanto como valor de un campo
-(`status: 'approved'`) como cuando son claves dinámicas de estadísticas (`byStatus: { pendiente_renovacion: 5 }`).
-No aplicar conversión sobre esos valores (evita alterar validators/migraciones).
+Las **keys** siempre camelCase, pero los **valores** de enum/estado de BD se mantienen en snake_case
+(`partial_failure`, `pending_second_approval`, …), tanto como valor de un campo como cuando son claves dinámicas
+de estadísticas. No aplicar conversión sobre esos valores.
 
-## Mapa dominio → componente shared
-
-Componentes por dominio en el template base:
-
-| Dominio (`schemas/`) | Componente shared                                                                       |
-| -------------------- | --------------------------------------------------------------------------------------- |
-| audit                | `src/modules/audit/dtos/audit-components.dto.ts`                                              |
-| core                 | `shared/dtos/core/` (components-approval, components-system-config)                      |
-| kyc                  | `shared/dtos/kyc/` (components-person, components-auth, components-catalog: Metadata/Pagination/Sort) |
-| notification         | `src/modules/notification/dtos/notification-components.dto.ts`                               |
-
-> Un JSONB propio (`metadata`, `details`, etc.) que llegue snake_case desde la BD no se asigna crudo al DTO:
-> se pasa por `redactPayload` (enmascara PII) y, si el front espera camelCase, se normaliza campo a campo.
+> Un JSON propio (`metadata`, `details`, etc.) no se asigna crudo a la salida: pasa por `redactPayload`
+> (enmascara PII) y, si el front espera camelCase, se normaliza campo a campo.

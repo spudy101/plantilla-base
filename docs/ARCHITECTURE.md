@@ -100,10 +100,32 @@ router.put('/promotional-banners', AuthMiddleware.authenticate, …, validate({ 
 Los campos genéricos (uuid, texto, entero, booleano) están en `shared/validation/fields.ts`; los de un dominio
 (documento, teléfono…) en su módulo. Importar `z` siempre desde `shared/validation/z` (mensajes en español).
 
-> **Estado.** La entrada (`requests/`) ya está migrada en todos los módulos. La salida (`responses/`) solo en
-> `banners`: el resto sigue con `dtos/` y se migra módulo por módulo con el mismo patrón. Los esquemas
-> migrados desde express-validator usan `input()` (aceptan campos no declarados, como antes); para código
-> nuevo usá `z.object` (descarta lo que no está declarado).
+En `responses/`, cada archivo tiene la función que arma la salida (`XxxDTO` o un `Component.build`) y, al
+final, su esquema (`XxxSchema`). Una prueba de conformidad (`*.response.test.ts`) corre cada función sobre un
+ejemplo y exige que cumpla su esquema: si alguien agrega un campo a la salida y no al esquema, falla.
+
+```ts
+// responses/admin-notification-category.response.ts
+export const NotificationCategoryAdminSchema = NotificationCategorySchema.extend({ emailLayoutTemplate: z.string().nullable(), updatedAt: dateTime() });
+
+// docs/notification-category.paths.ts — nada escrito a mano
+const schemas = {
+  AdminNotificationCategory: toOpenApi(NotificationCategoryAdminSchema, 'output'),
+  AdminNotificationCategoryUpdateRequest: toOpenApi(UpdateCategoryBody)
+};
+// en cada operación
+parameters: toParameters(CategoryIdParams, 'path'),
+requestBody: jsonBody('AdminNotificationCategoryUpdateRequest'),
+```
+
+Piezas de salida compartidas: `dateTime()`, `PaginationMetadata` y `listOf()` en `shared/validation/output.ts`;
+los textos de enmascaramiento PII en `shared/validation/pii-masking.doc.ts`. Si otro módulo necesita un esquema
+de salida, el `index.ts` lo expone (`personModule.personSchemas`, `iamModule.authSchemas`,
+`catalogsModule.catalogSchemas`, `legalModule.legalSchemas`). Los esquemas globales de Swagger
+(`src/config/swagger/schemas`) también se generan desde los módulos: ahí no se escribe nada a mano.
+
+> Los esquemas de entrada migrados desde express-validator usan `input()` (aceptan campos no declarados, como
+> antes); para código nuevo usá `z.object` (descarta lo que no está declarado).
 
 ## Reglas
 

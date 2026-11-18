@@ -351,7 +351,7 @@ Toda la documentación técnica vive en [`docs/`](docs/). El README es el mapa; 
 | [`notifications.md`](docs/notifications.md) | Motor de notificaciones: categorías/tipos, canales, workers, preferencias, adjuntos. |
 | [`encryption-pii.md`](docs/encryption-pii.md) | Cifrado at-rest (AES-256-GCM) + hash de búsqueda. |
 | [`pii-masking.md`](docs/pii-masking.md) | Enmascaramiento de PII en las respuestas de la API. |
-| [`dtos.md`](docs/dtos.md) | Capa DTO, camelCase, componentes compartidos. |
+| [`dtos.md`](docs/dtos.md) | Respuestas (`responses/`): componentes, esquemas Zod de salida y prueba de conformidad. |
 | [`solid.md`](docs/solid.md) | Principios SOLID aplicados: dónde está cada uno, checklist para features nuevos y camino a hexagonal. |
 | [`implementation-patterns.md`](docs/implementation-patterns.md) | Plantillas canónicas de código por capa. |
 | [`database.md`](docs/database.md) | Migraciones (Prisma Migrate), seed, aislamiento por esquema, `db:reset`, baseline de bases Sequelize. |
