@@ -1,6 +1,6 @@
 import type { SessionWithDeviceAndUser } from '../repositories/user-session.repository';
 import type { AuditLogWithExecutor } from '../../audit';
-import componentsAuthModule from './auth-components.dto';
+import componentsAuthModule from './auth-components.response';
 const { UserSessionComponent } = componentsAuthModule;
 import catalogsModule from '../../catalogs';
 const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;

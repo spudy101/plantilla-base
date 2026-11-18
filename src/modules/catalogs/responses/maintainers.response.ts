@@ -1,4 +1,4 @@
-import componentsCatalogDtoModule from './catalog-components.dto';
+import componentsCatalogDtoModule from './catalog-components.response';
 const {
   CountryComponent,
   DepartmentComponent,

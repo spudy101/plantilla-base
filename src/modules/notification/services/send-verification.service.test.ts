@@ -42,7 +42,7 @@ jest.mock('../../../shared/constants', () => ({
 }));
 
 // DTOs a passthrough para no acoplar a su forma interna (el real construye componentes KYC).
-jest.mock('../dtos/send-verification.dto', () => ({
+jest.mock('../responses/send-verification.response', () => ({
   SendVerificationResponseDTO: jest.fn(args => ({ dto: 'send', ...args })),
   VerifyCodeResponseDTO: jest.fn(() => ({ verified: true }))
 }));
@@ -63,7 +63,7 @@ const { logger } = mocked(loggerUtilModule);
 const logAudit = mocked(auditServiceModule).record;
 import constantsModule from '../../../shared/constants';
 const constants = mocked(constantsModule);
-import sendVerificationDtoModule from '../dtos/send-verification.dto';
+import sendVerificationDtoModule from '../responses/send-verification.response';
 const { SendVerificationResponseDTO } = mocked(sendVerificationDtoModule);
 import service from './send-verification.service';
 

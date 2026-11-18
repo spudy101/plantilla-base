@@ -19,7 +19,7 @@ jest.mock('../../../shared/http/pagination.util', () => ({
   buildFilters: jest.fn()
 }));
 
-jest.mock('../../catalogs/dtos/catalog-components.dto', () => ({
+jest.mock('../../catalogs/responses/catalog-components.response', () => ({
   MetadataDTO: { build: jest.fn(meta => ({ ...meta })) }
 }));
 
@@ -38,7 +38,7 @@ jest.mock('../catalog', () => ({
 import { mocked } from 'tests/helpers/mock';
 import PaginationHelperModule from '../../../shared/http/pagination.util';
 const PaginationHelper = mocked(PaginationHelperModule);
-import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
+import componentsCatalogDtoModule from '../../catalogs/responses/catalog-components.response';
 const { MetadataDTO } = mocked(componentsCatalogDtoModule);
 import auditServiceModule from '../audit.service';
 const logAudit = mocked(auditServiceModule).record;

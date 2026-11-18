@@ -89,7 +89,7 @@ jest.mock('../../../shared/observability/request-context.util', () => ({
   originFromContext: jest.fn(() => ({}))
 }));
 jest.mock('../../../shared/database/prisma', () => ({ __esModule: true, default: { $transaction: jest.fn() } }));
-jest.mock('../dtos/auth-register.dto', () => ({
+jest.mock('../responses/auth-register.response', () => ({
   RegisterResponseDTO: jest.fn(x => ({ dto: true, userId: x.user?.userId, tokens: x.tokens }))
 }));
 

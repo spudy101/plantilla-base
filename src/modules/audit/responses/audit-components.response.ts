@@ -1,4 +1,3 @@
-// shared/dtos/audit/components-audit.dto.ts
 // Componentes reutilizables de auditoría — RF-ADM-03
 
 import MaskingUtil from '../../../shared/security/masking.util';

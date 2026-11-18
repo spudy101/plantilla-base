@@ -42,7 +42,7 @@ jest.mock('../../../shared/constants', () => ({
   notifications: { ses: { logoUrl: 'https://logo.test/x.png' } }
 }));
 
-jest.mock('../dtos/admin-notification-type.dto', () => ({
+jest.mock('../responses/admin-notification-type.response', () => ({
   ListNotificationTypesResponseDTO: (rows: Loose, metadata: Loose) => ({ data: rows, metadata }),
   UpdateNotificationTypeResponseDTO: (nt: Loose) => ({ dto: 'type', code: nt.code }),
   CreateGlobalNotificationResponseDTO: (p: Loose) => ({ dto: 'global', ...p }),

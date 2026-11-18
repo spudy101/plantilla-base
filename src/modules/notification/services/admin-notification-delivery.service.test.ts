@@ -37,11 +37,11 @@ jest.mock('../../../shared/http/pagination.util', () => ({
   getPaginationParams: jest.fn().mockReturnValue({ limit: 10, offset: 0, page: 1, sortBy: 'created_at', order: 'DESC' })
 }));
 
-jest.mock('../../catalogs/dtos/catalog-components.dto', () => ({
+jest.mock('../../catalogs/responses/catalog-components.response', () => ({
   MetadataDTO: { build: (meta: Loose) => ({ ...meta }) }
 }));
 
-jest.mock('../dtos/admin-notification-delivery.dto', () => ({
+jest.mock('../responses/admin-notification-delivery.response', () => ({
   NotificationDeliveryListDTO: (row: Loose) => ({ dto: 'list', id: row.notificationId }),
   NotificationDeliveryDetailDTO: (row: Loose) => ({ dto: 'detail', id: row.notificationId }),
   NotificationDeliveryMetricsDTO: (rows: Loose, range: Loose) => ({ dto: 'metrics', total: rows.length, range })

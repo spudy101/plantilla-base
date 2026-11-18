@@ -7,7 +7,7 @@ import { interopDefault } from '../../shared/utils/interop.util';
 
 export default {
   get notificationComponentsDto() {
-    return interopDefault(require('./dtos/notification-components.dto') as typeof import('./dtos/notification-components.dto'));
+    return interopDefault(require('./responses/notification-components.response') as typeof import('./responses/notification-components.response'));
   },
 
   get emailBounceSuppressionRepository() {

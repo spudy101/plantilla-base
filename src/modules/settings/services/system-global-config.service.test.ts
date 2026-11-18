@@ -28,7 +28,7 @@ jest.mock('../repositories/system-global-config.repository', () => ({
   update: jest.fn()
 }));
 
-jest.mock('../dtos/system-global-config.dto', () => ({
+jest.mock('../responses/system-global-config.response', () => ({
   SystemGlobalConfigDTO: (record: Loose) => ({ dto: 'config', ...record })
 }));
 

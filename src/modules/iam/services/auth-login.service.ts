@@ -24,7 +24,7 @@ const {
   CLIENT_ACCESS_ROLES,
   INTERNAL_ROLE_NAMES
 } = constantsModule;
-import authLoginDtoModule from '../dtos/auth-login.dto';
+import authLoginDtoModule from '../responses/auth-login.response';
 const { LoginResponseDTO, MFARequiredResponseDTO } = authLoginDtoModule;
 import TokenRefreshService from './auth-login/token-refresh.service';
 import AuthLogoutService from './auth-login/auth-logout.service';

@@ -2,7 +2,7 @@
 // Responde 200 con un ack. Sin lógica de negocio.
 
 import EmailBounceWebhookService from '../services/email-bounce-webhook.service';
-import emailBounceWebhookDtoModule from '../dtos/email-bounce-webhook.dto';
+import emailBounceWebhookDtoModule from '../responses/email-bounce-webhook.response';
 const { EmailBounceWebhookAckDTO } = emailBounceWebhookDtoModule;
 import ApiResponse from '../../../shared/http/app-response.util';
 import errorMiddlewareModule from '../../../shared/http/error.middleware';

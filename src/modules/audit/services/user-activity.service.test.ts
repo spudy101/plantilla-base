@@ -23,7 +23,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
 }));
 jest.mock('../audit.service', () => ({ record: jest.fn() }));
 
-jest.mock('../dtos/user-activity.dto', () => ({
+jest.mock('../responses/user-activity.response', () => ({
   UserActivityListResponseDTO: jest.fn((merged, metadata, deviceBySession) => ({ merged, metadata, deviceBySession }))
 }));
 
@@ -36,7 +36,7 @@ import userSessionRepositoryModule from '../../iam/repositories/user-session.rep
 const userSessionRepository = mocked(userSessionRepositoryModule);
 import auditServiceModule from '../audit.service';
 const logAudit = mocked(auditServiceModule).record;
-import userActivityDtoModule from '../dtos/user-activity.dto';
+import userActivityDtoModule from '../responses/user-activity.response';
 const { UserActivityListResponseDTO } = mocked(userActivityDtoModule);
 import service from './user-activity.service';
 

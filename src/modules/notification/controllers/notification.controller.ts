@@ -6,7 +6,7 @@ import errorMiddlewareModule from '../../../shared/http/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
-import notificationDtoModule from '../dtos/notification.dto';
+import notificationDtoModule from '../responses/notification.response';
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;

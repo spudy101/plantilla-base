@@ -33,7 +33,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
 }));
 jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
-jest.mock('../dtos/admin-notification-category.dto', () => ({
+jest.mock('../responses/admin-notification-category.response', () => ({
   NotificationCategoryAdminDTO: (cat: Loose) => ({ dto: 'category', id: cat.notificationCategoryId, code: cat.code }),
   ListNotificationCategoriesResponseDTO: (rows: Loose, metadata: Loose) => ({ data: rows, metadata })
 }));

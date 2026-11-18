@@ -43,7 +43,7 @@ jest.mock('../repositories/role-permission-override.repository', () => ({
   deleteById: jest.fn().mockResolvedValue(undefined)
 }));
 
-jest.mock('../dtos/admin-rbac.dto', () => ({
+jest.mock('../responses/admin-rbac.response', () => ({
   RbacCatalogDTO: (c: Loose) => ({ dto: 'catalog', ...c }),
   RoleMatrixDTO: (m: Loose) => ({ dto: 'matrix', m }),
   EffectivePermissionsDTO: (role: Loose, perms: Loose) => ({ dto: 'effective', role, perms }),

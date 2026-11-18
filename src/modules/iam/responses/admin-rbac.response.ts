@@ -1,5 +1,4 @@
 import type { RolePermissionOverrideWithGrantor } from '../repositories/role-permission-override.repository';
-// modules/admin/rbac/dtos/admin-rbac.dto.ts
 
 // Construye el árbol de grupos para el front a partir del array plano de RBAC_MODULE_GROUPS.
 // Un grupo con `parent` cuelga como subgrupo de su padre; sin `parent`, es top-level.

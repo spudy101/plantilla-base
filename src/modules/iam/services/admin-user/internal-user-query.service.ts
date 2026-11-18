@@ -19,7 +19,7 @@ const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
 import constantsModule from '../../../../shared/constants';
 const { INTERNAL_ROLE_NAMES, SUPERADMIN_ROLE_NAMES } = constantsModule;
-import adminUserDtoModule from '../../dtos/admin-user.dto';
+import adminUserDtoModule from '../../responses/admin-user.response';
 const {
   InternalUserDTO,
   InternalUserListDTO,

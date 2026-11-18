@@ -1,5 +1,4 @@
 import type { PrivacyPolicy } from '../../../shared/database/generated/prisma/client';
-// modules/admin/privacy-policy/dtos/privacy-policy-admin.dto.ts
 
 import catalogsModule from '../../catalogs';
 const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;

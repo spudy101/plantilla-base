@@ -18,7 +18,7 @@ import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
 import domainEnumsModule from '../../../shared/constants/domain-enums';
 const { NOTIFICATION_PROCESSING_STATUS } = domainEnumsModule;
-import adminNotificationDeliveryDtoModule from '../dtos/admin-notification-delivery.dto';
+import adminNotificationDeliveryDtoModule from '../responses/admin-notification-delivery.response';
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;

@@ -10,7 +10,7 @@ import catalogsModule from '../../catalogs';
 const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
 import AppError from '../../../shared/http/app-error.util';
-import integrationMonitoringDtoModule from '../dtos/integration-monitoring.dto';
+import integrationMonitoringDtoModule from '../responses/integration-monitoring.response';
 import auditModule from '../../audit';
 const { audit } = auditModule;
 const {

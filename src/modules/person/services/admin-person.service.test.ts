@@ -104,10 +104,10 @@ jest.mock('../../../shared/constants', () => ({
 }));
 
 // --- DTOs a passthrough/marcadores ---
-jest.mock('../../catalogs/dtos/catalog-components.dto', () => ({
+jest.mock('../../catalogs/responses/catalog-components.response', () => ({
   MetadataDTO: { build: jest.fn(meta => ({ metadata: true, ...meta })) }
 }));
-jest.mock('../dtos/admin-person.dto', () => ({
+jest.mock('../responses/admin-person.response', () => ({
   UserDTO: jest.fn(u => ({ dto: 'UserDTO', id: u.userId })),
   UserListItemDTO: jest.fn(u => ({ dto: 'UserListItemDTO', id: u.userId })),
   CreateUserDTO: jest.fn((u, pwd) => ({ dto: 'CreateUserDTO', id: u.userId, pwd })),

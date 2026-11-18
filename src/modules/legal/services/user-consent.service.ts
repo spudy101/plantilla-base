@@ -5,7 +5,7 @@ const { logger } = loggerUtilModule;
 import unitOfWork from '../../../shared/database/unit-of-work';
 import consentTypeRepository from '../repositories/consent-type.repository';
 import userConsentRepository from '../repositories/user-consent.repository';
-import userConsentDtoModule from '../dtos/user-consent.dto';
+import userConsentDtoModule from '../responses/user-consent.response';
 const { MyConsentCatalogDTO, ConsentGrantedDTO } = userConsentDtoModule;
 import auditModule from '../../audit';
 const { audit } = auditModule;

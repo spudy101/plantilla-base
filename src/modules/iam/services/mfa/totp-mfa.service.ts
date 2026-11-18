@@ -13,7 +13,7 @@ import EncryptionUtil from '../../../../shared/security/encryption.util';
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
-import mfaDtoModule from '../../dtos/mfa.dto';
+import mfaDtoModule from '../../responses/mfa.response';
 const { TOTPSetupResponseDTO, TOTPActivationResponseDTO, TOTPVerificationResponseDTO } = mfaDtoModule;
 import MfaAccount from './mfa-account';
 import auditModule from '../../../audit';

@@ -10,7 +10,7 @@ import operationRepository from '../../../shared/observability/operation.reposit
 import auditLogRepository from '../repositories/audit-log.repository';
 import integrationModule from '../../integration';
 const { integrationApiLogRepository } = integrationModule;
-import adminOperationDtoModule from '../dtos/admin-operation.dto';
+import adminOperationDtoModule from '../responses/admin-operation.response';
 const { OperationListDTO, OperationTimelineDTO } = adminOperationDtoModule;
 import type { OperationSource, OperationStatus } from '../../../shared/database/generated/prisma/client';
 import audit from '../audit.service';

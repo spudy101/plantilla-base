@@ -1,7 +1,6 @@
 import type { NotificationTypeWithCategory } from '../repositories/notification-type.repository';
-// modules/admin/kyc/dtos/admin-notification-type.dto.ts
 
-import componentsNotificationDtoModule from './notification-components.dto';
+import componentsNotificationDtoModule from './notification-components.response';
 const { NotificationTypeComponent } = componentsNotificationDtoModule;
 
 import catalogsModule from '../../catalogs';

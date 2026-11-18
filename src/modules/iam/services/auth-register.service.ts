@@ -18,7 +18,7 @@ const { logger } = loggerUtilModule;
 import unitOfWork from '../../../shared/database/unit-of-work';
 import CredentialResetService from './auth-register/credential-reset.service';
 import SessionIssuerService from './auth-login/session-issuer.service';
-import authRegisterDtoModule from '../dtos/auth-register.dto';
+import authRegisterDtoModule from '../responses/auth-register.response';
 const { RegisterResponseDTO } = authRegisterDtoModule;
 import constantsModule from '../../../shared/constants';
 const { RBAC_ROLES, notifications } = constantsModule;

@@ -3,9 +3,9 @@
 // Regresiones de bugs que destapó el tipado de modules/admin (fase 4 de la migración a TS).
 
 import { fixture } from 'tests/helpers/mock';
-import componentsApprovalDtoModule from '../../../src/modules/approvals/dtos/approval-components.dto';
+import componentsApprovalDtoModule from '../../../src/modules/approvals/responses/approval-components.response';
 const { ApprovalRequestComponent } = componentsApprovalDtoModule;
-import integrationMonitoringDtoModule from '../../../src/modules/integration/dtos/integration-monitoring.dto';
+import integrationMonitoringDtoModule from '../../../src/modules/integration/responses/integration-monitoring.response';
 const { IntegrationLogListItemDTO } = integrationMonitoringDtoModule;
 import adminAuditContextUtilModule from '../../../src/modules/audit/utils/admin-audit-context.util';
 const { adminAuditContext } = adminAuditContextUtilModule;

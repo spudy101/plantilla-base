@@ -40,7 +40,7 @@ jest.mock('../../../shared/constants', () => ({
 }));
 
 
-jest.mock('../dtos/admin-auth-session.dto', () => ({
+jest.mock('../responses/admin-auth-session.response', () => ({
   SessionListDTO: jest.fn(() => ({ dto: 'sessions' })),
   AuthAttemptListDTO: jest.fn(() => ({ dto: 'attempts' }))
 }));
@@ -60,7 +60,7 @@ import loggerUtilModule from '../../../shared/observability/logger.util';
 import auditServiceModule from '../../audit/audit.service';
 const { logger } = mocked(loggerUtilModule);
 const logAudit = mocked(auditServiceModule).record;
-import adminAuthSessionDtoModule from '../dtos/admin-auth-session.dto';
+import adminAuthSessionDtoModule from '../responses/admin-auth-session.response';
 const { SessionListDTO, AuthAttemptListDTO } = mocked(adminAuthSessionDtoModule);
 import service from './admin-auth-session.service';
 

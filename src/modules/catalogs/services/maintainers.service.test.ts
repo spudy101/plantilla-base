@@ -33,7 +33,7 @@ jest.mock('../../../shared/http/pagination.util', () => ({
 }));
 
 // DTOs a passthrough: devuelven { rows, metadata } para verificar qué recibió cada uno.
-jest.mock('../dtos/maintainers.dto', () => ({
+jest.mock('../responses/maintainers.response', () => ({
   ListGendersResponseDTO: jest.fn((rows, metadata) => ({ dto: 'genders', rows, metadata })),
   ListDocumentTypesResponseDTO: jest.fn((rows, metadata) => ({ dto: 'documentTypes', rows, metadata })),
   ListPhonePrefixesResponseDTO: jest.fn((rows, metadata) => ({ dto: 'phonePrefixes', rows, metadata })),

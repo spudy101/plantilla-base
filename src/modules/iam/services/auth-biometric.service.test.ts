@@ -106,14 +106,14 @@ jest.mock('../../../shared/constants', () => ({
 }));
 
 // DTOs a passthrough.
-jest.mock('../dtos/auth-biometric.dto', () => ({
+jest.mock('../responses/auth-biometric.response', () => ({
   BiometricRegisterStartDTO: jest.fn(x => ({ dto: 'registerStart', ...x })),
   BiometricRegisterFinishDTO: jest.fn(c => ({ dto: 'registerFinish', ...c })),
   BiometricLoginStartDTO: jest.fn(x => ({ dto: 'loginStart', ...x })),
   BiometricCredentialListDTO: jest.fn(list => ({ credentials: list, total: list.length }))
 }));
 
-jest.mock('../dtos/auth-login.dto', () => ({
+jest.mock('../responses/auth-login.response', () => ({
   LoginResponseDTO: jest.fn(x => ({ dto: 'login', ...x })),
   PolicyUpdateRequiredDTO: jest.fn(x => ({ dto: 'policyUpdate', ...x }))
 }));

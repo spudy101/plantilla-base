@@ -16,7 +16,7 @@ const { logger } = loggerUtilModule;
 import constantsModule from '../../../../shared/constants';
 const { notifications } = constantsModule;
 
-import adminPersonDtoModule from '../../dtos/admin-person.dto';
+import adminPersonDtoModule from '../../responses/admin-person.response';
 const { ToggleUserStatusDTO, ChangeRoleDTO } = adminPersonDtoModule;
 import personGuardsModule from './person-guards';
 const { assertNotDeleted, isClientRole } = personGuardsModule;

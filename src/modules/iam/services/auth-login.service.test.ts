@@ -180,7 +180,7 @@ jest.mock('../../../shared/constants', () => ({
 }));
 
 // ── DTOs passthrough ─────────────────────────────────────────────────────────
-jest.mock('../dtos/auth-login.dto', () => ({
+jest.mock('../responses/auth-login.response', () => ({
   LoginResponseDTO: (arg: Loose) => ({ __dto: 'login', ...arg }),
   PolicyUpdateRequiredDTO: (arg: Loose) => ({ __dto: 'policy', ...arg }),
   MFARequiredResponseDTO: (arg: Loose) => ({ __dto: 'mfa', ...arg }),

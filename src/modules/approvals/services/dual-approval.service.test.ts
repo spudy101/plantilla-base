@@ -29,7 +29,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
 jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 // El DTO de salida se reduce a identidad para no depender de su forma interna.
-jest.mock('../dtos/approval-components.dto', () => ({
+jest.mock('../responses/approval-components.response', () => ({
   ApprovalRequestComponent: { build: (x: Loose) => x, buildList: (x: Loose) => x },
   PendingApprovalComponent: { build: (x: Loose) => x }
 }));

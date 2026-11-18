@@ -7,7 +7,7 @@ import type { AuditLogWithExecutor } from '../repositories/audit-log.repository'
 // El timeline sale de audit_logs (fuente única); la hidratación reusa DTOs admin ya existentes.
 // Mapeo campo a campo.
 
-import componentsAuditDtoModule from './audit-components.dto';
+import componentsAuditDtoModule from './audit-components.response';
 const { AuditLogComponent } = componentsAuditDtoModule;
 const { UserSessionComponent } = componentsAuthModule;
 import catalogsModule from '../../catalogs';

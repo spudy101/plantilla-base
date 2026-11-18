@@ -1,5 +1,5 @@
 import type * as Feed from '../notification-feed.types';
-import componentsNotificationDtoModule from './notification-components.dto';
+import componentsNotificationDtoModule from './notification-components.response';
 const {
   NotificationComponent,
   GlobalNotificationComponent

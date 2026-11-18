@@ -12,7 +12,7 @@ import notificationModule from '../../notification';
 const { notifier } = notificationModule;
 import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
-import consentTypeDtoModule from '../dtos/consent-type.dto';
+import consentTypeDtoModule from '../responses/consent-type.response';
 const { ConsentTypeListDTO, ConsentTypeDTO } = consentTypeDtoModule;
 import auditModule from '../../audit';
 const { audit } = auditModule;

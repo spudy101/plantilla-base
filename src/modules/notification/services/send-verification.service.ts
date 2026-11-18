@@ -8,7 +8,7 @@ const { logger } = loggerUtilModule;
 import constantsModule from '../../../shared/constants';
 const { notifications, MOCKS } = constantsModule;
 import crypto from 'node:crypto';
-import sendVerificationDtoModule from '../dtos/send-verification.dto';
+import sendVerificationDtoModule from '../responses/send-verification.response';
 const { SendVerificationResponseDTO, VerifyCodeResponseDTO } = sendVerificationDtoModule;
 import auditModule from '../../audit';
 const { audit } = auditModule;

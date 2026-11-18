@@ -4,7 +4,7 @@ import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import systemGlobalConfigRepository from '../repositories/system-global-config.repository';
-import systemGlobalConfigDtoModule from '../dtos/system-global-config.dto';
+import systemGlobalConfigDtoModule from '../responses/system-global-config.response';
 const { SystemGlobalConfigDTO } = systemGlobalConfigDtoModule;
 import notificationModule from '../../notification';
 const { notifier } = notificationModule;

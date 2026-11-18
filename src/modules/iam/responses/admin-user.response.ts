@@ -1,10 +1,9 @@
 import type { Role } from '../../../shared/database/generated/prisma/client';
-// modules/admin/users/dtos/admin-user.dto.ts
 
 import personModule from '../../person';
 const { personComponentsDto: componentsPersonModule } = personModule;
 const { UserComponent, PersonComponent } = componentsPersonModule;
-import componentsAuthModule from './auth-components.dto';
+import componentsAuthModule from './auth-components.response';
 const { UserSessionComponent, UserChangeLogComponent } = componentsAuthModule;
 
 // ─── Detalle de usuario interno ───────────────────────────────────────────────

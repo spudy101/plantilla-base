@@ -1,4 +1,4 @@
-import componentsPersonModule from './person-components.dto';
+import componentsPersonModule from './person-components.response';
 const { PersonReferenceComponent } = componentsPersonModule;
 
 const PersonReferenceDTO = (reference: Parameters<typeof PersonReferenceComponent.build>[0]) => PersonReferenceComponent.build(reference);

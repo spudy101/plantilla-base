@@ -7,7 +7,7 @@ import { interopDefault } from '../../shared/utils/interop.util';
 
 export default {
   get personComponentsDto() {
-    return interopDefault(require('./dtos/person-components.dto') as typeof import('./dtos/person-components.dto'));
+    return interopDefault(require('./responses/person-components.response') as typeof import('./responses/person-components.response'));
   },
 
   get ProfileHelper() {

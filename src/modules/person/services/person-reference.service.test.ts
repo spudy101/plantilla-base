@@ -20,7 +20,7 @@ jest.mock('../repositories/person-reference.repository', () => ({
 }));
 
 // DTOs a passthrough para no acoplar a la forma interna del componente compartido.
-jest.mock('../dtos/person-reference.dto', () => ({
+jest.mock('../responses/person-reference.response', () => ({
   PersonReferenceDTO: jest.fn(r => ({ dto: 'item', ...r })),
   PersonReferenceListDTO: jest.fn(r => ({ dto: 'list', ...r }))
 }));

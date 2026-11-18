@@ -1,6 +1,6 @@
 import type { PreferenceRow } from '../repositories/user-notification-preference.repository';
 import type { NotificationCategoryRow } from '../repositories/notification-category.repository';
-import componentsNotificationDtoModule from './notification-components.dto';
+import componentsNotificationDtoModule from './notification-components.response';
 const {
   UserNotificationPreferenceComponent,
   NotificationCategoryComponent

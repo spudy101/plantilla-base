@@ -34,7 +34,7 @@ type SystemGlobalConfigRepositoryPort = (typeof settingsModule)['systemGlobalCon
 const { WILDCARD_ROLES, CONDITION, DEFAULT_TTL_HOURS, DUAL_APPROVAL_OPS } = dualApprovalModule;
 import rbacModule from '../../../shared/constants/rbac';
 const { SUPERADMIN_ROLE_NAMES } = rbacModule;
-import componentsApprovalDtoModule from '../dtos/approval-components.dto';
+import componentsApprovalDtoModule from '../responses/approval-components.response';
 const { ApprovalRequestComponent, PendingApprovalComponent } = componentsApprovalDtoModule;
 import catalogsModule from '../../catalogs';
 const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
