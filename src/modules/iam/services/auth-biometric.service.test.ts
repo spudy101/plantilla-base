@@ -87,8 +87,8 @@ jest.mock('../repositories/user-session.repository', () => ({
   closeSession: jest.fn().mockResolvedValue(undefined)
 }));
 
-jest.mock('../../notification/services/notification-creation.service', () => ({
-  crearNotificacion: jest.fn().mockResolvedValue(undefined)
+jest.mock('../../notification/notify', () => ({
+  notify: jest.fn().mockResolvedValue(undefined)
 }));
 
 jest.mock('../../../shared/observability/logger.util', () => ({
@@ -142,8 +142,8 @@ import RefreshTokenStoreModule from '../utils/refresh-token-store.util';
 const RefreshTokenStore = mocked(RefreshTokenStoreModule);
 import userSessionRepositoryModule from '../repositories/user-session.repository';
 const userSessionRepository = mocked(userSessionRepositoryModule);
-import NotificationUtilModule from '../../notification/services/notification-creation.service';
-const NotificationUtil = mocked(NotificationUtilModule);
+import NotificationUtilModule from '../../notification/notify';
+const notifier = mocked(NotificationUtilModule);
 import auditServiceModule from '../../audit/audit.service';
 const logAudit = mocked(auditServiceModule).record;
 
@@ -286,9 +286,9 @@ describe('AuthBiometricService', () => {
       expect(result).toMatchObject({ dto: 'registerFinish', biometricCredentialId: 'newcred' });
 
       await flush();
-      expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(
+      expect(notifier.notify).toHaveBeenCalledWith(
         expect.objectContaining({
-          tipoNotificacion: 'BIOMETRIC_CREDENTIAL_REGISTERED',
+          type: 'BIOMETRIC_CREDENTIAL_REGISTERED',
           userId: USER_ID,
           // Regresión (fase 4 TS): antes se pasaba el id suelto y la entidad relacionada no se guardaba
           relatedEntity: { type: 'BiometricCredential', id: 'newcred' }

@@ -9,7 +9,7 @@ import iamModule from '../../../iam';
 const { userRepository, roleRepository } = iamModule;
 import KycSharedUtil from '../../utils/kyc-shared.util';
 import notificationModule from '../../../notification';
-const { notificationCreationService: NotificationUtil } = notificationModule;
+const { notifier } = notificationModule;
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
@@ -27,7 +27,7 @@ class PersonAccessService {
   unitOfWork: typeof unitOfWork;
   userRepository: typeof userRepository;
   roleRepository: typeof roleRepository;
-  NotificationUtil: typeof NotificationUtil;
+  notifier: typeof notifier;
 
   /**
    * @param {object} [deps] Dependencias inyectables (SOLID: D). Las provee la fachada
@@ -37,7 +37,7 @@ class PersonAccessService {
     this.unitOfWork = deps.unitOfWork ?? unitOfWork;
     this.userRepository = deps.userRepository ?? userRepository;
     this.roleRepository = deps.roleRepository ?? roleRepository;
-    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+    this.notifier = deps.notifier ?? notifier;
   }
 
   // ============================================================
@@ -94,8 +94,8 @@ class PersonAccessService {
     const affectedEmail = user.person?.contact?.email;
 
     setImmediate(() => {
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion: isActivating ? 'ACCOUNT_ACTIVATED' : 'ACCOUNT_DEACTIVATED',
+      this.notifier.notify({
+        type: isActivating ? 'ACCOUNT_ACTIVATED' : 'ACCOUNT_DEACTIVATED',
         userId: userId,
         relatedEntity: null,
         metadata: {
@@ -105,8 +105,8 @@ class PersonAccessService {
         }
       }).catch(err => logger.warn('Error sending status notification', { error: err.message }));
 
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion: 'PERSON_ADMIN_ACTION',
+      this.notifier.notify({
+        type: 'PERSON_ADMIN_ACTION',
         userId: auditContext.adminUserId,
         relatedEntity: null,
         metadata: {
@@ -187,8 +187,8 @@ class PersonAccessService {
     const affectedEmail = user.person?.contact?.email;
 
     setImmediate(() => {
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion: 'ROL_CHANGE',
+      this.notifier.notify({
+        type: 'ROL_CHANGE',
         userId: user.userId,
         relatedEntity: null,
         metadata: {
@@ -200,8 +200,8 @@ class PersonAccessService {
         }
       }).catch(err => logger.warn('Error sending role change notification', { error: err.message }));
 
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion: 'PERSON_ADMIN_ACTION',
+      this.notifier.notify({
+        type: 'PERSON_ADMIN_ACTION',
         userId: auditContext.adminUserId,
         relatedEntity: null,
         metadata: {
@@ -223,7 +223,7 @@ namespace PersonAccessService {
     unitOfWork?: typeof unitOfWork;
     userRepository?: typeof userRepository;
     roleRepository?: typeof roleRepository;
-    NotificationUtil?: typeof NotificationUtil;
+    notifier?: typeof notifier;
   }
 }
 

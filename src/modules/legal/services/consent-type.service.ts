@@ -9,7 +9,7 @@ const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
 import consentTypeRepository from '../repositories/consent-type.repository';
 import notificationModule from '../../notification';
-const { notificationCreationService: NotificationUtil } = notificationModule;
+const { notifier } = notificationModule;
 import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
 import consentTypeDtoModule from '../dtos/consent-type.dto';
@@ -19,7 +19,7 @@ const { audit } = auditModule;
 
 class ConsentTypeService {
   consentTypeRepository: typeof consentTypeRepository;
-  NotificationUtil: typeof NotificationUtil;
+  notifier: typeof notifier;
 
   /**
    * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
@@ -29,7 +29,7 @@ class ConsentTypeService {
    */
   constructor(deps: ConsentTypeService.Deps = {}) {
     this.consentTypeRepository = deps.consentTypeRepository ?? consentTypeRepository;
-    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+    this.notifier = deps.notifier ?? notifier;
   }
 
   async list(query: Record<string, unknown>, adminUserId: string) {
@@ -133,8 +133,8 @@ class ConsentTypeService {
   /** @private — push de confirmación al administrador que realizó la acción */
   _notifyAdmin(accion: string, record: Pick<ConsentType, 'consentTypeId' | 'code' | 'name'>, auditCtx: AdminAuditContext) {
     setImmediate(() => {
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion: 'CONSENT_TYPE_ADMIN_ACTION',
+      this.notifier.notify({
+        type: 'CONSENT_TYPE_ADMIN_ACTION',
         userId: auditCtx.adminUserId,
         relatedEntity: { type: 'ConsentType', id: record.consentTypeId },
         metadata: {
@@ -166,7 +166,7 @@ namespace ConsentTypeService {
   /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
   export interface Deps {
     consentTypeRepository?: typeof consentTypeRepository;
-    NotificationUtil?: typeof NotificationUtil;
+    notifier?: typeof notifier;
   }
 }
 

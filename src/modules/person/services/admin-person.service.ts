@@ -5,7 +5,7 @@ const { userRepository, roleRepository } = iamModule;
 import personRepository from '../repositories/person.repository';
 import personContactRepository from '../repositories/person-contact.repository';
 import notificationModule from '../../notification';
-const { notificationCreationService: NotificationUtil } = notificationModule;
+const { notifier } = notificationModule;
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
@@ -51,7 +51,7 @@ class PersonService {
   personRepository: typeof personRepository;
   personContactRepository: typeof personContactRepository;
   roleRepository: typeof roleRepository;
-  NotificationUtil: typeof NotificationUtil;
+  notifier: typeof notifier;
   DualApprovalService: typeof DualApprovalService;
   queries: InstanceType<typeof PersonQueryService>;
   creation: InstanceType<typeof PersonCreationService>;
@@ -71,7 +71,7 @@ class PersonService {
     this.personRepository = deps.personRepository ?? personRepository;
     this.personContactRepository = deps.personContactRepository ?? personContactRepository;
     this.roleRepository = deps.roleRepository ?? roleRepository;
-    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+    this.notifier = deps.notifier ?? notifier;
     this.DualApprovalService = deps.DualApprovalService ?? DualApprovalService;
 
     // Sub-servicios por responsabilidad (SOLID: S). Reciben las mismas dependencias.
@@ -82,7 +82,7 @@ class PersonService {
       personRepository: this.personRepository,
       personContactRepository: this.personContactRepository,
       roleRepository: this.roleRepository,
-      NotificationUtil: this.NotificationUtil,
+      notifier: this.notifier,
       DualApprovalService: this.DualApprovalService
     };
     this.queries = deps.queries ?? new PersonQueryService(shared);
@@ -164,8 +164,8 @@ class PersonService {
     const { deletedEmail } = result;
     if (deletedEmail) {
       setImmediate(() => {
-        this.NotificationUtil.crearNotificacionDirecta({
-          tipoNotificacion: 'CUENTA_ELIMINADA',
+        this.notifier.notifyEmail({
+          type: 'CUENTA_ELIMINADA',
           email: deletedEmail,
           metadata: {
             nombre: result.firstName,
@@ -179,8 +179,8 @@ class PersonService {
           })
         );
 
-        this.NotificationUtil.crearNotificacion({
-          tipoNotificacion: 'PERSON_ADMIN_ACTION',
+        this.notifier.notify({
+          type: 'PERSON_ADMIN_ACTION',
           userId: auditContext.adminUserId,
           relatedEntity: null,
           metadata: {
@@ -266,7 +266,7 @@ namespace PersonService {
     personRepository?: typeof personRepository;
     personContactRepository?: typeof personContactRepository;
     roleRepository?: typeof roleRepository;
-    NotificationUtil?: typeof NotificationUtil;
+    notifier?: typeof notifier;
     DualApprovalService?: typeof DualApprovalService;
     queries?: InstanceType<typeof PersonQueryService>;
     creation?: InstanceType<typeof PersonCreationService>;

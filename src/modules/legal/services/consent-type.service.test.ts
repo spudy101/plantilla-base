@@ -19,8 +19,8 @@ jest.mock('../repositories/consent-type.repository', () => ({
   update: jest.fn()
 }));
 
-jest.mock('../../notification/services/notification-creation.service', () => ({
-  crearNotificacion: jest.fn().mockResolvedValue(undefined)
+jest.mock('../../notification/notify', () => ({
+  notify: jest.fn().mockResolvedValue(undefined)
 }));
 
 jest.mock('../../../shared/http/pagination.util', () => ({
@@ -51,8 +51,8 @@ jest.mock('../../../shared/constants', () => ({
 import { mocked } from 'tests/helpers/mock';
 import consentTypeRepositoryModule from '../repositories/consent-type.repository';
 const consentTypeRepository = mocked(consentTypeRepositoryModule);
-import NotificationUtilModule from '../../notification/services/notification-creation.service';
-const NotificationUtil = mocked(NotificationUtilModule);
+import NotificationUtilModule from '../../notification/notify';
+const notifier = mocked(NotificationUtilModule);
 import PaginationHelperModule from '../../../shared/http/pagination.util';
 const PaginationHelper = mocked(PaginationHelperModule);
 import loggerUtilModule from '../../../shared/observability/logger.util';
@@ -130,8 +130,8 @@ describe('ConsentTypeService', () => {
       expect(logAudit).toHaveBeenCalledWith('CONSENT_TYPE_CREATED', expect.objectContaining({ actorId: ADMIN_ID }));
 
       await flush();
-      expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(
-        expect.objectContaining({ tipoNotificacion: 'CONSENT_TYPE_ADMIN_ACTION', userId: ADMIN_ID })
+      expect(notifier.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'CONSENT_TYPE_ADMIN_ACTION', userId: ADMIN_ID })
       );
     });
 
@@ -149,7 +149,7 @@ describe('ConsentTypeService', () => {
     it('no tumba la operación si la notificación al admin falla', async () => {
       consentTypeRepository.findAnyByCode.mockResolvedValue(null);
       consentTypeRepository.create.mockResolvedValue({ consentTypeId: 'ct-9', code: 'CC' });
-      NotificationUtil.crearNotificacion.mockRejectedValueOnce(new Error('push down'));
+      notifier.notify.mockRejectedValueOnce(new Error('push down'));
 
       await service.create({ code: 'cc', name: 'x' }, AUDIT_CTX);
       await flush();
@@ -183,7 +183,7 @@ describe('ConsentTypeService', () => {
       expect(logAudit).toHaveBeenCalledWith('CONSENT_TYPE_UPDATED', expect.objectContaining({ actorId: ADMIN_ID }));
 
       await flush();
-      expect(NotificationUtil.crearNotificacion).toHaveBeenCalled();
+      expect(notifier.notify).toHaveBeenCalled();
     });
   });
 });

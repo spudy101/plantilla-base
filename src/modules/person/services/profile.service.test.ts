@@ -18,9 +18,9 @@ jest.mock('../repositories/person-contact.repository', () => ({
 }));
 jest.mock('../repositories/person-location.repository', () => ({ findByPersonId: jest.fn() }));
 
-jest.mock('../../notification/services/notification-creation.service', () => ({
-  crearNotificacion: jest.fn().mockResolvedValue(undefined),
-  crearNotificacionDirecta: jest.fn().mockResolvedValue(undefined)
+jest.mock('../../notification/notify', () => ({
+  notify: jest.fn().mockResolvedValue(undefined),
+  notifyEmail: jest.fn().mockResolvedValue(undefined)
 }));
 
 jest.mock('../utils/kyc-shared.util', () => ({ logChange: jest.fn().mockResolvedValue(undefined) }));
@@ -83,8 +83,8 @@ import personContactRepositoryModule from '../repositories/person-contact.reposi
 const personContactRepository = mocked(personContactRepositoryModule);
 import personLocationRepositoryModule from '../repositories/person-location.repository';
 const personLocationRepository = mocked(personLocationRepositoryModule);
-import NotificationUtilModule from '../../notification/services/notification-creation.service';
-const NotificationUtil = mocked(NotificationUtilModule);
+import NotificationUtilModule from '../../notification/notify';
+const notifier = mocked(NotificationUtilModule);
 import KycSharedUtilModule from '../utils/kyc-shared.util';
 const KycSharedUtil = mocked(KycSharedUtilModule);
 import ProfileHelperModule from '../helpers/profile.helper';
@@ -232,8 +232,8 @@ describe('ProfileService', () => {
       );
 
       await flush();
-      expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(
-        expect.objectContaining({ tipoNotificacion: 'PROFILE_UPDATED', userId: 'u-1', metadata: { nombre: 'Ana' } })
+      expect(notifier.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'PROFILE_UPDATED', userId: 'u-1', metadata: { nombre: 'Ana' } })
       );
       expect(result).toEqual({ dto: 'extended', args: [updatedUser] });
     });
@@ -281,8 +281,8 @@ describe('ProfileService', () => {
       expect(logAudit).toHaveBeenCalledWith('PROFILE_EMAIL_UPDATED', expect.objectContaining({ actorId: 'u-1', details: { newEmail: 'nuevo@b.cl' } }));
 
       await flush();
-      expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(
-        expect.objectContaining({ tipoNotificacion: 'EMAIL_UPDATED' })
+      expect(notifier.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'EMAIL_UPDATED' })
       );
       expect(result).toMatchObject({ dto: 'email', newEmail: 'nuevo@b.cl' });
     });
@@ -327,8 +327,8 @@ describe('ProfileService', () => {
       expect(logAudit).toHaveBeenCalledWith('PROFILE_PHONE_UPDATED', expect.objectContaining({ actorId: 'u-1', details: { phoneType: 'mobile' } }));
 
       await flush();
-      expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(
-        expect.objectContaining({ tipoNotificacion: 'PHONE_UPDATED' })
+      expect(notifier.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'PHONE_UPDATED' })
       );
       expect(result).toMatchObject({ dto: 'phone', phone: '911112222', phoneType: 'mobile' });
     });
@@ -361,8 +361,8 @@ describe('ProfileService', () => {
       expect(logAudit).toHaveBeenCalledWith('PASSWORD_CHANGED', expect.objectContaining({ actorId: 'u-1' }));
 
       await flush();
-      expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(
-        expect.objectContaining({ tipoNotificacion: 'PASSWORD_UPDATED' })
+      expect(notifier.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'PASSWORD_UPDATED' })
       );
       expect(result).toBeNull();
     });
@@ -402,8 +402,8 @@ describe('ProfileService', () => {
       expect(transaction.commit).toHaveBeenCalled();
 
       await flush();
-      expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(
-        expect.objectContaining({ tipoNotificacion: 'PROFILE_UPDATED' })
+      expect(notifier.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'PROFILE_UPDATED' })
       );
       expect(result).toEqual({ dto: 'names', person: after });
     });
@@ -446,8 +446,8 @@ describe('ProfileService', () => {
       expect(logAudit).toHaveBeenCalledWith('ACCOUNT_DELETED', expect.objectContaining({ actorId: 'u-1' }));
 
       await flush();
-      expect(NotificationUtil.crearNotificacionDirecta).toHaveBeenCalledWith(
-        expect.objectContaining({ tipoNotificacion: 'CUENTA_ELIMINADA', email: 'ana@b.cl' })
+      expect(notifier.notifyEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'CUENTA_ELIMINADA', email: 'ana@b.cl' })
       );
       expect(result).toBeNull();
     });
@@ -462,7 +462,7 @@ describe('ProfileService', () => {
       );
 
       await flush();
-      expect(NotificationUtil.crearNotificacionDirecta).not.toHaveBeenCalled();
+      expect(notifier.notifyEmail).not.toHaveBeenCalled();
     });
 
     it('si deleteAccountLogic falla y la tx no termino: rollback y repropaga', async () => {

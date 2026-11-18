@@ -46,9 +46,9 @@ jest.mock('../utils/kyc-shared.util', () => ({
   generateSecurePassword: jest.fn(() => 'TempPass123!'),
   logChange: jest.fn().mockResolvedValue(undefined)
 }));
-jest.mock('../../notification/services/notification-creation.service', () => ({
-  crearNotificacion: jest.fn().mockResolvedValue(undefined),
-  crearNotificacionDirecta: jest.fn().mockResolvedValue(undefined)
+jest.mock('../../notification/notify', () => ({
+  notify: jest.fn().mockResolvedValue(undefined),
+  notifyEmail: jest.fn().mockResolvedValue(undefined)
 }));
 jest.mock('../helpers/profile.helper', () => ({
   validateNationalIdUnique: jest.fn().mockResolvedValue(undefined),
@@ -134,8 +134,8 @@ import roleRepositoryModule from '../../iam/repositories/role.repository';
 const roleRepository = mocked(roleRepositoryModule);
 import KycSharedUtilModule from '../utils/kyc-shared.util';
 const KycSharedUtil = mocked(KycSharedUtilModule);
-import NotificationUtilModule from '../../notification/services/notification-creation.service';
-const NotificationUtil = mocked(NotificationUtilModule);
+import NotificationUtilModule from '../../notification/notify';
+const notifier = mocked(NotificationUtilModule);
 import ProfileHelperModule from '../helpers/profile.helper';
 const ProfileHelper = mocked(ProfileHelperModule);
 import DualApprovalServiceModule from '../../approvals/services/dual-approval.service';
@@ -303,8 +303,8 @@ describe('PersonService (admin)', () => {
       expect(result).toEqual({ dto: 'CreateUserDTO', id: 'u1', pwd: 'TempPass123!' });
 
       await flushMacrotasks();
-      expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(expect.objectContaining({ tipoNotificacion: 'USUARIO_CREADO_ADMIN' }));
-      expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(expect.objectContaining({ tipoNotificacion: 'PERSON_ADMIN_ACTION' }));
+      expect(notifier.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'USUARIO_CREADO_ADMIN' }));
+      expect(notifier.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'PERSON_ADMIN_ACTION' }));
     });
 
     it('lanza error interno y hace rollback si el rol CLIENTE no está configurado', async () => {
@@ -349,7 +349,7 @@ describe('PersonService (admin)', () => {
       expect(result).toEqual({ dto: 'ToggleUserStatusDTO', action: 'activate' });
 
       await flushMacrotasks();
-      expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(expect.objectContaining({ tipoNotificacion: 'ACCOUNT_ACTIVATED' }));
+      expect(notifier.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'ACCOUNT_ACTIVATED' }));
     });
 
     it('desactiva una cuenta activa y audita PERSON_DEACTIVATED', async () => {
@@ -399,7 +399,7 @@ describe('PersonService (admin)', () => {
       expect(result).toEqual({ dto: 'ResetPasswordDTO', id: 'u1' });
 
       await flushMacrotasks();
-      expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(expect.objectContaining({ tipoNotificacion: 'PASSWORD_RESET_ADMIN' }));
+      expect(notifier.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'PASSWORD_RESET_ADMIN' }));
     });
 
     it('lanza 404 y rollback si el usuario no existe', async () => {
@@ -435,8 +435,8 @@ describe('PersonService (admin)', () => {
       expect(result).toEqual({ dto: 'ChangeEmailDTO', oldE: 'old@test.com', newE: 'new@test.com' });
 
       await flushMacrotasks();
-      expect(NotificationUtil.crearNotificacionDirecta).toHaveBeenCalledWith(expect.objectContaining({ tipoNotificacion: 'EMAIL_CHANGED_OLD' }));
-      expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(expect.objectContaining({ tipoNotificacion: 'EMAIL_CHANGED_NEW' }));
+      expect(notifier.notifyEmail).toHaveBeenCalledWith(expect.objectContaining({ type: 'EMAIL_CHANGED_OLD' }));
+      expect(notifier.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'EMAIL_CHANGED_NEW' }));
     });
 
     it('lanza 404 y rollback si el usuario no existe', async () => {
@@ -470,7 +470,7 @@ describe('PersonService (admin)', () => {
       expect(result).toEqual({ dto: 'ChangeNationalIdDTO', oldN: 'old', newN: 'new' });
 
       await flushMacrotasks();
-      expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(expect.objectContaining({ tipoNotificacion: 'NATIONAL_ID_CHANGED' }));
+      expect(notifier.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'NATIONAL_ID_CHANGED' }));
     });
 
     it('es idempotente si no hubo cambio: commitea pero no audita ni notifica', async () => {
@@ -484,7 +484,7 @@ describe('PersonService (admin)', () => {
       expect(result).toEqual({ dto: 'ChangeNationalIdDTO', oldN: 'same', newN: 'same' });
 
       await flushMacrotasks();
-      expect(NotificationUtil.crearNotificacion).not.toHaveBeenCalled();
+      expect(notifier.notify).not.toHaveBeenCalled();
     });
   });
 
@@ -520,7 +520,7 @@ describe('PersonService (admin)', () => {
       expect(result).toEqual({ dto: 'DisableMFADTO', id: 'u1' });
 
       await flushMacrotasks();
-      expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(expect.objectContaining({ tipoNotificacion: 'RESET_MFA' }));
+      expect(notifier.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'RESET_MFA' }));
     });
 
     it('lanza 400 si el usuario no tiene MFA habilitado', async () => {
@@ -555,7 +555,7 @@ describe('PersonService (admin)', () => {
       expect(result).toEqual({ dto: 'ChangeRoleDTO', oldR: 'CLIENTE', newR: 'CLIENTE_VERIFICADO' });
 
       await flushMacrotasks();
-      expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(expect.objectContaining({ tipoNotificacion: 'ROL_CHANGE' }));
+      expect(notifier.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'ROL_CHANGE' }));
     });
 
     // Regresión (fase 4 TS): antes comparaba contra 'admin' en minúsculas (nunca coincidía) y este
@@ -661,7 +661,7 @@ describe('PersonService (admin)', () => {
       expect(result).toBeNull();
 
       await flushMacrotasks();
-      expect(NotificationUtil.crearNotificacionDirecta).toHaveBeenCalledWith(expect.objectContaining({ tipoNotificacion: 'CUENTA_ELIMINADA' }));
+      expect(notifier.notifyEmail).toHaveBeenCalledWith(expect.objectContaining({ type: 'CUENTA_ELIMINADA' }));
     });
 
     it('hace rollback si falla la ofuscación', async () => {

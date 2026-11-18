@@ -36,7 +36,7 @@ src/
     database/          cliente Prisma, unit of work, extensiones
     http/              AppError, respuestas, paginación, middlewares técnicos
     security/          jwt, hash, cifrado, hmac, totp, firmas
-    infra/             redis, s3, circuit breaker, retry, bus de eventos
+    infra/             redis, s3, circuit breaker, retry
     observability/     logger, contexto de la operación (AsyncLocalStorage), traza de operaciones
     constants/         constantes técnicas y configuración de entorno
     types/             tipos globales (augmentations de Express, etc.)
@@ -116,8 +116,8 @@ No lo importa: publica un punto de registro y `src/app.ts` le conecta el módulo
 | Una regla de negocio | `modules/<dominio>/services/` |
 | Una consulta a la BD | `modules/<dominio>/repositories/` |
 | Usar algo de otro módulo | `import … from '../<otro>'` (su `index.ts`) |
-| Mandar una notificación | la API pública de `modules/notification` |
-| Registrar un hecho de negocio | la API pública de `modules/audit` |
+| Mandar una notificación | `notifier.notify({ type, userId, metadata })` del index de `modules/notification` |
+| Registrar un hecho de negocio | `audit.record(acción, { actorId, … })` del index de `modules/audit` |
 | Un job periódico | `modules/<dominio>/workers/` |
 | Integrar un proveedor externo | `modules/<dominio>/providers/` |
 | Algo técnico sin negocio (cifrado, Redis, paginación) | `shared/<área>/` |

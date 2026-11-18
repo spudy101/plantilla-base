@@ -17,7 +17,7 @@ import type { RequestAuditContext } from '../../../shared/types/audit-context';
 import unitOfWork from '../../../shared/database/unit-of-work';
 import userRepository from '../repositories/user.repository';
 import notificationModule from '../../notification';
-const { verificationCodeRepository, notificationCreationService: NotificationUtil, SmsService } = notificationModule;
+const { verificationCodeRepository, notifier, SmsService } = notificationModule;
 import AppError from '../../../shared/http/app-error.util';
 import mfaDtoModule from '../dtos/mfa.dto';
 const { PasswordValidationResponseDTO, MFAStatusResponseDTO, PreferredMethodResponseDTO } = mfaDtoModule;
@@ -33,7 +33,7 @@ class MFAService {
   unitOfWork: typeof unitOfWork;
   userRepository: typeof userRepository;
   verificationCodeRepository: typeof verificationCodeRepository;
-  NotificationUtil: typeof NotificationUtil;
+  notifier: typeof notifier;
   SmsService: typeof SmsService;
   account: InstanceType<typeof MfaAccount>;
   totp: InstanceType<typeof TotpMfaService>;
@@ -49,7 +49,7 @@ class MFAService {
     this.unitOfWork = deps.unitOfWork ?? unitOfWork;
     this.userRepository = deps.userRepository ?? userRepository;
     this.verificationCodeRepository = deps.verificationCodeRepository ?? verificationCodeRepository;
-    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+    this.notifier = deps.notifier ?? notifier;
     this.SmsService = deps.SmsService ?? SmsService;
 
     // Sub-servicios por responsabilidad (SOLID: S). Reciben las mismas dependencias.
@@ -57,7 +57,7 @@ class MFAService {
       unitOfWork: this.unitOfWork,
       userRepository: this.userRepository,
       verificationCodeRepository: this.verificationCodeRepository,
-      NotificationUtil: this.NotificationUtil,
+      notifier: this.notifier,
       SmsService: this.SmsService
     };
     this.account = deps.account ?? new MfaAccount(shared);
@@ -173,7 +173,7 @@ namespace MFAService {
     unitOfWork?: typeof unitOfWork;
     userRepository?: typeof userRepository;
     verificationCodeRepository?: typeof verificationCodeRepository;
-    NotificationUtil?: typeof NotificationUtil;
+    notifier?: typeof notifier;
     SmsService?: typeof SmsService;
     account?: InstanceType<typeof MfaAccount>;
     totp?: InstanceType<typeof TotpMfaService>;

@@ -15,7 +15,7 @@ const { logger } = loggerUtilModule;
 import constantsModule from '../../../shared/constants';
 const { RBAC_ROLES, notifications } = constantsModule;
 import notificationModule from '../../notification';
-const { notificationCreationService: NotificationCreationService } = notificationModule;
+const { notifier } = notificationModule;
 import rolePermissionOverrideRepository from '../repositories/role-permission-override.repository';
 import adminRbacDtoModule from '../dtos/admin-rbac.dto';
 import auditModule from '../../audit';
@@ -30,7 +30,7 @@ const {
 
 class AdminRbacService {
   RbacService: typeof RbacService;
-  NotificationCreationService: typeof NotificationCreationService;
+  notifier: typeof notifier;
   rolePermissionOverrideRepository: typeof rolePermissionOverrideRepository;
 
   /**
@@ -41,7 +41,7 @@ class AdminRbacService {
    */
   constructor(deps: AdminRbacService.Deps = {}) {
     this.RbacService = deps.RbacService ?? RbacService;
-    this.NotificationCreationService = deps.NotificationCreationService ?? NotificationCreationService;
+    this.notifier = deps.notifier ?? notifier;
     this.rolePermissionOverrideRepository = deps.rolePermissionOverrideRepository ?? rolePermissionOverrideRepository;
   }
 
@@ -122,8 +122,8 @@ class AdminRbacService {
     });
 
     setImmediate(() => {
-      this.NotificationCreationService.crearNotificacion({
-        tipoNotificacion: 'IAM_RBAC_PERMISSION_GRANTED',
+      this.notifier.notify({
+        type: 'IAM_RBAC_PERMISSION_GRANTED',
         userId: grantedByUserId,
         relatedEntity: { type: 'RolePermissionOverride', id: override.rolePermissionId },
         metadata: { roleName, moduleName, action, logoUrl: notifications.ses.logoUrl }
@@ -159,8 +159,8 @@ class AdminRbacService {
     });
 
     setImmediate(() => {
-      this.NotificationCreationService.crearNotificacion({
-        tipoNotificacion: 'IAM_RBAC_PERMISSION_REVOKED',
+      this.notifier.notify({
+        type: 'IAM_RBAC_PERMISSION_REVOKED',
         userId: adminUserId,
         relatedEntity: { type: 'RolePermissionOverride', id: permissionId },
         metadata: {
@@ -192,7 +192,7 @@ namespace AdminRbacService {
   /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
   export interface Deps {
     RbacService?: typeof RbacService;
-    NotificationCreationService?: typeof NotificationCreationService;
+    notifier?: typeof notifier;
     rolePermissionOverrideRepository?: typeof rolePermissionOverrideRepository;
   }
 }

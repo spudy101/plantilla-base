@@ -19,8 +19,8 @@ jest.mock('../../../shared/infra/s3.util', () => ({
 
 jest.mock('../../../shared/infra/redis.util', () => ({ del: jest.fn().mockResolvedValue(1) }));
 
-jest.mock('../../notification/services/notification-creation.service', () => ({
-  crearNotificacion: jest.fn().mockResolvedValue(undefined)
+jest.mock('../../notification/notify', () => ({
+  notify: jest.fn().mockResolvedValue(undefined)
 }));
 
 jest.mock('../../../shared/observability/logger.util', () => ({
@@ -42,8 +42,8 @@ import S3UtilModule from '../../../shared/infra/s3.util';
 const S3Util = mocked(S3UtilModule);
 import redisClientModule from '../../../shared/infra/redis.util';
 const redisClient = mocked(redisClientModule);
-import NotificationCreationServiceModule from '../../notification/services/notification-creation.service';
-const NotificationCreationService = mocked(NotificationCreationServiceModule);
+import NotificationCreationServiceModule from '../../notification/notify';
+const notifier = mocked(NotificationCreationServiceModule);
 import loggerUtilModule from '../../../shared/observability/logger.util';
 import auditServiceModule from '../../audit/audit.service';
 const { logger } = mocked(loggerUtilModule);
@@ -155,15 +155,15 @@ describe('PrivacyPolicyAdminService', () => {
       expect(result).toEqual({ dto: 'created' });
 
       await flush();
-      expect(NotificationCreationService.crearNotificacion).toHaveBeenCalledWith(
-        expect.objectContaining({ tipoNotificacion: 'PRIVACY_POLICY_UPDATE', userId: null })
+      expect(notifier.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'PRIVACY_POLICY_UPDATE', userId: null })
       );
     });
 
     it('registra warn si falla la notificación global (best-effort)', async () => {
       repo.findByVersion.mockResolvedValue(null);
       repo.createVersion.mockResolvedValue({ privacyPolicyId: 'p-new', effectiveDate: new Date('2026-01-01') });
-      NotificationCreationService.crearNotificacion.mockRejectedValue(new Error('notif down'));
+      notifier.notify.mockRejectedValue(new Error('notif down'));
 
       await service.createVersion(baseData(), USER_ID);
       await flush();

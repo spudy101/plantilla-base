@@ -10,7 +10,7 @@ import userRepository from '../../repositories/user.repository';
 import personModule from '../../../person';
 const { KycSharedUtil } = personModule;
 import notificationModule from '../../../notification';
-const { notificationCreationService: NotificationCreationService } = notificationModule;
+const { notifier } = notificationModule;
 import approvalsModule from '../../../approvals';
 const { DualApprovalService } = approvalsModule;
 import AppError from '../../../../shared/http/app-error.util';
@@ -30,7 +30,7 @@ const ENTITY = { entityType: 'InternalUser', entityTable: 'users' };
 class InternalUserAccessService {
   userRepository: typeof userRepository;
   kycSharedUtil: typeof KycSharedUtil;
-  NotificationCreationService: typeof NotificationCreationService;
+  notifier: typeof notifier;
   DualApprovalService: typeof DualApprovalService;
   guards: InstanceType<typeof InternalUserGuards>;
 
@@ -38,7 +38,7 @@ class InternalUserAccessService {
   constructor(deps: InternalUserAccessService.Deps = {}) {
     this.userRepository = deps.userRepository ?? userRepository;
     this.kycSharedUtil = deps.kycSharedUtil ?? KycSharedUtil;
-    this.NotificationCreationService = deps.NotificationCreationService ?? NotificationCreationService;
+    this.notifier = deps.notifier ?? notifier;
     this.DualApprovalService = deps.DualApprovalService ?? DualApprovalService;
     this.guards = deps.guards ?? new InternalUserGuards(deps);
   }
@@ -122,14 +122,14 @@ class InternalUserAccessService {
     const nombre = displayName(user);
     setImmediate(() => {
       const { logoUrl } = notifications.ses;
-      this.NotificationCreationService.crearNotificacion({
-        tipoNotificacion: 'IAM_INTERNAL_USER_ROLE_CHANGED',
+      this.notifier.notify({
+        type: 'IAM_INTERNAL_USER_ROLE_CHANGED',
         userId,
         relatedEntity: { type: 'User', id: userId },
         metadata: { nombre, rolAnterior: oldRoleName || '—', nuevoRol: newRole.name, logoUrl }
       }).catch(err => logger.warn('Error enviando IAM_INTERNAL_USER_ROLE_CHANGED', { error: err.message }));
-      this.NotificationCreationService.crearNotificacion({
-        tipoNotificacion: 'IAM_ADMIN_ROLE_CHANGED',
+      this.notifier.notify({
+        type: 'IAM_ADMIN_ROLE_CHANGED',
         userId: auditCtx.adminUserId,
         relatedEntity: { type: 'User', id: userId },
         metadata: { nombreUsuario: nombre, rolAnterior: oldRoleName || '—', nuevoRol: newRole.name, logoUrl }
@@ -187,16 +187,16 @@ class InternalUserAccessService {
     const accion = isActive ? 'activado' : 'desactivado';
     setImmediate(() => {
       const { logoUrl } = notifications.ses;
-      this.NotificationCreationService.crearNotificacion({
-        tipoNotificacion: isActive ? 'IAM_INTERNAL_USER_ACTIVATED' : 'IAM_INTERNAL_USER_DEACTIVATED',
+      this.notifier.notify({
+        type: isActive ? 'IAM_INTERNAL_USER_ACTIVATED' : 'IAM_INTERNAL_USER_DEACTIVATED',
         userId,
         relatedEntity: { type: 'User', id: userId },
         metadata: { nombre, logoUrl }
       }).catch(err =>
         logger.warn(`Error enviando IAM_INTERNAL_USER_${isActive ? 'ACTIVATED' : 'DEACTIVATED'}`, { error: err.message })
       );
-      this.NotificationCreationService.crearNotificacion({
-        tipoNotificacion: 'IAM_ADMIN_STATUS_CHANGED',
+      this.notifier.notify({
+        type: 'IAM_ADMIN_STATUS_CHANGED',
         userId: auditCtx.adminUserId,
         relatedEntity: { type: 'User', id: userId },
         metadata: { nombreUsuario: nombre, accion, logoUrl }
@@ -224,8 +224,8 @@ class InternalUserAccessService {
 
     const nombre = displayName(user);
     setImmediate(() => {
-      this.NotificationCreationService.crearNotificacion({
-        tipoNotificacion: 'IAM_INTERNAL_USER_SESSIONS_CLOSED',
+      this.notifier.notify({
+        type: 'IAM_INTERNAL_USER_SESSIONS_CLOSED',
         userId,
         relatedEntity: { type: 'User', id: userId },
         metadata: { nombre }
@@ -241,7 +241,7 @@ namespace InternalUserAccessService {
   export interface Deps {
     userRepository?: typeof userRepository;
     kycSharedUtil?: typeof KycSharedUtil;
-    NotificationCreationService?: typeof NotificationCreationService;
+    notifier?: typeof notifier;
     DualApprovalService?: typeof DualApprovalService;
     guards?: InstanceType<typeof InternalUserGuards>;
   }

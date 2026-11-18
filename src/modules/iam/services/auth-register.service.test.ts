@@ -81,9 +81,9 @@ jest.mock('../../person/utils/kyc-shared.util', () => ({
 jest.mock('../utils/token-blacklist.util', () => ({
   invalidateUserSessions: jest.fn()
 }));
-jest.mock('../../notification/services/notification-creation.service', () => ({
-  crearNotificacion: jest.fn(),
-  crearNotificacionDirecta: jest.fn()
+jest.mock('../../notification/notify', () => ({
+  notify: jest.fn(),
+  notifyEmail: jest.fn()
 }));
 jest.mock('../../../shared/observability/request-context.util', () => ({
   originFromContext: jest.fn(() => ({}))
@@ -149,8 +149,8 @@ import KycSharedUtilModule from '../../person/utils/kyc-shared.util';
 const KycSharedUtil = mocked(KycSharedUtilModule);
 import TokenBlacklistUtilModule from '../utils/token-blacklist.util';
 const TokenBlacklistUtil = mocked(TokenBlacklistUtilModule);
-import NotificationUtilModule from '../../notification/services/notification-creation.service';
-const NotificationUtil = mocked(NotificationUtilModule);
+import NotificationUtilModule from '../../notification/notify';
+const notifier = mocked(NotificationUtilModule);
 import prismaModule from '../../../shared/database/prisma';
 const prisma = mocked(prismaModule);
 import auditServiceModule from '../../audit/audit.service';
@@ -201,7 +201,7 @@ function armHappyRegister() {
   JwtUtil.generateRefreshToken.mockResolvedValue('refresh-tok');
   RefreshTokenStore.save.mockResolvedValue(true);
   userSessionRepository.create.mockResolvedValue({});
-  NotificationUtil.crearNotificacion.mockResolvedValue(undefined);
+  notifier.notify.mockResolvedValue(undefined);
 }
 
 describe('AuthRegisterService', () => {
@@ -227,8 +227,8 @@ describe('AuthRegisterService', () => {
 
       await flush();
       expect(verificationCodeRepository.deleteVerifiedByContact).toHaveBeenCalledWith('email', VALID_USER_DATA.email);
-      expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(
-        expect.objectContaining({ tipoNotificacion: 'BIENVENIDA', userId: 'u-1' })
+      expect(notifier.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'BIENVENIDA', userId: 'u-1' })
       );
     });
 
@@ -394,7 +394,7 @@ describe('AuthRegisterService', () => {
       });
       resetCredentialsRepository.invalidateUserTokens.mockResolvedValue(1);
       resetCredentialsRepository.createResetToken.mockResolvedValue({});
-      NotificationUtil.crearNotificacionDirecta.mockResolvedValue(undefined);
+      notifier.notifyEmail.mockResolvedValue(undefined);
 
       const result = await service.requestResetCredentials({ email: 'x@x.com', type: 'password' });
 
@@ -405,8 +405,8 @@ describe('AuthRegisterService', () => {
       expect(logAudit).toHaveBeenCalledWith('CREDENTIALS_RESET_REQUESTED', expect.objectContaining({ actorId: 'u-1' }));
 
       await flush();
-      expect(NotificationUtil.crearNotificacionDirecta).toHaveBeenCalledWith(
-        expect.objectContaining({ tipoNotificacion: 'SOLICITUD_RESET_PASSWORD' })
+      expect(notifier.notifyEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'SOLICITUD_RESET_PASSWORD' })
       );
     });
 
@@ -416,12 +416,12 @@ describe('AuthRegisterService', () => {
       });
       resetCredentialsRepository.invalidateUserTokens.mockResolvedValue(0);
       resetCredentialsRepository.createResetToken.mockResolvedValue({});
-      NotificationUtil.crearNotificacionDirecta.mockResolvedValue(undefined);
+      notifier.notifyEmail.mockResolvedValue(undefined);
 
       await service.requestResetCredentials({ email: 'x@x.com', type: 'mfa' });
       await flush();
-      expect(NotificationUtil.crearNotificacionDirecta).toHaveBeenCalledWith(
-        expect.objectContaining({ tipoNotificacion: 'SOLICITUD_RESET_MFA' })
+      expect(notifier.notifyEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'SOLICITUD_RESET_MFA' })
       );
     });
   });
@@ -458,7 +458,7 @@ describe('AuthRegisterService', () => {
       resetCredentialsRepository.markAsUsed.mockResolvedValue(true);
       TokenBlacklistUtil.invalidateUserSessions.mockResolvedValue(undefined);
       userSessionRepository.closeAllByUser.mockResolvedValue(undefined);
-      NotificationUtil.crearNotificacion.mockResolvedValue(undefined);
+      notifier.notify.mockResolvedValue(undefined);
 
       const result = await service.confirmResetCredentials({ token: 't', type: 'password', newPassword: 'Nueva123!' });
 
@@ -490,7 +490,7 @@ describe('AuthRegisterService', () => {
       userRepository.update.mockResolvedValue(undefined);
       KycSharedUtil.logChange.mockResolvedValue(undefined);
       resetCredentialsRepository.markAsUsed.mockResolvedValue(true);
-      NotificationUtil.crearNotificacion.mockResolvedValue(undefined);
+      notifier.notify.mockResolvedValue(undefined);
 
       const result = await service.confirmResetCredentials({ token: 't', type: 'mfa' });
 

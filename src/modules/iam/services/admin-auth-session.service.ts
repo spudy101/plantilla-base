@@ -12,7 +12,7 @@ const { logger } = loggerUtilModule;
 import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
 import notificationModule from '../../notification';
-const { notificationCreationService: NotificationCreationService } = notificationModule;
+const { notifier } = notificationModule;
 import PaginationHelper from '../../../shared/http/pagination.util';
 import domainEnumsModule from '../../../shared/constants/domain-enums';
 const { USER_SESSION_STATUS } = domainEnumsModule;
@@ -34,7 +34,7 @@ const LOGIN_ACTIONS = [
 class AdminAuthSessionService {
   userSessionRepository: typeof userSessionRepository;
   auditLogRepository: typeof auditLogRepository;
-  NotificationCreationService: typeof NotificationCreationService;
+  notifier: typeof notifier;
 
   /**
    * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
@@ -45,7 +45,7 @@ class AdminAuthSessionService {
   constructor(deps: AdminAuthSessionService.Deps = {}) {
     this.userSessionRepository = deps.userSessionRepository ?? userSessionRepository;
     this.auditLogRepository = deps.auditLogRepository ?? auditLogRepository;
-    this.NotificationCreationService = deps.NotificationCreationService ?? NotificationCreationService;
+    this.notifier = deps.notifier ?? notifier;
   }
 
   // [RF-AUTH-02] | CA-04 | Superficie de consumo para RF-AUTH-03: lista sesiones con JOIN a dispositivos
@@ -155,8 +155,8 @@ class AdminAuthSessionService {
     });
 
     setImmediate(() => {
-      this.NotificationCreationService.crearNotificacion({
-        tipoNotificacion: 'AUTH_SESSION_REVOKED_INTERNAL',
+      this.notifier.notify({
+        type: 'AUTH_SESSION_REVOKED_INTERNAL',
         userId: adminUserId,
         relatedEntity: { type: 'UserSession', id: sessionId },
         metadata: { sessionId, targetUserId: session.userId, logoUrl: notifications.ses.logoUrl }
@@ -164,8 +164,8 @@ class AdminAuthSessionService {
     });
 
     setImmediate(() => {
-      this.NotificationCreationService.crearNotificacion({
-        tipoNotificacion: 'AUTH_SESSION_REVOKED_CLIENT',
+      this.notifier.notify({
+        type: 'AUTH_SESSION_REVOKED_CLIENT',
         userId: session.userId,
         relatedEntity: { type: 'UserSession', id: sessionId },
         metadata: { logoUrl: notifications.ses.logoUrl }
@@ -250,7 +250,7 @@ namespace AdminAuthSessionService {
   export interface Deps {
     userSessionRepository?: typeof userSessionRepository;
     auditLogRepository?: typeof auditLogRepository;
-    NotificationCreationService?: typeof NotificationCreationService;
+    notifier?: typeof notifier;
   }
 }
 

@@ -11,7 +11,7 @@ import catalogsModule from '../../../catalogs';
 const { documentTypeRepository } = catalogsModule;
 import InternalUserHelper from '../../helpers/internal-user.helper';
 import notificationModule from '../../../notification';
-const { notificationCreationService: NotificationCreationService } = notificationModule;
+const { notifier } = notificationModule;
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
@@ -32,7 +32,7 @@ class InternalUserProfileService {
   profileHelper: typeof ProfileHelper;
   internalUserHelper: typeof InternalUserHelper;
   kycSharedUtil: typeof KycSharedUtil;
-  NotificationCreationService: typeof NotificationCreationService;
+  notifier: typeof notifier;
   guards: InstanceType<typeof InternalUserGuards>;
 
   /** @param {object} [deps] Dependencias inyectables (SOLID: D). Las provee la fachada AdminUserService. */
@@ -44,7 +44,7 @@ class InternalUserProfileService {
     this.profileHelper = deps.profileHelper ?? ProfileHelper;
     this.internalUserHelper = deps.internalUserHelper ?? InternalUserHelper;
     this.kycSharedUtil = deps.kycSharedUtil ?? KycSharedUtil;
-    this.NotificationCreationService = deps.NotificationCreationService ?? NotificationCreationService;
+    this.notifier = deps.notifier ?? notifier;
     this.guards = deps.guards ?? new InternalUserGuards(deps);
   }
 
@@ -90,13 +90,13 @@ class InternalUserProfileService {
 
     setImmediate(() => {
       const { logoUrl } = notifications.ses;
-      this.NotificationCreationService.crearNotificacion({
-        tipoNotificacion: 'IAM_INTERNAL_USER_CREATED',
+      this.notifier.notify({
+        type: 'IAM_INTERNAL_USER_CREATED',
         userId: user.userId,
         metadata: { nombre: data.firstName, email: data.email, passwordTemporal: temporaryPassword, logoUrl }
       }).catch(err => logger.warn('Error enviando IAM_INTERNAL_USER_CREATED', { error: err.message }));
-      this.NotificationCreationService.crearNotificacion({
-        tipoNotificacion: 'IAM_ADMIN_USER_CREATED',
+      this.notifier.notify({
+        type: 'IAM_ADMIN_USER_CREATED',
         userId: auditCtx.adminUserId,
         relatedEntity: { type: 'User', id: user.userId },
         metadata: { nombreUsuario: `${data.firstName} ${data.lastName || ''}`.trim(), email: data.email, logoUrl }
@@ -168,7 +168,7 @@ namespace InternalUserProfileService {
     profileHelper?: typeof ProfileHelper;
     internalUserHelper?: typeof InternalUserHelper;
     kycSharedUtil?: typeof KycSharedUtil;
-    NotificationCreationService?: typeof NotificationCreationService;
+    notifier?: typeof notifier;
     guards?: InstanceType<typeof InternalUserGuards>;
   }
 }

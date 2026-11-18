@@ -41,8 +41,8 @@ jest.mock('../../../shared/security/encryption.util', () => ({
   decrypt: jest.fn().mockReturnValue('SECRET123')
 }));
 
-jest.mock('../../notification/services/notification-creation.service', () => ({
-  crearNotificacion: jest.fn().mockResolvedValue(undefined)
+jest.mock('../../notification/notify', () => ({
+  notify: jest.fn().mockResolvedValue(undefined)
 }));
 
 jest.mock('../../notification/services/sms.service', () => ({
@@ -83,8 +83,8 @@ import KycSharedUtilModule from '../../person/utils/kyc-shared.util';
 const KycSharedUtil = mocked(KycSharedUtilModule);
 import TotpUtilModule from '../../../shared/security/totp.util';
 const TotpUtil = mocked(TotpUtilModule);
-import NotificationUtilModule from '../../notification/services/notification-creation.service';
-const NotificationUtil = mocked(NotificationUtilModule);
+import NotificationUtilModule from '../../notification/notify';
+const notifier = mocked(NotificationUtilModule);
 import SmsServiceModule from '../../notification/services/sms.service';
 const SmsService = mocked(SmsServiceModule);
 import constantsModule from '../../../shared/constants';
@@ -171,7 +171,7 @@ describe('MFAService', () => {
       expect(result).toMatchObject({ totpEnabled: true });
 
       await flushMacrotasks();
-      expect(NotificationUtil.crearNotificacion).toHaveBeenCalledWith(expect.objectContaining({ tipoNotificacion: 'TOTP_ACTIVADO' }));
+      expect(notifier.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'TOTP_ACTIVADO' }));
     });
 
     it('hace rollback y propaga si falla dentro de la transacción', async () => {

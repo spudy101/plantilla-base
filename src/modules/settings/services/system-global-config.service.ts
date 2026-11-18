@@ -7,24 +7,24 @@ import systemGlobalConfigRepository from '../repositories/system-global-config.r
 import systemGlobalConfigDtoModule from '../dtos/system-global-config.dto';
 const { SystemGlobalConfigDTO } = systemGlobalConfigDtoModule;
 import notificationModule from '../../notification';
-const { notificationCreationService } = notificationModule;
+const { notifier } = notificationModule;
 import auditModule from '../../audit';
 const { audit } = auditModule;
 
 const NOTIF_SYSTEM_CONFIG_UPDATED = 'SYSTEM_CONFIG_UPDATED_INTERNAL';
 
 class SystemGlobalConfigService {
-  notificationCreationService: typeof notificationCreationService;
+  notifier: typeof notifier;
   systemGlobalConfigRepository: typeof systemGlobalConfigRepository;
 
   /**
    * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
    * reales; en tests u otros contextos se pueden reemplazar:
-   *   new SystemGlobalConfigService({ notificationCreationService: fake })
+   *   new SystemGlobalConfigService({ notifier: fake })
    * @param {object} [deps]
    */
   constructor(deps: SystemGlobalConfigService.Deps = {}) {
-    this.notificationCreationService = deps.notificationCreationService ?? notificationCreationService;
+    this.notifier = deps.notifier ?? notifier;
     this.systemGlobalConfigRepository = deps.systemGlobalConfigRepository ?? systemGlobalConfigRepository;
   }
 
@@ -72,9 +72,9 @@ class SystemGlobalConfigService {
     });
 
     setImmediate(() => {
-      this.notificationCreationService
-        .crearNotificacion({
-          tipoNotificacion: NOTIF_SYSTEM_CONFIG_UPDATED,
+      this.notifier
+        .notify({
+          type: NOTIF_SYSTEM_CONFIG_UPDATED,
           userId: null,
           relatedEntity: { type: 'SystemGlobalConfig', id: config.configId },
           metadata: {
@@ -182,7 +182,7 @@ namespace SystemGlobalConfigService {
 
   /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
   export interface Deps {
-    notificationCreationService?: typeof notificationCreationService;
+    notifier?: typeof notifier;
     systemGlobalConfigRepository?: typeof systemGlobalConfigRepository;
   }
 }

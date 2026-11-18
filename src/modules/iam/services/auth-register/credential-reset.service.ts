@@ -15,7 +15,7 @@ const { personContactRepository, KycSharedUtil } = personModule;
 import resetCredentialsRepository from '../../repositories/reset-credentials.repository';
 import userSessionRepository from '../../repositories/user-session.repository';
 import notificationModule from '../../../notification';
-const { notificationCreationService: NotificationUtil } = notificationModule;
+const { notifier } = notificationModule;
 import TokenBlacklistUtil from '../../utils/token-blacklist.util';
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
@@ -35,7 +35,7 @@ class CredentialResetService {
   personContactRepository: typeof personContactRepository;
   resetCredentialsRepository: typeof resetCredentialsRepository;
   userSessionRepository: typeof userSessionRepository;
-  NotificationUtil: typeof NotificationUtil;
+  notifier: typeof notifier;
   kycSharedUtil: typeof KycSharedUtil;
 
   /**
@@ -48,7 +48,7 @@ class CredentialResetService {
     this.personContactRepository = deps.personContactRepository ?? personContactRepository;
     this.resetCredentialsRepository = deps.resetCredentialsRepository ?? resetCredentialsRepository;
     this.userSessionRepository = deps.userSessionRepository ?? userSessionRepository;
-    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+    this.notifier = deps.notifier ?? notifier;
     this.kycSharedUtil = deps.kycSharedUtil ?? KycSharedUtil;
   }
 
@@ -102,8 +102,8 @@ class CredentialResetService {
     const resetUrl = `${frontend.resetCredentialUrl}-${type === 'password' ? 'password' : 'totp'}?token=${token}&type=${type}`;
 
     setImmediate(() => {
-      this.NotificationUtil.crearNotificacionDirecta({
-        tipoNotificacion: type === 'password' ? 'SOLICITUD_RESET_PASSWORD' : 'SOLICITUD_RESET_MFA',
+      this.notifier.notifyEmail({
+        type: type === 'password' ? 'SOLICITUD_RESET_PASSWORD' : 'SOLICITUD_RESET_MFA',
         email,
         metadata: {
           nombre: firstName,
@@ -225,12 +225,12 @@ class CredentialResetService {
   }
 
   /** @private */
-  _sendResetConfirmationNotification(user: ResetUser, tipoNotificacion: string) {
+  _sendResetConfirmationNotification(user: ResetUser, type: string) {
     const firstName = user.person?.firstName || 'Usuario';
     const email = user.person?.contact?.email;
     setImmediate(() => {
-      this.NotificationUtil.crearNotificacion({
-        tipoNotificacion,
+      this.notifier.notify({
+        type,
         userId: user.userId,
         relatedEntity: null,
         metadata: { nombre: firstName, email, logoUrl: notifications.ses.logoUrl }
@@ -256,7 +256,7 @@ namespace CredentialResetService {
     personContactRepository?: typeof personContactRepository;
     resetCredentialsRepository?: typeof resetCredentialsRepository;
     userSessionRepository?: typeof userSessionRepository;
-    NotificationUtil?: typeof NotificationUtil;
+    notifier?: typeof notifier;
     kycSharedUtil?: typeof KycSharedUtil;
   }
 }

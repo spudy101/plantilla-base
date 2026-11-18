@@ -31,9 +31,9 @@ const makeService = () => {
       markAsUsed: jest.fn().mockResolvedValue(true)
     },
     userSessionRepository: { closeAllByUser: jest.fn().mockResolvedValue(undefined) },
-    NotificationUtil: {
-      crearNotificacion: jest.fn().mockResolvedValue({}),
-      crearNotificacionDirecta: jest.fn().mockResolvedValue({})
+    notifier: {
+      notify: jest.fn().mockResolvedValue({}),
+      notifyEmail: jest.fn().mockResolvedValue({})
     },
     kycSharedUtil: { logChange: jest.fn().mockResolvedValue(undefined) }
   };
@@ -77,8 +77,8 @@ describe('CredentialResetService', () => {
       expect(deps.resetCredentialsRepository.createResetToken).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'u-1', email: 'ada@x.cl', type: 'mfa', token: expect.stringMatching(/^[a-f0-9]{64}$/) })
       );
-      expect(deps.NotificationUtil.crearNotificacionDirecta).toHaveBeenCalledWith(
-        expect.objectContaining({ tipoNotificacion: 'SOLICITUD_RESET_MFA', email: 'ada@x.cl' })
+      expect(deps.notifier.notifyEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'SOLICITUD_RESET_MFA', email: 'ada@x.cl' })
       );
     });
   });

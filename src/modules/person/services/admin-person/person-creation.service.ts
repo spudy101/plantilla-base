@@ -13,7 +13,7 @@ import personRepository from '../../repositories/person.repository';
 import personContactRepository from '../../repositories/person-contact.repository';
 import KycSharedUtil from '../../utils/kyc-shared.util';
 import notificationModule from '../../../notification';
-const { notificationCreationService: NotificationUtil } = notificationModule;
+const { notifier } = notificationModule;
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
@@ -33,7 +33,7 @@ class PersonCreationService {
   personRepository: typeof personRepository;
   personContactRepository: typeof personContactRepository;
   roleRepository: typeof roleRepository;
-  NotificationUtil: typeof NotificationUtil;
+  notifier: typeof notifier;
 
   /**
    * @param {object} [deps] Dependencias inyectables (SOLID: D). Las provee la fachada
@@ -46,7 +46,7 @@ class PersonCreationService {
     this.personRepository = deps.personRepository ?? personRepository;
     this.personContactRepository = deps.personContactRepository ?? personContactRepository;
     this.roleRepository = deps.roleRepository ?? roleRepository;
-    this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
+    this.notifier = deps.notifier ?? notifier;
   }
 
   // ============================================================
@@ -133,8 +133,8 @@ class PersonCreationService {
     auditContext: AdminAuditContext,
     temporaryPassword: string
   ) {
-    this.NotificationUtil.crearNotificacion({
-      tipoNotificacion: 'USUARIO_CREADO_ADMIN',
+    this.notifier.notify({
+      type: 'USUARIO_CREADO_ADMIN',
       userId: user.userId,
       relatedEntity: null,
       metadata: {
@@ -145,8 +145,8 @@ class PersonCreationService {
       }
     }).catch(err => logger.warn('Error sending welcome notification', { error: err.message }));
 
-    this.NotificationUtil.crearNotificacion({
-      tipoNotificacion: 'PERSON_ADMIN_ACTION',
+    this.notifier.notify({
+      type: 'PERSON_ADMIN_ACTION',
       userId: auditContext.adminUserId,
       relatedEntity: null,
       metadata: {
@@ -183,7 +183,7 @@ namespace PersonCreationService {
     personRepository?: typeof personRepository;
     personContactRepository?: typeof personContactRepository;
     roleRepository?: typeof roleRepository;
-    NotificationUtil?: typeof NotificationUtil;
+    notifier?: typeof notifier;
   }
 }
 

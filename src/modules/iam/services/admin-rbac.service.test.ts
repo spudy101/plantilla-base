@@ -31,8 +31,8 @@ jest.mock('../../../shared/constants', () => ({
   notifications: { ses: { logoUrl: 'https://logo.test/x.png' } }
 }));
 
-jest.mock('../../notification/services/notification-creation.service', () => ({
-  crearNotificacion: jest.fn().mockResolvedValue(undefined)
+jest.mock('../../notification/notify', () => ({
+  notify: jest.fn().mockResolvedValue(undefined)
 }));
 
 jest.mock('../repositories/role-permission-override.repository', () => ({
@@ -56,8 +56,8 @@ import RbacServiceModule from './rbac.service';
 const RbacService = mocked(RbacServiceModule);
 import auditServiceModule from '../../audit/audit.service';
 const logAudit = mocked(auditServiceModule).record;
-import NotificationCreationServiceModule from '../../notification/services/notification-creation.service';
-const NotificationCreationService = mocked(NotificationCreationServiceModule);
+import NotificationCreationServiceModule from '../../notification/notify';
+const notifier = mocked(NotificationCreationServiceModule);
 import overrideRepoModule from '../repositories/role-permission-override.repository';
 const overrideRepo = mocked(overrideRepoModule);
 import service from './admin-rbac.service';
@@ -149,7 +149,7 @@ describe('AdminRbacService', () => {
       expect(result).toMatchObject({ dto: 'override', rolePermissionId: 'rp-9' });
 
       await flush();
-      expect(NotificationCreationService.crearNotificacion).toHaveBeenCalledWith(expect.objectContaining({ tipoNotificacion: 'IAM_RBAC_PERMISSION_GRANTED' }));
+      expect(notifier.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'IAM_RBAC_PERMISSION_GRANTED' }));
     });
 
     it('rechaza (409) si el rol ya tiene ese permiso en el módulo', async () => {
@@ -181,7 +181,7 @@ describe('AdminRbacService', () => {
       expect(result).toEqual({ deleted: true, permissionId: 'rp-1' });
 
       await flush();
-      expect(NotificationCreationService.crearNotificacion).toHaveBeenCalledWith(expect.objectContaining({ tipoNotificacion: 'IAM_RBAC_PERMISSION_REVOKED' }));
+      expect(notifier.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'IAM_RBAC_PERMISSION_REVOKED' }));
     });
 
     it('lanza (404) si el permiso a revocar no existe', async () => {

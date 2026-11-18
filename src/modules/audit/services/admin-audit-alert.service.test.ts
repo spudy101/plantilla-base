@@ -15,8 +15,8 @@ jest.mock('../repositories/audit-alert.repository', () => ({
   findById: jest.fn()
 }));
 
-jest.mock('../../notification/services/notification-creation.service', () => ({
-  crearNotificacion: jest.fn().mockResolvedValue(undefined)
+jest.mock('../../notification/notify', () => ({
+  notify: jest.fn().mockResolvedValue(undefined)
 }));
 
 jest.mock('../../../shared/observability/logger.util', () => ({
@@ -48,7 +48,7 @@ jest.mock('../dtos/admin-audit-alert.dto', () => ({
 import { mocked, Loose } from 'tests/helpers/mock';
 import auditAlertRepoModule from '../repositories/audit-alert.repository';
 const auditAlertRepo = mocked(auditAlertRepoModule);
-import notificationCreationModule from '../../notification/services/notification-creation.service';
+import notificationCreationModule from '../../notification/notify';
 const notificationCreation = mocked(notificationCreationModule);
 import auditServiceModule from '../audit.service';
 const logAudit = mocked(auditServiceModule).record;
@@ -105,8 +105,8 @@ describe('AdminAuditAlertService', () => {
       );
 
       await flushMacrotasks();
-      expect(notificationCreation.crearNotificacion).toHaveBeenCalledWith(
-        expect.objectContaining({ tipoNotificacion: 'AUDIT_ALERT_ACKNOWLEDGED', userId: ADMIN })
+      expect(notificationCreation.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'AUDIT_ALERT_ACKNOWLEDGED', userId: ADMIN })
       );
     });
   });
@@ -122,8 +122,8 @@ describe('AdminAuditAlertService', () => {
       );
 
       await flushMacrotasks();
-      expect(notificationCreation.crearNotificacion).toHaveBeenCalledWith(
-        expect.objectContaining({ tipoNotificacion: 'AUDIT_ALERTS_BULK_ACKNOWLEDGED', userId: ADMIN })
+      expect(notificationCreation.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'AUDIT_ALERTS_BULK_ACKNOWLEDGED', userId: ADMIN })
       );
     });
   });
