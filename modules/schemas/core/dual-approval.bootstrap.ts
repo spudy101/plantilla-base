@@ -5,7 +5,7 @@
 // en el MISMO método de service → la lógica de negocio no se duplica; solo hay dos puntos de
 // entrada (ejecución directa cuando no se gatea, vs. ejecución tras aprobación).
 //
-// Se llama UNA vez al arranque desde shared/base/base.server.js.
+// Se llama UNA vez al arranque desde src/server.ts.
 
 import loggerUtilModule from '../../../shared/utils/logger.util';
 const { logger } = loggerUtilModule;

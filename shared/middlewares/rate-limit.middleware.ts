@@ -120,7 +120,7 @@ class HybridStore {
 // ==============================================
 
 // IP del cliente. Se confía en req.ip, que Express deriva del X-Forwarded-For
-// respetando `trust proxy` (configurado en base.app.js). NO leer X-Forwarded-For
+// respetando `trust proxy` (configurado en src/app.ts). NO leer X-Forwarded-For
 // ni X-Real-IP directamente: son controlados por el cliente y permitirían evadir
 // los límites/bloqueos por IP rotando el header en cada request.
 const getClientIp = (req: Request) => req.ip || req.socket?.remoteAddress || 'unknown-ip';
