@@ -9,7 +9,7 @@
 // repos mockeados): este valida que la app se ENSAMBLA y RESPONDE de punta a punta.
 //
 // Necesita Postgres: la BD de test es el esquema aislado de tests/test-env.ts (`npm run db:test:prepare`).
-// /health verifica Sequelize y Prisma (shared/database/database-health.ts).
+// /health verifica la base (shared/database/database-health.ts).
 
 import request from 'supertest';
 

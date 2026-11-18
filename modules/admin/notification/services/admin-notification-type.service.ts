@@ -120,7 +120,7 @@ class NotificationTypeService {
       metadata: { titulo, contenido, asunto, logoUrl: notifications.ses.logoUrl }
     });
     // userId null → la creación devuelve la notificación global
-    const globalNotificationId = 'global_notification_id' in result ? result.global_notification_id : '';
+    const globalNotificationId = 'globalNotificationId' in result ? result.globalNotificationId : '';
 
     logAudit(
       'GLOBAL_NOTIFICATION_SENT',
@@ -130,7 +130,7 @@ class NotificationTypeService {
     );
 
     return CreateGlobalNotificationResponseDTO({
-      global_notification_id: globalNotificationId,
+      globalNotificationId,
       titulo,
       contenido,
       asunto
@@ -154,7 +154,7 @@ class NotificationTypeService {
       relatedEntity: null,
       metadata: { titulo, contenido, asunto, logoUrl: notifications.ses.logoUrl }
     });
-    const notificationId = 'notification_id' in result ? result.notification_id : '';
+    const notificationId = 'notificationId' in result ? result.notificationId : '';
 
     logAudit(
       'DIRECT_NOTIFICATION_SENT',
@@ -164,7 +164,7 @@ class NotificationTypeService {
     );
 
     return CreateDirectNotificationResponseDTO({
-      notification_id: notificationId,
+      notificationId,
       userId,
       titulo,
       contenido,

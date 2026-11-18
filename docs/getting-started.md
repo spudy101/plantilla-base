@@ -83,13 +83,13 @@ La base es funcional con nombre neutro. Para adaptarla a tu proyecto, revisa cad
 - [ ] `SES_FROM_EMAIL`, `LOGO_URL`, `PRIVACY_POLICY_URL` → branding de correos y assets públicos.
 - [ ] `SNS_PLATFORM_ARN_IOS` / `SNS_PLATFORM_ARN_ANDROID` → tus plataformas de push.
 - [ ] `FRONTEND_RESET_URL` → URL de tu flujo de recuperación de contraseña.
-- [ ] `SEED_ADMIN_*` → datos del admin inicial que crea el seeder.
+- [ ] `SEED_ADMIN_*` → datos del admin inicial que crea el seed.
 
-### Datos semilla (`seeders/`)
-- [ ] `consent-types` → ajusta los consentimientos (`PRIVACY_POLICY`,
+### Datos semilla (`prisma/seeds/`)
+- [ ] `catalogs.seed.ts` (consentimientos) → ajusta los consentimientos (`PRIVACY_POLICY`,
       `COMUNICACIONES_COMERCIALES`) y agrega los propios de tu dominio.
-- [ ] `document-types`, `maintainers` geográficos → adapta al país/negocio si hace falta.
-- [ ] `notification-types` → mensajes y canales por defecto.
+- [ ] `catalogs.seed.ts` (tipos de documento, roles…) y `geography.seed.ts` → adapta al país/negocio si hace falta.
+- [ ] `notification-types/` y `data/notification-categories.ts` → mensajes y canales por defecto.
 
 ### Infra
 - [ ] La infraestructura (IaC) vive en un repo aparte. En producción, los secrets (llaves de cifrado,
@@ -104,7 +104,7 @@ La base es funcional con nombre neutro. Para adaptarla a tu proyecto, revisa cad
   la convención existente (model → repository → service → controller → routes → dto). Ver
   [`implementation-patterns.md`](./implementation-patterns.md).
 - **Trazabilidad por sesión:** si tu entidad debe registrar quién/qué sesión la creó, declara la
-  columna `origin_session_id` (el hook central `stampOriginSession` la rellena sola) y súmala al
+  columna `origin_session_id` (la extensión del cliente de Prisma la rellena sola al crear) y súmala al
   `ENTITY_REGISTRY` del session-trace. Ver [`origin-session-tracking.md`](./origin-session-tracking.md).
 - **Consentimientos:** agrega nuevos `scope` a la tabla `consent_types` (y su CHECK) para gatear
   operaciones de tu dominio; usa `ConsentMiddleware.requireConsent(code)` en la ruta.

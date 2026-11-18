@@ -62,7 +62,6 @@ jest.mock('shared/utils/logger.util', () => ({
 }));
 
 // El modelo solo aporta la constante de estado de procesamiento que usa el fuente.
-jest.mock('shared/models', () => ({}));
 
 import { mocked, fixture } from 'tests/helpers/mock';
 import notificationRepoModule from 'modules/schemas/notification/repositories/notification.repository';
@@ -143,7 +142,7 @@ describe('NotificationCreationService', () => {
 
       expect(EncryptionUtil.safeDecrypt).toHaveBeenCalledWith('iv:tag:cipher');
       expect(emailService.enviarNotificacion).toHaveBeenCalledWith('dec(iv:tag:cipher)', type, { nombre: 'Ana' });
-      expect(result).toEqual({ estado_solicitud: 1, message: expect.any(String) });
+      expect(result).toEqual({ estadoSolicitud: 1, message: expect.any(String) });
     });
 
     it('propaga el error si el servicio de email falla', async () => {
@@ -169,7 +168,7 @@ describe('NotificationCreationService', () => {
     });
 
     describe('individual (userId presente)', () => {
-      it('crea la notificación in-app, despacha el envío y devuelve notification_id', async () => {
+      it('crea la notificación in-app, despacha el envío y devuelve notificationId', async () => {
         notificationTypeRepo.findByCode.mockResolvedValue(notificationType());
         notificationRepo.create.mockResolvedValue({ notificationId: 'n-1' });
         userPreferenceRepo.findGlobalByUser.mockResolvedValue({ userId: 'u-1' });
@@ -190,7 +189,7 @@ describe('NotificationCreationService', () => {
             processingStatus: 'pending'
           })
         );
-        expect(result).toMatchObject({ estado_solicitud: 1, notification_id: 'n-1' });
+        expect(result).toMatchObject({ estadoSolicitud: 1, notificationId: 'n-1' });
 
         // El envío en background y el refresco del contador se agendan con setImmediate.
         await flush();
@@ -253,7 +252,7 @@ describe('NotificationCreationService', () => {
     });
 
     describe('global (userId ausente)', () => {
-      it('crea la notificación global, despacha el batch y devuelve global_notification_id', async () => {
+      it('crea la notificación global, despacha el batch y devuelve globalNotificationId', async () => {
         const type = notificationType({ category: { supportsPush: true, supportsEmail: false } });
         notificationTypeRepo.findByCode.mockResolvedValue(type);
         globalNotificationRepo.create.mockResolvedValue({ globalNotificationId: 'g-1' });
@@ -268,7 +267,7 @@ describe('NotificationCreationService', () => {
             sendInApp: true
           })
         );
-        expect(result).toMatchObject({ estado_solicitud: 1, global_notification_id: 'g-1' });
+        expect(result).toMatchObject({ estadoSolicitud: 1, globalNotificationId: 'g-1' });
 
         await flush();
         expect(batchService.procesarNotificacionGlobal).toHaveBeenCalledTimes(1);

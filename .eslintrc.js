@@ -44,9 +44,9 @@ const MAGIC_NUMBER_IGNORE = [
 
 module.exports = {
   // Archivos/carpetas que ESLint ignora completamente.
-  // Migrations y seeders son código generado o de un solo uso — no hace falta
-  // que cumplan los estándares del proyecto.
-  ignorePatterns: ['dist/**', 'coverage/**', '**/generated/**', '**/migrations/**', '**/seeders/**', '**/migrate/**', '**/seeder/**', '**/scripts/**', '.eslintrc.js'],
+  // prisma/migrations es SQL; los scripts son de un solo uso — no hace falta
+  // que cumplan los estándares del proyecto. El seed (prisma/seed.ts, prisma/seeds/) sí se lintea.
+  ignorePatterns: ['dist/**', 'coverage/**', '**/generated/**', '**/migrations/**', '**/scripts/**', '.eslintrc.js'],
 
   // Declara los globals disponibles según el entorno para que ESLint
   // no los marque como "variable no definida".
@@ -80,7 +80,7 @@ module.exports = {
 
     // Fuerza camelCase en nombres de variables, parámetros y funciones.
     // properties: 'never' → las propiedades de objetos quedan libres,
-    // lo que permite snake_case en campos de BD (Sequelize los usa así).
+    // lo que permite snake_case en filas de SQL crudo y claves de JSONB guardado.
     // ignoreDestructuring: true → const { agreement_type } = req.body no se renombra;
     //   desestructurar campos snake_case de BD es el patrón del proyecto.
     camelcase: [
@@ -382,7 +382,7 @@ module.exports = {
     // (HTTP status codes, potencias de 2, milisegundos comunes, etc.).
     // enforceConst: true → la constante debe declararse con const, no let.
     // detectObjects: false → no revisa valores dentro de objetos literales
-    //   (relajado porque Sequelize y configs tienen muchos números en objetos).
+    //   (relajado porque las configs tienen muchos números en objetos).
     'no-magic-numbers': [
       'warn',
       {
@@ -450,7 +450,7 @@ module.exports = {
   // ===========================================================================
   // OVERRIDES — reglas específicas por tipo de archivo
   // Permiten relajar reglas donde su aplicación estricta generaría más ruido
-  // que valor (tests, modelos Sequelize, documentación Swagger, etc.)
+  // que valor (tests, documentación Swagger, etc.)
   // ===========================================================================
   overrides: [
     // -------------------------------------------------------------------------
@@ -489,21 +489,6 @@ module.exports = {
     },
 
     // -------------------------------------------------------------------------
-    // Modelos Sequelize
-    // Los modelos tienen asociaciones, validaciones y hooks que pueden ser
-    // muy verbosos. Se relajan los límites de longitud para no forzar
-    // particiones artificiales de código necesariamente largo.
-    // -------------------------------------------------------------------------
-    {
-      files: ['**/models/**/*.js'],
-      rules: {
-        'no-magic-numbers': 'off', // Longitudes de campos, precisiones decimales, etc.
-        'max-lines-per-function': 'off', // associate() puede ser larga en modelos con muchas relaciones
-        'max-len': 'off' // Las definiciones de columna pueden ser muy largas
-      }
-    },
-
-    // -------------------------------------------------------------------------
     // Documentación Swagger
     // Los objetos de especificación OpenAPI son inherentemente verbosos y
     // largos. No tiene sentido aplicarles límites de líneas ni longitud.
@@ -527,6 +512,18 @@ module.exports = {
       files: ['**/config/database.{js,ts}', '**/constants/config.{js,ts}'],
       rules: {
         'no-console': 'off'
+      }
+    },
+
+    // -------------------------------------------------------------------------
+    // Datos del seed (templates de notificación, catálogos): funciones que solo
+    // devuelven un literal largo.
+    // -------------------------------------------------------------------------
+    {
+      files: ['prisma/seeds/notification-types/**', 'prisma/seeds/data/**'],
+      rules: {
+        'max-lines-per-function': 'off',
+        'max-lines': 'off'
       }
     },
 
@@ -565,7 +562,7 @@ module.exports = {
         // require() solo queda para cargas diferidas (cortar ciclos), siempre vía interopDefault()
         '@typescript-eslint/no-require-imports': 'off',
         // Imports/exports nativos: `export =` e `import x = require()` eran el puente CommonJS de la
-        // migración (la excepción es config/database.ts, que sequelize-cli carga con import()).
+        // migración a TypeScript.
         'no-restricted-syntax': [
           'error',
           { selector: 'TSExportAssignment', message: 'Usar `export default` / `export` (ver docs/typescript-migration.md).' },
@@ -589,11 +586,6 @@ module.exports = {
         // `import type { X } from 'm'` junto a `import { y } from 'm'` es el patrón normal en TS
         'no-duplicate-imports': 'off'
       }
-    },
-    {
-      // sequelize-cli la carga con import(): un `export default` le llegaría como { default: … }
-      files: ['config/database.ts'],
-      rules: { 'no-restricted-syntax': 'off' }
     },
     {
       files: ['**/tests/**/*.ts', '**/*.test.ts'],

@@ -42,13 +42,13 @@ class PersonValidator {
 
       ...BaseValidator.optionalBoolean('isActive', 'El estado', 'query'),
 
-      require('express-validator')
-        .query('sortBy')
+      query('sortBy')
         .optional()
-        .isIn(['username', 'created_at', 'updated_at', 'is_active'])
+        // camelCase (contrato); los nombres de columna se siguen aceptando por compatibilidad
+        .isIn(['username', 'createdAt', 'updatedAt', 'isActive', 'created_at', 'updated_at', 'is_active'])
         .withMessage({
-          message: 'sortBy debe ser: username, created_at, updated_at o is_active',
-          hint: 'Indicá uno de: username, created_at, updated_at, is_active'
+          message: 'sortBy debe ser: username, createdAt, updatedAt o isActive',
+          hint: 'Indicá uno de: username, createdAt, updatedAt, isActive'
         })
     ];
   }

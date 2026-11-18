@@ -2,7 +2,7 @@
 //
 // Notificaciones globales (a todos los usuarios): estado del envío masivo por canal y vigencia in-app.
 import PrismaRepository from '../../../../shared/repositories/prisma.repository';
-import type { GlobalNotification, Prisma } from '../../../../shared/database/generated/prisma/client';
+import type { GlobalNotification, NotificationProcessingStatus, Prisma } from '../../../../shared/database/generated/prisma/client';
 
 const WITH_TYPE = { notificationType: true } satisfies Prisma.GlobalNotificationInclude;
 
@@ -29,11 +29,11 @@ class GlobalNotificationRepository extends PrismaRepository {
     return row ?? null;
   }
 
-  updatePushProcessingStatus(globalNotificationId: string, status: string) {
+  updatePushProcessingStatus(globalNotificationId: string, status: NotificationProcessingStatus) {
     return this.update(globalNotificationId, { pushProcessingStatus: status });
   }
 
-  updateEmailProcessingStatus(globalNotificationId: string, status: string) {
+  updateEmailProcessingStatus(globalNotificationId: string, status: NotificationProcessingStatus) {
     return this.update(globalNotificationId, { emailProcessingStatus: status });
   }
 

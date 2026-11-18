@@ -130,7 +130,7 @@ class AdminSessionTraceService {
 
     const { rows, count } = await this.auditLogRepository.findPaginatedWithExecutor(
       { sessionId },
-      { limit: pagination.limit, offset: pagination.offset, sortBy: 'created_at', order: 'ASC' }
+      { limit: pagination.limit, offset: pagination.offset, sortBy: 'createdAt', order: 'ASC' }
     );
 
     logAudit(

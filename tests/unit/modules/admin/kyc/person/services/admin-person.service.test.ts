@@ -2,7 +2,7 @@
 //
 // PersonService (admin) — CRUD y operaciones administrativas sobre cuentas de cliente. Es un servicio
 // grande y transaccional; aquí cubrimos las ramas principales de cada operación aislando TODA la
-// infraestructura (repositorios, helpers, utils, DTOs, constantes, sequelize). Verificamos:
+// infraestructura (repositorios, helpers, utils, DTOs, constantes, cliente de Prisma). Verificamos:
 //   - list/listDeleted/listRoleOptions/getById: filtros, roles cliente, auditoría y not-found.
 //   - create: camino feliz (commit + auditoría + notificaciones en background) y rol no configurado.
 //   - _toggleStatus (activate/deactivate): feliz, not-found, cuenta eliminada, ya activo/inactivo.
@@ -13,12 +13,9 @@
 
 // --- Infra base (node_modules) ---
 jest.mock('uuid', () => ({ v4: jest.fn(() => 'uuid-fixed') }));
-jest.mock('sequelize', () => ({ Op: { in: Symbol('in') } }));
 
-// --- sequelize models: fábrica de transacción controlable por test ---
-jest.mock('shared/models', () => ({
-  sequelize: { transaction: jest.fn() }
-}));
+// --- cliente de Prisma: fábrica de transacción controlable por test ---
+jest.mock('shared/database/prisma', () => ({ __esModule: true, default: { $transaction: jest.fn() } }));
 
 // --- Repositorios ---
 jest.mock('modules/schemas/kyc/iam/repositories/user.repository', () => ({
@@ -124,8 +121,8 @@ jest.mock('modules/admin/kyc/person/dtos/admin-person.dto', () => ({
 
 import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked, Loose } from 'tests/helpers/mock';
-import modelsModule from 'shared/models';
-const { sequelize } = mocked(modelsModule);
+import prismaModule from 'shared/database/prisma';
+const prisma = mocked(prismaModule);
 import userRepositoryModule from 'modules/schemas/kyc/iam/repositories/user.repository';
 const userRepository = mocked(userRepositoryModule);
 import personRepositoryModule from 'modules/schemas/kyc/person/repositories/person.repository';
@@ -155,7 +152,7 @@ const AUDIT_CTX = {
   userAgent: 'jest'
 };
 
-// Transacción con `finished` que se marca al hacer commit/rollback (espejo del real de sequelize).
+// Transacción con `finished` que se marca al hacer commit/rollback (lo que haría la transacción real).
 function makeTransaction() {
   const txn: Record<string, Loose> = { finished: undefined };
   txn.commit = jest.fn().mockImplementation(() => { txn.finished = 'commit'; return Promise.resolve(); });
@@ -169,7 +166,7 @@ describe('PersonService (admin)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     txn = makeTransaction();
-    sequelize.transaction.mockImplementation(managedTransaction(txn));
+    prisma.$transaction.mockImplementation(managedTransaction(txn));
     // roles cliente por defecto para _clientRoleIds
     roleRepository.findByNames.mockResolvedValue([{ roleId: 'rc1' }, { roleId: 'rc2' }]);
   });

@@ -10,9 +10,7 @@
 // _markPageAsRead cuando la escritura falla. Los side-effects agendados con setImmediate se observan
 // drenando la cola de macrotareas.
 
-jest.mock('shared/models', () => ({
-  sequelize: { transaction: jest.fn() }
-}));
+jest.mock('shared/database/prisma', () => ({ __esModule: true, default: { $transaction: jest.fn() } }));
 
 jest.mock('shared/utils/logger.util', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
@@ -57,8 +55,8 @@ jest.mock('modules/schemas/notification/utils/notification-count.util', () => ({
 
 import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked } from 'tests/helpers/mock';
-import modelsModule from 'shared/models';
-const { sequelize } = mocked(modelsModule);
+import prismaModule from 'shared/database/prisma';
+const prisma = mocked(prismaModule);
 import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit, logger } = mocked(loggerUtilModule);
 import notificationRepoModule from 'modules/schemas/notification/repositories/notification.repository';
@@ -88,13 +86,13 @@ describe('NotificationService', () => {
     notificationRepo.markAsReadByIds.mockResolvedValue(1);
     globalNotificationRepo.findActiveNotifications.mockResolvedValue([]);
     globalReadRepo.getReadIdsByUser.mockResolvedValue([]);
-    sequelize.transaction.mockImplementation(managedTransaction(fakeTransaction()));
+    prisma.$transaction.mockImplementation(managedTransaction(fakeTransaction()));
   });
 
   describe('getNotificationsList', () => {
     it('mezcla y ordena DESC, marca la página como leída y audita', async () => {
       const tx = fakeTransaction();
-      sequelize.transaction.mockImplementation(managedTransaction(tx));
+      prisma.$transaction.mockImplementation(managedTransaction(tx));
       notificationRepo.findAllByUser.mockResolvedValue([
         { notificationId: 'n-1', createdAt: new Date('2024-01-02'), isRead: false }
       ]);
@@ -126,7 +124,7 @@ describe('NotificationService', () => {
 
     it('loguea error si la escritura de marcado falla (sin propagar)', async () => {
       const tx = fakeTransaction();
-      sequelize.transaction.mockImplementation(managedTransaction(tx));
+      prisma.$transaction.mockImplementation(managedTransaction(tx));
       notificationRepo.findAllByUser.mockResolvedValue([
         { notificationId: 'n-1', createdAt: new Date('2024-01-02'), isRead: false }
       ]);
@@ -256,7 +254,7 @@ describe('NotificationService', () => {
 
   describe('createNotification', () => {
     it('delega en el servicio de creación, loguea y audita', async () => {
-      creationService.crearNotificacion.mockResolvedValue({ notification_id: 'n-1' });
+      creationService.crearNotificacion.mockResolvedValue({ notificationId: 'n-1' });
 
       const result = await service.createNotification({ tipoNotificacion: 'WELCOME', userId: 'u-9' }, 'externo-x');
 
@@ -268,13 +266,13 @@ describe('NotificationService', () => {
         expect.objectContaining({ tipoNotificacion: 'WELCOME', externalService: 'externo-x' }),
         expect.any(Object)
       );
-      expect(result).toEqual({ notification_id: 'n-1' });
+      expect(result).toEqual({ notificationId: 'n-1' });
     });
   });
 
   describe('createDirectNotification', () => {
     it('delega en crearNotificacionDirecta y audita', async () => {
-      creationService.crearNotificacionDirecta.mockResolvedValue({ estado_solicitud: 1 });
+      creationService.crearNotificacionDirecta.mockResolvedValue({ estadoSolicitud: 1 });
 
       const result = await service.createDirectNotification({ tipoNotificacion: 'CODIGO', email: 'a@b.cl' });
 
@@ -285,7 +283,7 @@ describe('NotificationService', () => {
         expect.objectContaining({ tipoNotificacion: 'CODIGO', email: 'a@b.cl' }),
         expect.any(Object)
       );
-      expect(result).toEqual({ estado_solicitud: 1 });
+      expect(result).toEqual({ estadoSolicitud: 1 });
     });
   });
 });

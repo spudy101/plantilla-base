@@ -4,7 +4,6 @@
 // auth-login, auth-register y auth-biometric). Se prueba SIN jest.mock de repositorios:
 // las dependencias se inyectan por constructor (SOLID: D).
 
-jest.mock('shared/models', () => ({}));
 
 import { fixture } from 'tests/helpers/mock';
 import consentRecorderServiceModule from 'modules/schemas/records/legal/services/consent-recorder.service';

@@ -60,9 +60,7 @@ jest.mock('shared/utils/token-blacklist.util', () => ({
   invalidateUserSessions: jest.fn().mockResolvedValue(undefined)
 }));
 
-jest.mock('shared/models', () => ({
-  sequelize: { transaction: jest.fn() }
-}));
+jest.mock('shared/database/prisma', () => ({ __esModule: true, default: { $transaction: jest.fn() } }));
 
 jest.mock('shared/utils/app-error.util', () => ({
   notFound: (msg: Loose) => Object.assign(new Error(msg), { statusCode: 404 }),
@@ -138,8 +136,8 @@ import KycSharedUtilModule from 'modules/schemas/kyc/person/utils/kyc-shared.uti
 const KycSharedUtil = mocked(KycSharedUtilModule);
 import TokenBlacklistUtilModule from 'shared/utils/token-blacklist.util';
 const TokenBlacklistUtil = mocked(TokenBlacklistUtilModule);
-import modelsModule from 'shared/models';
-const { sequelize } = mocked(modelsModule);
+import prismaModule from 'shared/database/prisma';
+const prisma = mocked(prismaModule);
 import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
 import NotificationCreationServiceModule from 'modules/schemas/notification/services/notification-creation.service';
@@ -189,7 +187,7 @@ describe('AdminUserService', () => {
         expect.any(Object),
         'jua'
       );
-      expect(DualApprovalService.annotatePending).toHaveBeenCalledWith('User', expect.any(Array));
+      expect(DualApprovalService.annotatePending).toHaveBeenCalledWith('User', expect.any(Array), 'userId');
       expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_LIST_VIEWED', 'admin-1', { totalItems: 1 }, expect.any(Object));
       expect(result.data).toHaveLength(1);
       expect(result.metadata).toMatchObject({ meta: true, totalItems: 1, filters: { roleId: 'role-admin', isActive: true } });
@@ -446,7 +444,7 @@ describe('AdminUserService', () => {
       userRepository.findByUserId.mockReset();
       userRepository.findByUserId.mockResolvedValueOnce({ passwordHash: 'hash' }).mockResolvedValueOnce(makeUser());
       // executeDeleteUser usa una transacción propia.
-      sequelize.transaction.mockImplementation(managedTransaction({
+      prisma.$transaction.mockImplementation(managedTransaction({
         commit: jest.fn().mockResolvedValue(undefined),
         rollback: jest.fn().mockResolvedValue(undefined),
         finished: false
@@ -477,7 +475,7 @@ describe('AdminUserService', () => {
       const result = await service.deleteUser('u-1', 'pwd', AUDIT_CTX);
 
       expect(result).toEqual({ pending: true, approvalRequest: { id: 'ar-9' } });
-      expect(sequelize.transaction).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
     it('camino inline: reautentica, ejecuta la ofuscación en transacción y confirma la eliminación', async () => {
@@ -494,7 +492,7 @@ describe('AdminUserService', () => {
   describe('executeDeleteUser', () => {
     it('hace rollback y propaga si el usuario no existe dentro de la transacción', async () => {
       const tx = { commit: jest.fn(), rollback: jest.fn().mockResolvedValue(undefined), finished: false };
-      sequelize.transaction.mockImplementation(managedTransaction(tx));
+      prisma.$transaction.mockImplementation(managedTransaction(tx));
       userRepository.findForAccountDeletion.mockResolvedValue(null);
 
       await expect(service.executeDeleteUser('u-1', AUDIT_CTX)).rejects.toThrow('Usuario no encontrado');

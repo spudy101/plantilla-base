@@ -18,10 +18,10 @@ Request
 | ---------- | ----------------------------------------------------------------------------------- |
 | Controller | recibe req, llama validator+service, devuelve `ApiResponse`. Sin lógica de negocio. |
 | Service    | toda la lógica; lanza `AppError`; llama `logAudit`. No accede a DB directo.         |
-| Repository | solo Sequelize; extiende `BaseRepository`.                                          |
-| Model      | tabla, tipos, hooks `afterFind` (descifrado), asociaciones.                         |
+| Repository | único lugar con el cliente de Prisma; extiende `PrismaRepository`.                  |
+| Schema     | `prisma/schema.prisma` (tablas, relaciones); la PII la cifra la extensión del cliente. |
 | Validator  | cadenas express-validator; extiende `BaseValidator`.                                |
-| DTO        | transforma la respuesta a camelCase. Nunca spread sobre instancias Sequelize.       |
+| DTO        | arma la respuesta en camelCase, campo a campo (nunca spread de una fila).            |
 
 ## Middlewares globales (`shared/base/base.app.ts`) — ORDEN CRÍTICO
 
@@ -124,7 +124,7 @@ El 2º arg `details` suele llevar `{ code: 'CODIGO_NEGOCIO' }` para que el front
 - `asyncHandler(fn)` envuelve el handler async y reenvía rechazos a `handleError`.
 - `handleError`: loguea, **audita el fallo** (`outcome: 'failure'`, mapeando el error a una acción:
   401→`AUTH_FAILURE`, 403→`ACCESS_DENIED`, 400/422→`VALIDATION_FAILURE`, 404→`RESOURCE_NOT_FOUND`,
-  409/429→`BUSINESS_RULE_VIOLATION`, resto→`SYSTEM_ERROR`), y responde. Mapea también errores Sequelize/JWT/Multer.
+  409/429→`BUSINESS_RULE_VIOLATION`, resto→`SYSTEM_ERROR`), y responde. Mapea también errores de Prisma (P2002 duplicado, P2025 no encontrado…), JWT y Multer.
 
 ## Respuestas — `ApiResponse`
 

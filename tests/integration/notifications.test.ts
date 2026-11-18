@@ -7,7 +7,6 @@
 
 import { randomUUID } from 'node:crypto';
 import prisma from '../../shared/database/prisma';
-import db from '../../shared/models';
 import notificationRepository from '../../modules/schemas/notification/repositories/notification.repository';
 import notificationTypeRepository from '../../modules/schemas/notification/repositories/notification-type.repository';
 import notificationCategoryRepository from '../../modules/schemas/notification/repositories/notification-category.repository';
@@ -52,7 +51,6 @@ describe('Notificaciones · Prisma contra Postgres', () => {
     await prisma.person.deleteMany({ where: { personId } });
     await prisma.role.deleteMany({ where: { roleId } });
     await prisma.$disconnect();
-    await db.sequelize.close();
   });
 
   it('categoría y tipo: el horario TIME entra y sale como "HH:MM:SS" y el tipo trae su categoría', async () => {

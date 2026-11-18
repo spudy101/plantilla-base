@@ -30,36 +30,56 @@ const isRepository = (f: string) => f.endsWith('.repository.ts');
 // Capa de aplicación: lo que NO debe conocer el ORM.
 const APPLICATION_LAYER = /\.(service|helper|validator|controller|middleware|util)\.(js|ts)$/;
 
-// Excepciones a "la capa de aplicación no conoce el ORM". Vacía desde la fase 3 de docs/prisma-migration.md:
-// logger.util e integration-api-logger.util escriben a través de sus repositorios.
-const ORM_ALLOWLIST = new Set<string>([]);
-
 // `import … from '…'` y los require('…') diferidos (cortan ciclos de carga).
-// `import type` se excluye: solo trae tipos, no acopla en runtime.
-const MODELS_REQUIRE = /(?:require\(\s*|(?<!import type [^\n]*)from\s+)['"][^'"]*(?:shared\/models|\.\.\/models)['"]/;
-const SEQUELIZE_REQUIRE = /(?:require\(\s*|^import (?!type)[^\n]*from\s+)['"]sequelize['"]/m;
+// `import type` se excluye: solo trae tipos (las formas de las filas), no acopla en runtime.
+const valueImport = (target: string) =>
+  new RegExp(`(?:require\\(\\s*|^import (?!type)[^\\n]*from\\s+)['"][^'"]*(?:${target})['"]`, 'm');
+const SEQUELIZE_REQUIRE = valueImport('\\bsequelize');
+// El cliente de Prisma: la instancia (shared/database/prisma), el cliente generado y los paquetes.
+const PRISMA_CLIENT_REQUIRE = valueImport(
+  'database/prisma|generated/prisma/(?:client|internal|models)|@prisma/client|@prisma/adapter-pg'
+);
+const PRISMA_ENUMS_REQUIRE = valueImport('generated/prisma/enums');
 const REPOSITORY_REQUIRE = /(?:require\(|from\s+)\s*['"][^'"]*\.repository['"]/;
 const CONSTRUCTOR_DEPS = /constructor\(deps(?::\s*[^=)]+)?\s*=\s*\{\}\)/;
 
 describe('SOLID — guardas de arquitectura', () => {
-  const applicationFiles = sourceFiles.filter(f => APPLICATION_LAYER.test(f) && !ORM_ALLOWLIST.has(rel(f)));
+  const applicationFiles = sourceFiles.filter(f => APPLICATION_LAYER.test(f));
+  const projectFiles = [
+    ...sourceFiles,
+    ...walk(path.join(ROOT, 'servers')),
+    ...walk(path.join(ROOT, 'config')),
+    ...walk(path.join(ROOT, 'prisma'))
+  ];
+  const ormLayer = (f: string) =>
+    isRepository(f) || rel(f).startsWith('shared/database/') || rel(f).startsWith('shared/repositories/');
 
-  it('la capa de aplicación no importa modelos Sequelize (D: usar repositorios y shared/constants/domain-enums)', () => {
-    const offenders = applicationFiles.filter(f => MODELS_REQUIRE.test(read(f))).map(rel);
+  it('nadie importa sequelize (el ORM es Prisma)', () => {
+    const offenders = projectFiles.filter(f => SEQUELIZE_REQUIRE.test(read(f))).map(rel);
     expect(offenders).toEqual([]);
   });
 
-  it('solo repositorios, modelos y shared/database importan shared/models (workers y bootstraps incluidos)', () => {
-    // Fase 3 de docs/prisma-migration.md: para cambiar de ORM alcanza con tocar los repositorios.
-    // El resto (incluidas las llamadas a instancias: record.update()) lo revisa `npm run check:orm`.
-    const ormLayer = (f: string) =>
-      isRepository(f) || /[\\/]models[\\/]/.test(f) || rel(f).startsWith('shared/database/') || rel(f).startsWith('shared/repositories/');
-    const offenders = sourceFiles.filter(f => !ormLayer(f) && MODELS_REQUIRE.test(read(f))).map(rel);
+  it('el cliente de Prisma solo se usa en repositorios y shared/database (D: los services dependen del repositorio)', () => {
+    // `import type` sí vale fuera (tipos de filas en DTOs y services). El seed (prisma/) no entra: es un
+    // CLI de datos que usa el cliente de la app a propósito.
+    const offenders = sourceFiles.filter(f => !ormLayer(f) && PRISMA_CLIENT_REQUIRE.test(read(f))).map(rel);
     expect(offenders).toEqual([]);
   });
 
-  it('la capa de aplicación no importa sequelize ni usa operadores Op (I/D: consultas con nombre de negocio)', () => {
-    const offenders = applicationFiles.filter(f => SEQUELIZE_REQUIRE.test(read(f)) || /\bOp\.\w+/.test(read(f))).map(rel);
+  it('los enums generados se leen desde shared/constants/domain-enums (única puerta, con chequeo de exhaustividad)', () => {
+    const offenders = sourceFiles
+      .filter(f => !ormLayer(f) && rel(f) !== 'shared/constants/domain-enums.ts' && PRISMA_ENUMS_REQUIRE.test(read(f)))
+      .map(rel);
+    expect(offenders).toEqual([]);
+  });
+
+  it('la capa de aplicación no arma consultas de Prisma (where/include viven en el repositorio)', () => {
+    // `$queryRaw`/`$transaction` o un delegate (`prisma.user.`) fuera de los repositorios = el ORM se filtró
+    const offenders = applicationFiles
+      .filter(f =>
+        /\$(?:queryRaw|executeRaw|transaction)\b|\bprisma\.\w+\.(?:find|create|update|delete|upsert|count)/.test(read(f))
+      )
+      .map(rel);
     expect(offenders).toEqual([]);
   });
 
@@ -71,10 +91,10 @@ describe('SOLID — guardas de arquitectura', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('todo repositorio pertenece a la jerarquía Read/Base/AppendOnly o a PrismaRepository (L)', () => {
+  it('todo repositorio extiende PrismaRepository (L)', () => {
     const offenders = sourceFiles
       .filter(f => isRepository(f) && !rel(f).startsWith('shared/repositories/'))
-      .filter(f => !/extends\s+(ReadRepository|BaseRepository|AppendOnlyRepository|PrismaRepository)\b/.test(read(f)))
+      .filter(f => !/extends\s+PrismaRepository\b/.test(read(f)))
       .map(rel);
     expect(offenders).toEqual([]);
   });

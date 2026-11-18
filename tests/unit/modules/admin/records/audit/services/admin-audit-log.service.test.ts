@@ -25,7 +25,6 @@ jest.mock('shared/utils/pagination.util', () => ({
   stringParam: jest.requireActual('shared/utils/pagination.util').default.stringParam,
   booleanParam: jest.requireActual('shared/utils/pagination.util').default.booleanParam,
   getPaginationParams: jest.fn().mockReturnValue({ page: 1, limit: 10, offset: 0, sortBy: 'createdAt', order: 'DESC' }),
-  toSnakeCase: jest.fn(value => value),
   buildFilters: jest.fn().mockReturnValue({})
 }));
 
@@ -45,7 +44,6 @@ jest.mock('modules/admin/records/audit/dtos/admin-audit-log.dto', () => ({
 }));
 
 // El include del executor vive en el repositorio; el mock vacío evita cargar Sequelize real.
-jest.mock('shared/models', () => ({}));
 
 import { mocked, Loose, fixture } from 'tests/helpers/mock';
 import ExcelJSModule from 'exceljs';

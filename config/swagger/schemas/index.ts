@@ -46,7 +46,7 @@ const Pagination = {
 const Sort = {
   type: 'object',
   properties: {
-    field: { type: 'string', example: 'created_at' },
+    field: { type: 'string', example: 'createdAt' },
     order: { type: 'string', enum: ['ASC', 'DESC'], example: 'DESC' }
   }
 };

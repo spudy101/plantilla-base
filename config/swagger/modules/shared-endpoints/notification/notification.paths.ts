@@ -133,7 +133,7 @@ const paginationParams = [
   {
     name: 'sortBy',
     in: 'query',
-    schema: { type: 'string', default: 'created_at' },
+    schema: { type: 'string', default: 'createdAt' },
     description: 'Campo de ordenamiento.'
   },
   {

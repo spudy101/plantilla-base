@@ -3,7 +3,6 @@
 // LoginPolicyGateService: compuerta de política de privacidad que comparten el login por
 // contraseña y el biométrico. Dependencias inyectadas por constructor (SOLID: D).
 
-jest.mock('shared/models', () => ({}));
 jest.mock('shared/utils/logger.util', () => ({ logger: { warn: jest.fn() }, logAudit: jest.fn() }));
 
 import { mocked, fixture } from 'tests/helpers/mock';

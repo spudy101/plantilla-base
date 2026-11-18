@@ -96,7 +96,7 @@ Todo lo transversal que un proyecto necesita el día 1, ya construido y probado:
 | Área            | Tecnologías                                                                      |
 | --------------- | -------------------------------------------------------------------------------- |
 | **Runtime/Web** | Node.js 24+, TypeScript (estricto), Express 4                                     |
-| **Datos**       | PostgreSQL 14+, Sequelize 6, `pg`                                                 |
+| **Datos**       | PostgreSQL 14+, Prisma 7 (`@prisma/adapter-pg`), `pg`                             |
 | **Cache/estado**| Redis (`ioredis`) — **opcional**, con fallback a memoria/BD                       |
 | **Auth**        | `jose` (JWT RS256), `bcryptjs`, `otplib` (TOTP)                                   |
 | **AWS**         | SES (email), SNS (push/SMS), S3 (archivos), CloudFront                            |
@@ -106,7 +106,7 @@ Todo lo transversal que un proyecto necesita el día 1, ya construido y probado:
 | **Jobs**        | `node-cron`                                                                       |
 | **Media/otros** | `sharp`, `multer`, `geoip-lite`, `ua-parser-js`                                   |
 | **Logging**     | `winston` + `winston-daily-rotate-file`                                           |
-| **Dev/Test**    | `jest`, `supertest`, `nodemon`, `eslint`, `prettier`, `sequelize-cli`, `prisma` |
+| **Dev/Test**    | `jest`, `supertest`, `nodemon`, `eslint`, `prettier`, `prisma` (CLI)            |
 
 ---
 
@@ -119,7 +119,7 @@ servidores admin/cliente. El código se organiza en cuatro grandes zonas:
 servers/     → entrypoints (monolith | admin | client). Todos extienden BaseServer.
 modules/     → el dominio, partido por audiencia y por capa (ver abajo).
 shared/      → infraestructura transversal (middlewares, utils, base classes, constantes, DTOs).
-config/      → configuración de Sequelize y ensamblado de Swagger.
+config/      → ensamblado de Swagger (la base: prisma/ y shared/database/).
 ```
 
 ### Cómo se parten los módulos
@@ -150,8 +150,8 @@ Request
 | -------------- | -------------------------------------------------------------------------------- |
 | **Controller** | recibe `req`, llama service, devuelve `ApiResponse`. Sin lógica de negocio.       |
 | **Service**    | toda la lógica; lanza `AppError`; llama `logAudit`. No accede a la BD directo.     |
-| **Repository** | solo Sequelize; extiende `BaseRepository`.                                        |
-| **Model**      | tabla, tipos, hooks (`afterFind` descifra PII), asociaciones.                     |
+| **Repository** | único lugar con el cliente de Prisma; extiende `PrismaRepository`.                |
+| **Schema**     | `prisma/schema.prisma`: tablas, relaciones y nombres; genera el cliente y sus tipos. |
 | **Validator**  | cadenas `express-validator`; extiende `BaseValidator`.                            |
 | **DTO**        | transforma la respuesta a camelCase y enmascara PII. Nunca hace spread de instancias. |
 
@@ -183,23 +183,21 @@ DTOs: [`docs/dtos.md`](docs/dtos.md).
 │   └── {admin,client}/app.ts   # ensamblan sus routers bajo /api/v1/{dominio}
 │
 ├── shared/
-│   ├── base/                   # BaseServer, BaseApp, BaseRepository, BaseValidator
+│   ├── base/                   # BaseServer, BaseApp, BaseValidator
 │   ├── middlewares/            # auth, rbac, dual-approval, security, rate-limit, request-lock, audit, error…
 │   ├── utils/                  # jwt, encryption, hash, redis, logger, masking, pagination, s3…
 │   ├── services/               # rbac, hmac
-│   ├── models/                 # index (asociaciones) + mixins (origin-session)
-│   ├── constants/              # config, rbac, dual-approval, pii-fields, auditActions…
+│   ├── database/               # cliente de Prisma, extensión de PII, Unit of Work, salud
+│   ├── constants/              # config, rbac, dual-approval, pii-fields, audit-actions…
 │   ├── dtos/                   # componentes DTO compartidos (audit/core/kyc/notification)
 │   ├── repositories/ · validators/
 │
 ├── config/
-│   ├── config.ts · database.ts # Sequelize (aislamiento por esquema)
 │   ├── swagger.admin.ts · swagger.client.ts
 │   └── swagger/                # paths + schemas por módulo
 │
-├── migrations/                 # 45 migraciones (esquema completo)
-├── seeders/                    # 20 seeders (catálogos + admin inicial)
-├── scripts/                    # db-reset.ts, db-tracking-ts.ts, generate-keys.util.ts
+├── prisma/                     # schema.prisma, migrations/ (0_init + las siguientes), seed.ts + seeds/
+├── scripts/                    # db-migrate.ts, db-reset.ts, generate-keys.util.ts
 ├── tests/                      # unit / integration (jest)
 ├── docs/                       # documentación técnica (ver §Documentación)
 ├── Dockerfile · entrypoint.sh
@@ -277,7 +275,7 @@ npm run dev
 | `AWS_*`, `SES_FROM_EMAIL`, `SNS_*`    |  parcial  | Requerido para notificar; en dev se puede mockear.             |
 | `MOCK_EXTERNAL_PROVIDERS`             |    —      | Simula SMS/biométrico en dev (OTP fijo `123456`). Apagar en prod.|
 | `ENABLE_WORKERS`                      |    —      | Habilita los cron workers.                                     |
-| `SEED_ADMIN_*`                        |    —      | Datos del usuario admin inicial que siembra el seeder.         |
+| `SEED_ADMIN_*`                        |    —      | Datos del usuario admin inicial que crea el seed.              |
 
 > **En producción** cargá las variables desde el entorno/gestor de secretos, no desde un `.env` en disco;
 > usá HTTPS (la app respeta `trust proxy`); poné `CORS_ORIGIN` con dominios reales y
@@ -287,22 +285,24 @@ npm run dev
 
 ## 🗄️ Base de datos
 
-PostgreSQL + Sequelize, con **aislamiento por esquema** (`DB_SCHEMA`): una misma instancia puede alojar
-varios proyectos en esquemas distintos, y el tracking de migraciones/seeders vive dentro del esquema.
+PostgreSQL + Prisma, con **aislamiento por esquema** (`DB_SCHEMA`): una misma instancia puede alojar
+varios proyectos en esquemas distintos, y el historial de migraciones (`_prisma_migrations`) vive dentro
+del esquema.
 
 | Comando               | Qué hace                                                                    |
 | --------------------- | --------------------------------------------------------------------------- |
-| `npm run db:migrate`  | Aplica migraciones pendientes.                                              |
-| `npm run db:seed`     | Aplica seeders pendientes.                                                  |
+| `npm run db:migrate`  | Aplica migraciones pendientes (`prisma migrate deploy`).                    |
+| `npm run db:migrate:dev` | Genera una migración nueva desde `prisma/schema.prisma` (desarrollo).    |
+| `npm run db:seed`     | Datos base; crea lo que falta y no pisa lo existente (`prisma db seed`).    |
 | `npm run db:reset`    | **Dropea y recrea el esquema**, luego migra + seedea desde cero.            |
 | `npm run db:fresh`    | Alias de `db:reset`.                                                        |
 
 > ⚠️ `db:reset` es destructivo: dropea el esquema apuntado por `DB_SCHEMA`. Tiene una guarda que **aborta
 > si `DB_SCHEMA` está vacío o es `public`**. Verificá siempre `DB_SCHEMA` antes de correrlo.
 
-**Convención del repo:** no se acumulan migraciones `ALTER TABLE`. Para cambiar una tabla se **edita su
-migración `create-*` original** (y el modelo/seeder) y se corre `db:reset`. Es viable porque `db:reset`
-reconstruye el esquema entero. Detalle y gotchas de Postgres: [`docs/database.md`](docs/database.md).
+Para cambiar una tabla se edita `prisma/schema.prisma` y `npm run db:migrate:dev` genera la migración. Las
+bases creadas con la versión Sequelize se adoptan solas en el primer `db:migrate` (baseline de `0_init`).
+Detalle: [`docs/database.md`](docs/database.md).
 
 ---
 
@@ -397,7 +397,7 @@ Toda la documentación técnica vive en [`docs/`](docs/). El README es el mapa; 
 | [`dtos.md`](docs/dtos.md) | Capa DTO, camelCase, componentes compartidos. |
 | [`solid.md`](docs/solid.md) | Principios SOLID aplicados: dónde está cada uno, checklist para features nuevos y camino a hexagonal. |
 | [`implementation-patterns.md`](docs/implementation-patterns.md) | Plantillas canónicas de código por capa. |
-| [`database.md`](docs/database.md) | Migraciones, seeders, aislamiento por esquema, `db:reset`. |
+| [`database.md`](docs/database.md) | Migraciones (Prisma Migrate), seed, aislamiento por esquema, `db:reset`, baseline de bases Sequelize. |
 | [`swagger.md`](docs/swagger.md) | Estructura del OpenAPI y cómo documentar un módulo. |
 | [`features-overview.md`](docs/features-overview.md) | Mapa de capacidades cliente vs admin y dónde vive cada una. |
 

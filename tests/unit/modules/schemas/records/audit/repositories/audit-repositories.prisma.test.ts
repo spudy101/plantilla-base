@@ -83,7 +83,7 @@ describe('AuditLogRepository — filtros de negocio a WHERE', () => {
 describe('Auditoría fuera de la transacción del flujo', () => {
   it('create de audit_logs y audit_alerts usa el cliente por defecto aunque haya una unidad activa', async () => {
     const unitClient = { auditLog: { create: jest.fn() }, auditAlert: { create: jest.fn() } };
-    const unit = { sequelize: {} as never, prisma: jest.fn().mockResolvedValue(unitClient) };
+    const unit = { prisma: jest.fn().mockResolvedValue(unitClient) };
 
     await txContext.runInUnit(unit, async () => {
       await auditLogRepository.create({ action: 'X', risk: 'low', outcome: 'success', source: 'http' });

@@ -13,7 +13,7 @@ import AppError from '../../../../../shared/utils/app-error.util';
 import loggerUtilModule from '../../../../../shared/utils/logger.util';
 const { logAudit } = loggerUtilModule;
 import PaginationHelper from '../../../../../shared/utils/pagination.util';
-import type ReadRepository from '../../../../../shared/repositories/read.repository';
+import type PrismaRepository from '../../../../../shared/repositories/prisma.repository';
 import componentsCatalogDtoModule from '../../../../../shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
 import redisClient from '../../../../../shared/utils/redis.util';
@@ -260,8 +260,8 @@ namespace MaintainersService {
   /** Lo que _list necesita de un repositorio: el listado paginado estándar. */
   export interface PaginatedSource<T> {
     findAllPaginated(
-      filters: ReadRepository.Filters,
-      paginationParams: ReadRepository.PaginationParams,
+      filters: PrismaRepository.Filters,
+      paginationParams: PrismaRepository.PaginationParams,
       searchTerm: string | null
     ): Promise<{ rows: T[]; count: number }>;
   }

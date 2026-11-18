@@ -129,10 +129,10 @@ setImmediate(() => {
 - **`userId`** (opcional): si `null` → **notificación global** (inserta en `global_notifications`, llega a todos los usuarios activos). Cuidado: es masivo.
 - **`relatedEntity`** (opcional): `{ type, id }`. Se persiste en `related_entity_type` / `related_entity_id`. (Algunos casos legacy pasan un string; la forma correcta es el objeto.)
 - **`metadata`** (opcional): valores que reemplazan los `{{placeholders}}` de los templates. Pasar **todas** las variables que usan los templates o saldrán literales.
-- **`transaction`** (opcional): para crear la notificación dentro de una transacción Sequelize.
 
-Internamente: valida el code, busca el `NotificationType`, renderiza `title/body` (+ email subject/body) con `notification-content.util`, persiste y dispara el envío con `setImmediate`. Retorna `{ estado_solicitud, message }` + **una sola** de las dos
-ids, según el caso: `notification_id` (individual) o `global_notification_id` (global) — son mutuamente excluyentes.
+Internamente: valida el code, busca el `NotificationType`, renderiza `title/body` (+ email subject/body) con `notification-content.util`, persiste y dispara el envío con `setImmediate`. Si se llama dentro de un `unitOfWork.run()`, la notificación se crea en esa transacción (los repositorios la toman
+del contexto). Retorna `{ estadoSolicitud, message }` + **una sola** de las dos ids, según el caso:
+`notificationId` (individual) o `globalNotificationId` (global) — son mutuamente excluyentes.
 
 ### `crearNotificacionDirecta({ tipoNotificacion, email, metadata })`
 
@@ -273,50 +273,29 @@ Sólo las notificaciones **por canal externo** (email/push) pueden fallar: el ca
 > dispara además una notificación por correo, su reintento se rige por esta misma maquinaria genérica, sin
 > nada específico por dominio.
 
-## Seeder de tipos
+## Seed de tipos y categorías
 
-Un seeder por módulo (`seeders/<ts>-notification-types-{modulo}.ts`). Los seeders quedan **registrados en la
-tabla `SequelizeData`** (`seederStorage: 'sequelize'` en `config/database.ts`): `db:seed:all` ejecuta cada
-seeder **una sola vez** y **no lo relanza** una vez registrado.
+Los datos viven en `prisma/seeds/` y los siembra `npm run db:seed` (`prisma/seeds/notifications.seed.ts`;
+regla general del seed en [`database.md`](database.md#seed)):
 
-**Para agregar o modificar un tipo se edita el seeder ORIGINAL del módulo** (y el esquema, la migración
-original) y el dev corre `db:reset` — es la convención vigente del repo. El `DELETE por code` + `bulkInsert`
-dentro del `up` de cada seeder es la salvaguarda de idempotencia que lo hace seguro.
+- **Tipos:** un archivo por módulo en `prisma/seeds/notification-types/<modulo>.ts` (`shared-kyc`, `client-kyc`,
+  `admin-kyc`, `admin-iam`, `admin-audit`, `admin-approvals`), que devuelve un arreglo de
+  `NotificationTypeSeed` (`code`, `name`, `description`, `priority`, `titleTemplate`, `bodyTemplate`,
+  `emailSubjectTemplate`, `emailBodyTemplate`). Se insertan los `code` que faltan.
+- **Templates:** son del seed (la API no los edita). Si cambian en el archivo, `db:seed` los actualiza en la
+  base; nombre, descripción, prioridad, estado y categoría quedan como los dejó el admin.
+- **Categorías:** `prisma/seeds/data/notification-categories.ts` (con el `emailLayoutTemplate` por
+  categoría). Se insertan las que faltan; después se editan desde el admin.
+- **Tipo → categoría:** `CATEGORY_BY_TYPE` en `notifications.seed.ts` (por `code`). Solo se asigna a los
+  tipos sin categoría: después se cambia desde el admin con `PATCH /notification-types/:id { notificationCategoryId }`.
 
-Las **categorías** se siembran en `seeders/<ts>-notification-categories.ts` (incluye el `email_layout_template`
-por categoría) y la asignación tipo→categoría en `seeders/<ts>-assign-notification-types-to-categories.ts`
-(mapeo por `code`, editable después desde el admin con `PATCH /notification-types/:id { notificationCategoryId }`).
-
-```ts
-import type { Migration } from '../shared/types/migration';
-import constantsModule from '../shared/constants';
-const { database } = constantsModule;
-import { v4 as uuidv4 } from 'uuid';
-const SCHEMA = database.schema;
-const TABLE = { tableName: 'notification_types', schema: SCHEMA };
-const ALL_CODES = ['EVENTO_A', 'EVENTO_B'];
-const allTypes = [
-  /* { notification_type_id: uuidv4(), code, name, ..., title_template, body_template,
-                        email_subject_template, email_body_template, created_at, updated_at } */
-];
-
-export default {
-  async up(queryInterface) {
-    await queryInterface.sequelize.query(
-      `DELETE FROM "${SCHEMA}"."notification_types" WHERE code IN (${ALL_CODES.map(c => `'${c}'`).join(',')})`
-    );
-    await queryInterface.bulkInsert(TABLE, allTypes);
-  },
-  async down(queryInterface) {
-    await queryInterface.bulkDelete(TABLE, { code: ALL_CODES });
-  }
-} satisfies Migration;
-```
+Tipo nuevo de un dominio: agregarlo al archivo de su módulo (o uno nuevo, sumado en `notifications.seed.ts`),
+su código en `CATEGORY_BY_TYPE`, y `npm run db:seed`.
 
 ## Reglas
 
 - ❌ Nunca instanciar `SESClient`/`SNSClient` directo — usar `EmailNotificationService` / `PushNotificationService`.
 - ❌ Nunca `await crearNotificacion()` en el flujo principal — siempre `setImmediate(() => ...).catch(...)`.
-- ✅ Siempre crear el tipo en un seeder **nuevo** (no editar/re-correr uno ya aplicado) — no hardcodear templates.
+- ✅ Los tipos y sus templates se definen en el seed (`prisma/seeds/notification-types/`) — no hardcodear templates.
 - ✅ Los tipos se consultan por `code`, nunca por id.
 - ✅ `relatedEntity` es `{ type, id }`.

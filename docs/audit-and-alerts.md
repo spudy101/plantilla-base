@@ -116,7 +116,7 @@ Retorna de inmediato; un fallo de persistencia se loguea pero no afecta la respu
 
 ## Estructura de una audit action
 
-Cada acción declarada en `shared/constants/auditActions/*.ts`:
+Cada acción declarada en `shared/constants/audit-actions/*.ts`:
 
 ```js
 INTERNAL_USER_DEACTIVATED: {
@@ -137,7 +137,7 @@ INTERNAL_USER_DEACTIVATED: {
   `sessionId`, `entityId/Type/Table`, `correlationId`, `ip`, `userAgent`, `fingerprint`, `method`, `path`,
   `details`, `source`, `created_at`.
 
-### Organización de archivos (`shared/constants/auditActions/`)
+### Organización de archivos (`shared/constants/audit-actions/`)
 
 ```
 index.ts                       ← registro central (spread de TODOS los archivos) — SIEMPRE agregar el nuevo aquí
@@ -253,10 +253,10 @@ reclamación ("yo no firmé/autoricé eso").
 **Columna `origin_session_id` (+ `origin_correlation_id`)** — se **sella al CREAR** la fila, no al actualizarla, en
 las tablas de acción probatoria del usuario (consentimientos, cambios de usuario, intentos de login, overrides de
 permisos, preferencias/dispositivos, solicitudes de doble aprobación, etc.). El relleno es **automático** vía el
-hook central `stampOriginSession` (`shared/models/mixins/origin-session.mixin.ts`, registrado en
-`shared/models/index.ts`): toda tabla que declare la columna la rellena sola desde el AsyncLocalStorage, **ambos
-null en workers/sistema** (nunca `NOT NULL`, o rompería la creación sistémica). Se agrega **en la migración
-original** de cada tabla + índice `idx_<tabla>_origin_session_id`. El DTO expone `originSessionId` **solo donde el
+extensión del cliente de Prisma (`piiExtension`, `shared/database/prisma-extensions.ts`): toda tabla que declare la
+columna la rellena sola al crear, desde el AsyncLocalStorage, **ambos
+null en workers/sistema** (nunca `NOT NULL`, o rompería la creación sistémica). Se declara en `prisma/schema.prisma`
+(con su migración) + índice `idx_<tabla>_origin_session_id`. El DTO expone `originSessionId` **solo donde el
 admin lo necesita ver** (approval, consentimientos, change-logs). Detalle: `docs/origin-session-tracking.md`.
 
 > **La columna NO es la fuente del timeline** — `audit_logs` ya guarda `session_id` + `entity_table`/`entity_id`, así

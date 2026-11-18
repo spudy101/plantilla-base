@@ -5,7 +5,7 @@
 // campos cifrados y estampado de origen de sesión. EncryptionUtil y HashUtil son los reales (claves
 // dummy de tests/test-env.ts): así se verifica el formato, no un doble.
 
-const mockOrigin = { origin_session_id: null as string | null, origin_correlation_id: null as string | null };
+const mockOrigin = { originSessionId: null as string | null, originCorrelationId: null as string | null };
 jest.mock('shared/utils/request-context.util', () => ({ originFromContext: () => ({ ...mockOrigin }) }));
 
 import ext from 'shared/database/prisma-extensions';
@@ -17,8 +17,8 @@ type Row = Record<string, unknown>;
 
 describe('prisma-extensions · escritura', () => {
   beforeEach(() => {
-    mockOrigin.origin_session_id = null;
-    mockOrigin.origin_correlation_id = null;
+    mockOrigin.originSessionId = null;
+    mockOrigin.originCorrelationId = null;
   });
 
   it('cifra los campos de PersonContact y completa sus hashes (mismo formato que Sequelize)', () => {
@@ -72,8 +72,8 @@ describe('prisma-extensions · escritura', () => {
   });
 
   it('estampa originSessionId/originCorrelationId al crear desde el contexto; un valor explícito gana', () => {
-    mockOrigin.origin_session_id = 'sess-1';
-    mockOrigin.origin_correlation_id = 'corr-1';
+    mockOrigin.originSessionId = 'sess-1';
+    mockOrigin.originCorrelationId = 'corr-1';
 
     expect(sealData('Person', { firstName: 'Ana' }, 'create')).toMatchObject({ originSessionId: 'sess-1', originCorrelationId: 'corr-1' });
     expect(sealData('Person', { originSessionId: 'explicito' }, 'create').originSessionId).toBe('explicito');

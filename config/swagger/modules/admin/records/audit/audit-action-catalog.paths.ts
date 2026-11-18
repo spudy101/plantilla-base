@@ -1,5 +1,5 @@
 import commonResponses from '../../../../responses/common.responses';
-import auditactionsModule from '../../../../../../shared/constants/auditActions';
+import auditactionsModule from '../../../../../../shared/constants/audit-actions';
 const { AUDIT_CATEGORIES, AUDIT_RISKS, AUDIT_MODULES } = auditactionsModule;
 
 /**
@@ -7,7 +7,7 @@ const { AUDIT_CATEGORIES, AUDIT_RISKS, AUDIT_MODULES } = auditactionsModule;
  * AUDIT ACTION CATALOG PATHS — ADMIN  (RF-ADM-03)
  * ============================================================
  * Catálogo de solo lectura de las acciones de auditoría definidas en
- * shared/constants/auditActions/. Fuente homologada para poblar filtros
+ * shared/constants/audit-actions/. Fuente homologada para poblar filtros
  * en el front (categorías, riesgos, módulos, acciones).
  *
  * Módulo: /admin/api/v1/records/audit/audit-action-catalog
@@ -110,7 +110,7 @@ const listActionsParams = [
 
 const catalogAccessNote = `**Acceso:** SUPERADMIN, ADMIN_PRODUCTOS, AUDITOR_INTERNO y OFICIAL_CUMPLIMIENTO (solo lectura).
 
-Catálogo homologado: los valores provienen de la fuente de verdad \`shared/constants/auditActions/audit-catalog.js\`, los mismos que clasifican los registros en \`audit_logs\`.`;
+Catálogo homologado: los valores provienen de la fuente de verdad \`shared/constants/audit-actions/audit-catalog.ts\`, los mismos que clasifican los registros en \`audit_logs\`.`;
 
 const paths = {
   '/admin/api/v1/records/audit/audit-action-catalog/categories': {

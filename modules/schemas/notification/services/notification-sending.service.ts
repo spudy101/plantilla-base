@@ -375,7 +375,7 @@ class NotificationSendingService {
 
       if (!notificationType) {
         logger.warn('Tipo de notificación no encontrado', {
-          notification_type_id: notification.notificationTypeId
+          notificationTypeId: notification.notificationTypeId
         });
         return;
       }
@@ -401,7 +401,7 @@ class NotificationSendingService {
     } catch (error) {
       logger.warn('Error procesando notificación programada', {
         error: errorMessage(error),
-        notification_id: notification.notificationId
+        notificationId: notification.notificationId
       });
       await this.notificationRepo.updateProcessingStatus(notification.notificationId, NOTIFICATION_PROCESSING_STATUS.FAILED);
     }

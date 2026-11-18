@@ -36,7 +36,6 @@ jest.mock('modules/schemas/notification/services/notification-scheduler.service'
 
 jest.mock('shared/utils/encryption.util', () => ({ safeDecrypt: jest.fn(v => v) }));
 
-jest.mock('shared/models', () => ({}));
 
 jest.mock('shared/utils/logger.util', () => ({
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn() },

@@ -122,9 +122,10 @@ namespace MyService {
 export default Object.assign(new MyService(), { MyService });
 ```
 
-> ✅ **SOLID** (ver [`solid.md`](solid.md)): repos vía `this.`, transacciones con `this.unitOfWork.run(async transaction => …)`,
-> y **nunca** `import … from 'sequelize'` / `Op` en un service — si necesitas un filtro, crea un método con
-> nombre de negocio en el repositorio (`findByNames`, `findActive`, `searchPaginated`…).
+> ✅ **SOLID** (ver [`solid.md`](solid.md)): repos vía `this.`, transacciones con `this.unitOfWork.run(async () => …)`
+> (los repositorios toman la transacción solos), y **nunca** el cliente de Prisma en un service — si necesitas
+> un filtro, crea un método con nombre de negocio en el repositorio (`findByNames`, `findActive`,
+> `searchPaginated`…). Los tipos de las filas sí: `import type { User } from '…/generated/prisma/client'`.
 > ✅ Si el service usa pocos métodos de un repositorio, declara el puerto con `Pick<XRepositoryPort, 'a' | 'b'>`
 > (`modules/schemas/repository-ports.ts`).
 > ✅ El objeto `metadata` siempre incluye: `totalItems, page, limit, sortBy, order, filters`.
@@ -162,41 +163,52 @@ export default { MyListResponseDTO };
 ## Repository
 
 ```ts
-import BaseRepository from '../../../../shared/repositories/base.repository';
-import modelsModule from '../../../../shared/models';
-const { MyModel } = modelsModule;
-import type defineMyModel from '../models/my.model';
+import PrismaRepository from '../../../../shared/repositories/prisma.repository';
+import { Prisma } from '../../../../shared/database/generated/prisma/client';
+import type { MyEntity } from '../../../../shared/database/generated/prisma/client';
 
-class MyRepository extends BaseRepository<defineMyModel.Instance> {
-  constructor() {
-    super(MyModel, {
-      searchFields: ['name', 'description'],
-      filterIdField: 'category_id',
-      filterIdKey: 'categoryId'
-    });
+const SORTABLE = Object.values(Prisma.MyEntityScalarFieldEnum);
+const SEARCH_FIELDS = ['name', 'description'] as const;
+
+class MyRepository extends PrismaRepository {
+  // `await this.db()`: el cliente de la transacción si hay un unitOfWork.run() activo, si no el único
+  async findActiveByName(name: string): Promise<MyEntity | null> {
+    return (await this.db()).myEntity.findFirst({ where: { name, isActive: true } });
   }
 
-  findActiveByName(name: string) {
-    return this.model.findOne({ where: { name, is_active: true } });
+  async findAllPaginated(
+    filters: PrismaRepository.Filters = {},
+    pagination: PrismaRepository.PaginationParams = {},
+    searchTerm: string | null = null
+  ): Promise<{ rows: MyEntity[]; count: number }> {
+    const where: Prisma.MyEntityWhereInput = {
+      ...(filters.isActive !== undefined ? { isActive: filters.isActive } : {}),
+      ...this.searchWhere(searchTerm, SEARCH_FIELDS)
+    };
+    const db = await this.db();
+    const [rows, count] = await Promise.all([
+      db.myEntity.findMany({ where, ...this.paginationArgs(SORTABLE, pagination) }),
+      db.myEntity.count({ where })
+    ]);
+    return { rows, count };
   }
 }
 
 export default new MyRepository();
 ```
 
-> ✅ Hereda de `BaseRepository` (CRUD completo), `AppendOnlyRepository` (solo inserción, ej. auditoría)
-> o `ReadRepository` (solo lectura), con el genérico del modelo. Si sobrescribes un método, **misma
-> firma que el padre** (incluido `options`, para no perder la transacción) — SOLID: L.
+> ✅ Extiende `PrismaRepository` y expone **solo** las operaciones que su tabla admite (una bitácora
+> append-only no tiene `update`/`delete`) — SOLID: L/I.
 > ✅ Repositorio nuevo → `node scripts/ts-migration/gen-repository-ports.js` (agrega su `XRepositoryPort`).
-> ✅ Los operadores de Sequelize (`Op.in`, `Op.between`…) viven aquí, detrás de métodos con nombre
-> de negocio: `findByNames(names, { exclude })`, `findByIds(ids)`, `markAsReadByIds(ids)`.
-> ✅ Los `include` también: el repositorio expone `findPaginatedWithDeviceAndUser(where, pagination)`
-> o `findForAccountDeletion(userId, options)` y declara las asociaciones por nombre
-> (`{ association: 'executor' }`), nunca con `model: X`.
-> ✅ Los enums de dominio (estados, catálogos cerrados) viven en `shared/constants/domain-enums.ts`;
-> el modelo los usa para su `ENUM` y el service los importa de ahí, no del modelo.
-> ✅ No sobrescribas un método del padre con otra firma: si necesitas otra semántica, otro nombre
-> (`existsOverride(role, module, action)` en vez de redefinir `exists(criteria)`).
+> ✅ Filtros, `include` y `select` viven aquí, detrás de métodos con nombre de negocio:
+> `findByNames(names, { exclude })`, `findPaginatedWithDeviceAndUser(where, pagination)`. El service no
+> arma `where` de Prisma.
+> ✅ PII: se lee y escribe en claro (la extensión de `shared/database/prisma.ts` cifra y hashea); para buscar
+> por un campo cifrado se filtra por su hash (`hashValue()` de `shared/database/pii-fields`).
+> ✅ Escrituras que deben quedar aunque el flujo se revierta (bitácoras) → `this.independentDb()`.
+> ✅ `sortBy` llega en camelCase (`createdAt`; acepta `created_at`) y `paginationArgs` solo ordena por
+> campos del modelo.
+> ✅ Los enums de dominio (estados, catálogos cerrados) se leen de `shared/constants/domain-enums.ts`.
 
 ## Routes (admin)
 
@@ -258,66 +270,30 @@ class MyValidator {
 export default MyValidator;
 ```
 
-## Model
+## Modelo y migración
 
-Se escribe la factory y se registra en `shared/models/index.ts`; los tipos (`defineMyModel.Attributes`,
-`CreationAttributes`, `Instance` con asociaciones, `Static`) los **genera**
-`npx tsx scripts/ts-migration/gen-model-types.js` desde la definición real, que también reescribe la
-factory a su forma tipada. Al cambiar una columna o asociación se vuelve a correr.
+No hay modelos en el código: la tabla se declara en `prisma/schema.prisma` (el cliente y sus tipos se
+generan con `npm run prisma:generate`, que corre solo antes de `dev`, `build`, `typecheck` y `test`) y la
+migración la genera Prisma (detalle en
+[`database.md`](database.md#cambiar-el-esquema)):
 
-```ts
-import { DataTypes } from 'sequelize';
-import constantsModule from '../../../../shared/constants';
-const { database } = constantsModule;
+```prisma
+model MyEntity {
+  myId      String   @id(map: "pk_my_table") @default(uuid()) @map("my_id") @db.Uuid
+  name      String   @db.VarChar(100)
+  otherId   String   @map("other_id") @db.Uuid
+  other     Other    @relation(fields: [otherId], references: [otherId], map: "fk_my_table_other_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-export default sequelize => {
-  const MyModel = sequelize.define(
-    'MyModel',
-    {
-      my_id: { type: DataTypes.UUID, primaryKey: true, defaultValue: DataTypes.UUIDV4 },
-      name: { type: DataTypes.STRING(100), allowNull: false }
-    },
-    { schema: database.schema, tableName: 'my_table', timestamps: true, underscored: true }
-  );
-
-  MyModel.associate = models => {
-    MyModel.belongsTo(models.OtherModel, { foreignKey: 'other_id', as: 'other' });
-  };
-  return MyModel;
-};
+  @@index([otherId], map: "idx_my_table_other_id")
+  @@map("my_table")
+}
 ```
 
-Después del generador queda `function defineMyModel(sequelize: Sequelize): defineMyModel.Static { … }`,
-`sequelize.define<defineMyModel.Instance>(…)`, el namespace `defineMyModel` y `export default defineMyModel`.
-Métodos de instancia o estáticos propios (`STATUS`…) van en un namespace manual antes del bloque generado.
-
-## Migration
-
-```ts
-import type { Migration } from '../shared/types/migration';
-import constantsModule from '../shared/constants';
-const { database } = constantsModule;
-
-const SCHEMA = database.schema;
-
-export default {
-  async up(queryInterface, Sequelize) {
-    await queryInterface.createTable(
-      { tableName: 'my_table', schema: SCHEMA },
-      {
-        my_id: { type: Sequelize.UUID, primaryKey: true, defaultValue: Sequelize.literal('gen_random_uuid()') },
-        name: { type: Sequelize.STRING(100), allowNull: false },
-        created_at: { type: Sequelize.DATE, allowNull: false, defaultValue: Sequelize.literal('NOW()') },
-        updated_at: { type: Sequelize.DATE, allowNull: false, defaultValue: Sequelize.literal('NOW()') }
-      }
-    );
-  },
-
-  async down(queryInterface) {
-    await queryInterface.dropTable({ tableName: 'my_table', schema: SCHEMA });
-  }
-} satisfies Migration;
+```bash
+npm run db:migrate:dev -- --name create-my-table   # genera prisma/migrations/<ts>_create-my-table/migration.sql
 ```
 
-> ✅ `satisfies Migration` tipa `queryInterface` y `Sequelize` (el módulo `sequelize` completo) sin anotarlos.
-> Los seeders siguen el mismo contrato. Corren con `npm run db:migrate` / `npm run db:seed` (sequelize-cli vía tsx).
+> ✅ Revisá el `migration.sql` generado antes de commitearlo; triggers, CHECK y comentarios se agregan a mano
+> en ese archivo. Los datos base van en el seed (`prisma/seeds/`, `npm run db:seed`).

@@ -156,8 +156,8 @@ class RbacService {
    * Matriz de permisos para una lista de roles, diferenciando origen.
    *
    * Cada entrada retorna:
-   *   base_permissions    — permisos definidos en ROLE_PERMISSIONS (código, inmutables)
-   *   added_permissions   — overrides agregados en runtime por SUPERADMIN (BD)
+   *   basePermissions     — permisos definidos en ROLE_PERMISSIONS (código, inmutables)
+   *   addedPermissions    — overrides agregados en runtime por SUPERADMIN (BD)
    *
    * El front puede mostrar los base como no editables y los added como revocables.
    *
@@ -203,8 +203,8 @@ class RbacService {
 
     return {
       role: roleName,
-      base_permissions: basePermissions,
-      added_permissions: addedPermissions
+      basePermissions,
+      addedPermissions
     };
   }
 

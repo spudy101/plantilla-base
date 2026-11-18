@@ -52,8 +52,8 @@ npm run db:migrate --silent
 echo "✅ Migraciones completadas"
 
 if [ "$RUN_SEEDS" = "true" ]; then
-  echo "🌱 Ejecutando seeders..."
-  npm run db:seed --silent && echo "✅ Seeders completados" || echo "⚠️  Seeders fallaron (no crítico)"
+  echo "🌱 Ejecutando seed..."
+  npm run db:seed --silent && echo "✅ Seed completado" || echo "⚠️  Seed falló (no crítico)"
 fi
 
 echo "🚀 Iniciando servidor en puerto 4000..."

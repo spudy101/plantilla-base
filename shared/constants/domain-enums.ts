@@ -1,35 +1,52 @@
 // shared/constants/domain-enums.ts
 //
-// Enums de dominio (estados, catálogos cerrados). Única fuente de verdad: los modelos Sequelize los usan para
-// definir sus ENUM y los services los leen desde aquí (SOLID: D — los services no importan modelos
-// solo para leer un enum).
+// Enums de dominio (estados, catálogos cerrados). La fuente de verdad es el schema de Prisma
+// (`enum NotificationProcessingStatus`, `enum ApprovalRequestStatus`…, que en la base son tipos ENUM):
+// acá se reexponen con las claves UPPER_SNAKE_CASE que usan los services, tomando los valores del
+// cliente generado (shared/database/generated/prisma/enums — solo constantes, sin cliente ni conexión).
+// Si el schema agrega o quita un valor, `Exhaustive` rompe el typecheck hasta actualizar este archivo.
 //
-// `as const` + Object.freeze: el valor es inmutable en runtime y el tipo es la unión literal exacta,
-// así `DomainEnums.NotificationProcessingStatus` es 'pending' | 'processing' | … y no `string`.
+// Los services leen los enums desde aquí (SOLID: D — no importan el cliente de Prisma para un enum).
+import {
+  ApprovalRequestStatus as PrismaApprovalRequestStatus,
+  IntegrationApiLogProduct,
+  IntegrationApiLogResult,
+  NotificationProcessingStatus as PrismaNotificationProcessingStatus,
+  UserSessionStatus as PrismaUserSessionStatus
+} from '../database/generated/prisma/enums';
+
+/** `true` solo si las constantes cubren todos los valores del enum de Prisma `E`. */
+type Exhaustive<Values, E> = [E] extends [Values] ? ([Values] extends [E] ? true : never) : never;
+const exhaustive = <Values, E>(check: Exhaustive<Values, E>) => check;
 
 const NOTIFICATION_PROCESSING_STATUS = Object.freeze({
-  PENDING: 'pending',
-  PROCESSING: 'processing',
-  COMPLETED: 'completed',
-  PARTIAL_FAILURE: 'partial_failure',
-  FAILED: 'failed'
+  PENDING: PrismaNotificationProcessingStatus.pending,
+  PROCESSING: PrismaNotificationProcessingStatus.processing,
+  COMPLETED: PrismaNotificationProcessingStatus.completed,
+  PARTIAL_FAILURE: PrismaNotificationProcessingStatus.partial_failure,
+  FAILED: PrismaNotificationProcessingStatus.failed
 } as const);
 
 const APPROVAL_REQUEST_STATUS = Object.freeze({
-  PENDING: 'pending',
-  APPROVED: 'approved',
-  REJECTED: 'rejected',
-  EXPIRED: 'expired'
+  PENDING: PrismaApprovalRequestStatus.pending,
+  APPROVED: PrismaApprovalRequestStatus.approved,
+  REJECTED: PrismaApprovalRequestStatus.rejected,
+  EXPIRED: PrismaApprovalRequestStatus.expired
 } as const);
 
 const USER_SESSION_STATUS = Object.freeze({
-  ACTIVE: 'active',
-  CLOSED: 'closed'
+  ACTIVE: PrismaUserSessionStatus.active,
+  CLOSED: PrismaUserSessionStatus.closed
 } as const);
 
 // Bitácora de llamadas a proveedores (integration_api_logs): producto y resultado.
-const INTEGRATION_PRODUCTS = Object.freeze(['ses', 's3', 'sns', 'aws_sms'] as const);
-const INTEGRATION_RESULTS = Object.freeze(['success', 'failed', 'circuit_open'] as const);
+const INTEGRATION_PRODUCTS = Object.freeze(Object.values(IntegrationApiLogProduct));
+const INTEGRATION_RESULTS = Object.freeze(Object.values(IntegrationApiLogResult));
+
+type ValueOf<T> = T[keyof T];
+exhaustive<ValueOf<typeof NOTIFICATION_PROCESSING_STATUS>, PrismaNotificationProcessingStatus>(true);
+exhaustive<ValueOf<typeof APPROVAL_REQUEST_STATUS>, PrismaApprovalRequestStatus>(true);
+exhaustive<ValueOf<typeof USER_SESSION_STATUS>, PrismaUserSessionStatus>(true);
 
 const DomainEnums = {
   NOTIFICATION_PROCESSING_STATUS,
@@ -39,15 +56,13 @@ const DomainEnums = {
   INTEGRATION_RESULTS
 };
 
-type ValueOf<T> = T[keyof T];
-
 // eslint-disable-next-line @typescript-eslint/no-namespace, @typescript-eslint/no-redeclare
 declare namespace DomainEnums {
   type NotificationProcessingStatus = ValueOf<typeof NOTIFICATION_PROCESSING_STATUS>;
   type ApprovalRequestStatus = ValueOf<typeof APPROVAL_REQUEST_STATUS>;
   type UserSessionStatus = ValueOf<typeof USER_SESSION_STATUS>;
-  type IntegrationProduct = (typeof INTEGRATION_PRODUCTS)[number];
-  type IntegrationResult = (typeof INTEGRATION_RESULTS)[number];
+  type IntegrationProduct = IntegrationApiLogProduct;
+  type IntegrationResult = IntegrationApiLogResult;
 }
 
 export default DomainEnums;
