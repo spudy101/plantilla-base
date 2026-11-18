@@ -1,74 +1,23 @@
 import commonResponses from '../../../config/swagger/responses/common.responses';
+import { toOpenApi, toParameters } from '../../../shared/validation/openapi';
+import { CatalogListQuery } from '../requests/maintainers.request';
+import { ActivePrivacyPolicySchema, DocumentTypeSchema } from '../responses/maintainers.response';
 
-// ─── Schemas propios del módulo ───────────────────────────────
+// ─── Schemas y parámetros: generados desde los esquemas Zod ──
+// (País, ciudad, género, avatar… son globales: src/config/swagger/schemas/kyc.schema.ts)
 
 const schemas = {
-  DocumentType: {
-    type: 'object',
-    properties: {
-      documentTypeId: { type: 'string', format: 'uuid' },
-      code: { type: 'string', example: 'CC', description: 'Código interno del tipo de documento.' },
-      name: { type: 'string', example: 'Cédula de Ciudadanía' },
-      description: {
-        type: 'string',
-        nullable: true,
-        example: 'Documento de identidad para ciudadanos colombianos.'
-      },
-      isActive: { type: 'boolean', example: true }
-    }
-  },
-
-  FundsOriginType: {
-    type: 'object',
-    properties: {
-      fundsOriginTypeId: { type: 'string', format: 'uuid' },
-      code: {
-        type: 'string',
-        example: 'SALARY',
-        description: 'Código interno del tipo de origen.'
-      },
-      name: { type: 'string', example: 'Salario' },
-      requiresDescription: {
-        type: 'boolean',
-        example: false,
-        description: 'Si es `true`, el campo `fundsOriginDescription` es obligatorio al registrar el empleo.'
-      },
-      isActive: { type: 'boolean', example: true }
-    }
-  }
+  DocumentType: toOpenApi(DocumentTypeSchema, 'output'),
+  ActivePrivacyPolicy: toOpenApi(ActivePrivacyPolicySchema, 'output')
 };
 
-// ─── Parámetros comunes de paginación ─────────────────────────
-
-const paginationParams = [
-  { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
-  { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } },
-  { name: 'search', in: 'query', schema: { type: 'string' } },
-  { name: 'sortBy', in: 'query', schema: { type: 'string' } },
-  { name: 'order', in: 'query', schema: { type: 'string', enum: ['ASC', 'DESC'] } },
-  { name: 'isActive', in: 'query', schema: { type: 'boolean' } }
-];
+const queryParams = toParameters(CatalogListQuery, 'query');
+const param = (name: string) => queryParams.find(p => p.name === name)!;
+const paginationParams = ['page', 'limit', 'search', 'sortBy', 'order', 'isActive'].map(param);
 
 // ─── Paths ────────────────────────────────────────────────────
 
 const paths = {
-  // GET /client/api/v1/kyc/maintainers/funds-origin-types
-  '/client/api/v1/kyc/maintainers/funds-origin-types': {
-    get: {
-      tags: ['Maintainers'],
-      summary: 'Listar tipos de origen de fondos',
-      operationId: 'listFundsOriginTypes',
-      security: [],
-      description:
-        'Retorna los tipos de origen de fondos activos. El campo `requiresDescription` indica si al seleccionar este tipo es obligatorio enviar `fundsOriginDescription` en el registro laboral.',
-      responses: {
-        200: commonResponses.paginated({ $ref: '#/components/schemas/FundsOriginType' }),
-        ...commonResponses.RateLimitExceeded,
-        ...commonResponses.InternalServerError
-      }
-    }
-  },
-
   // GET /client/api/v1/kyc/maintainers/document-types
   '/client/api/v1/kyc/maintainers/document-types': {
     get: {
@@ -109,7 +58,7 @@ const paths = {
       summary: 'Listar prefijos telefónicos',
       operationId: 'listPhonePrefixes',
       security: [],
-      parameters: [...paginationParams, { name: 'countryId', in: 'query', schema: { type: 'string', format: 'uuid' } }],
+      parameters: [...paginationParams, param('countryId')],
       responses: {
         200: commonResponses.paginated({ $ref: '#/components/schemas/PhonePrefix' }),
         ...commonResponses.RateLimitExceeded,
@@ -141,7 +90,7 @@ const paths = {
       summary: 'Listar departamentos / regiones',
       operationId: 'listDepartments',
       security: [],
-      parameters: [...paginationParams, { name: 'countryId', in: 'query', schema: { type: 'string', format: 'uuid' } }],
+      parameters: [...paginationParams, param('countryId')],
       responses: {
         200: commonResponses.paginated({ $ref: '#/components/schemas/Department' }),
         ...commonResponses.RateLimitExceeded,
@@ -157,7 +106,7 @@ const paths = {
       summary: 'Listar ciudades',
       operationId: 'listCities',
       security: [],
-      parameters: [...paginationParams, { name: 'departmentId', in: 'query', schema: { type: 'string', format: 'uuid' } }],
+      parameters: [...paginationParams, param('departmentId')],
       responses: {
         200: commonResponses.paginated({ $ref: '#/components/schemas/City' }),
         ...commonResponses.RateLimitExceeded,
@@ -173,7 +122,7 @@ const paths = {
       summary: 'Listar avatares',
       operationId: 'listAvatars',
       security: [],
-      parameters: [...paginationParams, { name: 'themeId', in: 'query', schema: { type: 'string', format: 'uuid' } }],
+      parameters: [...paginationParams, param('themeId')],
       responses: {
         200: commonResponses.paginated({ $ref: '#/components/schemas/Avatar' }),
         ...commonResponses.RateLimitExceeded,
@@ -246,32 +195,7 @@ const paths = {
         'Retorna la versión de la política de privacidad actualmente vigente. Útil para mostrar al usuario el documento antes de registrarse.',
       responses: {
         200: commonResponses.ok(
-          {
-            type: 'object',
-            properties: {
-              version: {
-                type: 'string',
-                example: '1.0',
-                description: 'Versión semántica de la política'
-              },
-              documentUrl: {
-                type: 'string',
-                format: 'uri',
-                example: 'https://s3.amazonaws.com/...policy-v1.pdf',
-                description: 'URL pública del documento PDF'
-              },
-              summary: {
-                type: 'string',
-                nullable: true,
-                example: 'Versión inicial de la política de privacidad'
-              },
-              effectiveDate: {
-                type: 'string',
-                format: 'date-time',
-                example: '2026-04-18T00:00:00.000Z'
-              }
-            }
-          },
+          { $ref: '#/components/schemas/ActivePrivacyPolicy' },
           'Política de privacidad activa obtenida exitosamente'
         ),
         ...commonResponses.InternalServerError

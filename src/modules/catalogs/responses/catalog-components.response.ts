@@ -16,6 +16,8 @@
  *   avatar.theme           (AvatarTheme)
  */
 import type { DbDate, Maybe } from '../../../shared/types/db-rows';
+import { z } from '../../../shared/validation/z';
+import { dateTime } from '../../../shared/validation/output';
 
 /** Campos comunes de las tablas de catálogo (filas de Prisma). */
 interface CatalogRow {
@@ -404,6 +406,57 @@ class MetadataDTO {
     return new MetadataDTO(params);
   }
 }
+
+// ============================================================
+// ESQUEMAS DE SALIDA — describen (y documentan) lo que arman los componentes de arriba
+// ============================================================
+
+const catalogBase = {
+  name: z.string().nullish(),
+  isActive: z.boolean().nullish(),
+  createdAt: dateTime().nullish(),
+  updatedAt: dateTime().nullish()
+};
+
+export const CountrySchema = z.object({
+  countryId: z.uuid(),
+  code: z.string().nullish().meta({ example: 'CO' }),
+  iconUrl: z.string().nullable(),
+  ...catalogBase
+});
+export const DepartmentSchema = z.object({
+  departmentId: z.uuid(),
+  daneCode: z.string().nullable(),
+  countryId: z.string().nullish(),
+  country: CountrySchema.nullable().optional(),
+  ...catalogBase
+});
+export const CitySchema = z.object({
+  cityId: z.uuid(),
+  daneCode: z.string().nullable(),
+  departmentId: z.string().nullish(),
+  department: DepartmentSchema.nullable().optional(),
+  ...catalogBase
+});
+export const PhonePrefixSchema = z.object({
+  phonePrefixId: z.uuid(),
+  prefix: z.string().nullish().meta({ example: '+57' }),
+  countryId: z.string().nullish(),
+  country: CountrySchema.nullable().optional(),
+  isActive: catalogBase.isActive,
+  createdAt: catalogBase.createdAt,
+  updatedAt: catalogBase.updatedAt
+});
+export const GenderSchema = z.object({ genderId: z.uuid(), ...catalogBase });
+export const RoleSchema = z.object({ roleId: z.uuid(), description: z.string().nullable(), ...catalogBase });
+export const AvatarThemeSchema = z.object({ avatarThemeId: z.uuid(), ...catalogBase });
+export const AvatarSchema = z.object({
+  avatarId: z.uuid(),
+  imageUrl: z.string().nullable(),
+  avatarThemeId: z.string().nullish(),
+  theme: AvatarThemeSchema.nullable().optional(),
+  ...catalogBase
+});
 
 // ============================================================
 // EXPORTS

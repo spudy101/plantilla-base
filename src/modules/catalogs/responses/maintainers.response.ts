@@ -12,6 +12,8 @@ const {
 } = componentsCatalogDtoModule;
 
 import type { DocumentType, PrivacyPolicy } from '../../../shared/database/generated/prisma/client';
+import { z } from '../../../shared/validation/z';
+import { dateTime } from '../../../shared/validation/output';
 import notificationModule from '../../notification';
 const { notificationComponentsDto: componentsNotificationDtoModule } = notificationModule;
 const { NotificationTypeComponent } = componentsNotificationDtoModule;
@@ -141,6 +143,25 @@ function ListDocumentTypesResponseDTO(
     isActive: dt.isActive
   }));
 }
+
+// ============================================================
+// ESQUEMAS DE SALIDA propios (los de país, ciudad, género… están en catalog-components)
+// ============================================================
+
+export const DocumentTypeSchema = z.object({
+  documentTypeId: z.uuid(),
+  code: z.string().meta({ example: 'CC', description: 'Código interno del tipo de documento.' }),
+  name: z.string().meta({ example: 'Cédula de Ciudadanía' }),
+  isVisibleToClient: z.boolean(),
+  isActive: z.boolean()
+});
+
+export const ActivePrivacyPolicySchema = z.object({
+  version: z.string().meta({ example: '1.0', description: 'Versión de la política' }),
+  documentUrl: z.string().meta({ description: 'URL pública del documento PDF' }),
+  summary: z.string().nullable(),
+  effectiveDate: dateTime()
+});
 
 export default {
   ListGendersResponseDTO,

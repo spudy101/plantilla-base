@@ -29,107 +29,28 @@
  */
 
 import piiMaskingDocModule from './pii-masking.doc';
+import { toOpenApi } from '../../../shared/validation/openapi';
+import {
+  AvatarSchema,
+  AvatarThemeSchema,
+  CitySchema,
+  CountrySchema,
+  DepartmentSchema,
+  GenderSchema,
+  PhonePrefixSchema,
+  RoleSchema
+} from '../../../modules/catalogs/responses/catalog-components.response';
 const { MASKED_DOCUMENT_DESC, MASKED_PHONE_DESC, MASKED_EMAIL_DESC } = piiMaskingDocModule;
 
-// ─── CountryComponent.build() ─────────────────────────────────
-const Country = {
-  type: 'object',
-  properties: {
-    countryId: { type: 'string', format: 'uuid' },
-    name: { type: 'string', example: 'Chile' },
-    code: { type: 'string', example: 'CL' },
-    iconUrl: { type: 'string', nullable: true, example: 'https://cdn.example.com/flags/cl.svg' },
-    isActive: { type: 'boolean' }
-  }
-};
-
-// ─── DepartmentComponent.build() ──────────────────────────────
-const Department = {
-  type: 'object',
-  properties: {
-    departmentId: { type: 'string', format: 'uuid' },
-    name: { type: 'string', example: 'Región Metropolitana' },
-    daneCode: { type: 'string', nullable: true },
-    countryId: { type: 'string', format: 'uuid' },
-    isActive: { type: 'boolean' },
-    // includeCountry = true
-    country: { $ref: '#/components/schemas/Country', nullable: true }
-  }
-};
-
-// ─── CityComponent.build() ────────────────────────────────────
-const City = {
-  type: 'object',
-  properties: {
-    cityId: { type: 'string', format: 'uuid' },
-    name: { type: 'string', example: 'Santiago' },
-    daneCode: { type: 'string', nullable: true },
-    departmentId: { type: 'string', format: 'uuid' },
-    isActive: { type: 'boolean' },
-    // includeDepartment = true
-    department: { $ref: '#/components/schemas/Department', nullable: true }
-  }
-};
-
-// ─── PhonePrefixComponent.build() ─────────────────────────────
-const PhonePrefix = {
-  type: 'object',
-  properties: {
-    phonePrefixId: { type: 'string', format: 'uuid' },
-    prefix: { type: 'string', example: '+56' },
-    countryId: { type: 'string', format: 'uuid' },
-    isActive: { type: 'boolean' },
-    // includeCountry = true
-    country: { $ref: '#/components/schemas/Country', nullable: true }
-  }
-};
-
-// ─── GenderComponent.build() ──────────────────────────────────
-const Gender = {
-  type: 'object',
-  properties: {
-    genderId: { type: 'string', format: 'uuid' },
-    name: { type: 'string', example: 'Masculino' },
-    isActive: { type: 'boolean' }
-  }
-};
-
-// ─── RoleComponent.build() ────────────────────────────────────
-const Role = {
-  type: 'object',
-  properties: {
-    roleId: { type: 'string', format: 'uuid' },
-    name: { type: 'string', example: 'client' },
-    description: { type: 'string', nullable: true },
-    isActive: { type: 'boolean' }
-  }
-};
-
-// ─── AvatarThemeComponent.build() ─────────────────────────────
-const AvatarTheme = {
-  type: 'object',
-  properties: {
-    avatarThemeId: { type: 'string', format: 'uuid' },
-    name: { type: 'string', example: 'ocean' },
-    isActive: { type: 'boolean' }
-  }
-};
-
-// ─── AvatarComponent.build() ──────────────────────────────────
-const Avatar = {
-  type: 'object',
-  properties: {
-    avatarId: { type: 'string', format: 'uuid' },
-    name: { type: 'string', example: 'Fox' },
-    imageUrl: { type: 'string', nullable: true },
-    avatarThemeId: { type: 'string', format: 'uuid' },
-    isActive: { type: 'boolean' },
-    // includeTheme = true
-    theme: { $ref: '#/components/schemas/AvatarTheme', nullable: true }
-  }
-};
-
-// ─── UserComponent.build() ────────────────────────────────────
+// Catálogos: generados desde los esquemas Zod de modules/catalogs (lo que de verdad arman sus componentes)
+const Country = toOpenApi(CountrySchema, 'output');
+const Department = toOpenApi(DepartmentSchema, 'output');
+const City = toOpenApi(CitySchema, 'output');
+const PhonePrefix = toOpenApi(PhonePrefixSchema, 'output');
+const Gender = toOpenApi(GenderSchema, 'output');
+const Role = toOpenApi(RoleSchema, 'output');
+const AvatarTheme = toOpenApi(AvatarThemeSchema, 'output');
+const Avatar = toOpenApi(AvatarSchema, 'output');
 const User = {
   type: 'object',
   properties: {
