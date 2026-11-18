@@ -8,8 +8,8 @@
  *   - Shared      → Pagination, Sort, Metadata
  *   - KYC         → Country, Department, City, PhonePrefix, Gender,
  *                   Role, AvatarTheme, Avatar, User, Person, PersonContact,
- *                   PersonLocation, VerificationCode, UserLoginAttempt,
- *                   ResetCredentials, UserChangeLog, UserSession, TrustedDevice,
+ *                   PersonLocation, VerificationCode,
+ *                   UserChangeLog, UserSession, TrustedDevice,
  *                   BasicProfile, ExtendedProfile
  *
  * [RF-USR-01] | CA-06 — Enmascaramiento PII: en los schemas de RESPUESTA, documento, correo,

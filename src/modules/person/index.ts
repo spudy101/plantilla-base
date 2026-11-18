@@ -7,7 +7,20 @@ import { interopDefault } from '../../shared/utils/interop.util';
 
 export default {
   get personComponentsDto() {
-    return interopDefault(require('./responses/person-components.response') as typeof import('./responses/person-components.response'));
+    return interopDefault(
+      require('./responses/person-components.response') as typeof import('./responses/person-components.response')
+    );
+  },
+
+  /** Esquemas de salida (Zod) de person que otros módulos incluyen en sus respuestas. */
+  get personSchemas() {
+    const m = require('./responses/person-components.response') as typeof import('./responses/person-components.response');
+    return {
+      UserSchema: m.UserSchema,
+      PersonSchema: m.PersonSchema,
+      PersonContactSchema: m.PersonContactSchema,
+      PersonLocationSchema: m.PersonLocationSchema
+    };
   },
 
   get ProfileHelper() {
@@ -15,15 +28,21 @@ export default {
   },
 
   get personContactRepository() {
-    return interopDefault(require('./repositories/person-contact.repository') as typeof import('./repositories/person-contact.repository'));
+    return interopDefault(
+      require('./repositories/person-contact.repository') as typeof import('./repositories/person-contact.repository')
+    );
   },
 
   get personLocationRepository() {
-    return interopDefault(require('./repositories/person-location.repository') as typeof import('./repositories/person-location.repository'));
+    return interopDefault(
+      require('./repositories/person-location.repository') as typeof import('./repositories/person-location.repository')
+    );
   },
 
   get personReferenceRepository() {
-    return interopDefault(require('./repositories/person-reference.repository') as typeof import('./repositories/person-reference.repository'));
+    return interopDefault(
+      require('./repositories/person-reference.repository') as typeof import('./repositories/person-reference.repository')
+    );
   },
 
   get personRepository() {
@@ -47,7 +66,9 @@ export default {
   },
 
   get personGuards() {
-    return interopDefault(require('./services/admin-person/person-guards') as typeof import('./services/admin-person/person-guards'));
+    return interopDefault(
+      require('./services/admin-person/person-guards') as typeof import('./services/admin-person/person-guards')
+    );
   },
 
   get KycSharedUtil() {

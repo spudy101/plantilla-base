@@ -1,4 +1,3 @@
-import EncryptionUtil from '../../../shared/security/encryption.util';
 import MaskingUtil from '../../../shared/security/masking.util';
 import { z } from '../../../shared/validation/z';
 import { dateTime } from '../../../shared/validation/output';
@@ -16,36 +15,6 @@ interface VerificationCodeRow {
 }
 
 /** Fila de Prisma (user_login_attempts). */
-interface UserLoginAttemptRow {
-  userLoginAttemptId: string;
-  userId?: Maybe<string>;
-  usernameAttempt?: Maybe<string>;
-  nationalId?: Maybe<string>;
-  ipAddress?: Maybe<string>;
-  userAgent?: Maybe<string>;
-  deviceFingerprint?: Maybe<string>;
-  success: boolean;
-  failureReason?: Maybe<string>;
-  blockedUntil?: Maybe<DbDate>;
-  originSessionId?: Maybe<string>;
-  attemptedAt?: Maybe<DbDate>;
-  createdAt?: Maybe<DbDate>;
-}
-
-// Filas de Prisma (camelCase): reset_credentials, user_change_logs, user_sessions, user_trusted_devices
-// y user_biometric_credentials migraron en la fase 5, grupo 6.
-interface ResetCredentialsRow {
-  resetCredentialsId: string;
-  userId: string;
-  email?: Maybe<string>;
-  type: string;
-  token?: Maybe<string>;
-  expiresAt: DbDate;
-  used?: Maybe<boolean>;
-  usedAt?: Maybe<DbDate>;
-  createdAt?: Maybe<DbDate>;
-}
-
 interface UserChangeLogRow {
   logId: string;
   userId: string;
@@ -143,75 +112,6 @@ class VerificationCodeComponent {
       isExpired: new Date() > new Date(verificationCode.expiresAt),
       createdAt: verificationCode.createdAt
     };
-  }
-}
-
-// ============================================================
-// USER LOGIN ATTEMPT
-// ============================================================
-
-class UserLoginAttemptComponent {
-  static build(attempt: Maybe<UserLoginAttemptRow>) {
-    if (!attempt) {
-      return null;
-    }
-    return {
-      userLoginAttemptId: attempt.userLoginAttemptId,
-      userId: attempt.userId || null,
-      usernameAttempt: attempt.usernameAttempt,
-      nationalId: MaskingUtil.maskDocumentId(EncryptionUtil.safeDecrypt(attempt.nationalId)),
-      ipAddress: attempt.ipAddress || null,
-      userAgent: attempt.userAgent || null,
-      deviceFingerprint: attempt.deviceFingerprint || null,
-      success: attempt.success,
-      failureReason: attempt.failureReason || null,
-      blockedUntil: attempt.blockedUntil || null,
-      // La columna session_cache_key ya no existe: se mantiene la clave en null por compatibilidad.
-      sessionCacheKey: null,
-      // Sesión resultante del login. Con valor en los intentos exitosos, null en los fallidos (nunca
-      // hubo sesión). Es el reemplazo real de sessionCacheKey.
-      originSessionId: attempt.originSessionId || null,
-      attemptedAt: attempt.attemptedAt,
-      createdAt: attempt.createdAt
-    };
-  }
-
-  static buildArray(attempts: Maybe<UserLoginAttemptRow[]>) {
-    if (!attempts || attempts.length === 0) {
-      return [];
-    }
-    return attempts.map(a => UserLoginAttemptComponent.build(a));
-  }
-}
-
-// ============================================================
-// RESET CREDENTIALS
-// ============================================================
-
-class ResetCredentialsComponent {
-  static build(resetCredential: Maybe<ResetCredentialsRow>, includeToken = false) {
-    if (!resetCredential) {
-      return null;
-    }
-
-    const dto: Record<string, unknown> & { token?: Maybe<string> } = {
-      resetCredentialsId: resetCredential.resetCredentialsId,
-      userId: resetCredential.userId,
-      // [RF-USR-01] | CA-06
-      email: MaskingUtil.maskEmail(resetCredential.email) || null,
-      type: resetCredential.type,
-      expiresAt: resetCredential.expiresAt,
-      used: resetCredential.used,
-      usedAt: resetCredential.usedAt || null,
-      isExpired: new Date() > new Date(resetCredential.expiresAt),
-      createdAt: resetCredential.createdAt
-    };
-
-    if (includeToken) {
-      dto.token = resetCredential.token;
-    }
-
-    return dto;
   }
 }
 
@@ -390,8 +290,6 @@ class BiometricCredentialComponent {
 
 export default {
   VerificationCodeComponent,
-  UserLoginAttemptComponent,
-  ResetCredentialsComponent,
   UserChangeLogComponent,
   BiometricCredentialComponent,
   UserSessionComponent,
@@ -442,3 +340,53 @@ export const UserChangeLogSchema = z
     createdAt: dateTime()
   })
   .meta({ description: 'Cambio sobre los datos de una cuenta (vista sobre audit_logs).' });
+
+export const VerificationCodeSchema = z.object({
+  verificationCodeId: z.uuid(),
+  type: z.string().meta({ example: 'email' }),
+  contactValue: z.string().nullable().meta({ description: 'Correo o teléfono, enmascarado.' }),
+  attempts: z.number().int().nullable(),
+  expiresAt: dateTime(),
+  verifiedAt: dateTime().nullable(),
+  isVerified: z.boolean(),
+  isExpired: z.boolean(),
+  createdAt: dateTime().nullable()
+});
+
+export const TrustedDeviceSchema = z
+  .object({
+    userTrustedDeviceId: z.uuid(),
+    userId: z.uuid(),
+    deviceName: z.string().nullable().meta({ example: 'iPhone de Ana' }),
+    fingerprintHash: z.string().nullable(),
+    isCurrent: z.boolean().meta({ description: 'true si es el dispositivo desde el que se hace la consulta.' }),
+    status: z.string().meta({ example: 'trusted', description: 'pending | trusted | blocked' }),
+    isPending: z.boolean(),
+    ipAddress: z.string().nullable(),
+    city: z.string().nullable(),
+    country: z.string().nullable(),
+    countryCode: z.string().nullable().meta({ example: 'CO' }),
+    browser: z.string().nullable().meta({ example: 'Chrome' }),
+    os: z.string().nullable().meta({ example: 'iOS' }),
+    deviceType: z.string().meta({ example: 'mobile' }),
+    approvedByDeviceId: z.uuid().nullable(),
+    approvedAt: dateTime().nullable(),
+    blockedByDeviceId: z.uuid().nullable(),
+    blockedAt: dateTime().nullable(),
+    activeSession: UserSessionSchema.nullable().meta({ description: 'Última sesión del dispositivo.' }),
+    trustedAt: dateTime().nullable(),
+    lastSeenAt: dateTime().nullable(),
+    createdAt: dateTime(),
+    updatedAt: dateTime()
+  })
+  .meta({ description: 'Dispositivo de confianza del usuario.' });
+
+export const BiometricCredentialSchema = z.object({
+  biometricCredentialId: z.uuid(),
+  deviceId: z.uuid().meta({ description: 'Dispositivo de confianza al que está atada la credencial.' }),
+  credentialId: z.string().meta({ description: 'ID de la credencial WebAuthn (base64url).' }),
+  signCount: z.number().int(),
+  isActive: z.boolean(),
+  lastUsedAt: dateTime().nullable(),
+  createdAt: dateTime()
+});
