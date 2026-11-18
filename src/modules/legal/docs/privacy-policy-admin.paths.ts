@@ -1,4 +1,7 @@
 import commonResponses from '../../../config/swagger/responses/common.responses';
+import { multipartBody, toOpenApi, toParameters } from '../../../shared/validation/openapi';
+import { CreatePrivacyPolicyBody, PrivacyPolicyIdParams, PrivacyPolicyListQuery } from '../requests/legal.request';
+import { PrivacyPolicyDetailSchema, PrivacyPolicyItemSchema } from '../responses/privacy-policy-admin.response';
 
 /**
  * ============================================================
@@ -26,107 +29,13 @@ import commonResponses from '../../../config/swagger/responses/common.responses'
 
 // ─── Schemas ──────────────────────────────────────────────────
 
+// Generados desde los esquemas Zod de requests/ y responses/.
 const schemas = {
-  // ── PrivacyPolicy (item de lista) ─────────────────────────────
-  AdminPrivacyPolicyItem: {
-    type: 'object',
-    properties: {
-      id: { type: 'string', format: 'uuid' },
-      version: {
-        type: 'string',
-        example: '1.1',
-        description: 'Versión en formato N.N (ej: 1.0, 2.0)'
-      },
-      isActive: { type: 'boolean', description: 'Solo una versión puede estar activa a la vez' },
-      summary: {
-        type: 'string',
-        nullable: true,
-        description: 'Resumen de cambios respecto a la versión anterior'
-      },
-      effectiveDate: {
-        type: 'string',
-        format: 'date-time',
-        description: 'Fecha desde la que esta versión está vigente'
-      },
-      createdAt: { type: 'string', format: 'date-time' }
-    }
-  },
-
-  // ── PrivacyPolicy (detalle — incluye documentUrl) ─────────────
-  AdminPrivacyPolicyDetail: {
-    type: 'object',
-    properties: {
-      id: { type: 'string', format: 'uuid' },
-      version: { type: 'string', example: '1.1' },
-      isActive: { type: 'boolean' },
-      summary: { type: 'string', nullable: true },
-      documentUrl: {
-        type: 'string',
-        format: 'uri',
-        description: 'URL pública de CloudFront del PDF. Permanente mientras el archivo exista en S3.',
-        example: 'https://cdn.base-project.com/legal/privacy-policy-v1-1.pdf'
-      },
-      effectiveDate: { type: 'string', format: 'date-time' },
-      createdAt: { type: 'string', format: 'date-time' },
-      updatedAt: { type: 'string', format: 'date-time' }
-    }
-  },
-
-  // ── Request de creación ───────────────────────────────────────
-  AdminPrivacyPolicyCreateRequest: {
-    type: 'object',
-    required: ['policyDocument', 'version'],
-    properties: {
-      policyDocument: {
-        type: 'string',
-        format: 'binary',
-        description: 'PDF de la política de privacidad. Máximo 20 MB.'
-      },
-      version: {
-        type: 'string',
-        pattern: '^\\d+\\.\\d+$',
-        example: '1.1',
-        description:
-          'Número de versión en formato N.N (ej: 1.0, 1.1, 2.0). Debe ser único — no se puede reutilizar una versión existente.'
-      },
-      summary: {
-        type: 'string',
-        maxLength: 1000,
-        nullable: true,
-        example: 'Se añadió la sección de tratamiento de datos biométricos.',
-        description: 'Resumen de los cambios respecto a la versión anterior (opcional).'
-      },
-      effectiveDate: {
-        type: 'string',
-        format: 'date-time',
-        nullable: true,
-        example: '2025-06-01T00:00:00Z',
-        description: 'Fecha y hora de entrada en vigor (ISO 8601). Si no se envía, se usa la fecha actual.'
-      }
-    }
-  }
+  AdminPrivacyPolicyItem: toOpenApi(PrivacyPolicyItemSchema, 'output'),
+  AdminPrivacyPolicyDetail: toOpenApi(PrivacyPolicyDetailSchema, 'output')
 };
 
 // ─── Parámetros comunes ────────────────────────────────────────
-
-const privacyPolicyIdParam = {
-  name: 'privacyPolicyId',
-  in: 'path',
-  required: true,
-  schema: { type: 'string', format: 'uuid' },
-  description: 'UUID de la versión de la política de privacidad'
-};
-
-const paginationParams = [
-  { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1, default: 1 } },
-  {
-    name: 'limit',
-    in: 'query',
-    schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 }
-  },
-  { name: 'sortBy', in: 'query', schema: { type: 'string' } },
-  { name: 'order', in: 'query', schema: { type: 'string', enum: ['ASC', 'DESC'], default: 'DESC' } }
-];
 
 // ─── Paths ────────────────────────────────────────────────────
 
@@ -142,21 +51,7 @@ El campo \`documentUrl\` **no** se incluye en el listado — solo en el detalle 
 
 Filtros disponibles: \`search\` (busca en \`version\` y \`summary\`) e \`isActive\`.`,
       security: [{ bearerAuth: [], idTokenAuth: [] }],
-      parameters: [
-        ...paginationParams,
-        {
-          name: 'search',
-          in: 'query',
-          schema: { type: 'string' },
-          description: 'Búsqueda por versión o resumen'
-        },
-        {
-          name: 'isActive',
-          in: 'query',
-          schema: { type: 'boolean' },
-          description: 'Filtrar por estado activo'
-        }
-      ],
+      parameters: toParameters(PrivacyPolicyListQuery, 'query'),
       responses: {
         200: commonResponses.paginated(
           { $ref: '#/components/schemas/AdminPrivacyPolicyItem' },
@@ -183,14 +78,7 @@ Filtros disponibles: \`search\` (busca en \`version\` y \`summary\`) e \`isActiv
 
 ⚠️ El número de versión no puede reutilizarse. Para corregir un PDF ya publicado se debe crear una nueva versión.`,
       security: [{ bearerAuth: [], idTokenAuth: [] }],
-      requestBody: {
-        required: true,
-        content: {
-          'multipart/form-data': {
-            schema: { $ref: '#/components/schemas/AdminPrivacyPolicyCreateRequest' }
-          }
-        }
-      },
+      requestBody: multipartBody(CreatePrivacyPolicyBody, { policyDocument: 'PDF de la política (máximo 20 MB).' }),
       responses: {
         201: commonResponses.created(
           { $ref: '#/components/schemas/AdminPrivacyPolicyDetail' },
@@ -215,7 +103,7 @@ Filtros disponibles: \`search\` (busca en \`version\` y \`summary\`) e \`isActiv
 
 A diferencia de los documentos de usuario, esta URL **no expira** — es una URL pública de CloudFront, no una presigned URL.`,
       security: [{ bearerAuth: [], idTokenAuth: [] }],
-      parameters: [privacyPolicyIdParam],
+      parameters: toParameters(PrivacyPolicyIdParams, 'path'),
       responses: {
         200: commonResponses.ok(
           { $ref: '#/components/schemas/AdminPrivacyPolicyDetail' },

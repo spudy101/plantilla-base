@@ -1,6 +1,5 @@
-import auditModule from '../../audit';
-const { auditComponentsDto: componentsAuditDtoModule } = auditModule;
-const { ConsentTypeComponent } = componentsAuditDtoModule;
+import legalComponentsModule from './legal-components.response';
+const { ConsentTypeComponent } = legalComponentsModule;
 
 const ConsentTypeListDTO = (record: Parameters<typeof ConsentTypeComponent.buildList>[0]) => ConsentTypeComponent.buildList(record);
 

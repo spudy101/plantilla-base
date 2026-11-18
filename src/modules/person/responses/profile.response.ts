@@ -3,9 +3,9 @@ import type { UserProfileRow } from '../../iam';
 import componentsPersonModule from './person-components.response';
 const { UserComponent, PersonComponent, PersonContactComponent, PersonLocationComponent } = componentsPersonModule;
 
-import auditModule from '../../audit';
-const { auditComponentsDto: componentsAuditDtoModule } = auditModule;
-const { UserConsentComponent } = componentsAuditDtoModule;
+import legalModule from '../../legal';
+const { legalComponentsDto } = legalModule;
+const { UserConsentComponent } = legalComponentsDto;
 import MaskingUtil from '../../../shared/security/masking.util';
 
 /**

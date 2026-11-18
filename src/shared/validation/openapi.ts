@@ -61,4 +61,34 @@ export function toParameters(schema: z.ZodType, location: OpenApiParameter['in']
   });
 }
 
-export default { toOpenApi, toParameters };
+const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
+
+/** requestBody JSON que apunta a un schema registrado en components.schemas. */
+export function jsonBody(schemaName: string, { required = true } = {}) {
+  return { required, content: { 'application/json': { schema: ref(schemaName) } } };
+}
+
+/**
+ * requestBody multipart/form-data: los campos de texto salen del esquema Zod del body y los archivos se
+ * agregan como binarios (`files`: nombre del campo → descripción).
+ */
+export function multipartBody(fields: z.ZodType, files: Record<string, string>) {
+  const json = toOpenApi(fields) as { properties?: Record<string, unknown>; required?: string[] };
+  return {
+    required: true,
+    content: {
+      'multipart/form-data': {
+        schema: {
+          type: 'object',
+          required: [...Object.keys(files), ...(json.required ?? [])],
+          properties: {
+            ...Object.fromEntries(Object.entries(files).map(([name, description]) => [name, { type: 'string', format: 'binary', description }])),
+            ...json.properties
+          }
+        }
+      }
+    }
+  };
+}
+
+export default { toOpenApi, toParameters, jsonBody, multipartBody };
