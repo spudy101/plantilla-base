@@ -45,10 +45,11 @@ describe('App smoke (client) · pipeline HTTP end-to-end', () => {
     expect(res.headers['x-correlation-id']).toBeTruthy();
   });
 
-  it('respeta un X-Correlation-Id entrante', async () => {
+  it('ignora un X-Correlation-Id entrante como id: siempre genera el suyo', async () => {
     const incoming = 'smoke-test-correlation-id';
     const res = await request(app).get('/health').set('X-Correlation-Id', incoming);
-    expect(res.headers['x-correlation-id']).toBe(incoming);
+    expect(res.headers['x-correlation-id']).toBeTruthy();
+    expect(res.headers['x-correlation-id']).not.toBe(incoming);
   });
 
   it('ruta desconocida → 404 con el envelope de error estándar', async () => {

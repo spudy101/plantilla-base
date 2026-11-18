@@ -75,14 +75,15 @@ function _sanitize(value: unknown, depth = 0, seen = new WeakSet<object>()): unk
 }
 
 // Toma el userId/sessionId del contexto de la request activa (si no vienen explícitos).
-function _resolveOrigin(userId: string | null, sessionId: string | null): { userId: string | null; sessionId: string | null } {
-  if (userId && sessionId) {
-    return { userId, sessionId };
-  }
+function _resolveOrigin(
+  userId: string | null,
+  sessionId: string | null
+): { userId: string | null; sessionId: string | null; correlationId: string | null } {
   const ctx = requestContext.get();
   return {
     userId: userId ?? ctx?.userId ?? null,
-    sessionId: sessionId ?? ctx?.sessionId ?? null
+    sessionId: sessionId ?? ctx?.sessionId ?? null,
+    correlationId: ctx?.correlationId ?? null
   };
 }
 
@@ -135,6 +136,7 @@ class IntegrationApiLogger {
           endpoint,
           userId: origin.userId,
           sessionId: origin.sessionId,
+          correlationId: origin.correlationId,
           result,
           responseTimeMs: responseTimeMs ?? null,
           errorCode: errorCode ? String(errorCode) : null,

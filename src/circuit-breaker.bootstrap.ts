@@ -8,11 +8,11 @@
 //   onOpen  → abre una ventana en provider_fallback_events + audita PROVIDER_FALLBACK_ACTIVATED
 //   onClose → cierra la ventana (duración + impacto) + audita PROVIDER_FALLBACK_RESOLVED
 //
-// Todo corre dentro de requestContext.runAsSystem (source:'system').
+// Todo corre dentro de runOperation({ source: 'system' }).
 
 import { interopDefault } from './shared/utils/interop.util';
 import CircuitBreaker from './shared/infra/circuit-breaker.util';
-import requestContext from './shared/observability/request-context.util';
+import { runOperation } from './shared/observability/operation';
 import loggerUtilModule from './shared/observability/logger.util';
 const { logger, logAudit } = loggerUtilModule;
 import providerFallbackRepository from './modules/integration/repositories/provider-fallback-event.repository';
@@ -53,7 +53,7 @@ async function _contarProcesosAfectados(product: string, startedAt: Date | null,
 }
 
 function _onOpen(product: string, openedAt: number | null) {
-  return requestContext.runAsSystem('circuit-breaker.fallback-open', async () => {
+  return runOperation({ source: 'system', name: 'circuit-breaker.fallback-open' }, async () => {
     try {
       await providerFallbackRepository.openFallback({
         provider: _providerName(product),
@@ -73,7 +73,7 @@ function _onOpen(product: string, openedAt: number | null) {
 }
 
 function _onClose(product: string, openedAt: number | null) {
-  return requestContext.runAsSystem('circuit-breaker.fallback-close', async () => {
+  return runOperation({ source: 'system', name: 'circuit-breaker.fallback-close' }, async () => {
     try {
       const endedAt = new Date();
       const startedAt = openedAt ? new Date(openedAt) : null;

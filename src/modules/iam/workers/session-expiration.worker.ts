@@ -13,7 +13,7 @@
 import cron from 'node-cron';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import requestContext from '../../../shared/observability/request-context.util';
+import { runOperation } from '../../../shared/observability/operation';
 import userSessionRepository from '../repositories/user-session.repository';
 import RefreshTokenStore from '../utils/refresh-token-store.util';
 import TokenBlacklistUtil from '../utils/token-blacklist.util';
@@ -36,7 +36,7 @@ const REASON_ABSOLUTE = 'absolute_lifetime';
 class SessionExpirationWorker {
   static iniciar() {
     cron.schedule(CRON_EXPRESSION, () =>
-      requestContext.runAsWorker('session-expiration.sweep', async () => {
+      runOperation({ source: 'worker', name: 'session-expiration.sweep' }, async () => {
         logger.info('Ejecutando worker: expiración de sesiones (inactividad + tope absoluto)');
         const result = await SessionExpirationWorker._processExpired();
         logger.info('Worker de expiración de sesiones completado', result);

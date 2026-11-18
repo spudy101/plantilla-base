@@ -68,8 +68,8 @@ const AUDIT_OUTCOMES = {
 // ── SOURCE / origen técnico del registro ─────────────────────────
 // Dimensión del REGISTRO de auditoría. Espeja la columna `source` de audit_logs.
 //   http    → request HTTP (audit.middleware)
-//   worker  → cron/worker (requestContext.runAsWorker)
-//   system  → evento de infraestructura (requestContext.runAsSystem)
+//   worker  → cron/worker (runOperation({ source: 'worker' }))
+//   system  → evento de infraestructura (runOperation({ source: 'system' }))
 //   unknown → logAudit ejecutado fuera de todo contexto (anomalía detectable)
 const AUDIT_SOURCES = {
   HTTP: 'http',

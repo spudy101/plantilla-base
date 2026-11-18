@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import requestContext from '../../../shared/observability/request-context.util';
+import { runOperation } from '../../../shared/observability/operation';
 import auditLogRepository from '../repositories/audit-log.repository';
 import systemGlobalConfigRepository from '../../settings/repositories/system-global-config.repository';
 import errorMessageModule from '../../../shared/utils/error-message.util';
@@ -111,7 +111,7 @@ async function _purgeExpiredFromDb(hotYears: number) {
  */
 function iniciar() {
   cron.schedule(RETENTION_CRON, () =>
-    requestContext.runAsWorker('audit-archive.retention', async () => {
+    runOperation({ source: 'worker', name: 'audit-archive.retention' }, async () => {
       logger.info('Ejecutando worker: retención/archivado de auditoría');
       const config = await systemGlobalConfigRepository.findActive();
       await run({ enableDbPurge: config?.auditHotPurgeEnabled === true });

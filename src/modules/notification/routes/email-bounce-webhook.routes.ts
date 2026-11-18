@@ -13,6 +13,7 @@ import EmailBounceWebhookValidator from '../validators/email-bounce-webhook.vali
 import AuthMiddleware from '../../iam/middlewares/auth.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
+import { markOperationSource } from '../../../shared/observability/operation';
 import AuditAction from '../../audit/middlewares/audit-action.middleware';
 
 const WEBHOOK_BODY_LIMIT = '256kb';
@@ -20,6 +21,7 @@ const WEBHOOK_BODY_LIMIT = '256kb';
 // POST /notification/email-bounces/webhook — feed asíncrono de bounces de SES.
 router.post(
   '/email-bounces/webhook',
+  markOperationSource('webhook'),
   express.text({ type: '*/*', limit: WEBHOOK_BODY_LIMIT }),
   AuthMiddleware.externalWebhookAuthenticate,
   RateLimitMiddleware.apiLimiter(),
