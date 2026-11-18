@@ -1,3 +1,5 @@
+import { z } from '../../../shared/validation/z';
+import { dateTime } from '../../../shared/validation/output';
 import type { Role } from '../../../shared/database/generated/prisma/client';
 
 import personModule from '../../person';
@@ -100,3 +102,40 @@ export default {
   UserChangeLogDTO,
   RoleOptionDTO
 };
+
+// ── Esquemas de salida ──
+const { UserSchema, PersonSchema } = personModule.personSchemas;
+
+export const InternalUserSchema = z.object({
+  userId: z.uuid(),
+  username: z.string(),
+  isActive: z.boolean().nullable(),
+  deletedAt: dateTime().nullable(),
+  totpEnabled: z.boolean().nullable(),
+  smsMfaEnabled: z.boolean(),
+  preferredMfaMethod: z.string(),
+  role: UserSchema.shape.role.unwrap().nullable(),
+  person: PersonSchema.nullable(),
+  createdAt: dateTime(),
+  updatedAt: dateTime()
+});
+
+export const InternalUserListItemSchema = z.object({
+  userId: z.uuid(),
+  username: z.string(),
+  isActive: z.boolean().nullable(),
+  deletedAt: dateTime().nullable(),
+  roleName: z.string().nullable().meta({ example: 'ADMIN_PRODUCTOS' }),
+  firstName: z.string().nullable(),
+  lastName: z.string().nullable(),
+  email: z.string().nullable().meta({ description: 'Correo enmascarado.' }),
+  pendingApproval: z.unknown().meta({ description: 'Solicitud de doble aprobación pendiente sobre el usuario, o null.' }),
+  createdAt: dateTime(),
+  updatedAt: dateTime()
+});
+
+export const InternalUserCreatedSchema = InternalUserSchema.extend({
+  temporaryPassword: z.string().meta({ description: 'Contraseña temporal: se muestra una sola vez.' })
+});
+
+export const RoleOptionSchema = z.object({ roleId: z.uuid(), name: z.string(), description: z.string().nullable() });

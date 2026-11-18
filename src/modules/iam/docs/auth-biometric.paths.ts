@@ -1,4 +1,18 @@
 import commonResponses from '../../../config/swagger/responses/common.responses';
+import { jsonBody, toOpenApi, toParameters } from '../../../shared/validation/openapi';
+import {
+  BiometricCredentialParams,
+  BiometricLoginFinishBody,
+  BiometricLoginStartBody,
+  BiometricRegisterFinishBody
+} from '../requests/iam.request';
+import { BiometricCredentialSchema } from '../responses/auth-components.response';
+import {
+  BiometricCredentialListSchema,
+  BiometricLoginStartSchema,
+  BiometricRegisterFinishSchema,
+  BiometricRegisterStartSchema
+} from '../responses/auth-biometric.response';
 
 /**
  * ============================================================
@@ -21,163 +35,16 @@ import commonResponses from '../../../config/swagger/responses/common.responses'
 
 // ─── Schemas propios del módulo ───────────────────────────────
 
+// Generados desde los esquemas Zod de requests/ y responses/.
 const schemas = {
-  // ── Register ──────────────────────────────────────────────
-
-  BiometricRegisterStartResponse: {
-    type: 'object',
-    properties: {
-      challenge: {
-        type: 'string',
-        description: 'Challenge base64url que el dispositivo debe firmar con su llave privada ES256.',
-        example: 'dGhpcyBpcyBhIHRlc3QgY2hhbGxlbmdl'
-      },
-      deviceId: {
-        type: 'string',
-        format: 'uuid',
-        description: 'ID del `UserTrustedDevice` asociado a este registro.'
-      },
-      algorithm: {
-        type: 'integer',
-        example: -7,
-        description: 'Algoritmo requerido. `-7` = ES256 (ECDSA con P-256 y SHA-256).'
-      }
-    }
-  },
-
-  BiometricRegisterFinishRequest: {
-    type: 'object',
-    required: ['credentialId', 'publicKey', 'challenge', 'signature'],
-    properties: {
-      credentialId: {
-        type: 'string',
-        description: 'ID único de la credencial generado por el dispositivo (base64url).',
-        example: 'AQIDBAUGBwgJCgsMDQ4PEA=='
-      },
-      publicKey: {
-        type: 'string',
-        description: 'Llave pública ES256 del dispositivo en base64 (formato DER/SPKI) o PEM.',
-        example: 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...'
-      },
-      challenge: {
-        type: 'string',
-        description: 'El mismo challenge recibido en `register/start`.',
-        example: 'dGhpcyBpcyBhIHRlc3QgY2hhbGxlbmdl'
-      },
-      signature: {
-        type: 'string',
-        description: 'Firma ES256 del challenge en base64url (formato DER o raw r||s de 64 bytes).',
-        example: 'MEUCIQD...'
-      }
-    }
-  },
-
-  BiometricRegisterFinishResponse: {
-    type: 'object',
-    properties: {
-      biometricCredentialId: { type: 'string', format: 'uuid' },
-      credentialId: {
-        type: 'string',
-        description: 'ID de la credencial tal como lo envió el dispositivo.'
-      },
-      deviceId: { type: 'string', format: 'uuid' },
-      createdAt: { type: 'string', format: 'date-time' }
-    }
-  },
-
-  // ── Login ─────────────────────────────────────────────────
-
-  BiometricLoginStartRequest: {
-    type: 'object',
-    required: ['nationalId'],
-    properties: {
-      nationalId: {
-        type: 'string',
-        example: '12345678-9',
-        description: 'Identificador nacional del usuario. Se usa para buscar sus credenciales biométricas.'
-      }
-    }
-  },
-
-  BiometricLoginStartResponse: {
-    type: 'object',
-    properties: {
-      challenge: {
-        type: 'string',
-        description: 'Challenge base64url que el dispositivo debe firmar con su llave privada.',
-        example: 'dGhpcyBpcyBhIHRlc3QgY2hhbGxlbmdl'
-      },
-      userId: {
-        type: 'string',
-        format: 'uuid',
-        description: 'UUID del usuario identificado. Necesario para construir la firma en el dispositivo.'
-      }
-    }
-  },
-
-  BiometricLoginFinishRequest: {
-    type: 'object',
-    required: ['credentialId', 'challenge', 'signature', 'signCount'],
-    properties: {
-      credentialId: {
-        type: 'string',
-        description: 'ID de la credencial registrada en `register/finish`.',
-        example: 'AQIDBAUGBwgJCgsMDQ4PEA=='
-      },
-      challenge: {
-        type: 'string',
-        description: 'El mismo challenge recibido en `login/start`.',
-        example: 'dGhpcyBpcyBhIHRlc3QgY2hhbGxlbmdl'
-      },
-      signature: {
-        type: 'string',
-        description: 'Firma ES256 del challenge en base64url.',
-        example: 'MEUCIQD...'
-      },
-      signCount: {
-        type: 'integer',
-        minimum: 0,
-        example: 1,
-        description: 'Contador del authenticator. Debe ser **mayor** al almacenado en servidor (protección anti-replay).'
-      },
-      acceptPolicy: {
-        type: 'boolean',
-        example: true,
-        description:
-          '**Opcional.** Enviar `true` solo cuando el servidor retornó `requiresPolicyAcceptance: true` en un intento anterior y el usuario aceptó la nueva política.'
-      }
-    }
-  },
-
-  // ── Credential ────────────────────────────────────────────
-
-  BiometricCredential: {
-    type: 'object',
-    properties: {
-      biometricCredentialId: { type: 'string', format: 'uuid' },
-      deviceId: {
-        type: 'string',
-        format: 'uuid',
-        description: 'ID del `UserTrustedDevice` asociado.'
-      },
-      credentialId: { type: 'string', description: 'ID opaco generado por el dispositivo.' },
-      signCount: { type: 'integer', example: 5 },
-      isActive: { type: 'boolean', example: true },
-      lastUsedAt: { type: 'string', format: 'date-time', nullable: true },
-      createdAt: { type: 'string', format: 'date-time' }
-    }
-  },
-
-  BiometricCredentialListResponse: {
-    type: 'object',
-    properties: {
-      credentials: {
-        type: 'array',
-        items: { $ref: '#/components/schemas/BiometricCredential' }
-      },
-      total: { type: 'integer', example: 2 }
-    }
-  }
+  BiometricRegisterStartResponse: toOpenApi(BiometricRegisterStartSchema, 'output'),
+  BiometricRegisterFinishRequest: toOpenApi(BiometricRegisterFinishBody),
+  BiometricRegisterFinishResponse: toOpenApi(BiometricRegisterFinishSchema, 'output'),
+  BiometricLoginStartRequest: toOpenApi(BiometricLoginStartBody),
+  BiometricLoginStartResponse: toOpenApi(BiometricLoginStartSchema, 'output'),
+  BiometricLoginFinishRequest: toOpenApi(BiometricLoginFinishBody),
+  BiometricCredential: toOpenApi(BiometricCredentialSchema, 'output'),
+  BiometricCredentialListResponse: toOpenApi(BiometricCredentialListSchema, 'output')
 };
 
 // ─── Paths ────────────────────────────────────────────────────
@@ -219,14 +86,7 @@ const paths = {
 **Algoritmo soportado:** ES256 (ECDSA con P-256 y SHA-256).
 
 La firma puede venir en formato DER o en formato raw (r||s, 64 bytes) — el servidor detecta automáticamente.`,
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/BiometricRegisterFinishRequest' }
-          }
-        }
-      },
+      requestBody: jsonBody('BiometricRegisterFinishRequest'),
       responses: {
         201: commonResponses.created(
           { $ref: '#/components/schemas/BiometricRegisterFinishResponse' },
@@ -253,14 +113,7 @@ La firma puede venir en formato DER o en formato raw (r||s, 64 bytes) — el ser
 
 El challenge expira en **5 minutos**. Si el usuario no completa el login en ese tiempo, debe iniciar el flujo nuevamente.`,
       security: [],
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/BiometricLoginStartRequest' }
-          }
-        }
-      },
+      requestBody: jsonBody('BiometricLoginStartRequest'),
       responses: {
         200: commonResponses.ok(
           { $ref: '#/components/schemas/BiometricLoginStartResponse' },
@@ -292,14 +145,7 @@ El challenge expira en **5 minutos**. Si el usuario no completa el login en ese 
 
 La respuesta incluye \`hmacSecret\` que el dispositivo debe guardar en el **keychain** para firmar requests posteriores.`,
       security: [],
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/BiometricLoginFinishRequest' }
-          }
-        }
-      },
+      requestBody: jsonBody('BiometricLoginFinishRequest'),
       responses: {
         200: commonResponses.ok(
           {
@@ -343,15 +189,7 @@ La respuesta incluye \`hmacSecret\` que el dispositivo debe guardar en el **keyc
       description: `Desactiva (soft delete) una credencial biométrica del usuario.
 
 Tras eliminarla, el dispositivo asociado ya no podrá hacer login biométrico hasta registrar una nueva huella.`,
-      parameters: [
-        {
-          name: 'credentialId',
-          in: 'path',
-          required: true,
-          description: 'UUID de la credencial biométrica a eliminar.',
-          schema: { type: 'string', format: 'uuid' }
-        }
-      ],
+      parameters: toParameters(BiometricCredentialParams, 'path'),
       responses: {
         ...commonResponses.noContent,
         ...commonResponses.Unauthorized,

@@ -1,3 +1,5 @@
+import { z } from '../../../shared/validation/z';
+import { dateTime } from '../../../shared/validation/output';
 /**
  * ============================================================
  * MFA DTOs — CLIENT
@@ -44,19 +46,37 @@ function PasswordValidationResponseDTO({ valid, username }: Pick<MfaFields, 'val
   return { valid, username };
 }
 
-function SMSMFAActivationResponseDTO({ userId, username, smsMfaEnabled }: Pick<MfaFields, 'userId' | 'username' | 'smsMfaEnabled'>) {
+function SMSMFAActivationResponseDTO({
+  userId,
+  username,
+  smsMfaEnabled
+}: Pick<MfaFields, 'userId' | 'username' | 'smsMfaEnabled'>) {
   return { userId, username, smsMfaEnabled };
 }
 
-function PreferredMethodResponseDTO({ userId, username, preferredMfaMethod }: Pick<MfaFields, 'userId' | 'username' | 'preferredMfaMethod'>) {
+function PreferredMethodResponseDTO({
+  userId,
+  username,
+  preferredMfaMethod
+}: Pick<MfaFields, 'userId' | 'username' | 'preferredMfaMethod'>) {
   return { userId, username, preferredMfaMethod };
 }
 
-function MFAStatusResponseDTO({ userId, username, totpEnabled, smsMfaEnabled, preferredMfaMethod }: Pick<MfaFields, 'userId' | 'username' | 'totpEnabled' | 'smsMfaEnabled' | 'preferredMfaMethod'>) {
+function MFAStatusResponseDTO({
+  userId,
+  username,
+  totpEnabled,
+  smsMfaEnabled,
+  preferredMfaMethod
+}: Pick<MfaFields, 'userId' | 'username' | 'totpEnabled' | 'smsMfaEnabled' | 'preferredMfaMethod'>) {
   return { userId, username, totpEnabled, smsMfaEnabled, preferredMfaMethod };
 }
 
-function SMSActivationRequestResponseDTO({ verificationCodeId, expiresAt, truncatedCode }: Pick<MfaFields, 'verificationCodeId' | 'expiresAt' | 'truncatedCode'>) {
+function SMSActivationRequestResponseDTO({
+  verificationCodeId,
+  expiresAt,
+  truncatedCode
+}: Pick<MfaFields, 'verificationCodeId' | 'expiresAt' | 'truncatedCode'>) {
   return { verificationCodeId, expiresAt, truncatedCode };
 }
 
@@ -70,3 +90,29 @@ export default {
   MFAStatusResponseDTO,
   PreferredMethodResponseDTO
 };
+
+// ── Esquemas de salida ──
+const account = { userId: z.uuid(), username: z.string().nullable() };
+const mfaMethod = z.string().meta({ example: 'totp', description: 'none | totp | sms' });
+
+export const TotpSetupSchema = z.object({
+  otpauthUrl: z.string().meta({ description: 'URL otpauth:// para generar el código QR.' }),
+  secretCode: z.string().meta({ description: 'Secreto para ingresar a mano en la app de autenticación.' }),
+  username: z.string().nullable(),
+  instructions: z.string()
+});
+export const TotpActivationSchema = z.object({ ...account, totpEnabled: z.boolean() });
+export const ValidationResultSchema = z.object({ valid: z.boolean(), username: z.string().nullable() });
+export const SmsMfaActivationSchema = z.object({ ...account, smsMfaEnabled: z.boolean() });
+export const PreferredMethodSchema = z.object({ ...account, preferredMfaMethod: mfaMethod });
+export const MfaStatusSchema = z.object({
+  ...account,
+  totpEnabled: z.boolean(),
+  smsMfaEnabled: z.boolean(),
+  preferredMfaMethod: mfaMethod
+});
+export const SmsActivationRequestSchema = z.object({
+  verificationCodeId: z.uuid(),
+  expiresAt: dateTime(),
+  truncatedCode: z.string().nullable().meta({ description: 'Código parcial. Solo fuera de producción, para pruebas.' })
+});

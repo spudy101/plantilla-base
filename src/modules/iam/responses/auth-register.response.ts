@@ -1,3 +1,4 @@
+import { z } from '../../../shared/validation/z';
 import personModule from '../../person';
 const { personComponentsDto: componentsPersonModule } = personModule;
 const { UserComponent, PersonComponent, PersonContactComponent } = componentsPersonModule;
@@ -58,3 +59,17 @@ function RegisterResponseDTO({
 export default {
   RegisterResponseDTO
 };
+
+// ── Esquema de salida ──
+const { UserSchema, PersonSchema, PersonContactSchema } = personModule.personSchemas;
+
+export const RegisterSchema = z
+  .object({
+    user: UserSchema.nullable(),
+    tokens: z.object({ accessToken: z.string(), refreshToken: z.string(), expiresIn: z.number().int() }),
+    person: PersonSchema.nullable().optional(),
+    contact: PersonContactSchema.nullable().optional()
+  })
+  .meta({
+    description: 'Cuenta recién creada. Excepción al enmascarado: devuelve los datos completos que el usuario acaba de ingresar.'
+  });

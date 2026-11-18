@@ -1,4 +1,15 @@
 import commonResponses from '../../../config/swagger/responses/common.responses';
+import { jsonBody, toOpenApi } from '../../../shared/validation/openapi';
+import { PasswordBody, PreferredMethodBody, SmsActivationCodeBody, TotpCodeBody } from '../requests/iam.request';
+import {
+  MfaStatusSchema,
+  PreferredMethodSchema,
+  SmsActivationRequestSchema,
+  SmsMfaActivationSchema,
+  TotpActivationSchema,
+  TotpSetupSchema,
+  ValidationResultSchema
+} from '../responses/mfa.response';
 
 /**
  * ============================================================
@@ -17,161 +28,20 @@ import commonResponses from '../../../config/swagger/responses/common.responses'
 
 // ─── Schemas propios del módulo ───────────────────────────────
 
+// Generados desde los esquemas Zod de requests/ y responses/.
 const schemas = {
-  TOTPSetupResponse: {
-    type: 'object',
-    properties: {
-      otpauthUrl: {
-        type: 'string',
-        example: 'otpauth://totp/Base Project:juan?secret=BASE32SECRET&issuer=Base Project',
-        description: 'URI estándar `otpauth://` para generar el QR. Pásalo directamente a una librería de QR (ej: `qrcode`).'
-      },
-      secretCode: {
-        type: 'string',
-        example: 'JBSWY3DPEHPK3PXP',
-        description: 'Secret en Base32 — para entrada manual si el usuario no puede escanear el QR.'
-      },
-      username: { type: 'string' },
-      instructions: {
-        type: 'string',
-        example: 'Escanea el código QR con tu aplicación de autenticación y verifica el código generado para activar TOTP.'
-      }
-    }
-  },
-
-  TOTPCodeRequest: {
-    type: 'object',
-    required: ['totpCode'],
-    properties: {
-      totpCode: { type: 'string', minLength: 6, maxLength: 6, example: '123456' }
-    }
-  },
-
-  TOTPActivationResponse: {
-    type: 'object',
-    properties: {
-      userId: { type: 'string', format: 'uuid' },
-      username: { type: 'string' },
-      totpEnabled: { type: 'boolean', example: true }
-    }
-  },
-
-  TOTPVerificationResponse: {
-    type: 'object',
-    properties: {
-      valid: { type: 'boolean', example: true },
-      username: { type: 'string' }
-    }
-  },
-
-  PasswordValidationRequest: {
-    type: 'object',
-    required: ['password'],
-    properties: {
-      password: { type: 'string', format: 'password' }
-    }
-  },
-
-  PasswordValidationResponse: {
-    type: 'object',
-    properties: {
-      valid: { type: 'boolean', example: true },
-      username: { type: 'string' }
-    }
-  },
-
-  DeactivateTOTPRequest: {
-    type: 'object',
-    required: ['password'],
-    properties: {
-      password: {
-        type: 'string',
-        format: 'password',
-        description: 'Contraseña actual como confirmación.'
-      }
-    }
-  },
-
-  MFAStatusResponse: {
-    type: 'object',
-    properties: {
-      userId: { type: 'string', format: 'uuid' },
-      username: { type: 'string' },
-      totpEnabled: { type: 'boolean', example: true },
-      smsMfaEnabled: { type: 'boolean', example: false },
-      preferredMfaMethod: { type: 'string', enum: ['totp', 'sms', 'none'], example: 'totp' }
-    }
-  },
-
-  SMSActivationRequestResponse: {
-    type: 'object',
-    properties: {
-      verificationCodeId: { type: 'string', format: 'uuid' },
-      expiresAt: { type: 'string', format: 'date-time' },
-      truncatedCode: {
-        type: 'string',
-        example: '****56',
-        description: 'Últimos 2 dígitos del código OTP enmascarados. Solo para desarrollo/debug.'
-      }
-    }
-  },
-
-  SMSConfirmRequest: {
-    type: 'object',
-    required: ['code'],
-    properties: {
-      code: {
-        type: 'string',
-        minLength: 6,
-        maxLength: 6,
-        example: '123456',
-        description: 'Código OTP de 6 dígitos recibido por SMS.'
-      }
-    }
-  },
-
-  SMSMFAActivationResponse: {
-    type: 'object',
-    properties: {
-      userId: { type: 'string', format: 'uuid' },
-      username: { type: 'string' },
-      smsMfaEnabled: { type: 'boolean', example: true }
-    }
-  },
-
-  DeactivateSMSRequest: {
-    type: 'object',
-    required: ['password'],
-    properties: {
-      password: {
-        type: 'string',
-        format: 'password',
-        description: 'Contraseña actual como confirmación.'
-      }
-    }
-  },
-
-  PreferredMethodRequest: {
-    type: 'object',
-    required: ['preferredMethod'],
-    properties: {
-      preferredMethod: {
-        type: 'string',
-        enum: ['totp', 'sms'],
-        example: 'totp',
-        description: 'Método MFA preferido. El método debe estar previamente activado.'
-      }
-    }
-  },
-
-  PreferredMethodResponse: {
-    type: 'object',
-    properties: {
-      userId: { type: 'string', format: 'uuid' },
-      username: { type: 'string' },
-      preferredMfaMethod: { type: 'string', enum: ['totp', 'sms', 'none'], example: 'sms' }
-    }
-  }
+  TOTPSetupResponse: toOpenApi(TotpSetupSchema, 'output'),
+  TOTPCodeRequest: toOpenApi(TotpCodeBody),
+  TOTPActivationResponse: toOpenApi(TotpActivationSchema, 'output'),
+  TOTPVerificationResponse: toOpenApi(ValidationResultSchema, 'output'),
+  PasswordRequest: toOpenApi(PasswordBody),
+  PasswordValidationResponse: toOpenApi(ValidationResultSchema, 'output'),
+  MFAStatusResponse: toOpenApi(MfaStatusSchema, 'output'),
+  SMSActivationRequestResponse: toOpenApi(SmsActivationRequestSchema, 'output'),
+  SMSConfirmRequest: toOpenApi(SmsActivationCodeBody),
+  SMSMFAActivationResponse: toOpenApi(SmsMfaActivationSchema, 'output'),
+  PreferredMethodRequest: toOpenApi(PreferredMethodBody),
+  PreferredMethodResponse: toOpenApi(PreferredMethodSchema, 'output')
 };
 
 // ─── Paths ────────────────────────────────────────────────────
@@ -209,14 +79,7 @@ const paths = {
       operationId: 'activateTOTP',
       description:
         'Verifica el código TOTP generado por la app y activa MFA en la cuenta. Debe llamarse inmediatamente después de `setup-totp`.',
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/TOTPCodeRequest' }
-          }
-        }
-      },
+      requestBody: jsonBody('TOTPCodeRequest'),
       responses: {
         200: commonResponses.ok({ $ref: '#/components/schemas/TOTPActivationResponse' }, 'TOTP activado exitosamente.'),
         ...commonResponses.BadRequest,
@@ -236,14 +99,7 @@ const paths = {
       operationId: 'verifyTOTP',
       description:
         'Valida un código TOTP para el usuario autenticado. Útil para confirmar acciones sensibles dentro de la app (distinto del `/auth/verify-mfa` que completa el login).',
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/TOTPCodeRequest' }
-          }
-        }
-      },
+      requestBody: jsonBody('TOTPCodeRequest'),
       responses: {
         200: commonResponses.ok({ $ref: '#/components/schemas/TOTPVerificationResponse' }, 'Resultado de la verificación TOTP.'),
         ...commonResponses.BadRequest,
@@ -262,14 +118,7 @@ const paths = {
       operationId: 'validatePassword',
       description:
         'Verifica que la contraseña ingresada es correcta. Útil como paso previo a acciones críticas que no requieren TOTP completo.',
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/PasswordValidationRequest' }
-          }
-        }
-      },
+      requestBody: jsonBody('PasswordRequest'),
       responses: {
         200: commonResponses.ok(
           { $ref: '#/components/schemas/PasswordValidationResponse' },
@@ -290,14 +139,7 @@ const paths = {
       operationId: 'deactivateTOTP',
       description:
         '⚠️ Desactiva MFA en la cuenta. Requiere contraseña actual como confirmación. Acción de alto riesgo — reduce la seguridad de la cuenta.',
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/DeactivateTOTPRequest' }
-          }
-        }
-      },
+      requestBody: jsonBody('PasswordRequest'),
       responses: {
         200: commonResponses.ok(
           { $ref: '#/components/schemas/TOTPActivationResponse' },
@@ -340,24 +182,7 @@ const paths = {
 
 > ⚠️ El usuario debe tener un teléfono primario registrado. Si SMS MFA ya está activo, devuelve 409.
 > ⚠️ Se permite 1 solicitud por minuto (rate limit de 60s por número de teléfono).`,
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': {
-            schema: {
-              type: 'object',
-              required: ['password'],
-              properties: {
-                password: {
-                  type: 'string',
-                  format: 'password',
-                  description: 'Contraseña actual como confirmación.'
-                }
-              }
-            }
-          }
-        }
-      },
+      requestBody: jsonBody('PasswordRequest'),
       responses: {
         200: commonResponses.ok(
           { $ref: '#/components/schemas/SMSActivationRequestResponse' },
@@ -384,14 +209,7 @@ const paths = {
 - Máximo **5 intentos** antes de invalidar el código.
 - El código expira a los **15 minutos** de ser generado.
 - Llama a \`POST /mfa/sms/request\` para obtener un nuevo código si se agotaron los intentos.`,
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/SMSConfirmRequest' }
-          }
-        }
-      },
+      requestBody: jsonBody('SMSConfirmRequest'),
       responses: {
         200: commonResponses.ok(
           { $ref: '#/components/schemas/SMSMFAActivationResponse' },
@@ -416,14 +234,7 @@ const paths = {
       operationId: 'deactivateSMS',
       description:
         '⚠️ Desactiva SMS MFA. Si el método preferido era `sms`, cambia automáticamente a `totp` (si está activo) o a `none`. Requiere contraseña actual como confirmación.',
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/DeactivateSMSRequest' }
-          }
-        }
-      },
+      requestBody: jsonBody('PasswordRequest'),
       responses: {
         200: commonResponses.ok(
           { $ref: '#/components/schemas/SMSMFAActivationResponse' },
@@ -448,14 +259,7 @@ const paths = {
 - Para seleccionar \`totp\`: TOTP debe estar activo (\`totpEnabled: true\`).
 - Para seleccionar \`sms\`: SMS MFA debe estar activo (\`smsMfaEnabled: true\`).
 - Ambos métodos pueden estar activos simultáneamente; este endpoint define cuál se usa en el login.`,
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/PreferredMethodRequest' }
-          }
-        }
-      },
+      requestBody: jsonBody('PreferredMethodRequest'),
       responses: {
         200: commonResponses.ok({ $ref: '#/components/schemas/PreferredMethodResponse' }, 'Método preferido actualizado.'),
         ...commonResponses.BadRequest,
