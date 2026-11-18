@@ -3,7 +3,7 @@ const { logAudit } = loggerUtilModule;
 import PaginationHelper from '../../../../../shared/utils/pagination.util';
 import componentsCatalogDtoModule from '../../../../../shared/dtos/kyc/components-catalog.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
-import auditactionsModule from '../../../../../shared/constants/auditActions';
+import auditactionsModule from '../../../../../shared/constants/audit-actions';
 const {
   AUDIT_ACTIONS,
   AUDIT_CATEGORIES,

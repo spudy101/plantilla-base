@@ -1,6 +1,6 @@
 import { query } from 'express-validator';
 import BaseValidator from '../../../../../shared/validators/base.validator';
-import auditactionsModule from '../../../../../shared/constants/auditActions';
+import auditactionsModule from '../../../../../shared/constants/audit-actions';
 const {
   AUDIT_ACTIONS,
   AUDIT_CATEGORIES,

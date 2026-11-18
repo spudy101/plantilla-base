@@ -5,7 +5,7 @@
 > al final de cada fase la app arranca y los tests pasan. Durante la migración **Prisma y Sequelize
 > conviven contra la misma base**: cada repositorio cambia de ORM sin que los services se enteren.
 >
-> Estado: **fases 0 a 6b completas** (repositorios, migraciones y seed sobre Prisma; API en camelCase) en la rama `feat/prisma`; sigue la fase 6c. Ver [Cómo funciona hoy](#cómo-funciona-hoy).
+> Estado: **fases 0 a 6c completas** (repositorios, migraciones y seed sobre Prisma; API en camelCase; la base cumple la convención de nombres) en la rama `feat/prisma`; sigue la fase 7. Ver [Cómo funciona hoy](#cómo-funciona-hoy).
 
 ## Punto de partida (medido)
 
@@ -61,12 +61,12 @@ La plantilla sigue esta tabla; la migración a Prisma es el momento de dejarla c
 | Elemento | Cumple | Desvíos |
 |---|---|---|
 | Código TS (variables, clases, constantes) | sí | — |
-| Enums | parcial | No hay `enum` de TS: los catálogos son constantes `Object.freeze` en UPPER_SNAKE_CASE (`APPROVAL_REQUEST_STATUS`, `shared/constants/domain-enums.ts`). Con Prisma pasan a `enum ApprovalRequestStatus` en el schema y se usa el tipo/objeto que genera el cliente. |
-| Archivos y carpetas | casi | La carpeta `shared/constants/auditActions/` → `audit-actions/`. |
+| Enums | sí | Los de dominio son `enum` de Prisma (tipos ENUM en la base, incluido `NotificationProcessingStatus`, antes varchar). `shared/constants/domain-enums.ts` los reexpone en UPPER_SNAKE_CASE tomando los valores del cliente generado, con chequeo de exhaustividad en el typecheck. |
+| Archivos y carpetas | sí | `shared/constants/auditActions/` → `audit-actions/` (fase 6c). |
 | JSON de la API | sí | Las 88 claves de los 8 DTOs pasaron a camelCase con su repositorio (fase 5); la 6b cerró `sortBy` y las propiedades internas. Quedan en snake_case solo datos: valores de enum, JSONB guardado y variables de templates (ver [Fase 6b](#fase-6b-api-en-camelcase)). |
-| Tablas y columnas | casi | 43 tablas y 510 columnas en snake_case salvo `deletedAt` en `users`, `persons` y `reset_credentials` → `deleted_at`. `SequelizeMeta`/`SequelizeData` desaparecen con Sequelize. |
-| Índices | no | 69 de 197 usan `idx_`; el resto tiene el nombre que puso Sequelize (`countries_code`, `phone_prefixes_country_id`…). |
-| Constraints | no | Nombres por defecto de Postgres: 43 PK `*_pkey`, 47 FK `*_fkey`, 26 UNIQUE `*_key` (1 con `uq_`), 1 CHECK `*_check`. |
+| Tablas y columnas | sí | 43 tablas y 505 columnas en snake_case. Las `deletedAt` residuales de `users`, `persons` y `reset_credentials` se eliminaron (fase 6c); `SequelizeMeta`/`SequelizeData`, con el baseline (fase 6). |
+| Índices | sí | 245 de 245 con `idx_`/`uq_`/`pk_` (fase 6c); se eliminaron 16 redundantes. |
+| Constraints | sí | 41 `pk_`, 26 `uq_`, 47 `fk_`, 1 `ck_` (fase 6c). |
 
 En el schema de Prisma cada nombre de la base va explícito (`@@map`, `@map`, `@id(map: …)`,
 `@unique(map: …)`, `@@index(…, map: …)`, `@relation(…, map: …)`); si no, Prisma usa sus propios
@@ -86,7 +86,7 @@ datos ni bloquea por mucho tiempo.
 | **5. Repositorios** (por grupo, un commit cada uno; ver [Fase 5](#fase-5-repositorios)) | Los 44 repositorios a `PrismaRepository` con su contrato actual; `Op.*` → filtros de Prisma, `include` por nombre de relación; services y DTOs que los consumen, a camelCase en el mismo commit. | ✅ |
 | **6. Migraciones y seed** (ver [Fase 6](#fase-6-migraciones-y-seed)) | `prisma/migrations/0_init`: la base que dejaban las 45 migraciones de Sequelize, idéntica objeto por objeto (con CHECK, triggers y comentarios en SQL crudo). `npm run db:migrate` (`scripts/db-migrate.ts`) hace el baseline de las bases Sequelize (`migrate resolve --applied 0_init`) y después `migrate deploy`. 19 seeders → `prisma db seed` (`prisma/seed.ts` + `prisma/seeds/`), re-ejecutable: crea lo que falta y no pisa lo existente. Se fueron `sequelize-cli`, `.sequelizerc`, `db:tracking`, `migrations/` y `seeders/`. | ✅ |
 | **6b. API en camelCase** (ver [Fase 6b](#fase-6b-api-en-camelcase)) | Las 88 claves de los 8 DTOs ya salían en camelCase (fase 5). `sortBy` en camelCase (default `createdAt`, también en `metadata.sort.field`; los nombres de columna se siguen aceptando); propiedades TS internas en snake_case → camelCase. | ✅ |
-| **6c. Nombres en la base** | Primera migración de Prisma después de la base (hoy `migrate dev` genera exactamente la parte de `users."deletedAt"` y los DEFAULT): quitar las columnas `deletedAt` residuales (users, persons, reset_credentials), `DEFAULT now()` en `created_at`, `ON DELETE RESTRICT` en las FK NOT NULL de `person_locations`, índices → `idx_…`, constraints → `pk_`/`uq_`/`fk_`/`ck_`. Schema con los `map:` explícitos y `prisma migrate diff` en cero contra la base. Enums del dominio como `enum` de Prisma; `auditActions/` → `audit-actions/`. | ⏳ |
+| **6c. Nombres en la base** (ver [Fase 6c](#fase-6c-nombres-en-la-base)) | Migración `20261118120000_naming_conventions`: 16 índices redundantes y las 3 columnas `deletedAt` residuales fuera, `DEFAULT` en los 36 `created_at`, `ON DELETE RESTRICT` en las FK NOT NULL de `person_locations`, estados de procesamiento como enum, 227 índices y constraints renombrados a `pk_`/`uq_`/`fk_`/`ck_`/`idx_`. Schema con todos los `map:` y `migrate diff` vacío contra la base. `domain-enums.ts` derivado de los enums de Prisma; `auditActions/` → `audit-actions/`. | ✅ |
 | **7. Cierre** | Quitar `sequelize`, `sqlite3`, modelos, `registry.ts`, `gen-model-types.js`; guarda de arquitectura: `@prisma/client` solo en repositorios y `shared/database`; docs (`database.md`, `implementation-patterns.md`, `solid.md`, README). | ⏳ |
 
 Orden: lo que más riesgo tiene (transacciones, PII) se resuelve antes de tocar los repositorios en masa,
@@ -108,6 +108,27 @@ y la fase 3 desacopla los services del ORM **antes** del cambio, así la fase 5 
 | Metadatos | `npm run prisma:generate` también escribe `shared/database/generated/prisma-metadata.ts` (escalares y relaciones por modelo) para que la extensión recorra anidados. |
 | Salud y cierre | `shared/database/database-health.ts`: `checkDatabase()` (arranque y `/health`: sano solo si responden los dos ORMs) y `closeDatabase()` (graceful shutdown). |
 | Tests | `npm run db:test:prepare` (una vez y al cambiar migraciones) + `npm test`. Entorno en `tests/test-env.ts`: Postgres, esquema `TEST_DB_SCHEMA` (por defecto `test`), sin TLS; `db:reset` se niega a tocar `public`. |
+
+### Fase 6c: nombres en la base
+
+- **Generador:** `scripts/prisma-migration/db-names.ts` lee el catálogo y escribe el bloque de renombres de la
+  migración y los `map:` del schema (los mismos nombres en los dos lados). Reglas: `pk_<tabla>`,
+  `uq_`/`fk_`/`ck_<tabla>_<columnas>`, `idx_<tabla>_<columnas>`; un nombre que ya empezaba con
+  `<prefijo>_<tabla>_` se respetó (`idx_audit_alerts_pending`, `uq_approval_requests_pending_entity_op`); si
+  pasa de 63 caracteres se abrevia la tabla (`uq_user_notif_prefs_user_id_notification_category_code`).
+- **Índices redundantes:** 4 índices únicos duplicaban un UNIQUE constraint y 12 índices simples repetían
+  las columnas de una PK/UNIQUE (`users_username` ≡ `users_username_key`…). Se eliminaron. La FK de
+  `user_notification_preferences` a `notification_categories(code)` se había atado al índice duplicado: se
+  recrea igual, sobre el UNIQUE.
+- **`deletedAt` residuales:** vacías en la base de desarrollo y sin uso en el código; se eliminaron con sus
+  índices. El borrado lógico de `users` sigue en `deleted_at`.
+- **Enum de procesamiento:** `notifications.processing_status` y `global_notifications.push_/email_processing_status`
+  pasan de varchar a `enum_notification_processing_status` (`USING … ::enum`: un valor fuera del enum hace
+  fallar la migración entera en vez de perder datos). Los repositorios tipan el estado con el enum; el
+  validador de entregas toma la lista de `domain-enums.ts`.
+- **Verificación:** `0_init` + esta migración sobre un esquema vacío → `prisma migrate diff` contra el schema
+  da migración vacía; 245 índices y 115 constraints con su prefijo, 0 columnas camelCase, 0 `created_at` sin
+  DEFAULT. Ningún código dependía de nombres de constraint (el manejo de P2002 usa los campos).
 
 ### Fase 6b: API en camelCase
 
@@ -377,11 +398,11 @@ Receta por repositorio:
 - **`users` tiene dos columnas de borrado lógico**: `deleted_at` (la que usa la app) y `deletedAt`, que creó la
   migración y nadie escribe; `persons.deletedAt` y `reset_credentials.deletedAt` tampoco las usa ningún
   modelo. La de `users` queda fuera del schema (Prisma no deja mapear a un nombre que ya usa otro campo).
-  Fase 6c: eliminar las residuales (y su índice `users_deleted_at`).
+  Eliminadas en la fase 6c (con su índice `users_deleted_at`).
 - **`person_locations.city_id` y `department_id` son NOT NULL con `ON DELETE SET NULL`**: borrar una ciudad
-  o un departamento con ubicaciones falla por la NOT NULL. Fase 6c: `ON DELETE RESTRICT`.
+  o un departamento con ubicaciones falla por la NOT NULL. Fase 6c: `ON DELETE RESTRICT` (hecho).
 - **`created_at` no tiene DEFAULT en la base** (lo ponía Sequelize): el schema usa `@default(now())` y
-  `@updatedAt` (lo hace el cliente); la fase 6c agrega los DEFAULT a la base. Las PK uuid sin default usan
+  `@updatedAt` (lo hace el cliente); la fase 6c agregó los DEFAULT a la base. Las PK uuid sin default usan
   `@default(uuid())` (igual que el UUIDV4 de Sequelize).
 - 31 relaciones inversas no tenían asociación en Sequelize: el script les dio nombre (`User.notifications`,
   `PhonePrefix.personContactsByPhonePrimaryPrefix`…); se revisan al migrar cada dominio.

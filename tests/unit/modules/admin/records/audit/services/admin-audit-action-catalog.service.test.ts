@@ -23,7 +23,7 @@ jest.mock('shared/dtos/kyc/components-catalog.dto', () => ({
 }));
 
 // Catálogo determinista: 3 acciones repartidas entre 3 categorías, 3 módulos y 3 riesgos.
-jest.mock('shared/constants/auditActions', () => ({
+jest.mock('shared/constants/audit-actions', () => ({
   AUDIT_ACTIONS: {
     USER_LOGIN: { description: 'Inicio de sesión', category: 'SEGURIDAD', risk: 'LOW', module: 'IAM' },
     USER_DELETED: { description: 'Usuario eliminado', category: 'ADMINISTRACION', risk: 'HIGH', module: 'IAM' },

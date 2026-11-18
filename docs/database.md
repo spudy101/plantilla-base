@@ -37,7 +37,11 @@ esquema migra y siembra desde cero **sin tocar** los demás.
 ## Cambiar el esquema
 
 1. Editá `prisma/schema.prisma` (modelos PascalCase, campos camelCase, nombres de la base con
-   `@@map`/`@map`: ver [`prisma-migration.md`](prisma-migration.md#convenciones-de-nombres)).
+   `@@map`/`@map`: ver [`prisma-migration.md`](prisma-migration.md#convenciones-de-nombres)). **Todo índice y
+   constraint lleva su nombre explícito** (`map:`) según la convención: `@id(map: "pk_<tabla>")`,
+   `@unique(map: "uq_<tabla>_<columnas>")`, `@relation(…, map: "fk_<tabla>_<columnas>")`,
+   `@@index([…], map: "idx_<tabla>_<columnas>")`. Sin `map:` Prisma usa sus nombres por defecto (`*_pkey`,
+   `*_key`, `*_fkey`, `*_idx`).
 2. `npm run db:migrate:dev -- --name <qué-cambia>` genera `prisma/migrations/<timestamp>_<nombre>/migration.sql`,
    la aplica a tu base y regenera el cliente. Revisá el SQL antes de commitearlo: es lo que corre en
    producción.
@@ -54,7 +58,7 @@ para desarrollo local, nunca contra una base compartida.
 
 `prisma/migrations/0_init/migration.sql` termina con los objetos que el schema no expresa:
 
-- `consent_types_scope_check` — `CHECK (scope IN ('ONBOARDING'))`. Un `scope` nuevo para gatear
+- `ck_consent_types_scope` — `CHECK (scope IN ('ONBOARDING'))`. Un `scope` nuevo para gatear
   operaciones de tu dominio = migración que reemplaza el CHECK.
 - Triggers append-only de `user_change_logs` (sin UPDATE ni DELETE) y `audit_logs` (DELETE solo con
   `app.allow_audit_purge = true`, que usa `audit-archive.worker`).
