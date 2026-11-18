@@ -3,25 +3,9 @@
  * CORE SCHEMA — Global
  * ============================================================
  * Schemas globales del núcleo:
- *   - SystemGlobalConfig — configuración global del sistema (SystemGlobalConfigComponent).
  *   - PendingApproval    — bloque genérico de doble aprobación pendiente (maker-checker)
  *                          que anota listados/detalles admin sobre cualquier entidad.
  */
-
-// ============================================================
-// SYSTEM GLOBAL CONFIG (SystemGlobalConfigComponent)
-// ============================================================
-const SystemGlobalConfig = {
-  type: 'object',
-  properties: {
-    configId: { type: 'string', format: 'uuid' },
-    configVersion: { type: 'integer' },
-    isActive: { type: 'boolean' },
-    currency: { type: 'string', example: 'CLP' },
-    createdAt: { type: 'string', format: 'date-time' },
-    updatedAt: { type: 'string', format: 'date-time' }
-  }
-};
 
 // ============================================================
 // PENDING APPROVAL — doble aprobación pendiente sobre una entidad
@@ -52,6 +36,5 @@ const PendingApproval = {
 };
 
 export default {
-  SystemGlobalConfig,
   PendingApproval
 };

@@ -77,7 +77,7 @@ export const optionalIsoDate = (label = 'La fecha') =>
         .transform(s => new Date(s))
         .nullish()
     ),
-    { hint: 'Ingresá una fecha válida en formato YYYY-MM-DD' }
+    { hint: 'Ingresá una fecha válida en formato YYYY-MM-DD', format: 'date' }
   );
 
 /** Email. */
