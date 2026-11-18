@@ -1,19 +1,17 @@
 import type { RequestAuditContext } from '../../../shared/types/audit-context';
 import { v4 as uuidv4 } from 'uuid';
 import userRepository from '../repositories/user.repository';
-import personRepository from '../../person/repositories/person.repository';
-import personContactRepository from '../../person/repositories/person-contact.repository';
-import documentTypeRepository from '../../catalogs/repositories/document-type.repository';
+import personModule from '../../person';
+const { personRepository, personContactRepository } = personModule;
+import catalogsModule from '../../catalogs';
+const { documentTypeRepository, countryRepository, genderRepository } = catalogsModule;
 // eslint-disable-next-line max-len
-import userNotificationPreferenceRepository from '../../notification/repositories/user-notification-preference.repository';
-import countryRepository from '../../catalogs/repositories/country.repository';
-import privacyPolicyRepository from '../../legal/repositories/privacy-policy.repository';
-import consentRecorder from '../../legal/services/consent-recorder.service';
-import genderRepository from '../../catalogs/repositories/gender.repository';
-import verificationCodeRepository from '../../notification/repositories/verification-code.repository';
+import notificationModule from '../../notification';
+const { notificationPreferenceRepository: userNotificationPreferenceRepository, verificationCodeRepository, notificationCreationService: NotificationUtil } = notificationModule;
+import legalModule from '../../legal';
+const { privacyPolicyRepository, consentRecorder } = legalModule;
 import roleRepository from '../repositories/role.repository';
 import userSessionRepository from '../repositories/user-session.repository';
-import NotificationUtil from '../../notification/services/notification-creation.service';
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
@@ -27,7 +25,8 @@ const { RBAC_ROLES, notifications } = constantsModule;
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage, isOperationalError } = errorMessageModule;
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 
 // === RF-AUTH-01: Registro de Usuario (confirmación de correo y celular) ===

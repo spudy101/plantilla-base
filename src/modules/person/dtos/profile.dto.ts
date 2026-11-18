@@ -1,9 +1,10 @@
 import type { Person } from '../../../shared/database/generated/prisma/client';
-import type { UserProfileRow } from '../../iam/repositories/user.repository';
+import type { UserProfileRow } from '../../iam';
 import componentsPersonModule from './person-components.dto';
 const { UserComponent, PersonComponent, PersonContactComponent, PersonLocationComponent } = componentsPersonModule;
 
-import componentsAuditDtoModule from '../../audit/dtos/audit-components.dto';
+import auditModule from '../../audit';
+const { auditComponentsDto: componentsAuditDtoModule } = auditModule;
 const { UserConsentComponent } = componentsAuditDtoModule;
 import MaskingUtil from '../../../shared/security/masking.util';
 

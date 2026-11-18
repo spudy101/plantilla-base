@@ -1,5 +1,6 @@
 import PaginationHelper from '../../../shared/http/pagination.util';
-import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
+import catalogsModule from '../../catalogs';
+const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
 import auditactionsModule from '../catalog';
 const {

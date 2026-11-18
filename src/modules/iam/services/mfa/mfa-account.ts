@@ -1,5 +1,5 @@
 import type { User } from '../../../../shared/database/generated/prisma/client';
-import type { ChangeType } from '../../../audit/audit.service';
+import type { ChangeType } from '../../../audit';
 import type { RequestAuditContext } from '../../../../shared/types/audit-context';
 // modules/shared-endpoints/kyc/iam/services/mfa/mfa-account.ts
 //
@@ -7,7 +7,8 @@ import type { RequestAuditContext } from '../../../../shared/types/audit-context
 // Extraído de MFAService (SOLID: S).
 
 import userRepository from '../../repositories/user.repository';
-import KycSharedUtil from '../../../person/utils/kyc-shared.util';
+import personModule from '../../../person';
+const { KycSharedUtil } = personModule;
 import AppError from '../../../../shared/http/app-error.util';
 
 class MfaAccount {

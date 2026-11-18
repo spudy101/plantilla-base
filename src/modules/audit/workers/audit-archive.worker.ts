@@ -6,7 +6,8 @@ import auditLogRepository from '../repositories/audit-log.repository';
 import operationRepository from '../../../shared/observability/operation.repository';
 import constantsModule from '../../../shared/constants';
 const { logging } = constantsModule;
-import systemGlobalConfigRepository from '../../settings/repositories/system-global-config.repository';
+import settingsModule from '../../settings';
+const { systemGlobalConfigRepository } = settingsModule;
 import S3Util from '../../../shared/infra/s3.util';
 import errorMessageModule from '../../../shared/utils/error-message.util';
 

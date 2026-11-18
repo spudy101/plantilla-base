@@ -4,8 +4,8 @@
 // controllers que corren DETRÁS de la autenticación lo usan con esta función: devuelve el usuario tipado
 // o lanza 401 si la ruta quedó mal configurada (antes eso terminaba en un TypeError → 500).
 import type { Request } from 'express';
-import type { AuthenticatedUser } from '../../../shared/types/express';
-import AppError from '../../../shared/http/app-error.util';
+import type { AuthenticatedUser } from '../types/express';
+import AppError from './app-error.util';
 
 function requireAuthUser(req: Request): AuthenticatedUser {
   if (!req.user) {

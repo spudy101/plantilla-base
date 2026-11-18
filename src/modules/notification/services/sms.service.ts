@@ -14,7 +14,8 @@ import EncryptionUtil from '../../../shared/security/encryption.util';
 import constantsModule from '../../../shared/constants';
 const { MOCKS, aws } = constantsModule;
 import smsDeliveryAttemptRepository from '../repositories/sms-delivery-attempt.repository';
-import phonePrefixRepository from '../../catalogs/repositories/phone-prefix.repository';
+import catalogsModule from '../../catalogs';
+const { phonePrefixRepository } = catalogsModule;
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;

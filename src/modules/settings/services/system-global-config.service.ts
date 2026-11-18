@@ -6,8 +6,10 @@ const { logger } = loggerUtilModule;
 import systemGlobalConfigRepository from '../repositories/system-global-config.repository';
 import systemGlobalConfigDtoModule from '../dtos/system-global-config.dto';
 const { SystemGlobalConfigDTO } = systemGlobalConfigDtoModule;
-import notificationCreationService from '../../notification/services/notification-creation.service';
-import audit from '../../audit/audit.service';
+import notificationModule from '../../notification';
+const { notificationCreationService } = notificationModule;
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 const NOTIF_SYSTEM_CONFIG_UPDATED = 'SYSTEM_CONFIG_UPDATED_INTERNAL';
 

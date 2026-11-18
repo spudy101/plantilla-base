@@ -1,5 +1,7 @@
 import type { Prisma } from '../../../../shared/database/generated/prisma/client';
-import type { UserAdminTargetRow } from '../../../iam/repositories/user.repository';
+import iamModule from '../../../iam';
+const { userRepository } = iamModule;
+import type { UserAdminTargetRow } from '../../../iam';
 // modules/admin/kyc/person/services/admin-person/person-credentials.service.ts
 //
 // Credenciales e identidad de una cuenta: reset de contraseña, cambio de email,
@@ -7,9 +9,9 @@ import type { UserAdminTargetRow } from '../../../iam/repositories/user.reposito
 
 import type { AdminAuditContext } from '../../../../shared/types/audit-context';
 import unitOfWork from '../../../../shared/database/unit-of-work';
-import userRepository from '../../../iam/repositories/user.repository';
 import KycSharedUtil from '../../utils/kyc-shared.util';
-import NotificationUtil from '../../../notification/services/notification-creation.service';
+import notificationModule from '../../../notification';
+const { notificationCreationService: NotificationUtil } = notificationModule;
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
@@ -21,7 +23,8 @@ import adminPersonDtoModule from '../../dtos/admin-person.dto';
 const { ResetPasswordDTO, ChangeEmailDTO, ChangeNationalIdDTO, DisableMFADTO } = adminPersonDtoModule;
 import personGuardsModule from './person-guards';
 const { assertNotDeleted, requirePerson } = personGuardsModule;
-import audit from '../../../audit/audit.service';
+import auditModule from '../../../audit';
+const { audit } = auditModule;
 
 class PersonCredentialsService {
   unitOfWork: typeof unitOfWork;

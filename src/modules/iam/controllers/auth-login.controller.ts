@@ -6,7 +6,7 @@ import errorMiddlewareModule from '../../../shared/http/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
 import constantsModule from '../../../shared/constants';
 const { AUTH_ERROR_CODES } = constantsModule;
-import authUserUtilModule from '../utils/auth-user.util';
+import authUserUtilModule from '../../../shared/http/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
 import routeParamUtilModule from '../../../shared/http/route-param.util';
 const { routeParam } = routeParamUtilModule;

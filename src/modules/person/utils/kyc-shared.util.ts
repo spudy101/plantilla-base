@@ -1,5 +1,7 @@
 import { interopDefault } from '../../../shared/utils/interop.util';
-import audit, { type ChangeInput } from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
+import type { ChangeInput } from '../../audit';
 import crypto from 'node:crypto';
 
 /**

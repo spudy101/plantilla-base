@@ -5,7 +5,8 @@ import AppError from '../../../shared/http/app-error.util';
 import personReferenceRepository from '../repositories/person-reference.repository';
 import personReferenceDtoModule from '../dtos/person-reference.dto';
 const { PersonReferenceDTO, PersonReferenceListDTO } = personReferenceDtoModule;
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 const MAX_REFERENCES_PER_PERSON = 5;
 

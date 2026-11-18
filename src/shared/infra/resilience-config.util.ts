@@ -8,7 +8,6 @@
 // que el IntegrationGuard). Si la global no está disponible (arranque temprano, BD caída), se cae a
 // FALLBACK DURO con los mismos defaults históricos: el breaker NUNCA queda sin umbrales.
 
-import { interopDefault } from '../utils/interop.util';
 import loggerUtilModule from '../observability/logger.util';
 const { logger } = loggerUtilModule;
 import errorMessageModule from '../utils/error-message.util';
@@ -52,13 +51,22 @@ interface StoredResilience {
 let _cache: ResilienceConfig | null = null;
 let _cacheAt = 0;
 
+/**
+ * De dónde sale la configuración persistida. La provee el módulo settings al arrancar la app
+ * (src/app.ts → registerResilienceSource): shared/ no conoce los módulos. Sin fuente, los defaults.
+ */
+type ResilienceSource = () => Promise<unknown>;
+let source: ResilienceSource | null = null;
+
+function registerResilienceSource(fn: ResilienceSource): void {
+  source = fn;
+  _cache = null;
+}
+
 // camelCase para el consumo interno, a partir del snake_case persistido en la global.
 async function _load(): Promise<ResilienceConfig> {
-  // require lazy: evita ciclos de carga (models ↔ utils) al arrancar.
-  const systemGlobalConfigRepository = interopDefault(require('../../modules/settings/repositories/system-global-config.repository') as typeof import('../../modules/settings/repositories/system-global-config.repository'));
-  const config = await systemGlobalConfigRepository.findActiveResilience();
-  // integration_resilience es JSONB (unknown en el modelo): lo escribe el admin validado por su DTO
-  const r = (config?.integrationResilience ?? {}) as StoredResilience;
+  // integration_resilience es JSONB: lo escribe el admin validado por su DTO
+  const r = ((source ? await source() : null) ?? {}) as StoredResilience;
   const cb = r.circuit_breaker ?? {};
   const st = r.screening_throttle ?? {};
   return {
@@ -105,4 +113,5 @@ function _resetCache(): void {
   _cacheAt = 0;
 }
 
-export default { get, HARD_DEFAULTS, _resetCache };
+export { registerResilienceSource };
+export default { get, HARD_DEFAULTS, _resetCache, registerResilienceSource };

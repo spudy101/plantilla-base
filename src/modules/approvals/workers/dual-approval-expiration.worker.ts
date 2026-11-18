@@ -6,7 +6,8 @@ import approvalRequestRepository from '../repositories/approval-request.reposito
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 
 // Cron hardcodeado (convención del repo: los workers no leen el cron de env vars).

@@ -1,7 +1,8 @@
 import type { Notification } from '../../../shared/database/generated/prisma/client';
 import notificationRepo from '../repositories/notification.repository';
 import notificationTypeRepo from '../repositories/notification-type.repository';
-import integrationApiLogRepo from '../../integration/repositories/integration-api-log.repository';
+import integrationModule from '../../integration';
+const { integrationApiLogRepository: integrationApiLogRepo } = integrationModule;
 import notificationSendingService from './notification-sending.service';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;

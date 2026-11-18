@@ -7,7 +7,8 @@ import consentTypeRepository from '../repositories/consent-type.repository';
 import userConsentRepository from '../repositories/user-consent.repository';
 import userConsentDtoModule from '../dtos/user-consent.dto';
 const { MyConsentCatalogDTO, ConsentGrantedDTO } = userConsentDtoModule;
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 class UserConsentService {
   unitOfWork: typeof unitOfWork;

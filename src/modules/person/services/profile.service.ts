@@ -3,18 +3,21 @@ import { interopDefault } from '../../../shared/utils/interop.util';
 import type * as ProfileTypes from '../helpers/profile.types';
 import type { RequestAuditContext } from '../../../shared/types/audit-context';
 import unitOfWork from '../../../shared/database/unit-of-work';
-import userRepository from '../../iam/repositories/user.repository';
+import iamModule from '../../iam';
+const { userRepository } = iamModule;
 import personRepository from '../repositories/person.repository';
-import userConsentRepository from '../../legal/repositories/user-consent.repository';
-import consentTypeRepository from '../../legal/repositories/consent-type.repository';
-import NotificationUtil from '../../notification/services/notification-creation.service';
+import legalModule from '../../legal';
+const { userConsentRepository, consentTypeRepository } = legalModule;
+import notificationModule from '../../notification';
+const { notificationCreationService: NotificationUtil } = notificationModule;
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import KycSharedUtil from '../utils/kyc-shared.util';
 import ProfileHelper from '../helpers/profile.helper';
 import profileDtoModule from '../dtos/profile.dto';
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 const {
   BasicProfileDTO,
   ExtendedProfileDTO,

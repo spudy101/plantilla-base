@@ -1,8 +1,10 @@
 import type PromotionalBannerDto from '../dtos/promotional-banner.dto';
-import systemGlobalConfigRepository from '../../settings/repositories/system-global-config.repository';
+import settingsModule from '../../settings';
+const { systemGlobalConfigRepository } = settingsModule;
 import promotionalBannerDtoModule from '../dtos/promotional-banner.dto';
 const { PublicPromotionalBannerListDTO } = promotionalBannerDtoModule;
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 // Caché en memoria (TTL 60s, patrón del resolver de resiliencia): endpoint público sin auth, no
 // puede pegarle a BD en cada request. Un cambio del admin se refleja a lo sumo 60s después.

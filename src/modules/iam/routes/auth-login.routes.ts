@@ -3,6 +3,7 @@ const router = express.Router();
 import AuthLoginController from '../controllers/auth-login.controller';
 import AuthLoginValidator from '../validators/auth-login.validator';
 import AuthMiddleware from '../middlewares/auth.middleware';
+import LoginIpLimiterMiddleware from '../middlewares/login-ip-limiter.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import ValidatorUtil from '../../../shared/http/validators.util';
@@ -13,7 +14,7 @@ import ValidatorUtil from '../../../shared/http/validators.util';
 
 router.post(
   '/login',
-  RateLimitMiddleware.loginIpLimiter(),
+  LoginIpLimiterMiddleware.loginIpLimiter(),
   RateLimitMiddleware.authLimiter(),
   RequestLockMiddleware.forPublicEndpoints(),
   AuthLoginValidator.login(),

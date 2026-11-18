@@ -1,6 +1,7 @@
 import type { User } from '../../../shared/database/generated/prisma/client';
-import type { UserProfileRow } from '../../iam/repositories/user.repository';
-import adminUserDtoModule from '../../iam/dtos/admin-user.dto';
+import iamModule from '../../iam';
+const { adminUserDto: adminUserDtoModule } = iamModule;
+import type { UserProfileRow } from '../../iam';
 const { RoleOptionDTO } = adminUserDtoModule;
 // modules/admin/kyc/dtos/admin-person.dto.ts
 
@@ -10,7 +11,8 @@ import EncryptionUtil from '../../../shared/security/encryption.util';
 const safeDecrypt = (value: unknown) => EncryptionUtil.safeDecrypt(value);
 import MaskingUtil from '../../../shared/security/masking.util';
 
-import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
+import catalogsModule from '../../catalogs';
+const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { RoleComponent } = componentsCatalogDtoModule;
 
 /**

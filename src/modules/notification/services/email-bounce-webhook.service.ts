@@ -13,7 +13,8 @@ import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 const ENTITY = { entityType: 'EmailBounceSuppression', entityTable: 'email_bounce_suppressions' };
 

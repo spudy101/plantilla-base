@@ -12,11 +12,11 @@
 // Al leerlo, el hook lo descifra automáticamente — el service recibe
 // el valor en texto plano sin hacer nada especial.
 
-import { interopDefault } from '../utils/interop.util';
+import { interopDefault } from '../../../shared/utils/interop.util';
 import type { Request } from 'express';
-import EncryptionUtil from './encryption.util';
-import AppError from '../http/app-error.util';
-import loggerUtilModule from '../observability/logger.util';
+import EncryptionUtil from '../../../shared/security/encryption.util';
+import AppError from '../../../shared/http/app-error.util';
+import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 
 
@@ -44,7 +44,7 @@ class HmacService {
   }
 
   get trustedDeviceRepository(): TrustedDeviceLookup {
-    this._trustedDeviceRepository ??= interopDefault(require('../../modules/iam/repositories/auth-trusted-device.repository') as typeof import('../../modules/iam/repositories/auth-trusted-device.repository')) as TrustedDeviceLookup;
+    this._trustedDeviceRepository ??= interopDefault(require('../repositories/auth-trusted-device.repository') as typeof import('../repositories/auth-trusted-device.repository')) as TrustedDeviceLookup;
     return this._trustedDeviceRepository;
   }
 

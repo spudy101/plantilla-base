@@ -11,7 +11,15 @@ import SecurityMiddleware from './shared/http/security.middleware';
 import ErrorMiddleware from './shared/http/error.middleware';
 import { operationMiddleware } from './shared/observability/operation';
 import { registerAuditSink } from './shared/observability/audit-hook';
-import audit, { type AuditActionKey } from './modules/audit/audit.service';
+import auditModule from './modules/audit';
+const { audit, adminChangeLogRoutes, adminAuditLogRoutes, adminAuditAlertRoutes, adminAuditActionCatalogRoutes, adminSessionTraceRoutes, adminOperationRoutes, userActivityRoutes } = auditModule;
+import type { AuditActionKey } from './modules/audit';
+import { registerIntegrationLogWriter } from './shared/observability/integration-api-logger.util';
+import { registerResilienceSource } from './shared/infra/resilience-config.util';
+import integrationModule from './modules/integration';
+const { integrationApiLogRepository, adminIntegrationMonitoringRoutes } = integrationModule;
+import settingsModule from './modules/settings';
+const { systemGlobalConfigRepository, adminSystemGlobalConfigRoutes } = settingsModule;
 import redisClient from './shared/infra/redis.util';
 import databaseHealth from './shared/database/database-health';
 import swaggerAdminDocs from './config/swagger.admin';
@@ -20,45 +28,22 @@ import packageModule from '../package.json';
 const { version } = packageModule;
 
 // ── Rutas compartidas (admin + client) ─────────────────────────────────────
-import authLoginRoutes from './modules/iam/routes/auth-login.routes';
-import maintainersRoutes from './modules/catalogs/routes/maintainers.routes';
-import mfaRoutes from './modules/iam/routes/mfa.routes';
-import notificationPreferenceRoutes from './modules/notification/routes/notification-preference.routes';
-import profileRoutes from './modules/person/routes/profile.routes';
-import notificationRoutes from './modules/notification/routes/notification.routes';
-import sendVerificationRoutes from './modules/notification/routes/send-verification.routes';
-
+import iamModule from './modules/iam';
+const { authLoginRoutes, mfaRoutes, adminAuthSessionRoutes, adminUserRoutes, adminRbacRoutes, authRegisterRoutes, authBiometricRoutes } = iamModule;
+import catalogsModule from './modules/catalogs';
+const { maintainersRoutes } = catalogsModule;
+import notificationModule from './modules/notification';
+const { notificationPreferenceRoutes, notificationRoutes, sendVerificationRoutes, adminNotificationTypeRoutes, adminNotificationCategoryRoutes, adminNotificationDeliveryRoutes, emailBounceWebhookRoutes } = notificationModule;
+import personModule from './modules/person';
+const { profileRoutes, adminPersonRoutes, personReferenceRoutes } = personModule;
 // ── Rutas admin ────────────────────────────────────────────────────────────
-import adminAuthSessionRoutes from './modules/iam/routes/admin-auth-session.routes';
-import adminUserRoutes from './modules/iam/routes/admin-user.routes';
-import adminRbacRoutes from './modules/iam/routes/admin-rbac.routes';
-import adminPersonRoutes from './modules/person/routes/admin-person.routes';
-import adminChangeLogRoutes from './modules/audit/routes/admin-change-log.routes';
-import adminAuditLogRoutes from './modules/audit/routes/admin-audit-log.routes';
-import adminAuditAlertRoutes from './modules/audit/routes/admin-audit-alert.routes';
-import adminAuditActionCatalogRoutes from './modules/audit/routes/admin-audit-action-catalog.routes';
-import adminSessionTraceRoutes from './modules/audit/routes/admin-session-trace.routes';
-import adminOperationRoutes from './modules/audit/routes/admin-operation.routes';
-import adminNotificationTypeRoutes from './modules/notification/routes/admin-notification-type.routes';
-import adminNotificationCategoryRoutes from './modules/notification/routes/admin-notification-category.routes';
-import adminNotificationDeliveryRoutes from './modules/notification/routes/admin-notification-delivery.routes';
-import adminPrivacyPolicyRoutes from './modules/legal/routes/privacy-policy-admin.routes';
-import adminConsentTypeRoutes from './modules/legal/routes/consent-type.routes';
-import adminUserConsentRoutes from './modules/legal/routes/admin-user-consent.routes';
-import adminSystemGlobalConfigRoutes from './modules/settings/routes/system-global-config.routes';
-import adminPromotionalBannerRoutes from './modules/banners/routes/admin-promotional-banner.routes';
-import adminApprovalRequestRoutes from './modules/approvals/routes/approval-request.routes';
-import adminIntegrationMonitoringRoutes from './modules/integration/routes/integration-monitoring.routes';
-
+import legalModule from './modules/legal';
+const { privacyPolicyAdminRoutes: adminPrivacyPolicyRoutes, adminConsentTypeRoutes, adminUserConsentRoutes, userConsentRoutes } = legalModule;
+import bannersModule from './modules/banners';
+const { adminPromotionalBannerRoutes, promotionalBannerRoutes } = bannersModule;
+import approvalsModule from './modules/approvals';
+const { adminApprovalRequestRoutes } = approvalsModule;
 // ── Rutas client ───────────────────────────────────────────────────────────
-import authRegisterRoutes from './modules/iam/routes/auth-register.routes';
-import authBiometricRoutes from './modules/iam/routes/auth-biometric.routes';
-import emailBounceWebhookRoutes from './modules/notification/routes/email-bounce-webhook.routes';
-import personReferenceRoutes from './modules/person/routes/person-reference.routes';
-import userConsentRoutes from './modules/legal/routes/user-consent.routes';
-import userActivityRoutes from './modules/audit/routes/user-activity.routes';
-import promotionalBannerRoutes from './modules/banners/routes/promotional-banner.routes';
-
 type Audience = 'admin' | 'client';
 
 /** Router de una audiencia: marca req.serverContext (el login valida el rol contra ella) y monta su Swagger. */
@@ -162,8 +147,13 @@ async function health(req: Request, res: Response) {
 }
 
 function createApp() {
-  // Los eventos de infraestructura que audita shared/ (worker caído, Redis, 401/403) llegan al módulo de auditoría
+  // shared/ no conoce los módulos: lo que necesita de ellos se conecta acá, una sola vez.
+  //  - eventos de infraestructura que se auditan (worker caído, Redis, 401/403) → módulo audit
+  //  - persistencia de las llamadas a proveedores externos → módulo integration
+  //  - configuración de resiliencia (timeouts, circuit breaker) → módulo settings
   registerAuditSink(({ action, ...input }) => audit.record(action as AuditActionKey, { actorId: input.actorId ?? null, ...input }));
+  registerIntegrationLogWriter(data => integrationApiLogRepository.create(data));
+  registerResilienceSource(async () => (await systemGlobalConfigRepository.findActiveResilience())?.integrationResilience);
 
   const app = express();
 

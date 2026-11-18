@@ -10,7 +10,8 @@ import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import authLoginDtoModule from '../../dtos/auth-login.dto';
 const { TrustedDeviceListDTO, TrustedDeviceUpdateDTO } = authLoginDtoModule;
-import audit from '../../../audit/audit.service';
+import auditModule from '../../../audit';
+const { audit } = auditModule;
 
 class TrustedDeviceManagementService {
   trustedDeviceRepository: typeof trustedDeviceRepository;

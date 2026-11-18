@@ -8,7 +8,8 @@ import notificationTypeRepo from '../repositories/notification-type.repository';
 import notificationSendingService from './notification-sending.service';
 import NotificationCreationService from './notification-creation.service';
 import PaginationHelper from '../../../shared/http/pagination.util';
-import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
+import catalogsModule from '../../catalogs';
+const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
@@ -21,7 +22,8 @@ import adminNotificationDeliveryDtoModule from '../dtos/admin-notification-deliv
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 const {
   NotificationDeliveryListDTO,

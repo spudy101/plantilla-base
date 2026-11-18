@@ -7,9 +7,12 @@ import type { UserProfileRow } from '../../repositories/user.repository';
 
 import type { AdminAuditContext } from '../../../../shared/types/audit-context';
 import userRepository from '../../repositories/user.repository';
-import KycSharedUtil from '../../../person/utils/kyc-shared.util';
-import NotificationCreationService from '../../../notification/services/notification-creation.service';
-import DualApprovalService from '../../../approvals/services/dual-approval.service';
+import personModule from '../../../person';
+const { KycSharedUtil } = personModule;
+import notificationModule from '../../../notification';
+const { notificationCreationService: NotificationCreationService } = notificationModule;
+import approvalsModule from '../../../approvals';
+const { DualApprovalService } = approvalsModule;
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
@@ -19,7 +22,8 @@ import adminUserDtoModule from '../../dtos/admin-user.dto';
 const { InternalUserDTO } = adminUserDtoModule;
 import internalUserGuardsModule from './internal-user-guards';
 const { InternalUserGuards, displayName } = internalUserGuardsModule;
-import audit from '../../../audit/audit.service';
+import auditModule from '../../../audit';
+const { audit } = auditModule;
 
 const ENTITY = { entityType: 'InternalUser', entityTable: 'users' };
 

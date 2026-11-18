@@ -6,11 +6,13 @@ import CircuitBreaker from '../../../shared/infra/circuit-breaker.util';
 import integrationApiLogRepository from '../repositories/integration-api-log.repository';
 import providerFallbackRepository from '../repositories/provider-fallback-event.repository';
 import PaginationHelper from '../../../shared/http/pagination.util';
-import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
+import catalogsModule from '../../catalogs';
+const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
 import AppError from '../../../shared/http/app-error.util';
 import integrationMonitoringDtoModule from '../dtos/integration-monitoring.dto';
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 const {
   IntegrationDashboardDTO,
   buildProductView,

@@ -15,7 +15,6 @@
  * Productos válidos (ENUM del modelo): 'ses' | 's3' | 'sns' | 'aws_sms'
  */
 
-import { interopDefault } from '../utils/interop.util';
 import loggerUtilModule from './logger.util';
 const { logger } = loggerUtilModule;
 import requestContext from './request-context.util';
@@ -87,6 +86,17 @@ function _resolveOrigin(
   };
 }
 
+/**
+ * Dónde se persiste cada llamada (integration_api_logs). Lo provee el módulo integration al arrancar la
+ * app (src/app.ts → registerIntegrationLogWriter): shared/ no conoce los módulos.
+ */
+type IntegrationLogWriter = (data: Prisma.IntegrationApiLogUncheckedCreateInput) => Promise<unknown>;
+let writer: IntegrationLogWriter | null = null;
+
+export function registerIntegrationLogWriter(fn: IntegrationLogWriter): void {
+  writer = fn;
+}
+
 class IntegrationApiLogger {
   /**
    * Registra un consumo de una integración externa de forma no bloqueante.
@@ -126,12 +136,11 @@ class IntegrationApiLogger {
 
     setImmediate(async () => {
       try {
-        // Carga lazy: el repositorio (y los modelos) dependen del logger
-        const integrationApiLogRepository = interopDefault(
-          require('../../modules/integration/repositories/integration-api-log.repository') as typeof import('../../modules/integration/repositories/integration-api-log.repository')
-        );
-
-        await integrationApiLogRepository.create({
+        if (!writer) {
+          logger.debug('[IntegrationApiLogger] sin destino registrado', { product, endpoint, result });
+          return;
+        }
+        await writer({
           product,
           endpoint,
           userId: origin.userId,

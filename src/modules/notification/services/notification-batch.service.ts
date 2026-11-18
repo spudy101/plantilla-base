@@ -1,7 +1,8 @@
 import { interopDefault } from '../../../shared/utils/interop.util';
 import type { KeyValueCache } from '../../../shared/types/cache';
-import type { UserRepositoryPort } from '../../repository-ports';
-import type { UserProfileRow } from '../../iam/repositories/user.repository';
+import type iamModule from '../../iam';
+type UserRepositoryPort = (typeof iamModule)['userRepository'];
+import type { UserProfileRow } from '../../iam';
 import type { NotificationTypeWithCategory } from '../repositories/notification-type.repository';
 import globalNotificationRepo from '../repositories/global-notification.repository';
 import userNotificationPreferenceRepo from '../repositories/user-notification-preference.repository';
@@ -85,7 +86,7 @@ class NotificationBatchService {
   async procesarNotificacionGlobal(globalNotificationId: string, notificationType: NotificationTypeWithCategory, title: string, body: string, metadata: Record<string, unknown>) {
     try {
       const cache: KeyValueCache = redisClient.isAvailable() ? redisClient : localCache;
-      const UserRepository = interopDefault(require('../../iam/repositories/user.repository') as typeof import('../../iam/repositories/user.repository')) as UserRepositoryPort;
+      const UserRepository = interopDefault(require('../../iam') as typeof import('../../iam')).userRepository as UserRepositoryPort;
 
       // Las notificaciones globales solo se envían a clientes finales (CLIENTE /
       // CLIENTE_VERIFICADO), nunca a usuarios internos ni entidades externas.

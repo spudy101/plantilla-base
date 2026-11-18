@@ -1,6 +1,7 @@
 import type { ProviderFallbackEvent } from '../../../shared/database/generated/prisma/client';
 import type { IntegrationLogRow } from '../repositories/integration-api-log.repository';
-import type { IntegrationApiLogRepositoryPort } from '../../repository-ports';
+import type integrationApiLogRepository from '../repositories/integration-api-log.repository';
+type IntegrationApiLogRepositoryPort = typeof integrationApiLogRepository;
 // DTOs del monitoreo de integraciones externas (solo AWS). Vistas de solo lectura: el template
 // no gestiona integraciones, solo las observa.
 

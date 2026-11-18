@@ -1,5 +1,6 @@
 import type { User } from '../../../../shared/database/generated/prisma/client';
-import personGuardsModule from '../../../person/services/admin-person/person-guards';
+import personModule from '../../../person';
+const { personGuards: personGuardsModule } = personModule;
 const { requirePerson } = personGuardsModule;
 // modules/admin/kyc/iam/services/admin-user/internal-user-guards.ts
 //

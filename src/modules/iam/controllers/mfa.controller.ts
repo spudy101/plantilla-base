@@ -2,7 +2,7 @@ import MFAService from '../services/mfa.service';
 import ApiResponse from '../../../shared/http/app-response.util';
 import errorMiddlewareModule from '../../../shared/http/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
-import authUserUtilModule from '../utils/auth-user.util';
+import authUserUtilModule from '../../../shared/http/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
 
 class MFAController {

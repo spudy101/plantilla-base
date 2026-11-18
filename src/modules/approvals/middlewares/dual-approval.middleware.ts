@@ -14,7 +14,7 @@ const { asyncHandler } = errorMiddlewareModule;
 import DualApprovalService from '../services/dual-approval.service';
 import dualApprovalModule from '../../../shared/constants/dual-approval';
 const { DUAL_APPROVAL_OPS } = dualApprovalModule;
-import authUserUtil from '../../iam/utils/auth-user.util';
+import authUserUtil from '../../../shared/http/auth-user.util';
 
 const { requireAuthUser } = authUserUtil;
 

@@ -8,13 +8,15 @@ import type { UserTrustedDevice } from '../../../../shared/database/generated/pr
 import type { RequestAuditContext } from '../../../../shared/types/audit-context';
 import trustedDeviceRepository from '../../repositories/auth-trusted-device.repository';
 import DeviceFingerprintUtil from '../../../../shared/security/device-fingerprint.util';
-import NotificationUtil from '../../../notification/services/notification-creation.service';
+import notificationModule from '../../../notification';
+const { notificationCreationService: NotificationUtil } = notificationModule;
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import constantsModule from '../../../../shared/constants';
 const { notifications } = constantsModule;
-import audit from '../../../audit/audit.service';
+import auditModule from '../../../audit';
+const { audit } = auditModule;
 
 class LoginDeviceService {
   trustedDeviceRepository: typeof trustedDeviceRepository;

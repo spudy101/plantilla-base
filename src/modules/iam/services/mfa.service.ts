@@ -16,16 +16,16 @@ import type { User } from '../../../shared/database/generated/prisma/client';
 import type { RequestAuditContext } from '../../../shared/types/audit-context';
 import unitOfWork from '../../../shared/database/unit-of-work';
 import userRepository from '../repositories/user.repository';
-import verificationCodeRepository from '../../notification/repositories/verification-code.repository';
-import NotificationUtil from '../../notification/services/notification-creation.service';
-import SmsService from '../../notification/services/sms.service';
+import notificationModule from '../../notification';
+const { verificationCodeRepository, notificationCreationService: NotificationUtil, SmsService } = notificationModule;
 import AppError from '../../../shared/http/app-error.util';
 import mfaDtoModule from '../dtos/mfa.dto';
 const { PasswordValidationResponseDTO, MFAStatusResponseDTO, PreferredMethodResponseDTO } = mfaDtoModule;
 import MfaAccount from './mfa/mfa-account';
 import TotpMfaService from './mfa/totp-mfa.service';
 import SmsMfaService from './mfa/sms-mfa.service';
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 const ENTITY = { entityType: 'User', entityTable: 'users' };
 

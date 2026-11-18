@@ -2,9 +2,10 @@ import SystemGlobalConfigService from '../services/system-global-config.service'
 import ApiResponse from '../../../shared/http/app-response.util';
 import errorMiddlewareModule from '../../../shared/http/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
-import authUserUtilModule from '../../iam/utils/auth-user.util';
+import authUserUtilModule from '../../../shared/http/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
-import adminAuditContextUtilModule from '../../audit/utils/admin-audit-context.util';
+import auditModule from '../../audit';
+const { adminAuditContextUtil: adminAuditContextUtilModule } = auditModule;
 const { adminAuditContext } = adminAuditContextUtilModule;
 
 class SystemGlobalConfigController {

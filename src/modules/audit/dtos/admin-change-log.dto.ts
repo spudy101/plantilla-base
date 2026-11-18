@@ -1,6 +1,8 @@
-import componentsAuthModule from '../../iam/dtos/auth-components.dto';
+import iamModule from '../../iam';
+const { authComponentsDto: componentsAuthModule } = iamModule;
 const { UserChangeLogComponent } = componentsAuthModule;
-import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
+import catalogsModule from '../../catalogs';
+const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
 
 function ListUserChangeLogsResponseDTO(rows: Array<Parameters<typeof UserChangeLogComponent.build>[0]>, metadata: Parameters<typeof MetadataDTO.build>[0]) {

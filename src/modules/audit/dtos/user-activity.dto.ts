@@ -1,4 +1,7 @@
-import type { AuditLogRepositoryPort, ChangeLogRepositoryPort } from '../../repository-ports';
+import type auditLogRepository from '../repositories/audit-log.repository';
+import type changeLogRepository from '../repositories/change-log.repository';
+type AuditLogRepositoryPort = typeof auditLogRepository;
+type ChangeLogRepositoryPort = typeof changeLogRepository;
 // DTO del feed de actividad del propio usuario. Client-safe: NUNCA expone `details` de audit_logs
 // (claves before/after), `previous_value`/`new_value` de user_change_logs, user_agent ni datos de
 // terceros. Keys camelCase; `source`/`action`/`category`/`outcome`/`changedByRole` son enums → snake_case.

@@ -2,18 +2,18 @@ import type { UserWith } from '../repositories/user.repository';
 import { interopDefault } from '../../../shared/utils/interop.util';
 import type { RequestAuditContext } from '../../../shared/types/audit-context';
 import userRepository from '../repositories/user.repository';
-import userLoginAttemptRepository from '../../audit/repositories/user-login-attempt.repository';
-import verificationCodeRepository from '../../notification/repositories/verification-code.repository';
+import auditModule from '../../audit';
+const { userLoginAttemptRepository, audit } = auditModule;
+import notificationModule from '../../notification';
+const { verificationCodeRepository, notificationCreationService: NotificationUtil, SmsService } = notificationModule;
 import userSessionRepository from '../repositories/user-session.repository';
 import trustedDeviceRepository from '../repositories/auth-trusted-device.repository';
-import privacyPolicyRepository from '../../legal/repositories/privacy-policy.repository';
-import consentRecorder from '../../legal/services/consent-recorder.service';
+import legalModule from '../../legal';
+const { privacyPolicyRepository, consentRecorder } = legalModule;
 import JwtUtil from '../../../shared/security/jwt.util';
 import TotpUtil from '../../../shared/security/totp.util';
 import EncryptionUtil from '../../../shared/security/encryption.util';
 import TokenBlacklistUtil from '../utils/token-blacklist.util';
-import NotificationUtil from '../../notification/services/notification-creation.service';
-import SmsService from '../../notification/services/sms.service';
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
@@ -37,9 +37,6 @@ import SessionIssuerService from './auth-login/session-issuer.service';
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
-import audit from '../../audit/audit.service';
-
-
 // ============================================================
 // AUTH LOGIN SERVICE — fachada
 // ============================================================
@@ -518,8 +515,8 @@ class AuthLoginService {
    */
   async _registrarPushToken(userId: string, fcmToken: string, platform: string, deviceId: string | null = null) {
     try {
-      const pushService = interopDefault(require('../../notification/services/push-notification.service') as typeof import('../../notification/services/push-notification.service'));
-      const userPushTokenRepo = interopDefault(require('../../notification/repositories/user-push-token.repository') as typeof import('../../notification/repositories/user-push-token.repository'));
+      const pushService = interopDefault(require('../../notification') as typeof import('../../notification')).pushNotificationService;
+      const userPushTokenRepo = interopDefault(require('../../notification') as typeof import('../../notification')).userPushTokenRepository;
 
       // 1. Registrar en AWS SNS → devuelve el endpointArn
       //    Si el token FCM cambió, SNS lo actualiza internamente

@@ -10,8 +10,8 @@
 import { v4 as uuidv4 } from 'uuid';
 
 import userRepository from '../repositories/user.repository';
-import personRepository from '../../person/repositories/person.repository';
-import personContactRepository from '../../person/repositories/person-contact.repository';
+import personModule from '../../person';
+const { personRepository, personContactRepository } = personModule;
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;

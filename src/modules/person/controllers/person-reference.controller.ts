@@ -6,7 +6,7 @@ import errorMiddlewareModule from '../../../shared/http/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
 import routeParamUtilModule from '../../../shared/http/route-param.util';
 const { routeParam } = routeParamUtilModule;
-import authUserUtilModule from '../../iam/utils/auth-user.util';
+import authUserUtilModule from '../../../shared/http/auth-user.util';
 const { requireAuthPerson } = authUserUtilModule;
 
 class PersonReferenceController {

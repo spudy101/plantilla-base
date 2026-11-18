@@ -1,4 +1,5 @@
-import componentsAuthModule from '../../iam/dtos/auth-components.dto';
+import iamModule from '../../iam';
+const { authComponentsDto: componentsAuthModule } = iamModule;
 const { VerificationCodeComponent } = componentsAuthModule;
 
 function SendVerificationResponseDTO({

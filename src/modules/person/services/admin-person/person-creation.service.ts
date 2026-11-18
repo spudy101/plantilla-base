@@ -7,12 +7,13 @@ import type { User } from '../../../../shared/database/generated/prisma/client';
 import type { AdminAuditContext } from '../../../../shared/types/audit-context';
 import { v4 as uuidv4 } from 'uuid';
 import unitOfWork from '../../../../shared/database/unit-of-work';
-import userRepository from '../../../iam/repositories/user.repository';
+import iamModule from '../../../iam';
+const { userRepository, roleRepository } = iamModule;
 import personRepository from '../../repositories/person.repository';
 import personContactRepository from '../../repositories/person-contact.repository';
-import roleRepository from '../../../iam/repositories/role.repository';
 import KycSharedUtil from '../../utils/kyc-shared.util';
-import NotificationUtil from '../../../notification/services/notification-creation.service';
+import notificationModule from '../../../notification';
+const { notificationCreationService: NotificationUtil } = notificationModule;
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
@@ -22,7 +23,8 @@ const { notifications, RBAC_ROLES } = constantsModule;
 
 import adminPersonDtoModule from '../../dtos/admin-person.dto';
 const { CreateUserDTO } = adminPersonDtoModule;
-import audit from '../../../audit/audit.service';
+import auditModule from '../../../audit';
+const { audit } = auditModule;
 
 class PersonCreationService {
   unitOfWork: typeof unitOfWork;
