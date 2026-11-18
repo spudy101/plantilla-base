@@ -44,9 +44,9 @@ const MAGIC_NUMBER_IGNORE = [
 
 module.exports = {
   // Archivos/carpetas que ESLint ignora completamente.
-  // Migrations y seeders son código generado o de un solo uso — no hace falta
-  // que cumplan los estándares del proyecto.
-  ignorePatterns: ['dist/**', 'coverage/**', '**/generated/**', '**/migrations/**', '**/seeders/**', '**/migrate/**', '**/seeder/**', '**/scripts/**', '.eslintrc.js'],
+  // prisma/migrations es SQL; los scripts son de un solo uso — no hace falta
+  // que cumplan los estándares del proyecto. El seed (prisma/seed.ts, prisma/seeds/) sí se lintea.
+  ignorePatterns: ['dist/**', 'coverage/**', '**/generated/**', '**/migrations/**', '**/scripts/**', '.eslintrc.js'],
 
   // Declara los globals disponibles según el entorno para que ESLint
   // no los marque como "variable no definida".
@@ -527,6 +527,18 @@ module.exports = {
       files: ['**/config/database.{js,ts}', '**/constants/config.{js,ts}'],
       rules: {
         'no-console': 'off'
+      }
+    },
+
+    // -------------------------------------------------------------------------
+    // Datos del seed (templates de notificación, catálogos): funciones que solo
+    // devuelven un literal largo.
+    // -------------------------------------------------------------------------
+    {
+      files: ['prisma/seeds/notification-types/**', 'prisma/seeds/data/**'],
+      rules: {
+        'max-lines-per-function': 'off',
+        'max-lines': 'off'
       }
     },
 

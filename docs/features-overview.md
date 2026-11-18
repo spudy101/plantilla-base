@@ -81,4 +81,4 @@ Toda fila de dominio se ata a su sesión de origen vía `origin_session_id` (aut
 - **RBAC** por módulo/acción con overrides — `docs/rbac/`.
 - **Cifrado y PII** (AES-256-GCM, enmascarado) — `docs/encryption-pii.md`, `docs/pii-masking.md`.
 - **Consentimientos** y política de privacidad — `modules/*/records/legal`.
-- **Base de datos** (migraciones, seeders, reset) — `docs/database.md`.
+- **Base de datos** (migraciones, seed, reset) — `docs/database.md`.

@@ -83,13 +83,13 @@ La base es funcional con nombre neutro. Para adaptarla a tu proyecto, revisa cad
 - [ ] `SES_FROM_EMAIL`, `LOGO_URL`, `PRIVACY_POLICY_URL` → branding de correos y assets públicos.
 - [ ] `SNS_PLATFORM_ARN_IOS` / `SNS_PLATFORM_ARN_ANDROID` → tus plataformas de push.
 - [ ] `FRONTEND_RESET_URL` → URL de tu flujo de recuperación de contraseña.
-- [ ] `SEED_ADMIN_*` → datos del admin inicial que crea el seeder.
+- [ ] `SEED_ADMIN_*` → datos del admin inicial que crea el seed.
 
-### Datos semilla (`seeders/`)
-- [ ] `consent-types` → ajusta los consentimientos (`PRIVACY_POLICY`,
+### Datos semilla (`prisma/seeds/`)
+- [ ] `catalogs.seed.ts` (consentimientos) → ajusta los consentimientos (`PRIVACY_POLICY`,
       `COMUNICACIONES_COMERCIALES`) y agrega los propios de tu dominio.
-- [ ] `document-types`, `maintainers` geográficos → adapta al país/negocio si hace falta.
-- [ ] `notification-types` → mensajes y canales por defecto.
+- [ ] `catalogs.seed.ts` (tipos de documento, roles…) y `geography.seed.ts` → adapta al país/negocio si hace falta.
+- [ ] `notification-types/` y `data/notification-categories.ts` → mensajes y canales por defecto.
 
 ### Infra
 - [ ] La infraestructura (IaC) vive en un repo aparte. En producción, los secrets (llaves de cifrado,

@@ -9,20 +9,6 @@ datasource db {
   provider = "postgresql"
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-
-model SequelizeData {
-  name String @id @db.VarChar(255)
-
-  @@ignore
-}
-
-model SequelizeMeta {
-  name String @id @db.VarChar(255)
-
-  @@ignore
-}
-
 model ApprovalRequest {
   approvalRequestId   String                @id @default(dbgenerated("gen_random_uuid()")) @map("approval_request_id") @db.Uuid
   operationKey        String                @map("operation_key") @db.VarChar(100)
@@ -184,6 +170,7 @@ model City {
   @@map("cities")
 }
 
+/// CHECK consent_types_scope_check (scope IN ('ONBOARDING')): Prisma no modela los CHECK; vive en SQL crudo en prisma/migrations/0_init.
 model ConsentType {
   consentTypeId String        @id @default(uuid()) @map("consent_type_id") @db.Uuid
   code          String        @unique @db.VarChar(50)
@@ -900,7 +887,7 @@ model UserSession {
   updatedAt     DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   device        UserTrustedDevice? @relation(fields: [deviceId], references: [userTrustedDeviceId])
 
-  @@index([userId, status], map: "public_user_sessions_user_id_status")
+  @@index([userId, status], map: "idx_user_sessions_user_id_status")
   @@index([deviceId], map: "user_sessions_device_id")
   @@index([startedAt], map: "user_sessions_started_at")
   @@index([status], map: "user_sessions_status")
