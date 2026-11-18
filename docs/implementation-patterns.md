@@ -293,31 +293,26 @@ Métodos de instancia o estáticos propios (`STATUS`…) van en un namespace man
 
 ## Migration
 
-```ts
-import type { Migration } from '../shared/types/migration';
-import constantsModule from '../shared/constants';
-const { database } = constantsModule;
+La tabla se declara en `prisma/schema.prisma` y la migración la genera Prisma (detalle en
+[`database.md`](database.md#cambiar-el-esquema)):
 
-const SCHEMA = database.schema;
+```prisma
+model MyEntity {
+  myId      String   @id @default(uuid()) @map("my_id") @db.Uuid
+  name      String   @db.VarChar(100)
+  otherId   String   @map("other_id") @db.Uuid
+  other     Other    @relation(fields: [otherId], references: [otherId], map: "fk_my_table_other_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-export default {
-  async up(queryInterface, Sequelize) {
-    await queryInterface.createTable(
-      { tableName: 'my_table', schema: SCHEMA },
-      {
-        my_id: { type: Sequelize.UUID, primaryKey: true, defaultValue: Sequelize.literal('gen_random_uuid()') },
-        name: { type: Sequelize.STRING(100), allowNull: false },
-        created_at: { type: Sequelize.DATE, allowNull: false, defaultValue: Sequelize.literal('NOW()') },
-        updated_at: { type: Sequelize.DATE, allowNull: false, defaultValue: Sequelize.literal('NOW()') }
-      }
-    );
-  },
-
-  async down(queryInterface) {
-    await queryInterface.dropTable({ tableName: 'my_table', schema: SCHEMA });
-  }
-} satisfies Migration;
+  @@index([otherId], map: "idx_my_table_other_id")
+  @@map("my_table")
+}
 ```
 
-> ✅ `satisfies Migration` tipa `queryInterface` y `Sequelize` (el módulo `sequelize` completo) sin anotarlos.
-> Los seeders siguen el mismo contrato. Corren con `npm run db:migrate` / `npm run db:seed` (sequelize-cli vía tsx).
+```bash
+npm run db:migrate:dev -- --name create-my-table   # genera prisma/migrations/<ts>_create-my-table/migration.sql
+```
+
+> ✅ Revisá el `migration.sql` generado antes de commitearlo; triggers, CHECK y comentarios se agregan a mano
+> en ese archivo. Los datos base van en el seed (`prisma/seeds/`, `npm run db:seed`).

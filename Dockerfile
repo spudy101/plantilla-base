@@ -11,7 +11,7 @@ WORKDIR /app
 # Copiar solo los manifests primero para aprovechar cache de capas
 COPY package.json package-lock.json ./
 
-# Instalar TODAS las dependencias (incluye devDependencies como sequelize-cli)
+# Instalar TODAS las dependencias (incluye devDependencies: el CLI de prisma y tsx los usa el entrypoint)
 RUN npm ci --frozen-lockfile
 
 # Copiar el resto del código
@@ -48,7 +48,7 @@ EXPOSE 4000
 
 # entrypoint.sh se encarga de:
 #   1. Leer secrets desde AWS Secrets Manager
-#   2. Correr migraciones (npm run db:migrate — sequelize-cli vía tsx)
-#   3. Correr seeders si RUN_SEEDS=true
+#   2. Correr migraciones (npm run db:migrate — prisma migrate deploy, con baseline de bases Sequelize)
+#   3. Correr el seed si RUN_SEEDS=true (npm run db:seed — prisma db seed)
 #   4. Arrancar el servidor compilado (node dist/servers/monolith.js)
 ENTRYPOINT ["dumb-init", "--", "bash", "entrypoint.sh"]

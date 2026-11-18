@@ -5,7 +5,7 @@
 > al final de cada fase la app arranca y los tests pasan. Durante la migración **Prisma y Sequelize
 > conviven contra la misma base**: cada repositorio cambia de ORM sin que los services se enteren.
 >
-> Estado: **fases 0 a 5 completas** (todos los repositorios sobre Prisma) en la rama `feat/prisma`; sigue la fase 6. Ver [Cómo funciona hoy](#cómo-funciona-hoy).
+> Estado: **fases 0 a 6 completas** (repositorios, migraciones y seed sobre Prisma) en la rama `feat/prisma`; sigue la fase 6b. Ver [Cómo funciona hoy](#cómo-funciona-hoy).
 
 ## Punto de partida (medido)
 
@@ -84,9 +84,9 @@ datos ni bloquea por mucho tiempo.
 | **3. Instancias vivas** | 10 llamadas a instancias (`update`/`reload` en 5 services de admin, doble aprobación y su worker) → `repository.update(id, …)` o métodos de negocio (`approvalRequestRepository.resolve` / `markExpired`). 4 archivos que usaban modelos directo → repositorios: `audit-archive.worker` (`countCreatedUpTo`/`countCreatedBefore`/`purgeCreatedBefore`), `circuit-breaker.bootstrap` (`countFailedBetween`), `logger.util` e `integration-api-logger.util` (la allowlist de la guarda queda vacía). Guardas: solo repositorios, modelos y `shared/database` importan `shared/models`; `npm run check:orm` (type checker, en CI) rechaza llamadas a instancias fuera de los repositorios. | ✅ |
 | **4. PII** | `shared/database/pii-fields.ts` (qué se cifra, una sola declaración, con las mismas `EncryptionUtil`/`HashUtil` de los hooks) y `piiExtension` (`shared/database/prisma-extensions.ts`) en el cliente único: cifra + hash al escribir (también anidado), descifra al leer (también en `include`), rechaza `where` sobre campos cifrados y estampa `originSessionId`. Metadatos de relaciones generados del schema (`scripts/gen-prisma-metadata.ts`). Compatibilidad verificada contra Postgres en los dos sentidos (Sequelize ↔ Prisma, hashes iguales, también dentro del Unit of Work) y, solo lectura, sobre los datos reales del esquema de desarrollo. | ✅ |
 | **5. Repositorios** (por grupo, un commit cada uno; ver [Fase 5](#fase-5-repositorios)) | Los 44 repositorios a `PrismaRepository` con su contrato actual; `Op.*` → filtros de Prisma, `include` por nombre de relación; services y DTOs que los consumen, a camelCase en el mismo commit. | ✅ |
-| **6. Migraciones y seeders** | Prisma Migrate con una migración base (`0_init`, marcada como aplicada en las bases existentes con `prisma migrate resolve --applied`); triggers como SQL crudo dentro de la migración; seeders → `prisma db seed` (TS). Se van `sequelize-cli`, `.sequelizerc`, `db:tracking` y `migrations/` de Sequelize. | ⏳ |
+| **6. Migraciones y seed** (ver [Fase 6](#fase-6-migraciones-y-seed)) | `prisma/migrations/0_init`: la base que dejaban las 45 migraciones de Sequelize, idéntica objeto por objeto (con CHECK, triggers y comentarios en SQL crudo). `npm run db:migrate` (`scripts/db-migrate.ts`) hace el baseline de las bases Sequelize (`migrate resolve --applied 0_init`) y después `migrate deploy`. 19 seeders → `prisma db seed` (`prisma/seed.ts` + `prisma/seeds/`), re-ejecutable: crea lo que falta y no pisa lo existente. Se fueron `sequelize-cli`, `.sequelizerc`, `db:tracking`, `migrations/` y `seeders/`. | ✅ |
 | **6b. API en camelCase** | Las 88 claves snake_case de los 8 DTOs que quedan → camelCase, con su Swagger y tests. | ⏳ |
-| **6c. Nombres en la base** | Primera migración de Prisma después de la base: quitar las columnas `deletedAt` residuales (users, persons, reset_credentials), `DEFAULT now()` en `created_at`, `ON DELETE RESTRICT` en las FK NOT NULL de `person_locations`, índices → `idx_…`, constraints → `pk_`/`uq_`/`fk_`/`ck_`. Schema con los `map:` explícitos y `prisma migrate diff` en cero contra la base. Enums del dominio como `enum` de Prisma; `auditActions/` → `audit-actions/`. | ⏳ |
+| **6c. Nombres en la base** | Primera migración de Prisma después de la base (hoy `migrate dev` genera exactamente la parte de `users."deletedAt"` y los DEFAULT): quitar las columnas `deletedAt` residuales (users, persons, reset_credentials), `DEFAULT now()` en `created_at`, `ON DELETE RESTRICT` en las FK NOT NULL de `person_locations`, índices → `idx_…`, constraints → `pk_`/`uq_`/`fk_`/`ck_`. Schema con los `map:` explícitos y `prisma migrate diff` en cero contra la base. Enums del dominio como `enum` de Prisma; `auditActions/` → `audit-actions/`. | ⏳ |
 | **7. Cierre** | Quitar `sequelize`, `sqlite3`, modelos, `registry.ts`, `gen-model-types.js`; guarda de arquitectura: `@prisma/client` solo en repositorios y `shared/database`; docs (`database.md`, `implementation-patterns.md`, `solid.md`, README). | ⏳ |
 
 Orden: lo que más riesgo tiene (transacciones, PII) se resuelve antes de tocar los repositorios en masa,
@@ -96,7 +96,9 @@ y la fase 3 desacopla los services del ORM **antes** del cambio, así la fase 5 
 
 | Pieza | Dónde |
 |---|---|
-| Schema | `prisma/schema.prisma`: modelos PascalCase, campos camelCase, nombres de la base con `@@map` / `@map` / `map:`. Lo produjo `prisma db pull` + `npx tsx scripts/prisma-migration/prisma-names.ts` (relaciones con los alias `as` de Sequelize). Hasta la fase 6 las migraciones siguen siendo las de Sequelize: si cambian la base, se repiten esos dos pasos. |
+| Schema | `prisma/schema.prisma`: modelos PascalCase, campos camelCase, nombres de la base con `@@map` / `@map` / `map:`. Lo produjo `prisma db pull` + `npx tsx scripts/prisma-migration/prisma-names.ts` (relaciones con los alias `as` de Sequelize). Desde la fase 6 es la fuente de verdad: cambio → `npm run db:migrate:dev`. |
+| Migraciones | `prisma/migrations/` (SQL sin calificar con el esquema: corren en `DB_SCHEMA`). `npm run db:migrate` = baseline de bases Sequelize + `prisma migrate deploy`; lo corre el entrypoint. Ver [`database.md`](database.md). |
+| Seed | `npm run db:seed` → `prisma/seed.ts` con el cliente de la app (PII cifrada por la extensión). Crea lo que falta por clave natural; solo actualiza los templates de los tipos de notificación. |
 | Cliente | `npm run prisma:generate` → `shared/database/generated/prisma` (gitignored). Corre solo antes de `dev*`, `build`, `typecheck` y `test`. |
 | Conexión | `shared/database/prisma.ts`: cliente único con `PrismaPg` y la misma config que Sequelize (DB_*, DB_SCHEMA, TLS salvo localhost, bundle CA de RDS). |
 | CLI | `prisma.config.ts`: URL desde `DB_*`; sin `DB_HOST` (CI) no la necesita `generate`. `npm run prisma:pull`, `npm run prisma:studio`. |
@@ -106,6 +108,38 @@ y la fase 3 desacopla los services del ORM **antes** del cambio, así la fase 5 
 | Metadatos | `npm run prisma:generate` también escribe `shared/database/generated/prisma-metadata.ts` (escalares y relaciones por modelo) para que la extensión recorra anidados. |
 | Salud y cierre | `shared/database/database-health.ts`: `checkDatabase()` (arranque y `/health`: sano solo si responden los dos ORMs) y `closeDatabase()` (graceful shutdown). |
 | Tests | `npm run db:test:prepare` (una vez y al cambiar migraciones) + `npm test`. Entorno en `tests/test-env.ts`: Postgres, esquema `TEST_DB_SCHEMA` (por defecto `test`), sin TLS; `db:reset` se niega a tocar `public`. |
+
+### Fase 6: migraciones y seed
+
+- **Cómo se generó `0_init`:** `prisma migrate diff --from-empty --to-config-datasource` sobre un esquema recién
+  migrado con Sequelize, sin el calificador de esquema (Prisma 7 escribe `"<esquema>".tabla`) ni las tablas
+  `SequelizeMeta`/`SequelizeData`. Prisma no lee del catálogo, y por eso se agregaron a mano: el CHECK de
+  `consent_types`, las dos funciones + triggers append-only (`audit_logs`, `user_change_logs`) y los 186
+  comentarios de tablas y columnas. Los 26 UNIQUE van como **constraint** (`ADD CONSTRAINT … UNIQUE`), como los
+  creaba Sequelize, no como índice único (lo que escribe Prisma): así las bases nuevas y las existentes son
+  iguales y la 6c renombra lo mismo en las dos.
+- **Verificación:** `scripts/prisma-migration/compare-schemas.ts` compara dos esquemas en el catálogo de
+  Postgres (columnas con tipo/NULL/default, constraints, índices, enums, funciones, triggers, comentarios):
+  1091 objetos, cero diferencias contra el esquema migrado con Sequelize y contra la base de desarrollo real.
+  `migrate diff` de la base contra el schema da solo lo de la 6c (DEFAULT de `created_at` y la columna
+  `users."deletedAt"` con su índice). `migrate dev` sobre una base con baseline no reporta drift.
+- **Índice con el nombre del esquema:** Sequelize nombró `<esquema>_user_sessions_user_id_status` (el
+  `addIndex` con `{ schema }` antepone el esquema): en `0_init` y en el schema es
+  `idx_user_sessions_user_id_status`, y el baseline renombra el de las bases existentes.
+- **Baseline automático:** `npm run db:migrate` detecta `SequelizeMeta`, exige las 45 migraciones (y ninguna
+  desconocida), renombra el índice, marca `0_init` como aplicada y borra el tracking de Sequelize.
+  Idempotente; probado sobre un esquema creado con Sequelize (resultado idéntico al de `0_init`).
+- **Seed re-ejecutable:** con sequelize-cli cada seeder corría una sola vez por base (`SequelizeData`); los de
+  tipos de notificación hacían "borrar por code y reinsertar". `prisma db seed` no lleva registro, así que
+  cada seed crea lo que falta por su clave natural y no borra ni modifica (borrar tipos referenciados por
+  notificaciones fallaría o se llevaría lo editado en el admin). Los templates de los tipos sí se
+  actualizan: la API no los edita. La categoría de cada tipo solo se asigna si no tiene.
+- **Contenido verificado:** el seed sobre un esquema vacío deja los mismos datos que los seeders de
+  Sequelize en la base de desarrollo (8 países, 8 prefijos, 33 departamentos, 74 ciudades, catálogos,
+  configuración, 6 categorías, 49 tipos con sus templates byte a byte, y los 2 usuarios internos con la
+  PII cifrada y los mismos hashes). Segunda corrida: no crea ni cambia nada.
+- **Prisma 7** ya no corre el seed desde `migrate dev`/`migrate reset`: se llama `npm run db:seed` (o
+  `db:reset`).
 
 ### Fase 5: repositorios
 
@@ -333,7 +367,8 @@ Receta por repositorio:
 
 - **PII ilegible o en claro** → fase 4 aislada, con tests de compatibilidad contra datos escritos por la
   versión Sequelize, y verificación manual sobre la base local antes de seguir.
-- **Bases existentes** → la migración base no se ejecuta en ellas (`migrate resolve --applied`); se
-  verifica con `prisma migrate diff` que el schema no tiene diferencias con la base real.
+- **Bases existentes** → la migración base no se ejecuta en ellas: `npm run db:migrate` hace el baseline
+  (`migrate resolve --applied 0_init`) y se niega si la base no tiene exactamente las 45 migraciones de
+  Sequelize; `compare-schemas.ts` verifica una base contra `0_init` antes de desplegar.
 - **Comportamiento de transacciones** (aislamiento, timeouts de `$transaction`) → tests de los flujos de
   doble aprobación, registro y login, que hoy usan transacciones manuales.

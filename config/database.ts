@@ -1,28 +1,13 @@
-// === RF-OPS-01: Pipeline DevSecOps, Infraestructura Base ===
-// Configuración de Sequelize CLI (migraciones y seeders).
-//
-// seederStorage: 'sequelize' registra cada seeder ejecutado en la tabla SequelizeData
-// (equivalente a SequelizeMeta para migraciones), de modo que `db:seed:all` saltea los
-// seeders ya corridos. Los tres perfiles son PostgreSQL: el de test apunta al esquema aislado
-// que fija tests/test-env.ts (TEST_DB_SCHEMA, por defecto `test`) y se prepara con
-// `npm run db:test:prepare`.
-//
-// Comandos:
-//   npm run db:migrate       → aplica migraciones pendientes (tracking en SequelizeMeta)
-//   npm run db:seed          → aplica seeders pendientes    (tracking en SequelizeData)
-//   npm run db:seed:undo     → revierte todos los seeders
+// Configuración de la conexión de Sequelize en runtime (config/config.ts). Convive con Prisma hasta la
+// fase 7 de docs/prisma-migration.md. Migraciones y seed ya no pasan por acá: prisma/migrations y
+// prisma/seed.ts (`npm run db:migrate`, `npm run db:seed`). Los tres perfiles son PostgreSQL: el de test
+// apunta al esquema aislado que fija tests/test-env.ts (TEST_DB_SCHEMA, por defecto `test`).
 import type { Dialect, Options } from 'sequelize';
 import constantsModule from '../shared/constants';
 const { database, server } = constantsModule;
 
-
-/** Perfil de conexión: opciones de Sequelize + las de sequelize-cli (tracking de seeders/migraciones). */
-type DbProfile = Options & {
-  seederStorage?: string;
-  seederStorageTableName?: string;
-  seederStorageTableSchema?: string;
-  migrationStorageTableSchema?: string;
-};
+/** Perfil de conexión de Sequelize. */
+type DbProfile = Options;
 
 // dialect viene del entorno (DB_DIALECT): se confía en el valor configurado
 const dialect = database.dialect as Dialect;
@@ -63,16 +48,6 @@ const baseConfig: Record<'development' | 'test' | 'production', DbProfile> = {
     // database.logging ya es boolean (parseBoolEnv): antes se comparaba contra 'true' y DB_LOGGING=true
     // nunca activaba el log de SQL
     logging: database.logging ? console.log : false,
-    // [RF-OPS-01] | CA-02 | Control de seeders ejecutados via
-    // SequelizeData — equivalente a SequelizeMeta para migraciones.
-    // Comandos: db:seed:all (corre pendientes), db:seed:undo:all.
-    seederStorage: 'sequelize',
-    seederStorageTableName: 'SequelizeData',
-    // Tracking (SequelizeMeta/SequelizeData) DENTRO del esquema DB_SCHEMA, no en `public`.
-    // Aísla cada esquema: apuntar a otro DB_SCHEMA re-corre migraciones/seeders desde cero
-    // y acota db:reset/undo a ese esquema (no toca el tracking ni las tablas de otros esquemas).
-    seederStorageTableSchema: database.schema,
-    migrationStorageTableSchema: database.schema,
     pool: {
       max: 5,
       min: 0,
@@ -97,10 +72,6 @@ const baseConfig: Record<'development' | 'test' | 'production', DbProfile> = {
       underscored: true,
       freezeTableName: true
     },
-    seederStorage: 'sequelize',
-    seederStorageTableName: 'SequelizeData',
-    seederStorageTableSchema: database.schema,
-    migrationStorageTableSchema: database.schema,
     pool: {
       max: 2,
       min: 0,
@@ -142,16 +113,6 @@ const baseConfig: Record<'development' | 'test' | 'production', DbProfile> = {
       freezeTableName: true
     },
     logging: false,
-    // [RF-OPS-01] | CA-02 | Control de seeders ejecutados via
-    // SequelizeData — equivalente a SequelizeMeta para migraciones.
-    // Comandos: db:seed:all (corre pendientes), db:seed:undo:all.
-    seederStorage: 'sequelize',
-    seederStorageTableName: 'SequelizeData',
-    // Tracking (SequelizeMeta/SequelizeData) DENTRO del esquema DB_SCHEMA, no en `public`.
-    // Aísla cada esquema: apuntar a otro DB_SCHEMA re-corre migraciones/seeders desde cero
-    // y acota db:reset/undo a ese esquema (no toca el tracking ni las tablas de otros esquemas).
-    seederStorageTableSchema: database.schema,
-    migrationStorageTableSchema: database.schema,
     pool: {
       max: 10,
       min: 2,
