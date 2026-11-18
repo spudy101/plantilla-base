@@ -36,9 +36,6 @@ export interface AuditRecordInput {
   entityId?: string | null;
   entityType?: string | null;
   entityTable?: string | null;
-  httpStatus?: number | null;
-  errorCode?: string | null;
-  errorMessage?: string | null;
 }
 
 /** Campos de la cuenta cuyo cambio queda en la bitácora. */
@@ -117,17 +114,12 @@ class AuditService {
           risk: def.risk as AuditLogRisk,
           module: def.module ?? null,
           outcome,
-          httpStatus: input.httpStatus ?? null,
-          errorCode: input.errorCode ?? null,
-          errorMessage: input.errorMessage ?? null,
           userId: asUserId(input.actorId ?? ctx.userId),
           sessionId: ctx.sessionId ?? null,
           correlationId: ctx.correlationId,
           ip: ctx.ip ?? null,
           userAgent: ctx.userAgent,
           fingerprint: ctx.fingerprintHash,
-          method: ctx.method,
-          path: ctx.path,
           source: ctx.source,
           details: (input.details ?? {}) as Prisma.InputJsonValue,
           entityId: input.entityId ?? null,

@@ -169,11 +169,8 @@ class ErrorMiddleware {
       auditInfraEvent({
         action: securityAction,
         actorId: req.user?.userId ?? null,
-        details: { path: req.path, method: req.method },
-        outcome: 'failure',
-        httpStatus: statusCode,
-        errorCode,
-        errorMessage: err.message
+        details: { path: req.path, method: req.method, httpStatus: statusCode, errorCode, errorMessage: err.message },
+        outcome: 'failure'
       });
     }
 

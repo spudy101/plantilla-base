@@ -69,16 +69,11 @@ model AuditLog {
   category      String?         @db.VarChar(50)
   risk          AuditLogRisk    @default(unknown)
   outcome       AuditLogOutcome @default(success)
-  httpStatus    Int?            @map("http_status") @db.SmallInt
-  errorCode     String?         @map("error_code") @db.VarChar(100)
-  errorMessage  String?         @map("error_message")
   userId        String?         @map("user_id") @db.Uuid
   correlationId String?         @map("correlation_id") @db.VarChar(100)
   ip            String?         @db.VarChar(45)
   userAgent     String?         @map("user_agent")
   fingerprint   String?         @db.VarChar(64)
-  method        String?         @db.VarChar(10)
-  path          String?
   details       Json?
   source        String          @default("http") @db.VarChar(50)
   entityId      String?         @map("entity_id") @db.VarChar(255)
@@ -90,21 +85,12 @@ model AuditLog {
   updatedAt     DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([action], map: "idx_audit_logs_action")
-  @@index([category], map: "idx_audit_logs_category")
   @@index([correlationId], map: "idx_audit_logs_correlation_id")
   @@index([createdAt], map: "idx_audit_logs_created_at")
-  @@index([ip], map: "idx_audit_logs_ip")
-  @@index([risk], map: "idx_audit_logs_risk")
-  @@index([source], map: "idx_audit_logs_source")
-  @@index([userId], map: "idx_audit_logs_user_id")
   @@index([category, risk, createdAt], map: "idx_audit_logs_category_risk_date")
   @@index([entityId], map: "idx_audit_logs_entity_id")
-  @@index([entityTable], map: "idx_audit_logs_entity_table")
-  @@index([module], map: "idx_audit_logs_module")
-  @@index([outcome], map: "idx_audit_logs_outcome")
   @@index([outcome, createdAt], map: "idx_audit_logs_outcome_date")
   @@index([sessionId, createdAt], map: "idx_audit_logs_session_date")
-  @@index([sessionId], map: "idx_audit_logs_session_id")
   @@index([userId, createdAt], map: "idx_audit_logs_user_date")
   @@map("audit_logs")
 }

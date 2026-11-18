@@ -156,17 +156,12 @@ class AuditLogComponent {
       module: record.module || null,
       risk: record.risk,
       outcome: record.outcome,
-      httpStatus: record.httpStatus || null,
-      errorCode: record.errorCode || null,
-      errorMessage: record.errorMessage || null,
       userId: record.userId || null,
       sessionId: record.sessionId || null,
       executor: _buildUserRef(record.executor),
       entityId: record.entityId || null,
       entityType: record.entityType || null,
       entityTable: record.entityTable || null,
-      method: record.method || null,
-      path: record.path || null,
       ip: record.ip || null,
       source: record.source,
       createdAt: record.createdAt
@@ -179,14 +174,9 @@ class AuditLogComponent {
     }
     return {
       ...AuditLogComponent.buildList(record),
-      httpStatus: record.httpStatus || null,
-      errorCode: record.errorCode || null,
-      errorMessage: record.errorMessage || null,
       correlationId: record.correlationId || null,
       userAgent: record.userAgent || null,
       fingerprint: record.fingerprint || null,
-      method: record.method || null,
-      path: record.path || null,
       // [RF-USR-01] | CA-06 | `details` es JSONB libre de logAudit: guarda diffs con correos y
       // documentos en claro (p. ej. PERSON_EMAIL_CHANGED) → redactor profundo por key.
       details: MaskingUtil.redactPayload(record.details) || null

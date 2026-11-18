@@ -14,9 +14,6 @@ export interface InfraAuditEvent {
   outcome?: 'success' | 'failure' | 'warning' | 'attempt';
   entityType?: string | null;
   entityTable?: string | null;
-  httpStatus?: number | null;
-  errorCode?: string | null;
-  errorMessage?: string | null;
 }
 
 type AuditSink = (event: InfraAuditEvent) => Promise<void>;
