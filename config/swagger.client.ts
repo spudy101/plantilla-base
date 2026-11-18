@@ -1,4 +1,4 @@
-import type { Application, Request, Response } from 'express';
+import type { Request, Response, Router } from 'express';
 // config/swagger.client.ts
 
 import swaggerUi from 'swagger-ui-express';
@@ -69,7 +69,7 @@ const allModuleSchemas = {
 
 // ─── Ensamblador ──────────────────────────────────────────────
 
-const swaggerClientDocs = (app: Application) => {
+const swaggerClientDocs = (app: Router) => {
   const { port: PORT, nodeEnv: NODE_ENV, host: HOST } = server;
 
   const servers =

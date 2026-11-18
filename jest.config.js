@@ -63,9 +63,8 @@ module.exports = {
     'modules/**/*.repository.ts',
 
     // Exclusiones: archivos de arranque / bootstrap
-    '!modules/admin/app.ts',
-    '!modules/client/app.ts',
-    '!servers/**',
+    '!src/app.ts',
+    '!src/server.ts',
     '!**/node_modules/**'
   ],
 

@@ -1,7 +1,7 @@
 // shared/base/circuit-breaker.bootstrap.ts
 //
 // Registro NEUTRAL de los callbacks de fallback del circuit breaker.
-// Invocado una sola vez por servidor desde BaseServer. Cubre todas las integraciones externas
+// Invocado una sola vez al arrancar, desde src/server.ts. Cubre todas las integraciones externas
 // (AWS: SES/S3/SNS/SMS, y cualquier proveedor que envuelvas con CircuitBreaker) bajo el
 // mismo estándar de observabilidad:
 //
@@ -10,13 +10,13 @@
 //
 // Todo corre dentro de requestContext.runAsSystem (source:'system').
 
-import { interopDefault } from '../utils/interop.util';
-import CircuitBreaker from '../utils/circuit-breaker.util';
-import requestContext from '../utils/request-context.util';
-import loggerUtilModule from '../utils/logger.util';
+import { interopDefault } from '../shared/utils/interop.util';
+import CircuitBreaker from '../shared/utils/circuit-breaker.util';
+import requestContext from '../shared/utils/request-context.util';
+import loggerUtilModule from '../shared/utils/logger.util';
 const { logger, logAudit } = loggerUtilModule;
-import providerFallbackRepository from '../../modules/schemas/integration/repositories/provider-fallback-event.repository';
-import errorMessageModule from '../utils/error-message.util';
+import providerFallbackRepository from '../modules/schemas/integration/repositories/provider-fallback-event.repository';
+import errorMessageModule from '../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
@@ -44,7 +44,7 @@ async function _contarProcesosAfectados(product: string, startedAt: Date | null,
     }
     // require diferido: como antes con shared/models, no cargar repositorios al importar el bootstrap
     const smsDeliveryAttemptRepository = interopDefault(
-      require('../../modules/schemas/notification/repositories/sms-delivery-attempt.repository') as typeof import('../../modules/schemas/notification/repositories/sms-delivery-attempt.repository')
+      require('../modules/schemas/notification/repositories/sms-delivery-attempt.repository') as typeof import('../modules/schemas/notification/repositories/sms-delivery-attempt.repository')
     );
     return await smsDeliveryAttemptRepository.countFailedBetween(startedAt, endedAt);
   } catch {

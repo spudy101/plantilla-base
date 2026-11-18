@@ -2,23 +2,15 @@
   "name": "base-project",
   "version": "1.0.0",
   "description": "Boilerplate reutilizable de API REST con Node.js, Express, PostgreSQL y Redis: autenticación JWT + sesiones, RBAC, MFA, auditoría, doble aprobación (maker-checker) y notificaciones.",
-  "main": "dist/servers/monolith.js",
+  "main": "dist/src/server.js",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
-    "comment": "========== MODO MONOLITO (Cliente + Admin) ==========",
+    "comment": "========== SERVIDOR ==========",
     "predev": "npm run prisma:generate --silent",
-    "dev": "nodemon servers/monolith.ts",
-    "start": "node dist/servers/monolith.js",
-    "comment2": "========== MODO CLIENTE (Solo Cliente) ==========",
-    "predev:client": "npm run prisma:generate --silent",
-    "dev:client": "nodemon servers/client.ts",
-    "start:client": "node dist/servers/client.js",
-    "comment3": "========== MODO ADMIN (Solo Admin) ==========",
-    "predev:admin": "npm run prisma:generate --silent",
-    "dev:admin": "nodemon servers/admin.ts",
-    "start:admin": "node dist/servers/admin.js",
+    "dev": "nodemon src/server.ts",
+    "start": "node dist/src/server.js",
     "comment_build": "========== TYPESCRIPT ==========",
     "prebuild": "npm run prisma:generate --silent",
     "build": "tsc -p tsconfig.json",
@@ -52,7 +44,7 @@
   },
   "nodemonConfig": {
     "watch": [
-      "servers",
+      "src",
       "modules",
       "shared",
       "config"

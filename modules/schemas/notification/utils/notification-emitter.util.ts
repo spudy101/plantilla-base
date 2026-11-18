@@ -159,7 +159,7 @@ namespace NotificationEmitter {
   }
 }
 
-// Singleton — initialize() debe llamarse explícitamente desde BaseServer.afterInfraReady(),
+// Singleton — initialize() debe llamarse explícitamente desde src/server.ts,
 // DESPUÉS de que Redis esté conectado. No auto-inicializar aquí.
 const notificationEmitter = new NotificationEmitter();
 

@@ -47,7 +47,7 @@ describe('SOLID — guardas de arquitectura', () => {
   const applicationFiles = sourceFiles.filter(f => APPLICATION_LAYER.test(f));
   const projectFiles = [
     ...sourceFiles,
-    ...walk(path.join(ROOT, 'servers')),
+    ...walk(path.join(ROOT, 'src')),
     ...walk(path.join(ROOT, 'config')),
     ...walk(path.join(ROOT, 'prisma'))
   ];

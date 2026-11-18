@@ -13,8 +13,8 @@
 
 import request from 'supertest';
 
-// La app se exporta ya construida: `new ClientApp().getApp()`.
-import app from '../../modules/client/app';
+// La app completa (admin + client); las rutas de negocio cuelgan de /admin y /client.
+import app from '../../src/app';
 
 describe('App smoke (client) · pipeline HTTP end-to-end', () => {
   it('GET /health responde 200 con el contrato de health check', async () => {
@@ -52,7 +52,7 @@ describe('App smoke (client) · pipeline HTTP end-to-end', () => {
   });
 
   it('ruta desconocida → 404 con el envelope de error estándar', async () => {
-    const res = await request(app).get('/api/v1/ruta-que-no-existe-jamas');
+    const res = await request(app).get('/client/api/v1/ruta-que-no-existe-jamas');
 
     expect(res.status).toBe(404);
     expect(res.body).toMatchObject({ success: false });
@@ -60,7 +60,7 @@ describe('App smoke (client) · pipeline HTTP end-to-end', () => {
 
   it('JSON malformado → 400 INVALID_JSON_BODY (no INTERNAL_ERROR)', async () => {
     const res = await request(app)
-      .post('/api/v1/auth/login')
+      .post('/client/api/v1/auth/login')
       .set('Content-Type', 'application/json')
       .send('{ "email": ');
 
