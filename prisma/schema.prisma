@@ -757,31 +757,6 @@ model UserBiometricCredential {
   @@map("user_biometric_credentials")
 }
 
-model UserChangeLog {
-  logId               String                     @id(map: "pk_user_change_logs") @default(uuid()) @map("log_id") @db.Uuid
-  userId              String                     @map("user_id") @db.Uuid
-  changedByUserId     String?                    @map("changed_by_user_id") @db.Uuid
-  changedByRole       UserChangeLogChangedByRole @map("changed_by_role")
-  changeType          UserChangeLogChangeType    @map("change_type")
-  previousValue       String?                    @map("previous_value")
-  newValue            String?                    @map("new_value")
-  changeReason        String?                    @map("change_reason") @db.VarChar(255)
-  ipAddress           String?                    @map("ip_address") @db.VarChar(45)
-  userAgent           String?                    @map("user_agent")
-  originSessionId     String?                    @map("origin_session_id") @db.Uuid
-  originCorrelationId String?                    @map("origin_correlation_id") @db.VarChar(128)
-  createdAt           DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
-  changedBy           User?                      @relation("UserChangeLog_changedBy", fields: [changedByUserId], references: [userId], map: "fk_user_change_logs_changed_by_user_id")
-  user                User                       @relation("UserChangeLog_user", fields: [userId], references: [userId], onDelete: Cascade, map: "fk_user_change_logs_user_id")
-
-  @@index([changeType], map: "idx_user_change_logs_change_type")
-  @@index([changedByUserId], map: "idx_user_change_logs_changed_by")
-  @@index([createdAt], map: "idx_user_change_logs_created_at")
-  @@index([originSessionId], map: "idx_user_change_logs_origin_session_id")
-  @@index([userId], map: "idx_user_change_logs_user_id")
-  @@map("user_change_logs")
-}
-
 model UserConsent {
   userConsentId       String         @id(map: "pk_user_consents") @default(uuid()) @map("user_consent_id") @db.Uuid
   userId              String         @map("user_id") @db.Uuid
@@ -984,8 +959,6 @@ model User {
   rolePermissionOverrides          RolePermissionOverride[]
   smsDeliveryAttempts              SmsDeliveryAttempt[]
   userBiometricCredentials         UserBiometricCredential[]
-  userChangeLogsByChangedByUser    UserChangeLog[]              @relation("UserChangeLog_changedBy")
-  userChangeLogsByUser             UserChangeLog[]              @relation("UserChangeLog_user")
   userConsents                     UserConsent[]
   loginAttempts                    UserLoginAttempt[]
   notificationPreference           UserNotificationPreference[]
@@ -1135,33 +1108,6 @@ enum SmsDeliveryAttemptStatus {
   failed
 
   @@map("enum_sms_delivery_attempts_status")
-}
-
-enum UserChangeLogChangeType {
-  email
-  password
-  mfa_status
-  account_status
-  role
-  national_id
-  name
-  gender
-  location
-  phone
-  birth_date
-  funds_origin
-  sms_mfa_status
-  preferred_mfa_method
-
-  @@map("enum_user_change_logs_change_type")
-}
-
-enum UserChangeLogChangedByRole {
-  admin
-  user
-  system
-
-  @@map("enum_user_change_logs_changed_by_role")
 }
 
 enum UserSessionStatus {

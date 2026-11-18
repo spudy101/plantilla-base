@@ -9,7 +9,7 @@ import commonResponses from '../../../config/swagger/responses/common.responses'
  * Módulo: /client/api/v1/records/audit/recent-activity
  * Feed de actividad reciente del PROPIO usuario autenticado (roles CLIENTE / CLIENTE_VERIFICADO).
  *
- * Client-safe: mezcla `audit_logs` (acciones del propio usuario) y `user_change_logs` (cambios de
+ * Client-safe: mezcla las acciones del propio usuario y los cambios sobre su cuenta (ambos en `audit_logs`; cambios de
  * cuenta/perfil, incluidos los hechos por un admin o por el sistema) SIN exponer nunca `details`
  * (before/after), `previous_value`/`new_value`, user_agent ni datos de terceros.
  *
@@ -24,7 +24,7 @@ const clientSecurity = [{ bearerAuth: [], idTokenAuth: [] }];
 const schemas = {
   UserActivityItem: {
     type: 'object',
-    description: 'Evento del feed de actividad del propio usuario (fusión de audit_logs + user_change_logs).',
+    description: 'Evento del feed de actividad del propio usuario (acciones del usuario + cambios sobre su cuenta, ambos en audit_logs).',
     properties: {
       activityId: {
         type: 'string',

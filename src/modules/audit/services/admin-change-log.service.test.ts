@@ -6,7 +6,7 @@
 // userId/dateFrom/dateTo/search, verificando que se inyectan en filters/metadata y que la auditoría
 // incluye targetUserId. Repos, paginación, logger y DTO se mockean para aislar la lógica.
 
-jest.mock('../repositories/user-change-log.repository', () => ({
+jest.mock('../repositories/change-log.repository', () => ({
   findAllPaginated: jest.fn()
 }));
 
@@ -28,7 +28,7 @@ jest.mock('../dtos/admin-change-log.dto', () => ({
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import userChangeLogRepositoryModule from '../repositories/user-change-log.repository';
+import userChangeLogRepositoryModule from '../repositories/change-log.repository';
 const userChangeLogRepository = mocked(userChangeLogRepositoryModule);
 import PaginationHelperModule from '../../../shared/http/pagination.util';
 const PaginationHelper = mocked(PaginationHelperModule);

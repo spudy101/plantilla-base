@@ -36,7 +36,7 @@ jest.mock('../repositories/user-session.repository', () => ({
   closeAllByUser: jest.fn().mockResolvedValue(undefined)
 }));
 
-jest.mock('../../audit/repositories/user-change-log.repository', () => ({
+jest.mock('../../audit/repositories/change-log.repository', () => ({
   findByUserId: jest.fn()
 }));
 
@@ -127,7 +127,7 @@ import documentTypeRepositoryModule from '../../catalogs/repositories/document-t
 const documentTypeRepository = mocked(documentTypeRepositoryModule);
 import userSessionRepositoryModule from '../repositories/user-session.repository';
 const userSessionRepository = mocked(userSessionRepositoryModule);
-import userChangeLogRepositoryModule from '../../audit/repositories/user-change-log.repository';
+import userChangeLogRepositoryModule from '../../audit/repositories/change-log.repository';
 const userChangeLogRepository = mocked(userChangeLogRepositoryModule);
 import InternalUserHelperModule from '../helpers/internal-user.helper';
 const InternalUserHelper = mocked(InternalUserHelperModule);

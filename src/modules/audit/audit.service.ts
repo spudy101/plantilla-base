@@ -41,6 +41,26 @@ export interface AuditRecordInput {
   errorMessage?: string | null;
 }
 
+/** Campos de la cuenta cuyo cambio queda en la bitácora. */
+export type ChangeType =
+  | 'email' | 'password' | 'mfa_status' | 'account_status' | 'role' | 'national_id' | 'name' | 'gender'
+  | 'location' | 'phone' | 'birth_date' | 'funds_origin' | 'sms_mfa_status' | 'preferred_mfa_method';
+export type ChangedByRole = 'admin' | 'user' | 'system';
+
+/** Un cambio sobre la cuenta `userId` (USER_FIELD_CHANGED). previousValue/newValue se enmascaran al responder. */
+export interface ChangeInput {
+  userId: string;
+  changedByUserId?: string | null;
+  changedByRole: ChangedByRole;
+  changeType: ChangeType;
+  previousValue?: string | null;
+  newValue?: string | null;
+  changeReason?: string | null;
+  /** Ignorados: ip y user-agent salen del contexto de la operación. */
+  ipAddress?: string | null;
+  userAgent?: string | null;
+}
+
 type AuditLogWriter = Pick<typeof auditLogRepository, 'create'>;
 type AuditAlertWriter = Pick<typeof auditAlertRepository, 'create'>;
 
@@ -62,6 +82,23 @@ class AuditService {
   /** La definición de una acción del catálogo. */
   definition(action: string): AuditActionDef {
     return (AUDIT_ACTIONS as Record<string, AuditActionDef | undefined>)[action] ?? { ...UNKNOWN_ACTION, description: action };
+  }
+
+  /** Bitácora de cambios: un USER_FIELD_CHANGED sobre la cuenta, con el valor anterior y el nuevo. */
+  recordChange(change: ChangeInput): Promise<void> {
+    return this.record('USER_FIELD_CHANGED', {
+      actorId: change.changedByUserId ?? (change.changedByRole === 'user' ? change.userId : 'system'),
+      entityType: 'User',
+      entityTable: 'users',
+      entityId: change.userId,
+      details: {
+        changeType: change.changeType,
+        changedByRole: change.changedByRole,
+        previousValue: change.previousValue ?? null,
+        newValue: change.newValue ?? null,
+        changeReason: change.changeReason ?? null
+      }
+    });
   }
 
   async record(action: AuditActionKey, input: AuditRecordInput): Promise<void> {

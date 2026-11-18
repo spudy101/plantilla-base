@@ -43,7 +43,7 @@ import type userPushTokenRepositoryModule from './notification/repositories/user
 import type verificationCodeRepositoryModule from './notification/repositories/verification-code.repository';
 import type auditAlertRepositoryModule from './audit/repositories/audit-alert.repository';
 import type auditLogRepositoryModule from './audit/repositories/audit-log.repository';
-import type userChangeLogRepositoryModule from './audit/repositories/user-change-log.repository';
+import type changeLogRepositoryModule from './audit/repositories/change-log.repository';
 import type userLoginAttemptRepositoryModule from './audit/repositories/user-login-attempt.repository';
 import type consentTypeRepositoryModule from './legal/repositories/consent-type.repository';
 import type privacyPolicyAdminRepositoryModule from './legal/repositories/privacy-policy-admin.repository';
@@ -86,7 +86,7 @@ export type UserPushTokenRepositoryPort = typeof userPushTokenRepositoryModule;
 export type VerificationCodeRepositoryPort = typeof verificationCodeRepositoryModule;
 export type AuditAlertRepositoryPort = typeof auditAlertRepositoryModule;
 export type AuditLogRepositoryPort = typeof auditLogRepositoryModule;
-export type UserChangeLogRepositoryPort = typeof userChangeLogRepositoryModule;
+export type ChangeLogRepositoryPort = typeof changeLogRepositoryModule;
 export type UserLoginAttemptRepositoryPort = typeof userLoginAttemptRepositoryModule;
 export type ConsentTypeRepositoryPort = typeof consentTypeRepositoryModule;
 export type PrivacyPolicyAdminRepositoryPort = typeof privacyPolicyAdminRepositoryModule;

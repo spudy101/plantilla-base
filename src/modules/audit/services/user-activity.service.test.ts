@@ -9,7 +9,7 @@ jest.mock('../repositories/audit-log.repository', () => ({
   findClientSafeByUser: jest.fn()
 }));
 
-jest.mock('../repositories/user-change-log.repository', () => ({
+jest.mock('../repositories/change-log.repository', () => ({
   findExternalChangesByUserId: jest.fn()
 }));
 
@@ -30,7 +30,7 @@ jest.mock('../dtos/user-activity.dto', () => ({
 import { mocked, Loose } from 'tests/helpers/mock';
 import auditLogRepositoryModule from '../repositories/audit-log.repository';
 const auditLogRepository = mocked(auditLogRepositoryModule);
-import userChangeLogRepositoryModule from '../repositories/user-change-log.repository';
+import userChangeLogRepositoryModule from '../repositories/change-log.repository';
 const userChangeLogRepository = mocked(userChangeLogRepositoryModule);
 import userSessionRepositoryModule from '../../iam/repositories/user-session.repository';
 const userSessionRepository = mocked(userSessionRepositoryModule);

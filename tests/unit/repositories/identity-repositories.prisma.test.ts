@@ -8,7 +8,7 @@ const mockDb = {
   $transaction: jest.fn(),
   role: { findMany: jest.fn() },
   user: { findMany: jest.fn(), count: jest.fn(), updateManyAndReturn: jest.fn() },
-  userChangeLog: { findMany: jest.fn(), count: jest.fn() },
+  auditLog: { findMany: jest.fn(), count: jest.fn() },
   userSession: { updateMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
   userTrustedDevice: { findFirst: jest.fn(), updateManyAndReturn: jest.fn() },
   resetCredentials: { updateMany: jest.fn() },
@@ -20,7 +20,7 @@ jest.mock('../../../src/shared/database/prisma', () => mockDb);
 
 import roleRepository from '../../../src/modules/iam/repositories/role.repository';
 import userRepository from '../../../src/modules/iam/repositories/user.repository';
-import userChangeLogRepository from '../../../src/modules/audit/repositories/user-change-log.repository';
+import changeLogRepository from '../../../src/modules/audit/repositories/change-log.repository';
 import userSessionRepository from '../../../src/modules/iam/repositories/user-session.repository';
 import trustedDeviceRepository from '../../../src/modules/iam/repositories/auth-trusted-device.repository';
 import resetCredentialsRepository from '../../../src/modules/iam/repositories/reset-credentials.repository';
@@ -36,8 +36,8 @@ beforeEach(() => {
   mockDb.role.findMany.mockResolvedValue([]);
   mockDb.user.findMany.mockResolvedValue([]);
   mockDb.user.count.mockResolvedValue(0);
-  mockDb.userChangeLog.findMany.mockResolvedValue([]);
-  mockDb.userChangeLog.count.mockResolvedValue(0);
+  mockDb.auditLog.findMany.mockResolvedValue([]);
+  mockDb.auditLog.count.mockResolvedValue(0);
 });
 
 describe('RoleRepository.findByNames', () => {
@@ -54,19 +54,25 @@ describe('RoleRepository.findByNames', () => {
   });
 });
 
-describe('UserChangeLogRepository: filtros de los atajos', () => {
-  // Antes de la fase 3, findByChangeType / findByAdminUser pasaban claves que findAllPaginated no leía
-  // y devolvían los logs de todos.
-  const whereOfLastQuery = () => mockDb.userChangeLog.findMany.mock.calls.at(-1)[0].where;
+describe('ChangeLogRepository (vista sobre audit_logs): filtros', () => {
+  const whereOfLastQuery = () => mockDb.auditLog.findMany.mock.calls.at(-1)[0].where;
 
-  it('findByChangeType filtra por changeType', async () => {
-    await userChangeLogRepository.findByChangeType('email');
-    expect(whereOfLastQuery()).toMatchObject({ changeType: 'email' });
+  it('siempre filtra por la acción USER_FIELD_CHANGED; el usuario afectado es entity_id', async () => {
+    await changeLogRepository.findByUserId('user-1');
+    expect(whereOfLastQuery()).toMatchObject({ action: 'USER_FIELD_CHANGED', entityId: 'user-1' });
   });
 
-  it('findByAdminUser filtra por changedByUserId y rol admin', async () => {
-    await userChangeLogRepository.findByAdminUser('admin-1');
-    expect(whereOfLastQuery()).toMatchObject({ changedByUserId: 'admin-1', changedByRole: 'admin' });
+  it('findByAdminUser filtra por quién hizo el cambio (user_id) y rol admin (details)', async () => {
+    await changeLogRepository.findByAdminUser('admin-1');
+    expect(whereOfLastQuery()).toMatchObject({
+      userId: 'admin-1',
+      AND: [{ details: { path: ['changedByRole'], equals: 'admin' } }]
+    });
+  });
+
+  it('filtra por tipo de cambio en details', async () => {
+    await changeLogRepository.findAllPaginated({ changeType: 'email' });
+    expect(whereOfLastQuery().AND).toEqual([{ details: { path: ['changeType'], equals: 'email' } }]);
   });
 });
 

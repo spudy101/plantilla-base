@@ -8,7 +8,7 @@ type UserRepositoryFilters = NonNullable<Parameters<UserRepositoryPort['findAllP
 import userRepository from '../../repositories/user.repository';
 import roleRepository from '../../repositories/role.repository';
 import userSessionRepository from '../../repositories/user-session.repository';
-import userChangeLogRepository from '../../../audit/repositories/user-change-log.repository';
+import userChangeLogRepository from '../../../audit/repositories/change-log.repository';
 import DualApprovalService from '../../../approvals/services/dual-approval.service';
 import PaginationHelper from '../../../../shared/http/pagination.util';
 import componentsCatalogDtoModule from '../../../catalogs/dtos/catalog-components.dto';
