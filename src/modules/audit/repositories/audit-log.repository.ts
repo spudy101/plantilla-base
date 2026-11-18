@@ -53,6 +53,11 @@ class AuditLogRepository extends PrismaRepository {
     return { rows: await this.attachExecutor(rows), count };
   }
 
+  /** Hechos de negocio de una operación, en orden cronológico. */
+  async findByCorrelationId(correlationId: string): Promise<AuditLog[]> {
+    return (await this.db()).auditLog.findMany({ where: { correlationId }, orderBy: { createdAt: 'asc' } });
+  }
+
   /** Detalle de un log, con el executor. */
   async findByIdFull(auditLogId: string): Promise<AuditLogWithExecutor | null> {
     const row = await (await this.db()).auditLog.findUnique({ where: { auditLogId } });
