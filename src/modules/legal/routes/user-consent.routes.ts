@@ -1,12 +1,12 @@
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { GrantConsentsBody, ConsentTypeIdParams, RevokeConsentBody } from '../requests/legal.request';
 const router = express.Router();
 import UserConsentController from '../controllers/user-consent.controller';
-import UserConsentValidator from '../validators/user-consent.validator';
 import iamModule from '../../iam';
 const { AuthMiddleware } = iamModule;
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 import constantsModule from '../../../shared/constants';
 const { CLIENT_ACCESS_ROLES } = constantsModule;
 
@@ -22,8 +22,7 @@ router.post(
   AuthMiddleware.requireRole(CLIENT_ACCESS_ROLES),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  UserConsentValidator.grant(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: GrantConsentsBody }),
   UserConsentController.grant
 );
 
@@ -32,8 +31,7 @@ router.post(
   AuthMiddleware.requireRole(CLIENT_ACCESS_ROLES),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  UserConsentValidator.revokeParam(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: ConsentTypeIdParams, body: RevokeConsentBody }),
   UserConsentController.revokeMarketing
 );
 

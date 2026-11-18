@@ -1,14 +1,14 @@
 // === RF-AUTH-03 (admin): Gestión de Dispositivos Autenticados y Control de Sesiones ===
 
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { AdminSessionListQuery, UserIdParams, SessionsByUserQuery, RevokeSessionParams, AttemptListQuery, AttemptsByUserQuery } from '../requests/iam.request';
 const router = express.Router();
 import AdminAuthSessionController from '../controllers/admin-auth-session.controller';
-import AdminAuthSessionValidator from '../validators/admin-auth-session.validator';
 import AuthMiddleware from '../middlewares/auth.middleware';
 import RbacMiddleware from '../middlewares/rbac.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 import constantsModule from '../../../shared/constants';
 const { RBAC_MODULES, RBAC_ACTIONS } = constantsModule;
 
@@ -18,8 +18,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.ACTIVE_SESSIONS, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AdminAuthSessionValidator.listSessions(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ query: AdminSessionListQuery }),
   AdminAuthSessionController.listSessions
 );
 
@@ -29,8 +28,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.ACTIVE_SESSIONS, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AdminAuthSessionValidator.sessionsByUser(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: UserIdParams, query: SessionsByUserQuery }),
   AdminAuthSessionController.getSessionsByUser
 );
 
@@ -41,8 +39,7 @@ router.patch(
   RbacMiddleware.requirePermission(RBAC_MODULES.ACTIVE_SESSIONS, RBAC_ACTIONS.UPDATE),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AdminAuthSessionValidator.revokeSession(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: RevokeSessionParams }),
   AdminAuthSessionController.revokeSession
 );
 
@@ -52,8 +49,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.ACTIVE_SESSIONS, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AdminAuthSessionValidator.listAttempts(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ query: AttemptListQuery }),
   AdminAuthSessionController.listAttempts
 );
 
@@ -63,8 +59,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.ACTIVE_SESSIONS, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AdminAuthSessionValidator.attemptsByUser(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: UserIdParams, query: AttemptsByUserQuery }),
   AdminAuthSessionController.getAttemptsByUser
 );
 

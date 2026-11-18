@@ -1,14 +1,13 @@
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { DeliveryListQuery, DeliveryMetricsQuery, DeliveryIdParams } from '../requests/notification.request';
 
 const router = express.Router();
 import AdminNotificationDeliveryController from '../controllers/admin-notification-delivery.controller';
-import AdminNotificationDeliveryValidator from '../validators/admin-notification-delivery.validator';
 import iamModule from '../../iam';
 const { AuthMiddleware, RbacMiddleware } = iamModule;
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import BaseValidator from '../../../shared/http/base.validator';
-import ValidatorUtil from '../../../shared/http/validators.util';
 import constantsModule from '../../../shared/constants';
 const { RBAC_MODULES, RBAC_ACTIONS } = constantsModule;
 
@@ -18,8 +17,7 @@ router.get(
   AuthMiddleware.authenticate,
   RbacMiddleware.requirePermission(RBAC_MODULES.NOTIFICATION_RESEND, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
-  AdminNotificationDeliveryValidator.listQuery(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ query: DeliveryListQuery }),
   AdminNotificationDeliveryController.list
 );
 
@@ -30,8 +28,7 @@ router.get(
   AuthMiddleware.authenticate,
   RbacMiddleware.requirePermission(RBAC_MODULES.NOTIFICATION_RESEND, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
-  AdminNotificationDeliveryValidator.metricsQuery(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ query: DeliveryMetricsQuery }),
   AdminNotificationDeliveryController.metrics
 );
 
@@ -41,8 +38,7 @@ router.get(
   AuthMiddleware.authenticate,
   RbacMiddleware.requirePermission(RBAC_MODULES.NOTIFICATION_RESEND, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
-  ...BaseValidator.uuidParam('id', 'La notificación'),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: DeliveryIdParams }),
   AdminNotificationDeliveryController.getById
 );
 
@@ -53,8 +49,7 @@ router.post(
   RbacMiddleware.requirePermission(RBAC_MODULES.NOTIFICATION_RESEND, RBAC_ACTIONS.UPDATE),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  ...BaseValidator.uuidParam('id', 'La notificación'),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: DeliveryIdParams }),
   AdminNotificationDeliveryController.retry
 );
 

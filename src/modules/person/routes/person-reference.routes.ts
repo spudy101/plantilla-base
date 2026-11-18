@@ -1,14 +1,14 @@
 // modules/client/kyc/routes/person-reference.routes.ts
 
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { CreateReferenceBody, UpdateReferenceBody, ReferenceIdParams } from '../requests/person.request';
 const router = express.Router();
 import PersonReferenceController from '../controllers/person-reference.controller';
-import PersonReferenceValidator from '../validators/person-reference.validator';
 import iamModule from '../../iam';
 const { AuthMiddleware } = iamModule;
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 import constantsModule from '../../../shared/constants';
 const { CLIENT_ACCESS_ROLES } = constantsModule;
 
@@ -24,8 +24,7 @@ router.post(
   AuthMiddleware.requireRole(CLIENT_ACCESS_ROLES),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  PersonReferenceValidator.create(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: CreateReferenceBody }),
   PersonReferenceController.create
 );
 
@@ -34,8 +33,7 @@ router.put(
   AuthMiddleware.requireRole(CLIENT_ACCESS_ROLES),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  PersonReferenceValidator.update(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: ReferenceIdParams, body: UpdateReferenceBody }),
   PersonReferenceController.update
 );
 
@@ -44,8 +42,7 @@ router.delete(
   AuthMiddleware.requireRole(CLIENT_ACCESS_ROLES),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  PersonReferenceValidator.remove(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: ReferenceIdParams }),
   PersonReferenceController.remove
 );
 

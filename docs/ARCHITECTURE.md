@@ -100,8 +100,10 @@ router.put('/promotional-banners', AuthMiddleware.authenticate, …, validate({ 
 Los campos genéricos (uuid, texto, entero, booleano) están en `shared/validation/fields.ts`; los de un dominio
 (documento, teléfono…) en su módulo. Importar `z` siempre desde `shared/validation/z` (mensajes en español).
 
-> **Migración en curso.** El módulo `banners` ya usa `requests/` y `responses/`; el resto sigue con
-> `validators/` (express-validator) y `dtos/`, y se migra módulo por módulo con este mismo patrón.
+> **Estado.** La entrada (`requests/`) ya está migrada en todos los módulos. La salida (`responses/`) solo en
+> `banners`: el resto sigue con `dtos/` y se migra módulo por módulo con el mismo patrón. Los esquemas
+> migrados desde express-validator usan `input()` (aceptan campos no declarados, como antes); para código
+> nuevo usá `z.object` (descarta lo que no está declarado).
 
 ## Reglas
 

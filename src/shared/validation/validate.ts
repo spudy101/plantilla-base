@@ -10,7 +10,7 @@ import type { z } from './z';
 import AppError from '../http/app-error.util';
 
 /** files: los archivos de un multipart (req.files de multer), para validar campo, cantidad y tipo. */
-type Part = 'body' | 'query' | 'params' | 'files';
+type Part = 'body' | 'query' | 'params' | 'files' | 'headers';
 type Schemas = Partial<Record<Part, z.ZodType>>;
 
 export interface ValidationErrorItem {
@@ -79,7 +79,7 @@ export function formatIssues(schema: z.ZodType, input: unknown, issues: readonly
 export function validate(schemas: Schemas) {
   return (req: Request, _res: Response, next: NextFunction) => {
     const errors: ValidationErrorItem[] = [];
-    for (const part of ['params', 'query', 'body', 'files'] as const) {
+    for (const part of ['headers', 'params', 'query', 'body', 'files'] as const) {
       const schema = schemas[part];
       if (!schema) {
         continue;
@@ -87,8 +87,8 @@ export function validate(schemas: Schemas) {
       const input = (req as unknown as Record<Part, unknown>)[part];
       const result = schema.safeParse(input);
       if (result.success) {
-        // files no se reemplaza: el esquema solo mira mimetype/cantidad y el controller necesita el buffer
-        if (part !== 'files') {
+        // files y headers no se reemplazan: el esquema solo mira una parte y el resto se sigue usando
+        if (part !== 'files' && part !== 'headers') {
           (req as unknown as Record<Part, unknown>)[part] = result.data;
         }
       } else {

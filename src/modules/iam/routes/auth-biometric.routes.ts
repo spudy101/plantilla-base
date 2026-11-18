@@ -3,13 +3,13 @@
 // ============================================================
 
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { BiometricLoginStartBody, BiometricLoginFinishBody, BiometricRegisterFinishBody, BiometricCredentialParams } from '../requests/iam.request';
 const router = express.Router();
 import AuthBiometricController from '../controllers/auth-biometric.controller';
-import AuthBiometricValidator from '../validators/auth-biometric.validator';
 import AuthMiddleware from '../middlewares/auth.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 
 // ============================================================
 // PUBLIC
@@ -24,8 +24,7 @@ router.post(
   '/biometric/login/start',
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forPublicEndpoints(),
-  AuthBiometricValidator.loginStart(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: BiometricLoginStartBody }),
   AuthBiometricController.loginStart
 );
 
@@ -37,8 +36,7 @@ router.post(
   '/biometric/login/finish',
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forPublicEndpoints(),
-  AuthBiometricValidator.loginFinish(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: BiometricLoginFinishBody }),
   AuthBiometricController.loginFinish
 );
 
@@ -55,8 +53,6 @@ router.post(
   '/biometric/register/start',
   AuthMiddleware.authenticate,
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuthBiometricValidator.registerStart(),
-  ValidatorUtil.handleValidationErrors,
   AuthBiometricController.registerStart
 );
 
@@ -68,8 +64,7 @@ router.post(
   '/biometric/register/finish',
   AuthMiddleware.authenticate,
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuthBiometricValidator.registerFinish(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: BiometricRegisterFinishBody }),
   AuthBiometricController.registerFinish
 );
 
@@ -92,8 +87,7 @@ router.delete(
   '/biometric/:credentialId',
   AuthMiddleware.authenticate,
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuthBiometricValidator.deleteCredential(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: BiometricCredentialParams }),
   AuthBiometricController.deleteCredential
 );
 

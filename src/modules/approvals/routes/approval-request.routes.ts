@@ -1,12 +1,12 @@
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { ApprovalListQuery, ApprovalIdParams, ResolveApprovalBody } from '../requests/approval-request.request';
 const router = express.Router();
 import ApprovalRequestController from '../controllers/approval-request.controller';
-import ApprovalRequestValidator from '../validators/approval-request.validator';
 import iamModule from '../../iam';
 const { AuthMiddleware, RbacMiddleware } = iamModule;
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 import rbacModule from '../../../shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
@@ -27,8 +27,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.DUAL_APPROVAL, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  ApprovalRequestValidator.listQuery(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ query: ApprovalListQuery }),
   ApprovalRequestController.list
 );
 
@@ -39,8 +38,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.DUAL_APPROVAL, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  ApprovalRequestValidator.idParam(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: ApprovalIdParams }),
   ApprovalRequestController.getById
 );
 
@@ -52,8 +50,7 @@ router.post(
   RbacMiddleware.requirePermission(RBAC_MODULES.DUAL_APPROVAL, RBAC_ACTIONS.UPDATE),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  ApprovalRequestValidator.resolve(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: ApprovalIdParams, body: ResolveApprovalBody }),
   ApprovalRequestController.resolve
 );
 

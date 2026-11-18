@@ -1,12 +1,12 @@
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { NotificationListQuery } from '../requests/notification.request';
 const router = express.Router();
 import NotificationController from '../controllers/notification.controller';
-import NotificationValidator from '../validators/notification.validator';
 import iamModule from '../../iam';
 const { AuthMiddleware } = iamModule;
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 
 /**
  * GET /count/stream debe ir ANTES de GET /count para que Express no lo confunda.
@@ -40,8 +40,7 @@ router.get(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  NotificationValidator.paginationQuery(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ query: NotificationListQuery }),
   NotificationController.getNotificationsList
 );
 
@@ -51,8 +50,7 @@ router.get(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  NotificationValidator.paginationQuery(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ query: NotificationListQuery }),
   NotificationController.getPersonalNotifications
 );
 
@@ -62,8 +60,7 @@ router.get(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  NotificationValidator.paginationQuery(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ query: NotificationListQuery }),
   NotificationController.getGlobalNotifications
 );
 

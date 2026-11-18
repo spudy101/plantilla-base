@@ -31,7 +31,7 @@ describe('validate()', () => {
     expect(err?.details).toEqual(
       expect.arrayContaining([
         { field: 'name', message: 'El nombre admite máximo 5 caracteres', hint: 'Escribí hasta 5 caracteres', value: 'demasiado largo' },
-        { field: 'id', message: 'El id debe ser un UUID válido', hint: 'Usá el id tal como lo devuelve la API', value: 'x' }
+        { field: 'id', message: 'El id debe ser un UUID válido', hint: 'El identificador debe ser un UUID válido', value: 'x' }
       ])
     );
   });

@@ -1,11 +1,11 @@
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { TotpCodeBody, PasswordBody, SmsActivationCodeBody, PreferredMethodBody } from '../requests/iam.request';
 const router = express.Router();
 import MFAController from '../controllers/mfa.controller';
-import MFAValidator from '../validators/mfa.validator';
 import AuthMiddleware from '../middlewares/auth.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 
 /**
  * TODAS LAS RUTAS REQUIEREN AUTENTICACIÓN
@@ -26,8 +26,7 @@ router.post(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  MFAValidator.activateTOTP(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: TotpCodeBody }),
   MFAController.activateTOTP
 );
 
@@ -37,8 +36,7 @@ router.post(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  MFAValidator.verifyTOTP(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: TotpCodeBody }),
   MFAController.verifyTOTP
 );
 
@@ -48,8 +46,7 @@ router.post(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  MFAValidator.validatePassword(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: PasswordBody }),
   MFAController.validatePassword
 );
 
@@ -59,8 +56,7 @@ router.post(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  MFAValidator.deactivateTOTP(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: PasswordBody }),
   MFAController.deactivateTOTP
 );
 
@@ -78,8 +74,7 @@ router.post(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  MFAValidator.requestSMSActivation(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: PasswordBody }),
   MFAController.requestSMSActivation
 );
 
@@ -89,8 +84,7 @@ router.post(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  MFAValidator.confirmSMSActivation(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: SmsActivationCodeBody }),
   MFAController.confirmSMSActivation
 );
 
@@ -100,8 +94,7 @@ router.post(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  MFAValidator.deactivateSMS(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: PasswordBody }),
   MFAController.deactivateSMS
 );
 
@@ -111,8 +104,7 @@ router.put(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  MFAValidator.updatePreferredMethod(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: PreferredMethodBody }),
   MFAController.updatePreferredMethod
 );
 

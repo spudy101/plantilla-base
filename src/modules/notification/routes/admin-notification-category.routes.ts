@@ -1,13 +1,12 @@
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { CategoryListQuery, CategoryIdParams, CreateCategoryBody, UpdateCategoryBody } from '../requests/notification.request';
 const router = express.Router();
 import NotificationCategoryController from '../controllers/admin-notification-category.controller';
-import NotificationCategoryValidator from '../validators/admin-notification-category.validator';
-import BaseValidator from '../../../shared/http/base.validator';
 import iamModule from '../../iam';
 const { AuthMiddleware, RbacMiddleware } = iamModule;
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 import rbacModule from '../../../shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
@@ -19,8 +18,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.NOTIFICATION_MANAGEMENT, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  NotificationCategoryValidator.listQuery(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ query: CategoryListQuery }),
   NotificationCategoryController.list
 );
 
@@ -31,8 +29,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.NOTIFICATION_MANAGEMENT, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  BaseValidator.uuidParam('notificationCategoryId', 'La categoría de notificación'),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: CategoryIdParams }),
   NotificationCategoryController.getById
 );
 
@@ -43,8 +40,7 @@ router.post(
   RbacMiddleware.requirePermission(RBAC_MODULES.NOTIFICATION_MANAGEMENT, RBAC_ACTIONS.CREATE),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  NotificationCategoryValidator.create(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: CreateCategoryBody }),
   NotificationCategoryController.create
 );
 
@@ -55,8 +51,7 @@ router.patch(
   RbacMiddleware.requirePermission(RBAC_MODULES.NOTIFICATION_MANAGEMENT, RBAC_ACTIONS.UPDATE),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  NotificationCategoryValidator.update(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: CategoryIdParams, body: UpdateCategoryBody }),
   NotificationCategoryController.update
 );
 
@@ -67,8 +62,7 @@ router.delete(
   RbacMiddleware.requirePermission(RBAC_MODULES.NOTIFICATION_MANAGEMENT, RBAC_ACTIONS.DELETE),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  BaseValidator.uuidParam('notificationCategoryId', 'La categoría de notificación'),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: CategoryIdParams }),
   NotificationCategoryController.remove
 );
 

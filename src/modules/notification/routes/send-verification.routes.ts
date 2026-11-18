@@ -1,10 +1,10 @@
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { SendVerificationBody, VerifyCodeBody } from '../requests/notification.request';
 const router = express.Router();
 import SendVerificationController from '../controllers/send-verification.controller';
-import SendVerificationValidator from '../validators/send-verification.validator';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 
 // ============================================================
 // PUBLIC
@@ -15,8 +15,7 @@ router.post(
   '/send-verification',
   RateLimitMiddleware.publicLimiter(),
   RequestLockMiddleware.forPublicEndpoints(),
-  SendVerificationValidator.sendVerification(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: SendVerificationBody }),
   SendVerificationController.sendVerification
 );
 
@@ -25,8 +24,7 @@ router.post(
   '/verify-code',
   RateLimitMiddleware.publicLimiter(),
   RequestLockMiddleware.forPublicEndpoints(),
-  SendVerificationValidator.verifyCode(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: VerifyCodeBody }),
   SendVerificationController.verifyCode
 );
 

@@ -1,12 +1,12 @@
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { AuditLogListQuery, AuditLogExportQuery, AuditLogIdParams } from '../requests/audit.request';
 const router = express.Router();
 import AdminAuditLogController from '../controllers/admin-audit-log.controller';
-import AdminAuditLogValidator from '../validators/admin-audit-log.validator';
 import iamModule from '../../iam';
 const { AuthMiddleware, RbacMiddleware } = iamModule;
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 import constantsModule from '../../../shared/constants';
 const { RBAC_MODULES, RBAC_ACTIONS } = constantsModule;
 
@@ -16,8 +16,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.GLOBAL_LOGS, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AdminAuditLogValidator.listQuery(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ query: AuditLogListQuery }),
   AdminAuditLogController.list
 );
 
@@ -26,8 +25,7 @@ router.get(
   AuthMiddleware.authenticate,
   RbacMiddleware.requirePermission(RBAC_MODULES.GLOBAL_LOGS, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
-  AdminAuditLogValidator.exportQuery(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ query: AuditLogExportQuery }),
   AdminAuditLogController.exportLogs
 );
 
@@ -37,8 +35,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.GLOBAL_LOGS, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AdminAuditLogValidator.auditLogId(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: AuditLogIdParams }),
   AdminAuditLogController.getById
 );
 

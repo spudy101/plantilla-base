@@ -1,13 +1,13 @@
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { DashboardQuery, LogsQuery, LogIdParams, FallbackQuery } from '../requests/integration-monitoring.request';
 
 const router = express.Router();
 import IntegrationMonitoringController from '../controllers/integration-monitoring.controller';
-import IntegrationMonitoringValidator from '../validators/integration-monitoring.validator';
 import iamModule from '../../iam';
 const { AuthMiddleware, RbacMiddleware } = iamModule;
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 import rbacModule from '../../../shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
@@ -19,8 +19,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.INTEGRATION_DASHBOARD, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  IntegrationMonitoringValidator.dashboardQuery(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ query: DashboardQuery }),
   IntegrationMonitoringController.dashboard
 );
 
@@ -41,8 +40,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.API_LOGS, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  IntegrationMonitoringValidator.logsQuery(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ query: LogsQuery }),
   IntegrationMonitoringController.logs
 );
 
@@ -53,8 +51,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.API_LOGS, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  IntegrationMonitoringValidator.logIdParam(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: LogIdParams }),
   IntegrationMonitoringController.logDetail
 );
 
@@ -65,8 +62,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.PROVIDERS, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  IntegrationMonitoringValidator.fallbackQuery(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ query: FallbackQuery }),
   IntegrationMonitoringController.fallbacks
 );
 
