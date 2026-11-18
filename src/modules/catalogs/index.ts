@@ -7,11 +7,21 @@ import { interopDefault } from '../../shared/utils/interop.util';
 
 export default {
   get catalogComponentsDto() {
-    return interopDefault(require('./responses/catalog-components.response') as typeof import('./responses/catalog-components.response'));
+    return interopDefault(
+      require('./responses/catalog-components.response') as typeof import('./responses/catalog-components.response')
+    );
+  },
+
+  /** Esquemas de salida (Zod) de los catálogos que otros módulos incluyen en sus respuestas. */
+  get catalogSchemas() {
+    const m = require('./responses/catalog-components.response') as typeof import('./responses/catalog-components.response');
+    return { RoleSchema: m.RoleSchema };
   },
 
   get avatarThemeRepository() {
-    return interopDefault(require('./repositories/avatar-theme.repository') as typeof import('./repositories/avatar-theme.repository'));
+    return interopDefault(
+      require('./repositories/avatar-theme.repository') as typeof import('./repositories/avatar-theme.repository')
+    );
   },
 
   get avatarRepository() {
@@ -27,11 +37,15 @@ export default {
   },
 
   get departmentRepository() {
-    return interopDefault(require('./repositories/department.repository') as typeof import('./repositories/department.repository'));
+    return interopDefault(
+      require('./repositories/department.repository') as typeof import('./repositories/department.repository')
+    );
   },
 
   get documentTypeRepository() {
-    return interopDefault(require('./repositories/document-type.repository') as typeof import('./repositories/document-type.repository'));
+    return interopDefault(
+      require('./repositories/document-type.repository') as typeof import('./repositories/document-type.repository')
+    );
   },
 
   get genderRepository() {
@@ -39,7 +53,9 @@ export default {
   },
 
   get phonePrefixRepository() {
-    return interopDefault(require('./repositories/phone-prefix.repository') as typeof import('./repositories/phone-prefix.repository'));
+    return interopDefault(
+      require('./repositories/phone-prefix.repository') as typeof import('./repositories/phone-prefix.repository')
+    );
   },
 
   get maintainersRoutes() {

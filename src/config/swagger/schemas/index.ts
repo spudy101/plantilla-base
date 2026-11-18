@@ -14,7 +14,7 @@
  *
  * [RF-USR-01] | CA-06 — Enmascaramiento PII: en los schemas de RESPUESTA, documento, correo,
  * teléfono y TIN salen enmascarados (últimos 4). Los textos compartidos de `description`
- * viven en ./pii-masking.doc.js. Los schemas de REQUEST van siempre completos.
+ * viven en shared/validation/pii-masking.doc.ts. Los schemas de REQUEST van siempre completos.
  *   - Core        → SystemGlobalConfig, PendingApproval
  *   - Notification→ NotificationCategory, NotificationType, Notification, GlobalNotification,
  *                   UserNotificationPreference

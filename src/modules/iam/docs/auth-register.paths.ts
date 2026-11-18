@@ -1,5 +1,5 @@
 import commonResponses from '../../../config/swagger/responses/common.responses';
-import piiMaskingDocModule from '../../../config/swagger/schemas/pii-masking.doc';
+import piiMaskingDocModule from '../../../shared/validation/pii-masking.doc';
 const { UNMASKED_ROUTE_DESC } = piiMaskingDocModule;
 
 /**

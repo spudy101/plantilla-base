@@ -1,8 +1,27 @@
 // config/swagger/modules/admin/kyc/person/person.paths.ts
 
 import commonResponses from '../../../config/swagger/responses/common.responses';
-import piiMaskingDocModule from '../../../config/swagger/schemas/pii-masking.doc';
-const { MASKED_DOCUMENT_DESC, MASKED_EMAIL_DESC, MASKED_PHONE_DESC } = piiMaskingDocModule;
+import { jsonBody, toOpenApi, toParameters } from '../../../shared/validation/openapi';
+import {
+  AdminDeleteAccountBody,
+  ChangeEmailBody,
+  ChangeNationalIdBody,
+  ChangeRoleBody,
+  CreatePersonBody,
+  PersonListQuery,
+  PersonUserIdParams
+} from '../requests/person.request';
+import {
+  AdminEmailChangedSchema,
+  AdminMfaDisabledSchema,
+  AdminNationalIdChangedSchema,
+  AdminPasswordResetSchema,
+  AdminRoleChangedSchema,
+  AdminUserCreatedSchema,
+  AdminUserDetailSchema,
+  AdminUserListItemSchema,
+  AdminUserStatusSchema
+} from '../responses/admin-person.response';
 
 /**
  * ============================================================
@@ -28,226 +47,32 @@ const { MASKED_DOCUMENT_DESC, MASKED_EMAIL_DESC, MASKED_PHONE_DESC } = piiMaskin
  * Nota de seguridad:
  *   national_id y email están cifrados con AES-256-GCM en BD.
  *   La ENTRADA (requestBody / query) viaja siempre completa; la SALIDA sale
- *   **enmascarada** (RF-USR-01 CA-6) — ver `schemas/pii-masking.doc.js`.
+ *   **enmascarada** (RF-USR-01 CA-6) — ver `shared/validation/pii-masking.doc.ts`.
  *   Las búsquedas por national_id/email se hacen via HMAC-SHA256 hash,
  *   no por texto libre.
  */
 
 // ─── Schemas ──────────────────────────────────────────────────
 
+// Generados desde los esquemas Zod de requests/ y responses/.
 const schemas = {
-  // ── UserListItem ──────────────────────────────────────────────
-  AdminUserListItem: {
-    type: 'object',
-    properties: {
-      userId: { type: 'string', format: 'uuid' },
-      username: { type: 'string', example: '1012345678' },
-      isActive: { type: 'boolean' },
-      deletedAt: {
-        type: 'string',
-        format: 'date-time',
-        nullable: true,
-        description: 'Fecha de eliminación (ofuscación irreversible). `null` si la cuenta no está eliminada.'
-      },
-      totpEnabled: { type: 'boolean', description: 'Indica si el usuario tiene MFA/TOTP activo' },
-      smsMfaEnabled: { type: 'boolean', description: 'Indica si el usuario tiene MFA por SMS activo' },
-      preferredMfaMethod: {
-        type: 'string',
-        enum: ['none', 'totp', 'sms'],
-        description: 'Método MFA preferido configurado por el usuario'
-      },
-      createdAt: { type: 'string', format: 'date-time' },
-      person: {
-        type: 'object',
-        properties: {
-          firstName: { type: 'string', example: 'María' },
-          lastName: { type: 'string', example: 'González' },
-          nationalId: {
-            type: 'string',
-            nullable: true,
-            example: '******5678',
-            description: `Descifrado en tiempo real desde AES-256-GCM. ${MASKED_DOCUMENT_DESC}`
-          }
-        }
-      },
-      email: {
-        type: 'string',
-        nullable: true,
-        example: '****a@email.com',
-        description: `Descifrado desde AES-256-GCM. ${MASKED_EMAIL_DESC}`
-      },
-      emailVerified: { type: 'boolean', nullable: true },
-      role: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', format: 'uuid' },
-          name: { type: 'string', example: 'client' }
-        }
-      }
-    }
-  },
-
-  // ── UserDetail (getById) ──────────────────────────────────────
-  AdminUserDetail: {
-    type: 'object',
-    description: 'Perfil completo del usuario con todos sus datos KYC',
-    properties: {
-      user: {
-        type: 'object',
-        properties: {
-          userId: { type: 'string', format: 'uuid' },
-          username: { type: 'string' },
-          isActive: { type: 'boolean' },
-          deletedAt: { type: 'string', format: 'date-time', nullable: true },
-          totpEnabled: { type: 'boolean' },
-          smsMfaEnabled: { type: 'boolean' },
-          preferredMfaMethod: { type: 'string', enum: ['none', 'totp', 'sms'] },
-          role: {
-            type: 'object',
-            properties: { id: { type: 'string', format: 'uuid' }, name: { type: 'string' } }
-          },
-          avatar: { type: 'object', nullable: true }
-        }
-      },
-      person: {
-        type: 'object',
-        properties: {
-          personId: { type: 'string', format: 'uuid' },
-          firstName: { type: 'string' },
-          lastName: { type: 'string' },
-          middleName: { type: 'string', nullable: true },
-          secondLastName: { type: 'string', nullable: true },
-          nationalId: {
-            type: 'string',
-            nullable: true,
-            example: '******5678',
-            description: `Descifrado desde AES-256-GCM. ${MASKED_DOCUMENT_DESC}`
-          },
-          birthDate: { type: 'string', format: 'date', nullable: true },
-          gender: { type: 'object', nullable: true },
-          nationality: { type: 'object', nullable: true },
-          contact: {
-            type: 'object',
-            nullable: true,
-            properties: {
-              email: {
-                type: 'string',
-                example: '****a@email.com',
-                description: `Descifrado desde AES-256-GCM. ${MASKED_EMAIL_DESC}`
-              },
-              emailVerifiedAt: { type: 'string', format: 'date-time', nullable: true },
-              phonePrimary: {
-                type: 'string',
-                nullable: true,
-                example: '*****4567',
-                description: `Descifrado desde AES-256-GCM. ${MASKED_PHONE_DESC}`
-              },
-              phoneSecondary: { type: 'string', nullable: true, example: '*****4567', description: MASKED_PHONE_DESC }
-            }
-          },
-          location: { type: 'object', nullable: true }
-        }
-      }
-    }
-  },
-
-  // ── Requests ──────────────────────────────────────────────────
-  AdminCreateUserRequest: {
-    type: 'object',
-    required: ['firstName', 'lastName', 'email', 'nationalId', 'documentTypeId'],
-    description: 'El rol se asigna automáticamente como CLIENTE — no se acepta roleId.',
-    properties: {
-      firstName: { type: 'string', maxLength: 100, example: 'María' },
-      lastName: { type: 'string', maxLength: 100, example: 'González' },
-      middleName: { type: 'string', nullable: true, maxLength: 100 },
-      secondLastName: { type: 'string', nullable: true, maxLength: 100 },
-      nationalId: {
-        type: 'string',
-        example: '1012345678',
-        description: 'Se cifra con AES-256-GCM al guardar.'
-      },
-      email: { type: 'string', format: 'email', example: 'maria@email.com' },
-      documentTypeId: { type: 'string', format: 'uuid', description: 'UUID del tipo de documento' },
-      birthDate: { type: 'string', format: 'date', nullable: true, example: '1990-05-15' },
-      genderId: { type: 'string', format: 'uuid', nullable: true },
-      countryId: { type: 'string', format: 'uuid', nullable: true }
-    }
-  },
-
-  AdminChangeEmailRequest: {
-    type: 'object',
-    required: ['newEmail'],
-    properties: {
-      newEmail: {
-        type: 'string',
-        format: 'email',
-        example: 'nuevo@email.com',
-        description: 'Nuevo email. Se cifra y se actualiza en BD.'
-      }
-    }
-  },
-
-  AdminChangeNationalIdRequest: {
-    type: 'object',
-    required: ['newNationalId'],
-    properties: {
-      newNationalId: {
-        type: 'string',
-        example: '9876543210',
-        description: 'Nuevo national ID. Se cifra con AES-256-GCM y se actualiza el HMAC-SHA256 para búsquedas.'
-      }
-    }
-  },
-
-  AdminChangeRoleRequest: {
-    type: 'object',
-    required: ['newRoleId'],
-    properties: {
-      newRoleId: {
-        type: 'string',
-        format: 'uuid',
-        description: 'UUID del nuevo rol. No aplica a usuarios con rol admin.'
-      }
-    }
-  },
-
-  AdminDeleteAccountRequest: {
-    type: 'object',
-    required: ['currentPassword'],
-    properties: {
-      currentPassword: {
-        type: 'string',
-        format: 'password',
-        description: 'Contraseña actual del administrador que ejecuta la acción.'
-      }
-    }
-  }
+  AdminUserListItem: toOpenApi(AdminUserListItemSchema, 'output'),
+  AdminUserDetail: toOpenApi(AdminUserDetailSchema, 'output'),
+  AdminUserCreated: toOpenApi(AdminUserCreatedSchema, 'output'),
+  AdminUserStatus: toOpenApi(AdminUserStatusSchema, 'output'),
+  AdminPasswordReset: toOpenApi(AdminPasswordResetSchema, 'output'),
+  AdminMfaDisabled: toOpenApi(AdminMfaDisabledSchema, 'output'),
+  AdminEmailChanged: toOpenApi(AdminEmailChangedSchema, 'output'),
+  AdminNationalIdChanged: toOpenApi(AdminNationalIdChangedSchema, 'output'),
+  AdminRoleChanged: toOpenApi(AdminRoleChangedSchema, 'output'),
+  AdminCreateUserRequest: toOpenApi(CreatePersonBody),
+  AdminChangeEmailRequest: toOpenApi(ChangeEmailBody),
+  AdminChangeNationalIdRequest: toOpenApi(ChangeNationalIdBody),
+  AdminChangeRoleRequest: toOpenApi(ChangeRoleBody),
+  AdminDeleteAccountRequest: toOpenApi(AdminDeleteAccountBody)
 };
 
 // ─── Parámetros comunes ────────────────────────────────────────
-
-const userIdParam = {
-  name: 'userId',
-  in: 'path',
-  required: true,
-  schema: { type: 'string', format: 'uuid' },
-  description: 'UUID del usuario'
-};
-
-const paginationParams = [
-  { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1, default: 1 } },
-  {
-    name: 'limit',
-    in: 'query',
-    schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 }
-  },
-  {
-    name: 'sortBy',
-    in: 'query',
-    schema: { type: 'string', enum: ['username', 'createdAt', 'updatedAt', 'isActive'] }
-  },
-  { name: 'order', in: 'query', schema: { type: 'string', enum: ['ASC', 'DESC'], default: 'DESC' } }
-];
 
 const adminSecurity = [{ bearerAuth: [], idTokenAuth: [] }];
 
@@ -270,43 +95,7 @@ Nunca devuelve usuarios internos. La gestión de usuarios internos vive en \`/ad
 
 **Filtro por \`userId\`:** UUID exacto del usuario (PK). Devuelve a lo sumo un resultado (y solo si es cliente). Combinable con el resto de filtros.`,
       security: adminSecurity,
-      parameters: [
-        ...paginationParams,
-        {
-          name: 'search',
-          in: 'query',
-          schema: { type: 'string' },
-          description: 'Búsqueda parcial (iLike) sobre `username`, `first_name` y `last_name`. No aplica a campos cifrados.'
-        },
-        {
-          name: 'isActive',
-          in: 'query',
-          schema: { type: 'boolean' },
-          description: 'Filtrar por estado activo/inactivo'
-        },
-        {
-          name: 'roleId',
-          in: 'query',
-          schema: { type: 'string', example: 'uuid1' },
-          description:
-            'UUID de un rol o lista separada por coma (ej: `uuid1,uuid2`). Se intersecta con los roles cliente ' +
-            '(`CLIENTE`, `CLIENTE_VERIFICADO`); un rol no-cliente se ignora y se devuelven todos los clientes.'
-        },
-        {
-          name: 'nationalId',
-          in: 'query',
-          schema: { type: 'string', example: '1012345678' },
-          description:
-            'Búsqueda exacta por national ID. Debe enviarse el valor completo — se compara contra `national_id_hash` (HMAC-SHA256), no por texto libre.'
-        },
-        {
-          name: 'userId',
-          in: 'query',
-          schema: { type: 'string', format: 'uuid', example: '039b090f-6f36-4f60-a51c-e6196a288c82' },
-          description:
-            'UUID exacto del usuario (PK). Filtra por `user_id`; devuelve a lo sumo un resultado. Combinable con el resto de filtros.'
-        }
-      ],
+      parameters: toParameters(PersonListQuery, 'query'),
       responses: {
         200: commonResponses.paginated(
           { $ref: '#/components/schemas/AdminUserListItem' },
@@ -331,14 +120,9 @@ Nunca devuelve usuarios internos. La gestión de usuarios internos vive en \`/ad
 
 ⚠️ La contraseña temporal se devuelve **solo en esta respuesta** — no se puede recuperar después.`,
       security: adminSecurity,
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': { schema: { $ref: '#/components/schemas/AdminCreateUserRequest' } }
-        }
-      },
+      requestBody: jsonBody('AdminCreateUserRequest'),
       responses: {
-        201: commonResponses.created({ $ref: '#/components/schemas/AdminUserDetail' }, 'Usuario creado exitosamente'),
+        201: commonResponses.created({ $ref: '#/components/schemas/AdminUserCreated' }, 'Usuario creado exitosamente'),
         ...commonResponses.Unauthorized,
         ...commonResponses.Forbidden,
         ...commonResponses.Conflict,
@@ -391,10 +175,7 @@ Estas cuentas fueron ofuscadas de forma irreversible (Ley 1581/2012) y son **int
 
 El listado normal (\`GET /person\`) **excluye** estas cuentas; este endpoint es exclusivamente para consulta histórica. La búsqueda por texto es limitada porque los datos están ofuscados.`,
       security: adminSecurity,
-      parameters: [
-        ...paginationParams,
-        { name: 'search', in: 'query', schema: { type: 'string' }, description: 'Búsqueda parcial (limitada: datos ofuscados)' }
-      ],
+      parameters: toParameters(PersonListQuery, 'query'),
       responses: {
         200: commonResponses.paginated(
           { $ref: '#/components/schemas/AdminUserListItem' },
@@ -417,7 +198,7 @@ El listado normal (\`GET /person\`) **excluye** estas cuentas; este endpoint es 
 
 Incluye en \`metadata\` el porcentaje de completitud del perfil KYC.`,
       security: adminSecurity,
-      parameters: [userIdParam],
+      parameters: toParameters(PersonUserIdParams, 'path'),
       responses: {
         200: commonResponses.ok({ $ref: '#/components/schemas/AdminUserDetail' }, 'Detalle de usuario obtenido exitosamente'),
         ...commonResponses.Unauthorized,
@@ -435,20 +216,9 @@ Incluye en \`metadata\` el porcentaje de completitud del perfil KYC.`,
       operationId: 'adminActivateUser',
       description: 'Activa la cuenta de un usuario inactivo. Envía notificación al usuario afectado.',
       security: adminSecurity,
-      parameters: [userIdParam],
+      parameters: toParameters(PersonUserIdParams, 'path'),
       responses: {
-        200: commonResponses.ok(
-          {
-            type: 'object',
-            properties: {
-              userId: { type: 'string', format: 'uuid' },
-              username: { type: 'string' },
-              isActive: { type: 'boolean', example: true },
-              action: { type: 'string', example: 'activate' }
-            }
-          },
-          'Usuario activado exitosamente'
-        ),
+        200: commonResponses.ok({ $ref: '#/components/schemas/AdminUserStatus' }, 'Usuario activado exitosamente'),
         ...commonResponses.BadRequest,
         ...commonResponses.Unauthorized,
         ...commonResponses.Forbidden,
@@ -466,20 +236,9 @@ Incluye en \`metadata\` el porcentaje de completitud del perfil KYC.`,
       operationId: 'adminDeactivateUser',
       description: 'Desactiva la cuenta de un usuario activo. Envía notificación al usuario afectado.',
       security: adminSecurity,
-      parameters: [userIdParam],
+      parameters: toParameters(PersonUserIdParams, 'path'),
       responses: {
-        200: commonResponses.ok(
-          {
-            type: 'object',
-            properties: {
-              userId: { type: 'string', format: 'uuid' },
-              username: { type: 'string' },
-              isActive: { type: 'boolean', example: false },
-              action: { type: 'string', example: 'deactivate' }
-            }
-          },
-          'Usuario desactivado exitosamente'
-        ),
+        200: commonResponses.ok({ $ref: '#/components/schemas/AdminUserStatus' }, 'Usuario desactivado exitosamente'),
         ...commonResponses.BadRequest,
         ...commonResponses.Unauthorized,
         ...commonResponses.Forbidden,
@@ -499,19 +258,9 @@ Incluye en \`metadata\` el porcentaje de completitud del perfil KYC.`,
 
 La contraseña temporal se envía al email del usuario. No se devuelve en la respuesta de la API por seguridad.`,
       security: adminSecurity,
-      parameters: [userIdParam],
+      parameters: toParameters(PersonUserIdParams, 'path'),
       responses: {
-        200: commonResponses.ok(
-          {
-            type: 'object',
-            properties: {
-              userId: { type: 'string', format: 'uuid' },
-              username: { type: 'string' },
-              email: { type: 'string', nullable: true, example: '****a@email.com', description: MASKED_EMAIL_DESC }
-            }
-          },
-          'Contraseña reseteada exitosamente'
-        ),
+        200: commonResponses.ok({ $ref: '#/components/schemas/AdminPasswordReset' }, 'Contraseña reseteada exitosamente'),
         ...commonResponses.Unauthorized,
         ...commonResponses.Forbidden,
         ...commonResponses.NotFound,
@@ -528,19 +277,9 @@ La contraseña temporal se envía al email del usuario. No se devuelve en la res
       operationId: 'adminDisableUserMFA',
       description: 'Deshabilita el TOTP/MFA del usuario en BD. Solo aplica si `totp_enabled = true`.',
       security: adminSecurity,
-      parameters: [userIdParam],
+      parameters: toParameters(PersonUserIdParams, 'path'),
       responses: {
-        200: commonResponses.ok(
-          {
-            type: 'object',
-            properties: {
-              userId: { type: 'string', format: 'uuid' },
-              username: { type: 'string' },
-              totpEnabled: { type: 'boolean', example: false }
-            }
-          },
-          'MFA deshabilitado exitosamente'
-        ),
+        200: commonResponses.ok({ $ref: '#/components/schemas/AdminMfaDisabled' }, 'MFA deshabilitado exitosamente'),
         ...commonResponses.BadRequest,
         ...commonResponses.Unauthorized,
         ...commonResponses.Forbidden,
@@ -560,27 +299,10 @@ La contraseña temporal se envía al email del usuario. No se devuelve en la res
 
 Notifica tanto al email anterior como al nuevo email.`,
       security: adminSecurity,
-      parameters: [userIdParam],
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': { schema: { $ref: '#/components/schemas/AdminChangeEmailRequest' } }
-        }
-      },
+      parameters: toParameters(PersonUserIdParams, 'path'),
+      requestBody: jsonBody('AdminChangeEmailRequest'),
       responses: {
-        200: commonResponses.ok(
-          {
-            type: 'object',
-            properties: {
-              userId: { type: 'string', format: 'uuid' },
-              username: { type: 'string' },
-              oldEmail: { type: 'string', example: '****o@email.com', description: MASKED_EMAIL_DESC },
-              newEmail: { type: 'string', example: '****a@email.com', description: MASKED_EMAIL_DESC },
-              emailVerified: { type: 'boolean' }
-            }
-          },
-          'Email actualizado exitosamente'
-        ),
+        200: commonResponses.ok({ $ref: '#/components/schemas/AdminEmailChanged' }, 'Email actualizado exitosamente'),
         ...commonResponses.Unauthorized,
         ...commonResponses.Forbidden,
         ...commonResponses.NotFound,
@@ -603,28 +325,10 @@ La validación de unicidad se hace contra el hash antes de actualizar.
 
 **Idempotente:** si el \`newNationalId\` enviado es igual al actual, responde \`200\` con el dato vigente y **no** ejecuta cambio, auditoría, re-screening SARLAFT ni notificación (no devuelve error).`,
       security: adminSecurity,
-      parameters: [userIdParam],
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/AdminChangeNationalIdRequest' }
-          }
-        }
-      },
+      parameters: toParameters(PersonUserIdParams, 'path'),
+      requestBody: jsonBody('AdminChangeNationalIdRequest'),
       responses: {
-        200: commonResponses.ok(
-          {
-            type: 'object',
-            properties: {
-              userId: { type: 'string', format: 'uuid' },
-              username: { type: 'string' },
-              oldNationalId: { type: 'string', example: '******5678', description: MASKED_DOCUMENT_DESC },
-              newNationalId: { type: 'string', example: '******3210', description: MASKED_DOCUMENT_DESC }
-            }
-          },
-          'National ID actualizado exitosamente'
-        ),
+        200: commonResponses.ok({ $ref: '#/components/schemas/AdminNationalIdChanged' }, 'National ID actualizado exitosamente'),
         ...commonResponses.Unauthorized,
         ...commonResponses.Forbidden,
         ...commonResponses.NotFound,
@@ -644,26 +348,10 @@ La validación de unicidad se hace contra el hash antes de actualizar.
       description:
         'Cambia el rol del usuario. No aplica a usuarios con rol `admin`. Notifica al usuario con descripción del nuevo rol.',
       security: adminSecurity,
-      parameters: [userIdParam],
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': { schema: { $ref: '#/components/schemas/AdminChangeRoleRequest' } }
-        }
-      },
+      parameters: toParameters(PersonUserIdParams, 'path'),
+      requestBody: jsonBody('AdminChangeRoleRequest'),
       responses: {
-        200: commonResponses.ok(
-          {
-            type: 'object',
-            properties: {
-              userId: { type: 'string', format: 'uuid' },
-              username: { type: 'string' },
-              oldRole: { type: 'object' },
-              newRole: { type: 'object' }
-            }
-          },
-          'Rol actualizado exitosamente'
-        ),
+        200: commonResponses.ok({ $ref: '#/components/schemas/AdminRoleChanged' }, 'Rol actualizado exitosamente'),
         ...commonResponses.BadRequest,
         ...commonResponses.Unauthorized,
         ...commonResponses.Forbidden,
@@ -690,13 +378,8 @@ Tras la eliminación la cuenta queda **intocable** (toda operación de escritura
 > El endpoint responde **202** con el \`ApprovalRequest\`; la cuenta NO se elimina hasta que un segundo
 > aprobador (SUPERADMIN) lo resuelve.`,
       security: adminSecurity,
-      parameters: [userIdParam],
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': { schema: { $ref: '#/components/schemas/AdminDeleteAccountRequest' } }
-        }
-      },
+      parameters: toParameters(PersonUserIdParams, 'path'),
+      requestBody: jsonBody('AdminDeleteAccountRequest'),
       responses: {
         200: commonResponses.ok({ type: 'object', nullable: true }, 'Cuenta eliminada exitosamente'),
         202: commonResponses.accepted(
