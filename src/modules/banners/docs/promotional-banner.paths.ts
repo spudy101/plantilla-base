@@ -1,6 +1,8 @@
 // config/swagger/modules/shared-endpoints/core/promotional-banner.paths.ts
 
 import commonResponses from '../../../config/swagger/responses/common.responses';
+import { toOpenApi } from '../../../shared/validation/openapi';
+import { PublicBanner, PublicBannerList } from '../responses/promotional-banner.response';
 
 /**
  * ============================================================
@@ -19,31 +21,10 @@ import commonResponses from '../../../config/swagger/responses/common.responses'
 
 // ─── Schemas ──────────────────────────────────────────────────
 
+// Generados desde los esquemas Zod de responses/.
 const schemas = {
-  PublicPromotionalBannerItem: {
-    type: 'object',
-    description: 'Banner promocional publicado (vista pública: sin isActive ni sortOrder).',
-    properties: {
-      id: { type: 'string', format: 'uuid' },
-      title: { type: 'string', example: 'Descubre las novedades de Base Project' },
-      text: { type: 'string', example: 'Explora las nuevas funciones y mejoras que trae Base Project para ti.' },
-      tag: { type: 'string', nullable: true, example: 'Nuevo' },
-      buttonRoute: { type: 'string', nullable: true, example: '/hub/inicio', description: 'Ruta interna del front a la que lleva el botón.' },
-      buttonName: { type: 'string', nullable: true, example: 'Explorar', description: 'Texto visible del botón del banner.' },
-      imageUrl: { type: 'string', nullable: true, example: 'https://cdn.base-project.com/banners/novedades.webp' }
-    }
-  },
-
-  PublicPromotionalBannerListResponse: {
-    type: 'object',
-    properties: {
-      banners: {
-        type: 'array',
-        description: 'Solo banners activos, ordenados por sortOrder ascendente.',
-        items: { $ref: '#/components/schemas/PublicPromotionalBannerItem' }
-      }
-    }
-  }
+  PublicPromotionalBannerItem: toOpenApi(PublicBanner, 'output'),
+  PublicPromotionalBannerListResponse: toOpenApi(PublicBannerList, 'output')
 };
 
 // ─── Paths ────────────────────────────────────────────────────

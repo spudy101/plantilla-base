@@ -2,6 +2,7 @@ import PromotionalBannerService from '../services/admin-promotional-banner.servi
 import ApiResponse from '../../../shared/http/app-response.util';
 import errorMiddlewareModule from '../../../shared/http/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
+import type { ReplaceBannersBody } from '../requests/admin-promotional-banner.request';
 import authUserUtilModule from '../../../shared/http/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
 
@@ -14,7 +15,9 @@ class PromotionalBannerController {
 
   /** PUT /promotional-banners — reemplaza el catálogo completo */
   replace = asyncHandler(async (req, res) => {
-    const result = await PromotionalBannerService.replace(req.body.banners, requireAuthUser(req).userId);
+    // validate() ya dejó en req.body el valor parseado del esquema
+    const { banners } = req.body as ReplaceBannersBody;
+    const result = await PromotionalBannerService.replace(banners, requireAuthUser(req).userId);
     return ApiResponse.success(res, 'Banners promocionales actualizados exitosamente', result);
   });
 

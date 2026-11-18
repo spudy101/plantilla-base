@@ -11,14 +11,14 @@ import { Loose } from 'tests/helpers/mock';
 jest.mock('../../settings/repositories/system-global-config.repository', () => ({ findActive: jest.fn() }));
 jest.mock('../../../shared/observability/logger.util', () => ({ logAudit: jest.fn() }));
 jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
-jest.mock('../dtos/promotional-banner.dto', () => ({
-  PublicPromotionalBannerListDTO: jest.fn()
+jest.mock('../responses/promotional-banner.response', () => ({
+  toPublicBannerList: jest.fn()
 }));
 
 describe('PromotionalBannerPublicService', () => {
   let systemGlobalConfigRepository: Loose;
   let logAudit: Loose;
-  let PublicPromotionalBannerListDTO: Loose;
+  let toPublicBannerList: Loose;
   let service: Loose;
 
   beforeEach(() => {
@@ -26,7 +26,7 @@ describe('PromotionalBannerPublicService', () => {
     jest.resetModules();
     systemGlobalConfigRepository = interopDefault(require('../../settings/repositories/system-global-config.repository') as typeof import('../../settings/repositories/system-global-config.repository'));
     logAudit = interopDefault(require('../../audit/audit.service') as typeof import('../../audit/audit.service')).record;
-    ({ PublicPromotionalBannerListDTO } = interopDefault(require('../dtos/promotional-banner.dto') as typeof import('../dtos/promotional-banner.dto')));
+    ({ toPublicBannerList } = (require('../responses/promotional-banner.response') as typeof import('../responses/promotional-banner.response')));
     service = interopDefault(require('./promotional-banner.service') as typeof import('./promotional-banner.service'));
   });
 
@@ -39,13 +39,13 @@ describe('PromotionalBannerPublicService', () => {
       ];
       systemGlobalConfigRepository.findActive.mockResolvedValue({ promotionalBanners: banners });
       const dto = { banners: [{ id: 1 }, { id: 3 }] };
-      PublicPromotionalBannerListDTO.mockReturnValue(dto);
+      toPublicBannerList.mockReturnValue(dto);
 
       const result = await service.getActiveBanners();
 
       expect(systemGlobalConfigRepository.findActive).toHaveBeenCalled();
       // Solo llegan al DTO los que NO tienen is_active === false.
-      expect(PublicPromotionalBannerListDTO).toHaveBeenCalledWith([
+      expect(toPublicBannerList).toHaveBeenCalledWith([
         { id: 1, title: 'A', is_active: true },
         { id: 3, title: 'C' }
       ]);
@@ -57,11 +57,11 @@ describe('PromotionalBannerPublicService', () => {
     it('sin config activa devuelve DTO con lista vacía sin lanzar', async () => {
       systemGlobalConfigRepository.findActive.mockResolvedValue(null);
       const dto = { banners: [] };
-      PublicPromotionalBannerListDTO.mockReturnValue(dto);
+      toPublicBannerList.mockReturnValue(dto);
 
       const result = await service.getActiveBanners();
 
-      expect(PublicPromotionalBannerListDTO).toHaveBeenCalledWith([]);
+      expect(toPublicBannerList).toHaveBeenCalledWith([]);
       expect(result).toBe(dto);
     });
   });
@@ -70,13 +70,13 @@ describe('PromotionalBannerPublicService', () => {
     it('la segunda llamada usa la caché y NO vuelve a pegarle a BD', async () => {
       systemGlobalConfigRepository.findActive.mockResolvedValue({ promotionalBanners: [] });
       const dto = { banners: [] };
-      PublicPromotionalBannerListDTO.mockReturnValue(dto);
+      toPublicBannerList.mockReturnValue(dto);
 
       const first = await service.getActiveBanners();
       const second = await service.getActiveBanners();
 
       expect(systemGlobalConfigRepository.findActive).toHaveBeenCalledTimes(1);
-      expect(PublicPromotionalBannerListDTO).toHaveBeenCalledTimes(1);
+      expect(toPublicBannerList).toHaveBeenCalledTimes(1);
       expect(logAudit).toHaveBeenCalledTimes(1);
       expect(second).toBe(first);
     });

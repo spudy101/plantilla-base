@@ -58,8 +58,8 @@ modules/notification/
   controllers/         traduce HTTP ↔ servicio
   services/            reglas de negocio
   repositories/        acceso a datos (Prisma)
-  validators/          validación de la entrada
-  dtos/                forma de la salida (lista blanca, enmascarado de PII)
+  requests/            esquemas Zod de la entrada (validan, tipan y documentan)
+  responses/           esquemas Zod de la salida + la función que la arma (lista blanca, PII enmascarada)
   workers/             tareas periódicas
   providers/           integraciones externas (SES, SNS, …)
   middlewares/         middlewares con reglas del dominio (p. ej. auth y RBAC en iam)
@@ -77,6 +77,31 @@ Los tests unitarios viven **al lado del archivo que prueban**: `foo.service.ts` 
 | **controller** | Lee `req`, llama al servicio, arma la respuesta | Reglas de negocio, acceso a BD |
 | **service** | Reglas de negocio, orquesta repositorios y otros módulos, transacciones | Conocer `req`/`res` o Express |
 | **repository** | Habla con Prisma (y nadie más lo hace) | Decisiones de negocio |
+
+## Entrada y salida: un esquema, tres usos
+
+Cada petición tiene **un esquema Zod** en `requests/` y cada respuesta uno en `responses/`. Ese único esquema:
+
+1. **valida** la entrada en la ruta: `validate({ body: ReplaceBannersBody })` → si falla, 422 con
+   `{ field, message, hint, value }` en español; si pasa, `req.body` queda con el valor ya parseado;
+2. **tipa** el código: `type ReplaceBannersBody = z.infer<typeof ReplaceBannersBody>` es lo que recibe el service;
+3. **documenta** la API: `toOpenApi(ReplaceBannersBody)` genera el schema de Swagger, así no se desalinea.
+
+```ts
+// requests/admin-promotional-banner.request.ts
+import { z } from '../../../shared/validation/z';
+import { text, optionalText } from '../../../shared/validation/fields';
+export const BannerInput = z.object({ title: text('El título', { max: 120 }), tag: optionalText('La etiqueta', 40) });
+
+// routes
+router.put('/promotional-banners', AuthMiddleware.authenticate, …, validate({ body: ReplaceBannersBody }), Controller.replace);
+```
+
+Los campos genéricos (uuid, texto, entero, booleano) están en `shared/validation/fields.ts`; los de un dominio
+(documento, teléfono…) en su módulo. Importar `z` siempre desde `shared/validation/z` (mensajes en español).
+
+> **Migración en curso.** El módulo `banners` ya usa `requests/` y `responses/`; el resto sigue con
+> `validators/` (express-validator) y `dtos/`, y se migra módulo por módulo con este mismo patrón.
 
 ## Reglas
 

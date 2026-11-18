@@ -20,9 +20,9 @@ jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 jest.mock('../../settings/repositories/system-global-config.repository', () => ({ findActive: jest.fn(), update: jest.fn() }));
 
-jest.mock('../dtos/admin-promotional-banner.dto', () => ({
-  PromotionalBannerListDTO: jest.fn(banners => ({ banners })),
-  PromotionalBannerImageDTO: jest.fn((imageUrl, s3Key) => ({ imageUrl, s3Key }))
+jest.mock('../responses/admin-promotional-banner.response', () => ({
+  toAdminBannerList: jest.fn(banners => ({ banners })),
+  toBannerImage: jest.fn((imageUrl, s3Key) => ({ imageUrl, s3Key }))
 }));
 
 import { mocked, fixture, Loose } from 'tests/helpers/mock';
@@ -36,8 +36,8 @@ const { logger } = mocked(loggerUtilModule);
 const logAudit = mocked(auditServiceModule).record;
 import systemGlobalConfigRepositoryModule from '../../settings/repositories/system-global-config.repository';
 const systemGlobalConfigRepository = mocked(systemGlobalConfigRepositoryModule);
-import promotionalBannerDtoModule from '../dtos/admin-promotional-banner.dto';
-const { PromotionalBannerListDTO, PromotionalBannerImageDTO } = mocked(promotionalBannerDtoModule);
+import * as bannerResponses from '../responses/admin-promotional-banner.response';
+const { toAdminBannerList, toBannerImage } = mocked(bannerResponses);
 import service from './admin-promotional-banner.service';
 
 const ADMIN_ID = 'admin-1';
@@ -63,7 +63,7 @@ describe('PromotionalBannerService', () => {
 
       expect(logAudit).toHaveBeenCalledWith('PROMOTIONAL_BANNERS_VIEWED_ADMIN', expect.objectContaining({ actorId: ADMIN_ID, entityId: 'cfg-1' })
       );
-      expect(PromotionalBannerListDTO).toHaveBeenCalledWith([{ id: 'b1' }]);
+      expect(toAdminBannerList).toHaveBeenCalledWith([{ id: 'b1' }]);
       expect(result).toEqual({ banners: [{ id: 'b1' }] });
     });
 
@@ -72,7 +72,7 @@ describe('PromotionalBannerService', () => {
 
       await service.list(ADMIN_ID);
 
-      expect(PromotionalBannerListDTO).toHaveBeenCalledWith([]);
+      expect(toAdminBannerList).toHaveBeenCalledWith([]);
     });
   });
 
@@ -159,7 +159,7 @@ describe('PromotionalBannerService', () => {
       expect(S3Util.uploadPublicDocument).toHaveBeenCalledWith(file.buffer, expectedKey, 'image/jpeg');
       expect(logAudit).toHaveBeenCalledWith('PROMOTIONAL_BANNER_IMAGE_UPLOADED', expect.objectContaining({ actorId: ADMIN_ID, details: { s3Key: expectedKey } })
       );
-      expect(PromotionalBannerImageDTO).toHaveBeenCalledWith(
+      expect(toBannerImage).toHaveBeenCalledWith(
         'https://cdn.test/promotional/banners/uuid-generado.jpg',
         expectedKey
       );

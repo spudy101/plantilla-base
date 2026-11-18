@@ -1,15 +1,14 @@
-import type PromotionalBannerDto from '../dtos/promotional-banner.dto';
+import type { StoredBanner } from '../responses/admin-promotional-banner.response';
 import settingsModule from '../../settings';
 const { systemGlobalConfigRepository } = settingsModule;
-import promotionalBannerDtoModule from '../dtos/promotional-banner.dto';
-const { PublicPromotionalBannerListDTO } = promotionalBannerDtoModule;
+import { toPublicBannerList } from '../responses/promotional-banner.response';
 import auditModule from '../../audit';
 const { audit } = auditModule;
 
 // Caché en memoria (TTL 60s, patrón del resolver de resiliencia): endpoint público sin auth, no
 // puede pegarle a BD en cada request. Un cambio del admin se refleja a lo sumo 60s después.
 const CACHE_TTL_MS = 60000;
-let cache: { data: ReturnType<typeof PublicPromotionalBannerListDTO> | null; expiresAt: number } = { data: null, expiresAt: 0 };
+let cache: { data: ReturnType<typeof toPublicBannerList> | null; expiresAt: number } = { data: null, expiresAt: 0 };
 
 class PromotionalBannerPublicService {
   systemGlobalConfigRepository: typeof systemGlobalConfigRepository;
@@ -33,10 +32,10 @@ class PromotionalBannerPublicService {
 
     const config = await this.systemGlobalConfigRepository.findActive();
     // JSONB: forma libre en el modelo; la describe el DTO
-    const banners = (config?.promotionalBanners ?? []) as unknown as PromotionalBannerDto.Banner[];
+    const banners = (config?.promotionalBanners ?? []) as unknown as StoredBanner[];
     const activos = banners.filter(b => b.is_active !== false);
 
-    const dto = PublicPromotionalBannerListDTO(activos);
+    const dto = toPublicBannerList(activos);
     cache = { data: dto, expiresAt: Date.now() + CACHE_TTL_MS };
 
     await audit.record('PROMOTIONAL_BANNERS_PUBLIC_VIEWED', {

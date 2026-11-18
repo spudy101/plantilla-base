@@ -1,13 +1,13 @@
 import express from 'express';
 const router = express.Router();
 import PromotionalBannerController from '../controllers/admin-promotional-banner.controller';
-import PromotionalBannerValidator from '../validators/admin-promotional-banner.validator';
+import { ReplaceBannersBody, BannerImageFiles } from '../requests/admin-promotional-banner.request';
+import { validate } from '../../../shared/validation/validate';
 import iamModule from '../../iam';
 const { AuthMiddleware, RbacMiddleware } = iamModule;
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import UploadMiddleware from '../../../shared/http/upload.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 import rbacModule from '../../../shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
@@ -28,8 +28,7 @@ router.put(
   RbacMiddleware.requirePermission(RBAC_MODULES.PROMOTIONAL_CONTENT, RBAC_ACTIONS.UPDATE),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  PromotionalBannerValidator.replace(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: ReplaceBannersBody }),
   PromotionalBannerController.replace
 );
 
@@ -41,8 +40,7 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(),
   UploadMiddleware.uploadFields([{ name: 'image', maxCount: 1 }], { maxFileSize: UploadMiddleware.MAX_IMAGE_SIZE }),
   UploadMiddleware.handleMulterError,
-  PromotionalBannerValidator.uploadImage(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ files: BannerImageFiles }),
   PromotionalBannerController.uploadImage
 );
 
