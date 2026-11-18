@@ -52,11 +52,11 @@ function RbacCatalogDTO(catalog: { groups: readonly ModuleGroup[]; modules: read
   };
 }
 
-function RoleMatrixDTO(matrix: Array<{ role: string; base_permissions: unknown; added_permissions: unknown }>) {
+function RoleMatrixDTO(matrix: Array<{ role: string; basePermissions: unknown; addedPermissions: unknown }>) {
   return matrix.map(entry => ({
     role: entry.role,
-    basePermissions: entry.base_permissions, // inmutables — solo cambian con deploy
-    addedPermissions: entry.added_permissions // agregados en runtime por SUPERADMIN
+    basePermissions: entry.basePermissions, // inmutables — solo cambian con deploy
+    addedPermissions: entry.addedPermissions // agregados en runtime por SUPERADMIN
   }));
 }
 

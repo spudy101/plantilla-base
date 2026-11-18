@@ -54,7 +54,7 @@ class AdminAuditLogService {
       {
         limit: paginationParams.limit,
         offset: paginationParams.offset,
-        sortBy: PaginationHelper.toSnakeCase(paginationParams.sortBy),
+        sortBy: paginationParams.sortBy,
         order: paginationParams.order
       }
     );

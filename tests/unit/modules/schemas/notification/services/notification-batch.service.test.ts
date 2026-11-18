@@ -258,14 +258,14 @@ describe('NotificationBatchService', () => {
 
   describe('_actualizarEstadoLote', () => {
     it('lee el estado desde cache, suma los procesados y lo vuelve a guardar', async () => {
-      localCache.get.mockResolvedValue(JSON.stringify({ processed_users: 10, current_batch: 0 }));
+      localCache.get.mockResolvedValue(JSON.stringify({ processedUsers: 10, currentBatch: 0 }));
 
       await service._actualizarEstadoLote(localCache, GID, 3, 5);
 
       const [, savedRaw] = localCache.set.mock.calls[0];
       const saved = JSON.parse(savedRaw);
-      expect(saved.processed_users).toBe(15);
-      expect(saved.current_batch).toBe(3);
+      expect(saved.processedUsers).toBe(15);
+      expect(saved.currentBatch).toBe(3);
     });
 
     it('no falla si el cache no tiene estado (no llama set)', async () => {

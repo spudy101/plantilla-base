@@ -35,13 +35,13 @@ class NotificationCleanupService {
       const deletedTokens = await this.userPushTokenRepo.deleteOldInactive(days);
 
       logger.info('Limpieza completada', {
-        notificaciones_eliminadas: deletedNotifications,
-        tokens_eliminados: deletedTokens
+        notificacionesEliminadas: deletedNotifications,
+        tokensEliminados: deletedTokens
       });
 
       return {
-        notificaciones_eliminadas: deletedNotifications,
-        tokens_eliminados: deletedTokens
+        notificacionesEliminadas: deletedNotifications,
+        tokensEliminados: deletedTokens
       };
     } catch (error) {
       logger.warn('Error en limpieza', { error: errorMessage(error) });
@@ -53,12 +53,12 @@ class NotificationCleanupService {
     const deletedVerified = await this.verificationCodeRepo.deleteOldVerified(retentionDays);
 
     logger.info('Limpieza de codigos de verificacion completada', {
-      expirados_eliminados: deletedExpired,
-      verificados_eliminados: deletedVerified,
-      retencion_dias: retentionDays
+      expiradosEliminados: deletedExpired,
+      verificadosEliminados: deletedVerified,
+      retencionDias: retentionDays
     });
 
-    return { expirados_eliminados: deletedExpired, verificados_eliminados: deletedVerified };
+    return { expiradosEliminados: deletedExpired, verificadosEliminados: deletedVerified };
   }
 }
 

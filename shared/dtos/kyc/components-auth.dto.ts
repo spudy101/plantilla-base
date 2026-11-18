@@ -13,20 +13,20 @@ interface VerificationCodeRow {
   createdAt?: Maybe<DbDate>;
 }
 
+/** Fila de Prisma (user_login_attempts). */
 interface UserLoginAttemptRow {
-  user_login_attempt_id: string;
-  user_id?: Maybe<string>;
-  username_attempt?: Maybe<string>;
-  national_id?: Maybe<string>;
-  ip_address?: Maybe<string>;
-  user_agent?: Maybe<string>;
-  device_fingerprint?: Maybe<string>;
+  userLoginAttemptId: string;
+  userId?: Maybe<string>;
+  usernameAttempt?: Maybe<string>;
+  nationalId?: Maybe<string>;
+  ipAddress?: Maybe<string>;
+  userAgent?: Maybe<string>;
+  deviceFingerprint?: Maybe<string>;
   success: boolean;
-  failure_reason?: Maybe<string>;
-  blocked_until?: Maybe<DbDate>;
-  session_cache_key?: Maybe<string>;
-  origin_session_id?: Maybe<string>;
-  attempted_at?: Maybe<DbDate>;
+  failureReason?: Maybe<string>;
+  blockedUntil?: Maybe<DbDate>;
+  originSessionId?: Maybe<string>;
+  attemptedAt?: Maybe<DbDate>;
   createdAt?: Maybe<DbDate>;
 }
 
@@ -154,21 +154,22 @@ class UserLoginAttemptComponent {
       return null;
     }
     return {
-      userLoginAttemptId: attempt.user_login_attempt_id,
-      userId: attempt.user_id || null,
-      usernameAttempt: attempt.username_attempt,
-      nationalId: MaskingUtil.maskDocumentId(EncryptionUtil.safeDecrypt(attempt.national_id)),
-      ipAddress: attempt.ip_address || null,
-      userAgent: attempt.user_agent || null,
-      deviceFingerprint: attempt.device_fingerprint || null,
+      userLoginAttemptId: attempt.userLoginAttemptId,
+      userId: attempt.userId || null,
+      usernameAttempt: attempt.usernameAttempt,
+      nationalId: MaskingUtil.maskDocumentId(EncryptionUtil.safeDecrypt(attempt.nationalId)),
+      ipAddress: attempt.ipAddress || null,
+      userAgent: attempt.userAgent || null,
+      deviceFingerprint: attempt.deviceFingerprint || null,
       success: attempt.success,
-      failureReason: attempt.failure_reason || null,
-      blockedUntil: attempt.blocked_until || null,
-      sessionCacheKey: attempt.session_cache_key || null,
+      failureReason: attempt.failureReason || null,
+      blockedUntil: attempt.blockedUntil || null,
+      // La columna session_cache_key ya no existe: se mantiene la clave en null por compatibilidad.
+      sessionCacheKey: null,
       // Sesión resultante del login. Con valor en los intentos exitosos, null en los fallidos (nunca
-      // hubo sesión). Es el reemplazo real de sessionCacheKey, que quedó siempre en null.
-      originSessionId: attempt.origin_session_id || null,
-      attemptedAt: attempt.attempted_at,
+      // hubo sesión). Es el reemplazo real de sessionCacheKey.
+      originSessionId: attempt.originSessionId || null,
+      attemptedAt: attempt.attemptedAt,
       createdAt: attempt.createdAt
     };
   }

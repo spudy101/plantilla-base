@@ -12,7 +12,7 @@ describe('PaginationHelper', () => {
         page: 1,
         limit: 10,
         offset: 0,
-        sortBy: 'created_at',
+        sortBy: 'createdAt',
         order: 'DESC'
       });
     });

@@ -37,7 +37,7 @@ class PaginationHelper {
     const limit = Math.max(1, Number.parseInt(String(query.limit)) || 10);
     const offset = (page - 1) * limit;
 
-    const sortBy = typeof query.sortBy === 'string' && query.sortBy ? query.sortBy : 'created_at';
+    const sortBy = typeof query.sortBy === 'string' && query.sortBy ? query.sortBy : 'createdAt';
     const order = (typeof query.order === 'string' && query.order ? query.order : 'DESC').toUpperCase();
 
     // Validar que order sea ASC o DESC

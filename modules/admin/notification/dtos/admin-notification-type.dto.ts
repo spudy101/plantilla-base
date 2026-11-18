@@ -40,11 +40,11 @@ function UpdateNotificationTypeResponseDTO(nt: NotificationTypeWithCategory) {
 }
 
 function CreateGlobalNotificationResponseDTO({
-  global_notification_id: globalNotificationId,
+  globalNotificationId,
   titulo,
   contenido,
   asunto
-}: { global_notification_id: string; titulo: string; contenido: string; asunto?: string | null }) {
+}: { globalNotificationId: string; titulo: string; contenido: string; asunto?: string | null }) {
   return {
     globalNotificationId,
     titulo,
@@ -56,12 +56,12 @@ function CreateGlobalNotificationResponseDTO({
 }
 
 function CreateDirectNotificationResponseDTO({
-  notification_id: notificationId,
+  notificationId,
   userId,
   titulo,
   contenido,
   asunto
-}: { notification_id: string; userId: string; titulo: string; contenido: string; asunto?: string | null }) {
+}: { notificationId: string; userId: string; titulo: string; contenido: string; asunto?: string | null }) {
   return {
     notificationId,
     userId,

@@ -84,8 +84,8 @@ function sealNested(target: string, ops: Data): Data {
 
 function stampOrigin(data: Data): void {
   const origin = requestContext.originFromContext();
-  if (data.originSessionId == null && origin.origin_session_id != null) data.originSessionId = origin.origin_session_id;
-  if (data.originCorrelationId == null && origin.origin_correlation_id != null) data.originCorrelationId = origin.origin_correlation_id;
+  if (data.originSessionId == null && origin.originSessionId != null) data.originSessionId = origin.originSessionId;
+  if (data.originCorrelationId == null && origin.originCorrelationId != null) data.originCorrelationId = origin.originCorrelationId;
 }
 
 // ── Filtros ────────────────────────────────────────────────────────────────────

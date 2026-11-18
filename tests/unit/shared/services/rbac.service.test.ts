@@ -113,9 +113,9 @@ describe('RbacService', () => {
       if (!entry) {throw new Error('getRoleMatrix no devolvió el rol pedido');}
       expect(entry.role).toBe(RBAC_ROLES.AUDITOR);
       // La lectura viene de la base.
-      expect(entry.base_permissions[RBAC_MODULES.GLOBAL_LOGS]).toContain(RBAC_ACTIONS.READ);
+      expect(entry.basePermissions[RBAC_MODULES.GLOBAL_LOGS]).toContain(RBAC_ACTIONS.READ);
       // El create sobre clientsList vino del override.
-      expect(entry.added_permissions[RBAC_MODULES.CLIENTS_LIST]).toContain(RBAC_ACTIONS.CREATE);
+      expect(entry.addedPermissions[RBAC_MODULES.CLIENTS_LIST]).toContain(RBAC_ACTIONS.CREATE);
     });
   });
 
