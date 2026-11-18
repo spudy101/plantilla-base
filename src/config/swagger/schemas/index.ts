@@ -1,107 +1,18 @@
-/**
- * ============================================================
- * SCHEMAS INDEX
- * ============================================================
- * Punto de entrada único para components.schemas en el documento OpenAPI.
- *
- * Incluye:
- *   - Shared      → Pagination, Sort, Metadata
- *   - KYC         → Country, Department, City, PhonePrefix, Gender,
- *                   Role, AvatarTheme, Avatar, User, Person, PersonContact,
- *                   PersonLocation, VerificationCode,
- *                   UserChangeLog, UserSession, TrustedDevice,
- *                   BasicProfile, ExtendedProfile
- *
- * [RF-USR-01] | CA-06 — Enmascaramiento PII: en los schemas de RESPUESTA, documento, correo,
- * teléfono y TIN salen enmascarados (últimos 4). Los textos compartidos de `description`
- * viven en shared/validation/pii-masking.doc.ts. Los schemas de REQUEST van siempre completos.
- *   - Core        → SystemGlobalConfig, PendingApproval
- *   - Notification→ NotificationCategory, NotificationType, Notification, GlobalNotification,
- *                   UserNotificationPreference
- *
- * Uso en el ensamblador principal:
- *   const schemas = require('./schemas');
- *   // → swaggerSpec.components.schemas = { ...schemas, ...moduleSchemas }
- */
-
+// Esquemas globales: los components.schemas que comparten los specs admin y client. Todos se generan desde los
+// esquemas Zod de shared/validation y de cada módulo (responses/): acá no se escribe ningún esquema a mano.
+// Los esquemas propios de cada endpoint viven en el docs/ de su módulo.
+//
+// [RF-USR-01] | CA-06 — En las RESPUESTAS, documento, correo, teléfono y TIN salen enmascarados; los textos
+// compartidos están en shared/validation/pii-masking.doc.ts. Los REQUESTS van siempre completos.
+import { toOpenApi } from '../../../shared/validation/openapi';
+import { PaginationMetadata } from '../../../shared/validation/output';
 import kycSchemas from './kyc.schema';
 import coreSchemas from './core.schema';
 import notificationSchemas from './notification.schema';
 
-// ─── Shared — Pagination / Sort / Metadata ───────────────────
-
-const Pagination = {
-  type: 'object',
-  properties: {
-    currentPage: { type: 'integer', example: 1 },
-    pageSize: { type: 'integer', example: 20 },
-    totalItems: { type: 'integer', example: 100 },
-    totalPages: { type: 'integer', example: 5 },
-    hasNextPage: { type: 'boolean', example: true },
-    hasPreviousPage: { type: 'boolean', example: false }
-  }
-};
-
-const Sort = {
-  type: 'object',
-  properties: {
-    field: { type: 'string', example: 'createdAt' },
-    order: { type: 'string', enum: ['ASC', 'DESC'], example: 'DESC' }
-  }
-};
-
-const Metadata = {
-  type: 'object',
-  description: 'Metadata de respuestas paginadas.',
-  properties: {
-    pagination: { $ref: '#/components/schemas/Pagination' },
-    sort: { $ref: '#/components/schemas/Sort' },
-    filters: {
-      type: 'object',
-      nullable: true,
-      additionalProperties: true,
-      description: 'Filtros activos en la consulta (solo presentes si se aplicaron).'
-    }
-  }
-};
-
-// ─── Shared — Error envelope ──────────────────────────────────
-// Estructura estándar de ApiResponse.error / AppError. Referenciable como
-// $ref: '#/components/schemas/ErrorResponse' desde cualquier módulo (admin y client).
-
-const ErrorResponse = {
-  type: 'object',
-  description: 'Estructura estándar de respuesta de error (AppError / ApiResponse.error).',
-  properties: {
-    success: { type: 'boolean', example: false },
-    statusCode: { type: 'integer', example: 400 },
-    message: { type: 'string', example: 'Parámetros incorrectos o faltantes.' },
-    errorCode: { type: 'string', nullable: true, example: 'BAD_REQUEST' },
-    errors: {
-      type: 'array',
-      nullable: true,
-      description: 'Detalle por campo (presente en errores de validación 422).',
-      items: { type: 'object' }
-    },
-    timestamp: { type: 'string', format: 'date-time' }
-  }
-};
-
-// ─── Merge final ──────────────────────────────────────────────
-
 export default {
-  // Shared
-  Pagination,
-  Sort,
-  Metadata,
-  ErrorResponse,
-
-  // KYC + Catalog
+  Metadata: toOpenApi(PaginationMetadata, 'output'),
   ...kycSchemas,
-
-  // Core
   ...coreSchemas,
-
-  // Notifications
   ...notificationSchemas
 };
