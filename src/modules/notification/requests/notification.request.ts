@@ -21,11 +21,38 @@ const priority = optionalInList(PRIORITIES, {
   hint: 'Indicá uno de: low, normal, high, urgent'
 });
 const time = (field: string) =>
-  withHint(z.string().regex(TIME_REGEX, { error: `${field} debe tener formato HH:MM o HH:MM:SS` }).nullish(), { hint: 'Ingresá la hora en formato HH:MM' });
+  withHint(
+    z
+      .string()
+      .regex(TIME_REGEX, { error: `${field} debe tener formato HH:MM o HH:MM:SS` })
+      .nullish(),
+    { hint: 'Ingresá la hora en formato HH:MM' }
+  );
 const bodyBool = (field: string) => optionalBool(field);
 
 // ── Bandeja del usuario ───────────────────────────────────────
 export const NotificationListQuery = input({ ...paginationQuery, ...searchQuery });
+
+// ── Creación por un servicio externo (X-API-Key) ──────────────
+export const CreateNotificationBody = input({
+  tipoNotificacion: withHint(
+    z.string({ error: 'tipoNotificacion es requerido' }).trim().min(1, { error: 'tipoNotificacion es requerido' }),
+    {
+      hint: 'Indicá el código del tipo de notificación (notification_types.code)'
+    }
+  ).meta({ example: 'OPERATION_APPROVED' }),
+  userId: optionalUuid('El usuario destinatario').meta({
+    description: 'Usuario destinatario. Sin userId la notificación es global (para todos).'
+  }),
+  relatedEntity: z
+    .object({ type: z.string().nullish(), id: z.string().nullish() })
+    .nullish()
+    .meta({ description: 'Entidad relacionada (ej: { type: "operation", id: "<uuid>" }).' }),
+  metadata: z
+    .record(z.string(), z.unknown())
+    .nullish()
+    .meta({ description: 'Variables de las plantillas del tipo (ej: { nombre, monto }).' })
+});
 
 // ── Preferencias ──────────────────────────────────────────────
 const EDITABLE_FIELDS = ['allowPush', 'allowEmail', 'allowSms', 'quietHoursStart', 'quietHoursEnd'] as const;
@@ -61,7 +88,11 @@ const contact = (max?: number) =>
   withHint(
     max === undefined
       ? z.string({ error: 'El contacto es requerido' }).trim().min(1, { error: 'El contacto es requerido' })
-      : z.string({ error: 'El contacto es requerido' }).trim().min(1, { error: 'El contacto es requerido' }).max(max, { error: `El contacto admite máximo ${max} caracteres` }),
+      : z
+          .string({ error: 'El contacto es requerido' })
+          .trim()
+          .min(1, { error: 'El contacto es requerido' })
+          .max(max, { error: `El contacto admite máximo ${max} caracteres` }),
     { hint: 'Ingresá el email o teléfono a verificar' }
   );
 
@@ -82,7 +113,10 @@ export const SendVerificationBody = input({
       ctx.addIssue({
         code: 'custom',
         path: ['phonePrefixId'],
-        message: v.phonePrefixId === undefined || v.phonePrefixId === '' ? 'phonePrefixId es requerido cuando el tipo es phone' : 'phonePrefixId debe ser un UUID válido'
+        message:
+          v.phonePrefixId === undefined || v.phonePrefixId === ''
+            ? 'phonePrefixId es requerido cuando el tipo es phone'
+            : 'phonePrefixId debe ser un UUID válido'
       });
     }
   }
@@ -135,11 +169,20 @@ export const CreateCategoryBody = input({
       .regex(/^[A-Z0-9_]{2,100}$/, { error: 'code debe ser MAYÚSCULAS/números/guion bajo (2-100)' }),
     { hint: 'Ej: COMMERCIAL, SECURITY' }
   ),
-  name: z.string({ error: 'name es requerido' }).trim().min(2, { error: 'name debe tener entre 2 y 200 caracteres' }).max(200, { error: 'name debe tener entre 2 y 200 caracteres' }),
+  name: z
+    .string({ error: 'name es requerido' })
+    .trim()
+    .min(2, { error: 'name debe tener entre 2 y 200 caracteres' })
+    .max(200, { error: 'name debe tener entre 2 y 200 caracteres' }),
   ...editableCategory
 });
 export const UpdateCategoryBody = input({
-  name: z.string().trim().min(2, { error: 'name debe tener entre 2 y 200 caracteres' }).max(200, { error: 'name debe tener entre 2 y 200 caracteres' }).optional(),
+  name: z
+    .string()
+    .trim()
+    .min(2, { error: 'name debe tener entre 2 y 200 caracteres' })
+    .max(200, { error: 'name debe tener entre 2 y 200 caracteres' })
+    .optional(),
   ...editableCategory
 });
 
@@ -171,7 +214,9 @@ const lengthBetween = (field: string, min: number, max?: number) => {
   if (max !== undefined) {
     schema = schema.max(max, { error: `${field} debe tener ${range}` });
   }
-  return withHint(schema, { hint: max === undefined ? `Usá al menos ${min} caracteres` : `Usá entre ${min} y ${max} caracteres` });
+  return withHint(schema, {
+    hint: max === undefined ? `Usá al menos ${min} caracteres` : `Usá entre ${min} y ${max} caracteres`
+  });
 };
 const globalNotification = {
   titulo: lengthBetween('titulo', 3, 255),
@@ -181,7 +226,9 @@ const globalNotification = {
 export const GlobalNotificationBody = input(globalNotification);
 export const DirectNotificationBody = input({
   userId: withHint(
-    z.uuid({ error: issue => (issue.input === undefined || issue.input === '' ? 'userId es requerido' : 'userId debe ser un UUID válido') }),
+    z.uuid({
+      error: issue => (issue.input === undefined || issue.input === '' ? 'userId es requerido' : 'userId debe ser un UUID válido')
+    }),
     { hint: 'Indicá el UUID del usuario destinatario' }
   ),
   ...globalNotification
@@ -197,7 +244,10 @@ export const DeliveryListQuery = input({
     message: `processingStatus debe ser: ${VALID_STATUSES.join(', ')}`,
     hint: `Indicá uno de los valores: ${VALID_STATUSES.join(', ')}`
   }),
-  channel: optionalInList(VALID_CHANNELS, { message: `channel debe ser: ${VALID_CHANNELS.join(', ')}`, hint: `Indicá uno de los valores: ${VALID_CHANNELS.join(', ')}` }),
+  channel: optionalInList(VALID_CHANNELS, {
+    message: `channel debe ser: ${VALID_CHANNELS.join(', ')}`,
+    hint: `Indicá uno de los valores: ${VALID_CHANNELS.join(', ')}`
+  }),
   ...deliveryRange,
   onlyCritical: withHint(optionalBool('onlyCritical'), { hint: 'Enviá true para listar solo notificaciones críticas' })
 });

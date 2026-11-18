@@ -1,10 +1,9 @@
+import { z } from '../../../shared/validation/z';
+import { NotificationCategorySchema } from './notification-components.response';
 import type { PreferenceRow } from '../repositories/user-notification-preference.repository';
 import type { NotificationCategoryRow } from '../repositories/notification-category.repository';
 import componentsNotificationDtoModule from './notification-components.response';
-const {
-  UserNotificationPreferenceComponent,
-  NotificationCategoryComponent
-} = componentsNotificationDtoModule;
+const { UserNotificationPreferenceComponent, NotificationCategoryComponent } = componentsNotificationDtoModule;
 
 type Preference = Pick<PreferenceRow, 'allowPush' | 'allowEmail' | 'allowSms' | 'quietHoursStart' | 'quietHoursEnd'>;
 type PreferenceField = keyof Preference;
@@ -74,7 +73,11 @@ class CategoryPreferencesViewDTO {
     };
   }
 
-  static buildArray(categories: readonly Category[] | null | undefined, overridesMap: Map<string, Preference>, global: Preference | null) {
+  static buildArray(
+    categories: readonly Category[] | null | undefined,
+    overridesMap: Map<string, Preference>,
+    global: Preference | null
+  ) {
     if (!categories || categories.length === 0) {
       return [];
     }
@@ -90,3 +93,24 @@ export default {
   UpdatePreferenceResponseDTO,
   CategoryPreferencesViewDTO
 };
+
+// ── Esquemas de salida ──
+export const CategoryPreferenceViewSchema = NotificationCategorySchema.extend({
+  isSilenceable: z.boolean().meta({ description: 'true si el usuario puede silenciarla (allowDnd y no crítica).' }),
+  preference: z
+    .object({
+      source: z
+        .enum(['category', 'global', 'default'])
+        .meta({
+          description: 'Origen de la preferencia efectiva: ajuste de la categoría, preferencia global o valor por defecto.'
+        }),
+      allowPush: z.boolean(),
+      allowEmail: z.boolean(),
+      allowSms: z.boolean(),
+      quietHoursStart: z.string().nullable().meta({ example: '22:00:00' }),
+      quietHoursEnd: z.string().nullable().meta({ example: '07:00:00' })
+    })
+    .meta({ description: 'Preferencia efectiva para esta categoría.' })
+});
+
+export const PreferenceDeletedSchema = z.object({ notificationCategoryCode: z.string() });

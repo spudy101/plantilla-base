@@ -1,4 +1,7 @@
 import commonResponses from '../../../config/swagger/responses/common.responses';
+import { jsonBody, toOpenApi } from '../../../shared/validation/openapi';
+import { SendVerificationBody, VerifyCodeBody } from '../requests/notification.request';
+import { SendVerificationSchema, VerifyCodeSchema } from '../responses/send-verification.response';
 
 /**
  * ============================================================
@@ -14,81 +17,12 @@ import commonResponses from '../../../config/swagger/responses/common.responses'
 
 // ─── Schemas propios del módulo ───────────────────────────────
 
+// Generados desde los esquemas Zod de requests/ y responses/.
 const schemas = {
-  SendVerificationRequest: {
-    type: 'object',
-    required: ['type', 'contact'],
-    properties: {
-      type: {
-        type: 'string',
-        enum: ['email', 'phone'],
-        example: 'email',
-        description: 'Canal al que se enviará el código OTP.'
-      },
-      contact: {
-        type: 'string',
-        example: 'juan@example.com',
-        description: 'Email o número de teléfono (7–15 dígitos) según el tipo.'
-      },
-      phonePrefixId: {
-        type: 'string',
-        format: 'uuid',
-        nullable: true,
-        description: 'Requerido únicamente cuando `type = phone`.'
-      }
-    }
-  },
-
-  SendVerificationResponse: {
-    type: 'object',
-    properties: {
-      verificationCodeId: {
-        type: 'string',
-        format: 'uuid',
-        description: 'ID del código generado. Guárdalo para rastrear la verificación.'
-      },
-      expiresAt: {
-        type: 'string',
-        format: 'date-time',
-        description: 'Fecha y hora de expiración del código (15 minutos desde la emisión).'
-      }
-    }
-  },
-
-  VerifyCodeRequest: {
-    type: 'object',
-    required: ['type', 'contact', 'code'],
-    properties: {
-      type: {
-        type: 'string',
-        enum: ['email', 'phone'],
-        example: 'email'
-      },
-      contact: {
-        type: 'string',
-        example: 'juan@example.com',
-        description: 'Debe coincidir exactamente con el usado en send-verification.'
-      },
-      code: {
-        type: 'string',
-        minLength: 4,
-        maxLength: 8,
-        example: '123456',
-        description: 'Código OTP recibido por email o SMS.'
-      }
-    }
-  },
-
-  VerifyCodeResponse: {
-    type: 'object',
-    properties: {
-      verified: {
-        type: 'boolean',
-        example: true,
-        description: 'Siempre `true` cuando la verificación es exitosa.'
-      }
-    }
-  }
+  SendVerificationRequest: toOpenApi(SendVerificationBody),
+  SendVerificationResponse: toOpenApi(SendVerificationSchema, 'output'),
+  VerifyCodeRequest: toOpenApi(VerifyCodeBody),
+  VerifyCodeResponse: toOpenApi(VerifyCodeSchema, 'output')
 };
 
 // ─── Paths ────────────────────────────────────────────────────
@@ -106,28 +40,7 @@ const paths = {
 - El código expira a los **15 minutos**.
 - Máximo **5 intentos** de verificación antes de que el código se invalide.`,
       security: [],
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/SendVerificationRequest' },
-            examples: {
-              porEmail: {
-                summary: 'Envío por email',
-                value: { type: 'email', contact: 'juan@example.com' }
-              },
-              porTelefono: {
-                summary: 'Envío por teléfono',
-                value: {
-                  type: 'phone',
-                  contact: '3001234567',
-                  phonePrefixId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
-                }
-              }
-            }
-          }
-        }
-      },
+      requestBody: jsonBody('SendVerificationRequest'),
       responses: {
         200: commonResponses.ok(
           { $ref: '#/components/schemas/SendVerificationResponse' },
@@ -158,14 +71,7 @@ const paths = {
 - \`403\` — Se agotaron los 5 intentos. Debes solicitar un nuevo código.
 - \`404\` — Código no encontrado, ya usado, o expirado.`,
       security: [],
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/VerifyCodeRequest' }
-          }
-        }
-      },
+      requestBody: jsonBody('VerifyCodeRequest'),
       responses: {
         200: commonResponses.ok({ $ref: '#/components/schemas/VerifyCodeResponse' }, 'Código verificado exitosamente.'),
         ...commonResponses.BadRequest,

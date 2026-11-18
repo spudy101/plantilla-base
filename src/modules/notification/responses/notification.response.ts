@@ -1,9 +1,8 @@
+import { z } from '../../../shared/validation/z';
+import { GlobalNotificationSchema, NotificationSchema } from './notification-components.response';
 import type * as Feed from '../notification-feed.types';
 import componentsNotificationDtoModule from './notification-components.response';
-const {
-  NotificationComponent,
-  GlobalNotificationComponent
-} = componentsNotificationDtoModule;
+const { NotificationComponent, GlobalNotificationComponent } = componentsNotificationDtoModule;
 import catalogsModule from '../../catalogs';
 const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
@@ -86,3 +85,13 @@ export default {
   GlobalNotificationsResponseDTO,
   UnreadCountResponseDTO
 };
+
+// ── Esquemas de salida ──
+export const NotificationMixedItemSchema = z
+  .union([
+    NotificationSchema.extend({ type: z.literal('personal') }),
+    GlobalNotificationSchema.extend({ type: z.literal('global') })
+  ])
+  .meta({ description: 'Ítem de la bandeja: `type` personal = notificación del usuario; global = aviso para todos.' });
+
+export const UnreadCountSchema = z.object({ count: z.number().int().meta({ example: 3 }) });

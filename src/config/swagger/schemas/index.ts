@@ -16,8 +16,7 @@
  * teléfono y TIN salen enmascarados (últimos 4). Los textos compartidos de `description`
  * viven en ./pii-masking.doc.js. Los schemas de REQUEST van siempre completos.
  *   - Core        → SystemGlobalConfig, PendingApproval
- *   - Notification→ NotificationType, Notification, GlobalNotification,
- *                   GlobalNotificationRead, UserPushToken,
+ *   - Notification→ NotificationCategory, NotificationType, Notification, GlobalNotification,
  *                   UserNotificationPreference
  *
  * Uso en el ensamblador principal:
