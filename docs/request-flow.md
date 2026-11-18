@@ -1,14 +1,14 @@
 # Flujo de request, errores y contexto — guía de onboarding
 
 > Cómo viaja un request por la app: middlewares globales, autenticación, RBAC, rate-limit, request-lock,
-> validación, controller→service, y manejo centralizado de errores. Auditoría en `docs/audit-and-alerts.md`; RBAC en
+> validación, controller→service, y manejo centralizado de errores. Auditoría en `docs/audit-and-observability.md`; RBAC en
 > `docs/rbac/rbac.md`; enmascaramiento de PII en `docs/pii-masking.md`.
 
 ## Pipeline completo
 
 ```
 Request
- → [middlewares globales BaseApp]
+ → [middlewares globales src/app.ts]
  → [middlewares de ruta]  Auth → RBAC → RateLimit → RequestLock → Validator → handleValidationErrors
  → Controller → Service → Repository → Model → DB
  → ApiResponse  (o AppError → ErrorMiddleware.handleError)
@@ -17,35 +17,30 @@ Request
 | Capa       | Responsabilidad                                                                     |
 | ---------- | ----------------------------------------------------------------------------------- |
 | Controller | recibe req, llama validator+service, devuelve `ApiResponse`. Sin lógica de negocio. |
-| Service    | toda la lógica; lanza `AppError`; llama `logAudit`. No accede a DB directo.         |
+| Service    | toda la lógica; lanza `AppError`; audita con `audit.record`. No accede a DB directo. |
 | Repository | único lugar con el cliente de Prisma; extiende `PrismaRepository`.                  |
 | Schema     | `prisma/schema.prisma` (tablas, relaciones); la PII la cifra la extensión del cliente. |
 | Validator  | cadenas express-validator; extiende `BaseValidator`.                                |
 | DTO        | arma la respuesta en camelCase, campo a campo (nunca spread de una fila).            |
 
-## Middlewares globales (`shared/base/base.app.ts`) — ORDEN CRÍTICO
+## Middlewares globales (`src/app.ts`) — ORDEN CRÍTICO
 
-```js
-this.app.set('trust proxy', 1);
-this.app.use(CorrelationMiddleware.addCorrelationId); // 1. req.correlationId (PRIMERO)
-this.app.use(SecurityMiddleware.helmet()); // 2. headers seguridad
-this.app.use(SecurityMiddleware.cors());
-this.app.use(SecurityMiddleware.addSecurityHeaders);
-this.app.use(express.json({ limit: '10mb' })); // 3. body parsing
-this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-this.app.use(this._handleMalformedJson.bind(this)); //    captura JSON inválido → 400
-this.app.use(auditContextMiddleware); // 4. auditContext + AsyncLocalStorage (necesita body + correlationId)
-this.app.use(compression()); // 5. gzip
-this.app.use(httpLogger); // 6. log HTTP (necesita correlationId)
-// rutas built-in de BaseApp: GET /health, GET /   (los docs los monta setupSwagger() de cada app en GET /docs)
+```ts
+app.set('trust proxy', 1);
+app.use(operationMiddleware); // 1. operación: id, contexto (AsyncLocalStorage), fila en `operations`, log HTTP (PRIMERO)
+app.use(SecurityMiddleware.helmet()); // 2. headers de seguridad
+app.use(SecurityMiddleware.cors());
+app.use(SecurityMiddleware.addSecurityHeaders);
+app.use(cookieParser());
+app.use(express.json({ limit: '10mb' })); // 3. body parsing
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(handleMalformedJson); //    JSON inválido → 400 controlado
+app.use(compression());
+// GET /health, GET /, y las rutas de cada audiencia: /admin/… y /client/… (cada una con su Swagger en /docs)
 ```
 
-Dependencias: `auditContext` necesita `correlationId` + `body` ya parseados; `httpLogger` necesita
-`correlationId`. **No reordenar.** No se repiten en las rutas.
-
-> ⚠️ `cookieParser()` **no** está en `BaseApp`: lo monta solo el monolito (`servers/monolith.ts:24`). En modo
-> standalone (`dev:admin`/`dev:client`) `req.cookies.access_token` es `undefined` y todo request cae al camino
-> `Authorization: Bearer` → `canal='mobile'`. Ver `docs/run-modes.md`.
+`operationMiddleware` va primero: todo lo que viene después (incluidos los errores) queda dentro de la
+operación y comparte su `correlationId`. **No reordenar.** Detalle en `docs/audit-and-observability.md`.
 
 ## Middlewares de ruta (orden recomendado)
 
@@ -58,8 +53,7 @@ router.post(
   RequestLockMiddleware.forAuthenticatedUsers(), // 4. dedup de requests concurrentes
   MyValidator.update(), // 5. validación
   ValidatorUtil.handleValidationErrors, // 6. corta con 422 si hubo errores
-  AuditAction.declare('X_UPDATED', { entityType: 'X', entityTable: 'xs' }), // 7. declara la acción auditada
-  MyController.update // 8. controller
+  MyController.update // 7. controller
 );
 ```
 
@@ -80,28 +74,17 @@ asistente), `requireRole(roles)` (legacy — en rutas admin nuevas usar RBAC), `
 (x-api-key para servicios externos, ej. `POST /notifications`) y `externalWebhookAuthenticate` (api key por
 query string, para webhooks).
 
-## `res.locals.auditContext`
+## Contexto de la operación
 
-Lo setea `auditContextMiddleware`: `{ correlationId, ip, userAgent, fingerprintHash, method, path, query,
-body, timestamp, source }`. Se usa para construir el `_auditCtx` que el controller pasa al service:
-
-```js
-function _auditCtx(req, res) {
-  return {
-    adminUserId: req.user.userId,
-    adminFirstName: req.user.firstName,
-    ipAddress: res.locals.auditContext.ip,
-    userAgent: res.locals.auditContext.userAgent
-  };
-}
-```
-
-> El ip/userAgent/correlationId también los toma `logAudit`/`logger` solos vía AsyncLocalStorage; el
-> `_auditCtx` se usa cuando el service necesita esos datos explícitos (ej. para persistir o notificar).
+`operationMiddleware` deja el contexto en AsyncLocalStorage (`requestContext.get()`) y una copia en
+`res.locals.auditContext`: `{ correlationId, source, name, ip, userAgent, fingerprintHash, method, path }`;
+`auth.middleware` le agrega `userId` y `sessionId` al autenticar. Logger, auditoría y llamadas externas lo
+toman solos. Los controllers admin arman el contexto del actor con `adminAuditContext(req, res)` cuando el
+service necesita esos datos explícitos (para persistir o notificar).
 
 ## Errores — `AppError` + handler global
 
-`shared/utils/app-error.util.ts` — lanzar SIEMPRE `AppError` (nunca `throw 'string'`), sin try/catch en
+`src/shared/http/app-error.util.ts` — lanzar SIEMPRE `AppError` (nunca `throw 'string'`), sin try/catch en
 controllers/validators (el `asyncHandler` reenvía al handler global).
 
 | Factory                                                | HTTP | code                 |
@@ -119,16 +102,15 @@ controllers/validators (el `asyncHandler` reenvía al handler global).
 El 2º arg `details` suele llevar `{ code: 'CODIGO_NEGOCIO' }` para que el front discrimine (ej.
 `{ code: 'MFA_REQUIRED' }`, `{ code: 'DUAL_APPROVAL_SAME_AS_MAKER' }`).
 
-`shared/middlewares/error.middleware.ts`:
+`src/shared/http/error.middleware.ts`:
 
 - `asyncHandler(fn)` envuelve el handler async y reenvía rechazos a `handleError`.
-- `handleError`: loguea, **audita el fallo** (`outcome: 'failure'`, mapeando el error a una acción:
-  401→`AUTH_FAILURE`, 403→`ACCESS_DENIED`, 400/422→`VALIDATION_FAILURE`, 404→`RESOURCE_NOT_FOUND`,
-  409/429→`BUSINESS_RULE_VIOLATION`, resto→`SYSTEM_ERROR`), y responde. Mapea también errores de Prisma (P2002 duplicado, P2025 no encontrado…), JWT y Multer.
+- `handleError`: loguea, guarda el error en la operación (`operations.error_code`/`error_message`) y responde. Solo
+  los rechazos de seguridad se auditan además: 401→`AUTH_FAILURE`, 403→`ACCESS_DENIED`. Mapea también errores de Prisma (P2002 duplicado, P2025 no encontrado…), JWT y Multer.
 
 ## Respuestas — `ApiResponse`
 
-`shared/utils/app-response.util.ts`. Éxitos: `success(res, msg, data, statusCode=200, metadata)`,
+`src/shared/http/app-response.util.ts`. Éxitos: `success(res, msg, data, statusCode=200, metadata)`,
 `created` (201), `accepted` (202, doble aprobación), `noContent` (204). Errores:
 `badRequest/unauthorized/forbidden/notFound/conflict/tooManyRequests/validationError/error`.
 
@@ -141,7 +123,7 @@ capa C del enmascaramiento, invisible desde el controller. Detalle en `docs/pii-
 
 ## Rate limit y request lock
 
-- `rate-limit.middleware.ts`: `apiLimiter()` (autenticados), `authLimiter()`/`loginIpLimiter()` (login),
+- `rate-limit.middleware.ts`: `apiLimiter()` (autenticados), `authLimiter()` (login; la capa por IP del login es `LoginIpLimiterMiddleware` en `modules/iam`),
   `forgotPasswordLimiter()`, `publicLimiter()`, `assistantLimiter()` (chat público). Store híbrido Redis +
   memoria; al exceder → 429 con `Retry-After`.
 - `request-lock.middleware.ts`: `forAuthenticatedUsers()` / `forPublicEndpoints()`. Lock por
@@ -151,10 +133,10 @@ capa C del enmascaramiento, invisible desde el controller. Detalle en `docs/pii-
 
 ## Correlation y trazabilidad
 
-`correlation.middleware.ts` toma `x-correlation-id`/`x-request-id` del cliente o genera
-`req-{ts}-{rand}`, lo pone en `req.correlationId` y en el header `X-Correlation-Id` de la respuesta.
-Todos los logs (`logger.*`, `logAudit`) lo incluyen automáticamente → se puede rastrear un request
-de punta a punta.
+El `correlationId` es el id de la operación: lo genera siempre el servidor y lo devuelve en el header
+`X-Correlation-Id` (el que mande el cliente se guarda aparte como `client_request_id`). Todos los logs, los
+registros de auditoría y las llamadas a proveedores externos lo llevan: `GET /admin/api/v1/records/audit/operations/:id`
+reconstruye la operación completa.
 
 ## Gotchas
 
@@ -162,4 +144,4 @@ de punta a punta.
 - No try/catch en controllers; usar `asyncHandler` + lanzar `AppError` en el service.
 - No desestructurar `{ data, metadata }` en el controller — pasar el resultado del service directo a `ApiResponse.success`.
 - Sin Redis, auth/rate-limit/lock tienen fallback a BD/memoria (los logouts se respetan vía `UserSession` en BD).
-- Nunca loguear datos sensibles; el auditContext ya sanitiza body/query (password, token, nationalId, email…).
+- Nunca loguear datos sensibles; el logger redacta igual los campos conocidos (password, token, nationalId, email…).

@@ -8,14 +8,14 @@
 
 ```ts
 import MyService from '../services/my.service';
-import ApiResponse from '../../../../shared/utils/app-response.util';
-import errorMiddlewareModule from '../../../../shared/middlewares/error.middleware';
+import ApiResponse from '../../../../src/shared/http/app-response.util';
+import errorMiddlewareModule from '../../../../src/shared/http/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
-import routeParamUtilModule from '../../../../shared/utils/route-param.util';
+import routeParamUtilModule from '../../../../src/shared/http/route-param.util';
 const { routeParam } = routeParamUtilModule;
-import authUserUtilModule from '../../../../shared/utils/auth-user.util';
+import authUserUtilModule from '../../../../src/modules/iam/utils/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
-import adminAuditContextUtilModule from '../../../../shared/utils/admin-audit-context.util';
+import adminAuditContextUtilModule from '../../../../src/modules/audit/utils/admin-audit-context.util';
 const { adminAuditContext } = adminAuditContextUtilModule;
 
 class MyController {
@@ -46,13 +46,13 @@ export default new MyController();
 ## Service (con paginación)
 
 ```ts
-import type { AdminAuditContext } from '../../../../shared/types/audit-context';
-import AppError from '../../../../shared/utils/app-error.util';
-import PaginationHelper from '../../../../shared/utils/pagination.util';
-import loggerUtilModule from '../../../../shared/utils/logger.util';
-const { logAudit } = loggerUtilModule;
-import unitOfWork from '../../../../shared/database/unit-of-work';
-import myRepository from '../../../schemas/{dominio}/repositories/my.repository';
+import type { AdminAuditContext } from '../../../../src/shared/types/audit-context';
+import AppError from '../../../../src/shared/http/app-error.util';
+import PaginationHelper from '../../../../src/shared/http/pagination.util';
+import auditModule from '../../audit';
+const { audit } = auditModule;
+import unitOfWork from '../../../../src/shared/database/unit-of-work';
+import myRepository from '../repositories/my.repository';
 import myDtoModule from '../dtos/my.dto';
 const { MyListResponseDTO, MyDetailResponseDTO } = myDtoModule;
 
@@ -82,12 +82,12 @@ class MyService {
       filters: searchTerm ? { search: searchTerm, ...filters } : filters
     };
 
-    logAudit(
-      'MY_RESOURCE_LIST_VIEWED',
-      adminUserId,
-      { totalItems: count, page: paginationParams.page },
-      { entityType: 'MyResource', entityTable: 'my_resources' }
-    );
+    await audit.record('MY_RESOURCE_LIST_VIEWED', {
+      actorId: adminUserId,
+      details: { totalItems: count, page: paginationParams.page },
+      entityType: 'MyResource',
+      entityTable: 'my_resources'
+    });
 
     return MyListResponseDTO(rows, metadata);
   }
@@ -97,7 +97,7 @@ class MyService {
     if (!record) {
       throw AppError.notFound('Recurso no encontrado');
     }
-    logAudit('MY_RESOURCE_VIEWED', adminUserId, {}, { entityId: id, entityType: 'MyResource', entityTable: 'my_resources' });
+    await audit.record('MY_RESOURCE_VIEWED', { actorId: adminUserId, entityId: id, entityType: 'MyResource', entityTable: 'my_resources' });
     return MyDetailResponseDTO(record);
   }
 
@@ -127,7 +127,7 @@ export default Object.assign(new MyService(), { MyService });
 > un filtro, crea un método con nombre de negocio en el repositorio (`findByNames`, `findActive`,
 > `searchPaginated`…). Los tipos de las filas sí: `import type { User } from '…/generated/prisma/client'`.
 > ✅ Si el service usa pocos métodos de un repositorio, declara el puerto con `Pick<XRepositoryPort, 'a' | 'b'>`
-> (`modules/schemas/repository-ports.ts`).
+> (`src/modules/repository-ports.ts`).
 > ✅ El objeto `metadata` siempre incluye: `totalItems, page, limit, sortBy, order, filters`.
 > ✅ El service retorna directamente el resultado del DTO (que tiene `{ data, metadata }`).
 > ❌ No usar `PaginationHelper.buildMetadata()` — armar el objeto metadata manualmente como arriba.
@@ -137,7 +137,7 @@ export default Object.assign(new MyService(), { MyService });
 ## DTO de lista paginada
 
 ```ts
-import componentsCatalogDtoModule from '../../../../shared/dtos/kyc/components-catalog.dto';
+import componentsCatalogDtoModule from '../../../../src/modules/catalogs/dtos/catalog-components.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
 import componentsMyResourceDtoModule from '../../../../shared/dtos/{dominio}/components-myresource.dto';
 const { MyResourceComponent } = componentsMyResourceDtoModule;
@@ -156,14 +156,14 @@ export default { MyListResponseDTO };
 > ✅ Siempre `Array.isArray(rows) ? rows.map(...) : []` — nunca asumir que rows es array.
 >
 > ✅ **PII:** todo campo PII sale por `EncryptionUtil.safeDecrypt` + `MaskingUtil.maskXxx`, y los JSONB
-> propios por `MaskingUtil.redactPayload`. Campo nuevo → declararlo en `shared/constants/pii-fields.ts`.
+> propios por `MaskingUtil.redactPayload`. Campo nuevo → declararlo en `src/shared/constants/pii-fields.ts`.
 > Ver `docs/pii-masking.md`.
 > ✅ Siempre `MetadataDTO.build(metadata)` — nunca construir el objeto de paginación a mano en el DTO.
 
 ## Repository
 
 ```ts
-import PrismaRepository from '../../../../shared/repositories/prisma.repository';
+import PrismaRepository from '../../../../src/shared/database/prisma.repository';
 import { Prisma } from '../../../../shared/database/generated/prisma/client';
 import type { MyEntity } from '../../../../shared/database/generated/prisma/client';
 
@@ -203,12 +203,12 @@ export default new MyRepository();
 > ✅ Filtros, `include` y `select` viven aquí, detrás de métodos con nombre de negocio:
 > `findByNames(names, { exclude })`, `findPaginatedWithDeviceAndUser(where, pagination)`. El service no
 > arma `where` de Prisma.
-> ✅ PII: se lee y escribe en claro (la extensión de `shared/database/prisma.ts` cifra y hashea); para buscar
-> por un campo cifrado se filtra por su hash (`hashValue()` de `shared/database/pii-fields`).
+> ✅ PII: se lee y escribe en claro (la extensión de `src/shared/database/prisma.ts` cifra y hashea); para buscar
+> por un campo cifrado se filtra por su hash (`hashValue()` de `src/shared/database/pii-fields`).
 > ✅ Escrituras que deben quedar aunque el flujo se revierta (bitácoras) → `this.independentDb()`.
 > ✅ `sortBy` llega en camelCase (`createdAt`; acepta `created_at`) y `paginationArgs` solo ordena por
 > campos del modelo.
-> ✅ Los enums de dominio (estados, catálogos cerrados) se leen de `shared/constants/domain-enums.ts`.
+> ✅ Los enums de dominio (estados, catálogos cerrados) se leen de `src/shared/constants/domain-enums.ts`.
 
 ## Routes (admin)
 
@@ -217,13 +217,13 @@ import express from 'express';
 const router = express.Router();
 import MyController from '../controllers/my.controller';
 import MyValidator from '../validators/my.validator';
-import AuthMiddleware from '../../../../shared/middlewares/auth.middleware';
-import RateLimitMiddleware from '../../../../shared/middlewares/rate-limit.middleware';
-import RequestLockMiddleware from '../../../../shared/middlewares/request-lock.middleware';
-import RbacMiddleware from '../../../../shared/middlewares/rbac.middleware';
-import AuditAction from '../../../../shared/middlewares/audit-action.middleware';
-import ValidatorUtil from '../../../../shared/utils/validators.util';
-import rbacModule from '../../../../shared/constants/rbac';
+import AuthMiddleware from '../../../../src/modules/iam/middlewares/auth.middleware';
+import RateLimitMiddleware from '../../../../src/shared/http/rate-limit.middleware';
+import RequestLockMiddleware from '../../../../src/shared/http/request-lock.middleware';
+import RbacMiddleware from '../../../../src/modules/iam/middlewares/rbac.middleware';
+import AuditAction from '../../../../src/modules/audit/middlewares/audit-action.middleware';
+import ValidatorUtil from '../../../../src/shared/http/validators.util';
+import rbacModule from '../../../../src/shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
 router.get(
@@ -235,14 +235,11 @@ router.get(
   // DualApprovalMiddleware.require('OP_KEY', {...}),  ← SOLO en operaciones sensibles (write)
   MyValidator.listQuery(),
   ValidatorUtil.handleValidationErrors,
-  AuditAction.declare('MY_RESOURCE_LIST', { entityType: 'MyResource', entityTable: 'my_resources' }),
   MyController.list
 );
 
 export default router;
 ```
-
-> ✅ `AuditAction.declare(...)` va **siempre**, justo antes del controller (incluidos los GET).
 
 > ✅ En rutas admin siempre usar `RbacMiddleware.requirePermission(RBAC_MODULE, RBAC_ACTION)`.
 > ✅ El módulo y la acción deben calzar semánticamente con lo que hace el endpoint.
@@ -252,7 +249,7 @@ export default router;
 
 ```ts
 import { body, query } from 'express-validator';
-import BaseValidator from '../../../../shared/validators/base.validator';
+import BaseValidator from '../../../../src/shared/http/base.validator';
 
 class MyValidator {
   static listQuery() {

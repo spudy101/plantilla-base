@@ -35,7 +35,7 @@ GET  /records/audit/sessions/:sessionId/entities   (read — hidratación por lo
 ```
 > **No confundir con Sesiones Activas (`activeSessions`, dominio `auth`).** Esa es *control* (ver activas,
 > revocar). Esta es *investigación*: qué se hizo en una sesión y contra qué filas. El timeline sale de
-> `audit_logs`. Detalle: `docs/audit-and-alerts.md` y `docs/origin-session-tracking.md`.
+> `audit_logs`. Detalle: `docs/audit-and-observability.md` y `docs/origin-session-tracking.md`.
 
 ## Catálogo de Acciones de Auditoría — `RBAC: auditActionCatalog`
 ```

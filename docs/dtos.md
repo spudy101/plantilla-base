@@ -14,7 +14,7 @@
 
 **Capa 1 — Componentes shared (`shared/dtos/{dominio}/`)**: clases con métodos estáticos
 `build()`, `buildList()`, `buildDetail()`, `buildArray()`. Mapean desde las filas de Prisma (campos camelCase).
-La estructura espeja `modules/schemas/`. Cada dominio tiene un barrel `index.ts` que re-exporta todo.
+Cada módulo tiene sus componentes en `src/modules/<dominio>/dtos/*-components.dto.ts`; otro módulo los usa a través del `index.ts` del dueño.
 
 ```
 shared/dtos/
@@ -29,7 +29,7 @@ componentes shared. No repiten mapeo.
 
 ```ts
 // ✅ delega
-import componentsAuditDtoModule from '../../../../shared/dtos/audit/components-audit.dto';
+import componentsAuditDtoModule from '../../../../src/modules/audit/dtos/audit-components.dto';
 const { ConsentTypeComponent } = componentsAuditDtoModule;
 const ConsentTypeListDTO = record => ConsentTypeComponent.buildList(record);
 
@@ -59,7 +59,7 @@ class XyzComponent {
 ## DTO de lista paginada (patrón)
 
 ```ts
-import componentsCatalogDtoModule from '../../../../shared/dtos/kyc/components-catalog.dto';
+import componentsCatalogDtoModule from '../../../../src/modules/catalogs/dtos/catalog-components.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
 import componentsMyresourceDtoModule from '../../../../shared/dtos/{dominio}/components-myresource.dto';
 const { MyResourceComponent } = componentsMyresourceDtoModule;
@@ -84,14 +84,14 @@ No aplicar conversión sobre esos valores (evita alterar validators/migraciones)
 
 ## Mapa dominio → componente shared
 
-La estructura de `shared/dtos/` espeja `modules/schemas/`. En el template base:
+Componentes por dominio en el template base:
 
 | Dominio (`schemas/`) | Componente shared                                                                       |
 | -------------------- | --------------------------------------------------------------------------------------- |
-| audit                | `shared/dtos/audit/components-audit.dto.ts`                                              |
+| audit                | `src/modules/audit/dtos/audit-components.dto.ts`                                              |
 | core                 | `shared/dtos/core/` (components-approval, components-system-config)                      |
 | kyc                  | `shared/dtos/kyc/` (components-person, components-auth, components-catalog: Metadata/Pagination/Sort) |
-| notification         | `shared/dtos/notification/components-notification.dto.ts`                               |
+| notification         | `src/modules/notification/dtos/notification-components.dto.ts`                               |
 
 > Un JSONB propio (`metadata`, `details`, etc.) que llegue snake_case desde la BD no se asigna crudo al DTO:
 > se pasa por `redactPayload` (enmascara PII) y, si el front espera camelCase, se normaliza campo a campo.

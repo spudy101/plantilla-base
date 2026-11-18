@@ -1,8 +1,8 @@
 # RBAC — control de acceso basado en roles — guía de onboarding
 
 > Cableado en rutas: ver `docs/request-flow.md`.
-> Matriz y constantes: `shared/constants/rbac.js`. Resolución: `shared/services/rbac.service.js`.
-> Middleware: `shared/middlewares/rbac.middleware.js`.
+> Matriz y constantes: `src/shared/constants/rbac.ts`. Resolución: `src/modules/iam/services/rbac.service.ts`.
+> Middleware: `src/modules/iam/middlewares/rbac.middleware.ts`.
 
 > **Binding módulo ↔ routes ↔ roles (autoritativo desde el back):** `docs/rbac/modulos/` — un `.md` por
 > agrupación de menú. Cada uno define, para su grupo de `RBAC_MODULE_GROUPS`, qué módulo lo gobierna, qué

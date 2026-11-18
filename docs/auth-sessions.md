@@ -11,7 +11,7 @@ propios** (`JwtUtil`) + estado en Redis (`TokenBlacklistUtil`, `RefreshTokenStor
 > **Control vs. forense.** `/auth/sessions` (+ `logout*`, `devices`) es **control**: ver y revocar lo que está
 > vivo. La traza forense —qué se hizo en una sesión ya cerrada, contra qué filas— es otra API, read-only y
 > admin: `GET /records/audit/sessions[/:sessionId[/entities]]` (módulo RBAC `globalLogs`), documentada en
-> `docs/audit-and-alerts.md` junto con la columna `origin_session_id`.
+> `docs/audit-and-observability.md` junto con la columna `origin_session_id`.
 
 ---
 
@@ -19,16 +19,16 @@ propios** (`JwtUtil`) + estado en Redis (`TokenBlacklistUtil`, `RefreshTokenStor
 
 | Pieza                                                             | Archivo                                                                  |
 | ----------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Emisión/verificación JWT RS256 (access + refresh)                 | `shared/utils/jwt.util.ts`                                               |
-| Store de JTIs de refresh en Redis (rotación + reuse)              | `shared/utils/refresh-token-store.util.ts`                               |
-| Blacklist de tokens / umbrales de invalidación                    | `shared/utils/token-blacklist.util.ts`                                   |
-| Validación por request (firma + blacklist + inactividad 15 min)   | `shared/middlewares/auth.middleware.ts`                                  |
-| Login / refresh / logout / logout-all / sesiones                  | `modules/shared-endpoints/kyc/iam/services/auth-login.service.ts`        |
-| Login biométrico                                                  | `modules/client/kyc/iam/services/auth-biometric.service.ts`              |
-| Recuperación de credenciales (reset)                              | `modules/client/kyc/iam/services/auth-register.service.ts`               |
-| Revocación de sesión por admin                                    | `modules/admin/kyc/iam/services/admin-auth-session.service.ts`           |
-| Worker de expiración (inactividad + tope absoluto)                | `modules/schemas/kyc/iam/workers/session-expiration.worker.ts`           |
-| Modelo de sesión                                                  | `modules/schemas/kyc/iam/models/user-session.model.ts` (`user_sessions`) |
+| Emisión/verificación JWT RS256 (access + refresh)                 | `src/shared/security/jwt.util.ts`                                               |
+| Store de JTIs de refresh en Redis (rotación + reuse)              | `src/modules/iam/utils/refresh-token-store.util.ts`                               |
+| Blacklist de tokens / umbrales de invalidación                    | `src/modules/iam/utils/token-blacklist.util.ts`                                   |
+| Validación por request (firma + blacklist + inactividad 15 min)   | `src/modules/iam/middlewares/auth.middleware.ts`                                  |
+| Login / refresh / logout / logout-all / sesiones                  | `src/modules/iam/services/auth-login.service.ts`        |
+| Login biométrico                                                  | `src/modules/iam/services/auth-biometric.service.ts`              |
+| Recuperación de credenciales (reset)                              | `src/modules/iam/services/auth-register.service.ts`               |
+| Revocación de sesión por admin                                    | `src/modules/iam/services/admin-auth-session.service.ts`           |
+| Worker de expiración (inactividad + tope absoluto)                | `src/modules/iam/workers/session-expiration.worker.ts`           |
+| Modelo de sesión                                                  | `src/modules/iam/models/user-session.model.ts` (`user_sessions`) |
 
 ---
 
@@ -143,7 +143,7 @@ El refresh es **rotativo**. En cada uso:
    - **Redis no disponible** ⇒ fail-open, se deja pasar la rotación (una caída de infra no es un robo).
    - **Sesión cerrada en BD** (`status != 'active'`) ⇒ 401 `SESSION_CLOSED`. No es ataque: logout desde
      otro dispositivo, revocación del admin o worker de inactividad también revocan el JTI.
-   - **Resto** ⇒ **reuse attack**: `logAudit('REFRESH_TOKEN_REUSE_ATTACK')` +
+   - **Resto** ⇒ **reuse attack**: `audit.record('REFRESH_TOKEN_REUSE_ATTACK')` +
      `invalidateUserSessions(userId)` (mata TODAS las sesiones) + 401 `SESSION_COMPROMISED`.
 6. `RefreshTokenStore.revoke(jtiViejo)` **antes** de emitir el nuevo.
 7. Emite nuevo access + nuevo refresh (`newJti`, mismo `sessionId`) y `RefreshTokenStore.save(newJti)`.
@@ -202,7 +202,7 @@ Dos causas de cierre, cada una con dos mecanismos (reactivo en middleware + proa
 
 El worker consulta `findClosableActive(inactivityCutoff, absoluteCutoff)` (OR de ambas condiciones) y, por cada
 cierre: `closeSession(...,reason)` → `RefreshTokenStore.revoke(jti)` → `TokenBlacklistUtil.blacklistSession(sessionId)`
-→ `logAudit(action,'system',…)`, donde `reason`/`action` son `absolute_lifetime`/`SESSION_ABSOLUTE_EXPIRED` si superó
+→ `audit.record(action,'system',…)`, donde `reason`/`action` son `absolute_lifetime`/`SESSION_ABSOLUTE_EXPIRED` si superó
 las 8h, o `inactivity_timeout`/`SESSION_EXPIRED_BY_WORKER` si fue inactividad.
 
 > 🛡️ **Idempotencia anti-carrera.** `closeSession` solo afecta filas `status='active'`. El worker lee
@@ -229,7 +229,7 @@ de cualquier API.
 Todos los 401 salían con `code: 'UNAUTHORIZED'` y solo se distinguían por el texto del mensaje, así
 que el front no podía separar "el access venció, renová y reintentá" de "la sesión murió, andá a
 login" — y ante la duda deslogueaba. Ahora cada 401 lleva su código en **`details.code`** (mismo
-patrón que `MFA_REQUIRED`), catalogado en `shared/constants/index.ts#AUTH_ERROR_CODES`.
+patrón que `MFA_REQUIRED`), catalogado en `src/shared/constants/index.ts#AUTH_ERROR_CODES`.
 
 | `details.code`              | Origen                                                        | Qué debe hacer el front     |
 | --------------------------- | ------------------------------------------------------------- | --------------------------- |
@@ -282,11 +282,11 @@ sin binding de origin; `signCount` lo envía el cliente). Tras verificar la firm
 ## Reglas para tocar este dominio
 
 - Cerrar **una** sesión ⇒ `closeSession` + `RefreshTokenStore.revoke(jti)` + `TokenBlacklistUtil.blacklistSession(sessionId)`. Cerrar **todas** ⇒ `closeAllByUser*` + `invalidateUserSessions`.
-- `logAudit` de sesión/dispositivo: `entityType:'UserSession'`/`entityTable:'user_sessions'` y
+- `audit.record` de sesión/dispositivo: `entityType:'UserSession'`/`entityTable:'user_sessions'` y
   `entityType:'UserTrustedDevice'`/`entityTable:'user_trusted_devices'` (homologado).
 - Acciones de auditoría disparadas por workers usan `userId:'system'` (ej. `SESSION_EXPIRED_BY_WORKER`,
   `SESSION_ABSOLUTE_EXPIRED`).
-- No leer `process.env` fuera de `shared/constants/`. Inactividad unificada cliente+interno:
+- No leer `process.env` fuera de `src/shared/constants/`. Inactividad unificada cliente+interno:
   `SECURITY.SESSION_INACTIVITY_MINUTES` (15); tope absoluto: `SECURITY.ABSOLUTE_SESSION_LIFETIME_HOURS` (8);
   throttle de `last_access_at`: `SECURITY.SESSION_ACCESS_THROTTLE_SECONDS` (60); gracia de rotación:
   `SECURITY.REFRESH_ROTATION_GRACE_SECONDS` (60).
