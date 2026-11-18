@@ -7,6 +7,8 @@ z.config(z.locales.es());
 /** Pista para el usuario sobre cómo corregir el campo; llega al front en `errors[].hint`. */
 export interface FieldMeta {
   hint?: string;
+  /** Formato OpenAPI cuando el esquema no lo deduce (p. ej. una fecha que se convierte a Date). */
+  format?: string;
   description?: string;
   example?: unknown;
 }
