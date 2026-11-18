@@ -5,9 +5,12 @@
 
 import type { AdminAuditContext } from '../../../../shared/types/audit-context';
 import userRepository from '../../repositories/user.repository';
-import ProfileHelper from '../../../person/helpers/profile.helper';
-import NotificationCreationService from '../../../notification/services/notification-creation.service';
-import DualApprovalService from '../../../approvals/services/dual-approval.service';
+import personModule from '../../../person';
+const { ProfileHelper } = personModule;
+import notificationModule from '../../../notification';
+const { notificationCreationService: NotificationCreationService } = notificationModule;
+import approvalsModule from '../../../approvals';
+const { DualApprovalService } = approvalsModule;
 import unitOfWork from '../../../../shared/database/unit-of-work';
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
@@ -16,7 +19,8 @@ import constantsModule from '../../../../shared/constants';
 const { notifications } = constantsModule;
 import internalUserGuardsModule from './internal-user-guards';
 const { InternalUserGuards } = internalUserGuardsModule;
-import audit from '../../../audit/audit.service';
+import auditModule from '../../../audit';
+const { audit } = auditModule;
 
 class InternalUserDeletionService {
   unitOfWork: typeof unitOfWork;

@@ -5,16 +5,18 @@
 import type { AdminAuditContext } from '../../../../shared/types/audit-context';
 import userRepository from '../../repositories/user.repository';
 import roleRepository from '../../repositories/role.repository';
-import personRepository from '../../../person/repositories/person.repository';
-import documentTypeRepository from '../../../catalogs/repositories/document-type.repository';
+import personModule from '../../../person';
+const { personRepository, ProfileHelper, KycSharedUtil } = personModule;
+import catalogsModule from '../../../catalogs';
+const { documentTypeRepository } = catalogsModule;
 import InternalUserHelper from '../../helpers/internal-user.helper';
-import ProfileHelper from '../../../person/helpers/profile.helper';
-import KycSharedUtil from '../../../person/utils/kyc-shared.util';
-import NotificationCreationService from '../../../notification/services/notification-creation.service';
+import notificationModule from '../../../notification';
+const { notificationCreationService: NotificationCreationService } = notificationModule;
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
-import auditDiffUtilModule from '../../../audit/utils/audit-diff.util';
+import auditModule from '../../../audit';
+const { auditDiffUtil: auditDiffUtilModule, audit } = auditModule;
 const { buildAuditDiff } = auditDiffUtilModule;
 import constantsModule from '../../../../shared/constants';
 const { RBAC_ROLES, notifications } = constantsModule;
@@ -22,8 +24,6 @@ import adminUserDtoModule from '../../dtos/admin-user.dto';
 const { InternalUserDTO, InternalUserCreatedDTO } = adminUserDtoModule;
 import internalUserGuardsModule from './internal-user-guards';
 const { InternalUserGuards } = internalUserGuardsModule;
-import audit from '../../../audit/audit.service';
-
 class InternalUserProfileService {
   userRepository: typeof userRepository;
   roleRepository: typeof roleRepository;

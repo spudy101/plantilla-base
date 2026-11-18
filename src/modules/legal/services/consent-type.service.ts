@@ -4,15 +4,18 @@ import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import PaginationHelper from '../../../shared/http/pagination.util';
-import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
+import catalogsModule from '../../catalogs';
+const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
 import consentTypeRepository from '../repositories/consent-type.repository';
-import NotificationUtil from '../../notification/services/notification-creation.service';
+import notificationModule from '../../notification';
+const { notificationCreationService: NotificationUtil } = notificationModule;
 import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
 import consentTypeDtoModule from '../dtos/consent-type.dto';
 const { ConsentTypeListDTO, ConsentTypeDTO } = consentTypeDtoModule;
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 class ConsentTypeService {
   consentTypeRepository: typeof consentTypeRepository;

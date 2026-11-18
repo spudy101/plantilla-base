@@ -6,7 +6,7 @@ import redisClient from '../infra/redis.util';
 import localCache from '../infra/cache.util';
 import EncryptionUtil from '../security/encryption.util';
 import ApiResponse from './app-response.util';
-import authUserUtil from '../../modules/iam/utils/auth-user.util';
+import authUserUtil from './auth-user.util';
 
 const { requireAuthUser } = authUserUtil;
 import loggerUtilModule from '../observability/logger.util';

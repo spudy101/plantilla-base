@@ -1,7 +1,8 @@
 import type { NotificationCategoryRow } from '../repositories/notification-category.repository';
 import componentsNotificationDtoModule from './notification-components.dto';
 const { NotificationCategoryComponent } = componentsNotificationDtoModule;
-import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
+import catalogsModule from '../../catalogs';
+const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
 
 // El admin ve el layout de email completo (includeLayout = true).

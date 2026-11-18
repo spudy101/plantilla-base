@@ -86,6 +86,28 @@ Los tests unitarios viven **al lado del archivo que prueban**: `foo.service.ts` 
 4. **Interfaces solo donde hay más de una implementación real** (p. ej. proveedores con fallback).
 5. **Las reglas se verifican con tests** (`tests/unit/guards/`), no con buena voluntad.
 
+### Cómo se usa otro módulo
+
+```ts
+import iamModule from '../../iam';
+const { AuthMiddleware, userRepository } = iamModule;
+import type { UserProfileRow } from '../../iam';
+```
+
+El `index.ts` de cada módulo es un objeto con getters: cada export se carga recién al usarse. Los
+módulos se usan entre sí (iam ↔ audit, iam ↔ notification…) y un `index` que cargara todo de una vez
+generaría ciclos de carga. Para exponer algo nuevo, se agrega un getter al `index.ts` del módulo.
+
+### Cómo usa `shared/` algo de un módulo
+
+No lo importa: publica un punto de registro y `src/app.ts` le conecta el módulo dueño al arrancar.
+
+| `shared/` necesita… | Punto de registro | Lo provee |
+|---|---|---|
+| Auditar un evento de infraestructura (worker caído, Redis, 401/403) | `registerAuditSink` | `modules/audit` |
+| Persistir una llamada a un proveedor externo | `registerIntegrationLogWriter` | `modules/integration` |
+| Leer la configuración de resiliencia | `registerResilienceSource` | `modules/settings` |
+
 ## ¿Dónde va esto?
 
 | Quiero… | Va en |

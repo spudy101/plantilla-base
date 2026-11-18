@@ -1,4 +1,5 @@
-import type { UserRepositoryPort } from '../../../repository-ports';
+import type userRepositoryModule from '../../repositories/user.repository';
+type UserRepositoryPort = typeof userRepositoryModule;
 type UserRepositoryFilters = NonNullable<Parameters<UserRepositoryPort['findAllPaginated']>[0]>;
 // modules/admin/kyc/iam/services/admin-user/internal-user-query.service.ts
 //
@@ -8,10 +9,13 @@ type UserRepositoryFilters = NonNullable<Parameters<UserRepositoryPort['findAllP
 import userRepository from '../../repositories/user.repository';
 import roleRepository from '../../repositories/role.repository';
 import userSessionRepository from '../../repositories/user-session.repository';
-import userChangeLogRepository from '../../../audit/repositories/change-log.repository';
-import DualApprovalService from '../../../approvals/services/dual-approval.service';
+import auditModule from '../../../audit';
+const { userChangeLogRepository, audit } = auditModule;
+import approvalsModule from '../../../approvals';
+const { DualApprovalService } = approvalsModule;
 import PaginationHelper from '../../../../shared/http/pagination.util';
-import componentsCatalogDtoModule from '../../../catalogs/dtos/catalog-components.dto';
+import catalogsModule from '../../../catalogs';
+const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
 import constantsModule from '../../../../shared/constants';
 const { INTERNAL_ROLE_NAMES, SUPERADMIN_ROLE_NAMES } = constantsModule;
@@ -25,8 +29,6 @@ const {
 } = adminUserDtoModule;
 import internalUserGuardsModule from './internal-user-guards';
 const { InternalUserGuards } = internalUserGuardsModule;
-import audit from '../../../audit/audit.service';
-
 const ENTITY = { entityType: 'InternalUser', entityTable: 'users' };
 
 class InternalUserQueryService {

@@ -8,9 +8,8 @@ import type { RequestAuditContext } from '../../../../shared/types/audit-context
 import crypto from 'node:crypto';
 import unitOfWork from '../../../../shared/database/unit-of-work';
 import userRepository from '../../repositories/user.repository';
-import verificationCodeRepository from '../../../notification/repositories/verification-code.repository';
-import NotificationUtil from '../../../notification/services/notification-creation.service';
-import SmsService from '../../../notification/services/sms.service';
+import notificationModule from '../../../notification';
+const { verificationCodeRepository, notificationCreationService: NotificationUtil, SmsService } = notificationModule;
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
@@ -22,7 +21,8 @@ import MfaAccount from './mfa-account';
 import errorMessageModule from '../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
-import audit from '../../../audit/audit.service';
+import auditModule from '../../../audit';
+const { audit } = auditModule;
 
 
 const OTP_EXPIRATION_MINUTES = 15;

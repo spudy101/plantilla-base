@@ -13,7 +13,8 @@ import NotificationCountUtil from '../utils/notification-count.util';
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 
 class NotificationService {

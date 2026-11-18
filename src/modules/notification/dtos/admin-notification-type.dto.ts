@@ -4,7 +4,8 @@ import type { NotificationTypeWithCategory } from '../repositories/notification-
 import componentsNotificationDtoModule from './notification-components.dto';
 const { NotificationTypeComponent } = componentsNotificationDtoModule;
 
-import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
+import catalogsModule from '../../catalogs';
+const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
 
 /**

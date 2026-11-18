@@ -7,9 +7,10 @@ import type { RequestAuditContext } from '../../../../shared/types/audit-context
 
 import crypto from 'node:crypto';
 import userRepository from '../../repositories/user.repository';
-import userLoginAttemptRepository from '../../../audit/repositories/user-login-attempt.repository';
-import verificationCodeRepository from '../../../notification/repositories/verification-code.repository';
-import SmsService from '../../../notification/services/sms.service';
+import auditModule from '../../../audit';
+const { userLoginAttemptRepository, audit } = auditModule;
+import notificationModule from '../../../notification';
+const { verificationCodeRepository, SmsService } = notificationModule;
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
@@ -20,9 +21,6 @@ const { MFARequiredResponseDTO } = authLoginDtoModule;
 import errorMessageModule from '../../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
-import audit from '../../../audit/audit.service';
-
-
 // ============================================================
 // CONSTANTES
 // ============================================================

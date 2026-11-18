@@ -1,4 +1,5 @@
-import componentsAuditDtoModule from '../../audit/dtos/audit-components.dto';
+import auditModule from '../../audit';
+const { auditComponentsDto: componentsAuditDtoModule } = auditModule;
 const { ConsentTypeComponent } = componentsAuditDtoModule;
 
 const ConsentTypeListDTO = (record: Parameters<typeof ConsentTypeComponent.buildList>[0]) => ConsentTypeComponent.buildList(record);

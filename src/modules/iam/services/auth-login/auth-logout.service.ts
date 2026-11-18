@@ -6,10 +6,12 @@
 import userSessionRepository from '../../repositories/user-session.repository';
 import trustedDeviceRepository from '../../repositories/auth-trusted-device.repository';
 import TokenBlacklistUtil from '../../utils/token-blacklist.util';
-import NotificationUtil from '../../../notification/services/notification-creation.service';
+import notificationModule from '../../../notification';
+const { notificationCreationService: NotificationUtil } = notificationModule;
 import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
-import audit from '../../../audit/audit.service';
+import auditModule from '../../../audit';
+const { audit } = auditModule;
 
 class AuthLogoutService {
   userSessionRepository: typeof userSessionRepository;

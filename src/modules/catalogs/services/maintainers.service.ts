@@ -6,9 +6,12 @@ import avatarThemeRepository from '../repositories/avatar-theme.repository';
 import countryRepository from '../repositories/country.repository';
 import departmentRepository from '../repositories/department.repository';
 import cityRepository from '../repositories/city.repository';
-import privacyPolicyRepository from '../../legal/repositories/privacy-policy.repository';
-import roleRepository from '../../iam/repositories/role.repository';
-import notificationTypeRepository from '../../notification/repositories/notification-type.repository';
+import legalModule from '../../legal';
+const { privacyPolicyRepository } = legalModule;
+import iamModule from '../../iam';
+const { roleRepository } = iamModule;
+import notificationModule from '../../notification';
+const { notificationTypeRepository } = notificationModule;
 import AppError from '../../../shared/http/app-error.util';
 import PaginationHelper from '../../../shared/http/pagination.util';
 import type PrismaRepository from '../../../shared/database/prisma.repository';
@@ -16,7 +19,9 @@ import componentsCatalogDtoModule from '../dtos/catalog-components.dto';
 const { MetadataDTO } = componentsCatalogDtoModule;
 import redisClient from '../../../shared/infra/redis.util';
 import maintainersDtoModule from '../dtos/maintainers.dto';
-import audit, { type AuditActionKey } from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
+import type { AuditActionKey } from '../../audit';
 const {
   ListGendersResponseDTO,
   ListDocumentTypesResponseDTO,

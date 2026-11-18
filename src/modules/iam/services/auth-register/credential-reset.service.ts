@@ -10,11 +10,12 @@ type ResetUser = ResetTokenWithUser['user'];
 
 import crypto from 'node:crypto';
 import userRepository from '../../repositories/user.repository';
-import personContactRepository from '../../../person/repositories/person-contact.repository';
+import personModule from '../../../person';
+const { personContactRepository, KycSharedUtil } = personModule;
 import resetCredentialsRepository from '../../repositories/reset-credentials.repository';
 import userSessionRepository from '../../repositories/user-session.repository';
-import NotificationUtil from '../../../notification/services/notification-creation.service';
-import KycSharedUtil from '../../../person/utils/kyc-shared.util';
+import notificationModule from '../../../notification';
+const { notificationCreationService: NotificationUtil } = notificationModule;
 import TokenBlacklistUtil from '../../utils/token-blacklist.util';
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
@@ -22,7 +23,8 @@ const { logger } = loggerUtilModule;
 import unitOfWork from '../../../../shared/database/unit-of-work';
 import constantsModule from '../../../../shared/constants';
 const { frontend, SECURITY, notifications } = constantsModule;
-import audit from '../../../audit/audit.service';
+import auditModule from '../../../audit';
+const { audit } = auditModule;
 
 const RESET_TOKEN_BYTES = 32;
 const MS_PER_MINUTE = 60 * 1000;

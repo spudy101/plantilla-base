@@ -2,7 +2,8 @@
 // === RF-AUTH-03 (admin): Gestión de Dispositivos Autenticados y Control de Sesiones ===
 
 import userSessionRepository from '../repositories/user-session.repository';
-import auditLogRepository from '../../audit/repositories/audit-log.repository';
+import auditModule from '../../audit';
+const { auditLogRepository, audit } = auditModule;
 import RefreshTokenStore from '../utils/refresh-token-store.util';
 import TokenBlacklistUtil from '../utils/token-blacklist.util';
 import AppError from '../../../shared/http/app-error.util';
@@ -10,14 +11,13 @@ import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
-import NotificationCreationService from '../../notification/services/notification-creation.service';
+import notificationModule from '../../notification';
+const { notificationCreationService: NotificationCreationService } = notificationModule;
 import PaginationHelper from '../../../shared/http/pagination.util';
 import domainEnumsModule from '../../../shared/constants/domain-enums';
 const { USER_SESSION_STATUS } = domainEnumsModule;
 import adminAuthSessionDtoModule from '../dtos/admin-auth-session.dto';
 const { SessionListDTO, AuthAttemptListDTO } = adminAuthSessionDtoModule;
-import audit from '../../audit/audit.service';
-
 const AUTH_CATEGORY = 'Autenticación';
 const DEFAULT_DATE_FROM = new Date('2000-01-01');
 

@@ -3,13 +3,9 @@
 // ResilienceConfig: resuelve la config de resiliencia de integraciones desde
 // SystemGlobalConfig.integration_resilience (snake_case), la mapea a camelCase,
 // la cachea 60s y NUNCA lanza (fallback duro / último valor ante error de BD).
-// Mockeamos el repositorio (nada de BD) y el logger.
+// La fuente (en la app, el módulo settings) se registra con un doble; el logger va mockeado.
 
 const mockFindOne = jest.fn();
-
-jest.mock('../../modules/settings/repositories/system-global-config.repository', () => ({
-  findActiveResilience: (...args: unknown[]) => mockFindOne(...args)
-}));
 
 jest.mock('../observability/logger.util', () => ({
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn(), debug: jest.fn() }
@@ -23,6 +19,8 @@ import ResilienceConfig from './resilience-config.util';
 describe('ResilienceConfig', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Misma forma que registra src/app.ts: la fila activa → su integrationResilience
+    ResilienceConfig.registerResilienceSource(async () => ((await mockFindOne()) as { integrationResilience?: unknown } | null)?.integrationResilience);
     ResilienceConfig._resetCache();
   });
 

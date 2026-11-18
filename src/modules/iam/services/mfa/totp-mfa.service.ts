@@ -6,7 +6,8 @@
 import type { RequestAuditContext } from '../../../../shared/types/audit-context';
 import unitOfWork from '../../../../shared/database/unit-of-work';
 import userRepository from '../../repositories/user.repository';
-import NotificationUtil from '../../../notification/services/notification-creation.service';
+import notificationModule from '../../../notification';
+const { notificationCreationService: NotificationUtil } = notificationModule;
 import TotpUtil from '../../../../shared/security/totp.util';
 import EncryptionUtil from '../../../../shared/security/encryption.util';
 import AppError from '../../../../shared/http/app-error.util';
@@ -15,7 +16,8 @@ const { logger } = loggerUtilModule;
 import mfaDtoModule from '../../dtos/mfa.dto';
 const { TOTPSetupResponseDTO, TOTPActivationResponseDTO, TOTPVerificationResponseDTO } = mfaDtoModule;
 import MfaAccount from './mfa-account';
-import audit from '../../../audit/audit.service';
+import auditModule from '../../../audit';
+const { audit } = auditModule;
 
 const ENTITY = { entityType: 'User', entityTable: 'users' };
 

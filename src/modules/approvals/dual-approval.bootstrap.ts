@@ -11,8 +11,10 @@ import loggerUtilModule from '../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import DualApproval from './services/dual-approval.service';
 
-import AdminUserService from '../iam/services/admin-user.service';
-import PersonService from '../person/services/admin-person.service';
+import iamModule from '../iam';
+const { AdminUserService } = iamModule;
+import personModule from '../person';
+const { PersonService } = personModule;
 
 function registerDualApprovalHandlers() {
   // RBAC — cambio de rol de usuario interno. Reanuda con executeChangeRole (no re-gatea).

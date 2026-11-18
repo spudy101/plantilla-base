@@ -1,7 +1,8 @@
 import type { PrivacyPolicy } from '../../../shared/database/generated/prisma/client';
 // modules/admin/privacy-policy/dtos/privacy-policy-admin.dto.ts
 
-import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
+import catalogsModule from '../../catalogs';
+const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
 
 // ============================================================

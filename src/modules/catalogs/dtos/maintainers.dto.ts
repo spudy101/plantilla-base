@@ -12,7 +12,8 @@ const {
 } = componentsCatalogDtoModule;
 
 import type { DocumentType, PrivacyPolicy } from '../../../shared/database/generated/prisma/client';
-import componentsNotificationDtoModule from '../../notification/dtos/notification-components.dto';
+import notificationModule from '../../notification';
+const { notificationComponentsDto: componentsNotificationDtoModule } = notificationModule;
 const { NotificationTypeComponent } = componentsNotificationDtoModule;
 
 /**

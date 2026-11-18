@@ -1,13 +1,15 @@
 import notificationTypeRepository from '../repositories/notification-type.repository';
 import notificationCategoryRepository from '../repositories/notification-category.repository';
-import userRepository from '../../iam/repositories/user.repository';
+import iamModule from '../../iam';
+const { userRepository } = iamModule;
 import NotificationUtil from './notification-creation.service';
 import AppError from '../../../shared/http/app-error.util';
 import PaginationHelper from '../../../shared/http/pagination.util';
 import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
 import adminNotificationTypeDtoModule from '../dtos/admin-notification-type.dto';
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 const {
   ListNotificationTypesResponseDTO,
   UpdateNotificationTypeResponseDTO,

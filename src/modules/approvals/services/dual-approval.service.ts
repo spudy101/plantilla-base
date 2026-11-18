@@ -20,27 +20,32 @@ import businessHoursUtilModule from '../utils/business-hours.util';
 const { addBusinessHours } = businessHoursUtilModule;
 import PaginationHelper from '../../../shared/http/pagination.util';
 import approvalRequestRepository from '../repositories/approval-request.repository';
-import userRepository from '../../iam/repositories/user.repository';
-import NotificationCreationService from '../../notification/services/notification-creation.service';
+import iamModule from '../../iam';
+const { userRepository } = iamModule;
+import notificationModule from '../../notification';
+const { notificationCreationService: NotificationCreationService } = notificationModule;
 import DualApprovalNotifierService from './dual-approval/dual-approval-notifier.service';
 import domainEnumsModule from '../../../shared/constants/domain-enums';
 const { APPROVAL_REQUEST_STATUS } = domainEnumsModule;
 import dualApprovalModule from '../../../shared/constants/dual-approval';
 import type DualApprovalConstants from '../../../shared/constants/dual-approval';
-import type { SystemGlobalConfigRepositoryPort } from '../../repository-ports';
+import type settingsModule from '../../settings';
+type SystemGlobalConfigRepositoryPort = (typeof settingsModule)['systemGlobalConfigRepository'];
 const { WILDCARD_ROLES, CONDITION, DEFAULT_TTL_HOURS, DUAL_APPROVAL_OPS } = dualApprovalModule;
 import rbacModule from '../../../shared/constants/rbac';
 const { SUPERADMIN_ROLE_NAMES } = rbacModule;
 import componentsApprovalDtoModule from '../dtos/approval-components.dto';
 const { ApprovalRequestComponent, PendingApprovalComponent } = componentsApprovalDtoModule;
-import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
+import catalogsModule from '../../catalogs';
+const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
 import errorMessageModule from '../../../shared/utils/error-message.util';
 import type { AdminAuditContext } from '../../../shared/types/audit-context';
 import type { ApprovalRequest, Prisma } from '../../../shared/database/generated/prisma/client';
 
 const { errorMessage } = errorMessageModule;
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 
 const DECISION = { APPROVE: 'approve', REJECT: 'reject' } as const;
@@ -479,7 +484,7 @@ async function _resolveThreshold(op: DualApprovalConstants.Op): Promise<number> 
   }
   try {
     // require perezoso: evita un ciclo de carga con los módulos que dependen de dual-approval
-    const systemGlobalConfigRepository = interopDefault(require('../../settings/repositories/system-global-config.repository') as typeof import('../../settings/repositories/system-global-config.repository')) as SystemGlobalConfigRepositoryPort;
+    const systemGlobalConfigRepository = interopDefault(require('../../settings') as typeof import('../../settings')).systemGlobalConfigRepository as SystemGlobalConfigRepositoryPort;
     const cfg = await systemGlobalConfigRepository.findActive();
     // La clave puede venir con el nombre de la columna (snake_case) o del campo de Prisma
     const key = op.thresholdConfigKey.replace(/_([a-z0-9])/g, (_m, c: string) => c.toUpperCase());

@@ -5,7 +5,7 @@
 import PrismaRepository from '../../../shared/database/prisma.repository';
 import type { Prisma, UserTrustedDevice } from '../../../shared/database/generated/prisma/client';
 import AppError from '../../../shared/http/app-error.util';
-import HmacService from '../../../shared/security/hmac.service';
+import HmacService from '../services/hmac.service';
 
 /** Última sesión del dispositivo (activa o cerrada), para mostrar su estado y último acceso. */
 const LAST_SESSION = {

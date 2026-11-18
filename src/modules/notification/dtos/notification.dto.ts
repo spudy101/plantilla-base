@@ -4,7 +4,8 @@ const {
   NotificationComponent,
   GlobalNotificationComponent
 } = componentsNotificationDtoModule;
-import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
+import catalogsModule from '../../catalogs';
+const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
 
 function _buildMixedItem(item: Feed.FeedItem, readIds: string[]) {

@@ -5,10 +5,11 @@
 
 import type { AdminAuditContext } from '../../../../shared/types/audit-context';
 import unitOfWork from '../../../../shared/database/unit-of-work';
-import userRepository from '../../../iam/repositories/user.repository';
-import roleRepository from '../../../iam/repositories/role.repository';
+import iamModule from '../../../iam';
+const { userRepository, roleRepository } = iamModule;
 import KycSharedUtil from '../../utils/kyc-shared.util';
-import NotificationUtil from '../../../notification/services/notification-creation.service';
+import notificationModule from '../../../notification';
+const { notificationCreationService: NotificationUtil } = notificationModule;
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
@@ -19,7 +20,8 @@ import adminPersonDtoModule from '../../dtos/admin-person.dto';
 const { ToggleUserStatusDTO, ChangeRoleDTO } = adminPersonDtoModule;
 import personGuardsModule from './person-guards';
 const { assertNotDeleted, isClientRole } = personGuardsModule;
-import audit from '../../../audit/audit.service';
+import auditModule from '../../../audit';
+const { audit } = auditModule;
 
 class PersonAccessService {
   unitOfWork: typeof unitOfWork;

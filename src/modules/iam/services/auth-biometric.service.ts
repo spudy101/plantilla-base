@@ -4,10 +4,11 @@ import type { RequestAuditContext } from '../../../shared/types/audit-context';
 import crypto from 'node:crypto';
 
 import userRepository from '../repositories/user.repository';
-import userLoginAttemptRepository from '../../audit/repositories/user-login-attempt.repository';
+import auditModule from '../../audit';
+const { userLoginAttemptRepository, audit } = auditModule;
 import trustedDeviceRepository from '../repositories/auth-trusted-device.repository';
-import privacyPolicyRepository from '../../legal/repositories/privacy-policy.repository';
-import consentRecorder from '../../legal/services/consent-recorder.service';
+import legalModule from '../../legal';
+const { privacyPolicyRepository, consentRecorder } = legalModule;
 import biometricRepositoryModule from '../repositories/biometric.repository';
 const {
   biometricCredentialRepository,
@@ -19,7 +20,8 @@ import SessionIssuerService from './auth-login/session-issuer.service';
 import LoginPolicyGateService from './auth-login/login-policy-gate.service';
 import es256SignatureUtilModule from '../../../shared/security/es256-signature.util';
 const { verifyEs256Signature } = es256SignatureUtilModule;
-import NotificationUtil from '../../notification/services/notification-creation.service';
+import notificationModule from '../../notification';
+const { notificationCreationService: NotificationUtil } = notificationModule;
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
@@ -34,8 +36,6 @@ const {
 } = authBiometricDtoModule;
 import authLoginDtoModule from '../dtos/auth-login.dto';
 const { LoginResponseDTO } = authLoginDtoModule;
-import audit from '../../audit/audit.service';
-
 // ============================================================
 // CONSTANTES
 // ============================================================

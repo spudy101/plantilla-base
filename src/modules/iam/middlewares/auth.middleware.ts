@@ -30,7 +30,7 @@ const {
   MFA_REQUIRED_ROLES,
   MFA_NOT_ACTIVE_LOG_MSG
 } = constantsModule;
-import HmacService from '../../../shared/security/hmac.service';
+import HmacService from '../services/hmac.service';
 import DeviceBlocklistUtil from '../utils/device-blocklist.util';
 import TokenBlacklistUtil from '../utils/token-blacklist.util';
 import JwtUtil from '../../../shared/security/jwt.util';

@@ -11,12 +11,13 @@ import AppError from '../../../shared/http/app-error.util';
 import PaginationHelper from '../../../shared/http/pagination.util';
 
 import auditLogRepository from '../repositories/audit-log.repository';
-import userSessionRepository from '../../iam/repositories/user-session.repository';
-import userConsentRepository from '../../legal/repositories/user-consent.repository';
+import iamModule from '../../iam';
+const { userSessionRepository, trustedDeviceRepository: trustedDeviceRepo } = iamModule;
+import legalModule from '../../legal';
+const { userConsentRepository } = legalModule;
 // eslint-disable-next-line max-len
-import notificationPreferenceRepo from '../../notification/repositories/user-notification-preference.repository';
-import trustedDeviceRepo from '../../iam/repositories/auth-trusted-device.repository';
-
+import notificationModule from '../../notification';
+const { notificationPreferenceRepository: notificationPreferenceRepo } = notificationModule;
 import componentsAuditDtoModule from '../dtos/audit-components.dto';
 const {
   UserConsentComponent,

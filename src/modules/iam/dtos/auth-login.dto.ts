@@ -1,6 +1,7 @@
 import type { UserTrustedDevice } from '../../../shared/database/generated/prisma/client';
 import type { UserProfileRow, UserWith } from '../repositories/user.repository';
-import componentsPersonModule from '../../person/dtos/person-components.dto';
+import personModule from '../../person';
+const { personComponentsDto: componentsPersonModule } = personModule;
 const { UserComponent, PersonComponent, PersonContactComponent, PersonLocationComponent } = componentsPersonModule;
 import componentsAuthModule from './auth-components.dto';
 const { TrustedDeviceComponent } = componentsAuthModule;

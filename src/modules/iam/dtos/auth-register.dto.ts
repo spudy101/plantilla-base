@@ -1,4 +1,5 @@
-import componentsPersonModule from '../../person/dtos/person-components.dto';
+import personModule from '../../person';
+const { personComponentsDto: componentsPersonModule } = personModule;
 const { UserComponent, PersonComponent, PersonContactComponent } = componentsPersonModule;
 
 /**

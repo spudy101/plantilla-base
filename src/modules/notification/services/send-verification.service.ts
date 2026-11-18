@@ -10,7 +10,8 @@ const { notifications, MOCKS } = constantsModule;
 import crypto from 'node:crypto';
 import sendVerificationDtoModule from '../dtos/send-verification.dto';
 const { SendVerificationResponseDTO, VerifyCodeResponseDTO } = sendVerificationDtoModule;
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 // [RF-AUTH-01] | CA-02 | 🔄 MODIFICADO: CA-02 especifica
 // TTL 24h. Implementado en 15 min por criterio de

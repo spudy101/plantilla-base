@@ -5,7 +5,8 @@ import type * as Types from '../notification.types';
 const cap = <K extends string>(key: K) => (key.charAt(0).toUpperCase() + key.slice(1)) as Capitalize<K>;
 import notificationRepo from '../repositories/notification.repository';
 import notificationTypeRepo from '../repositories/notification-type.repository';
-import userRepo from '../../iam/repositories/user.repository';
+import iamModule from '../../iam';
+const { userRepository: userRepo } = iamModule;
 import userPushTokenRepo from '../repositories/user-push-token.repository';
 import emailService from './email-notification.service';
 import pushService from './push-notification.service';
@@ -19,7 +20,8 @@ const { logger } = loggerUtilModule;
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 
 const TOKEN_LOG_PREVIEW_LENGTH = 20;

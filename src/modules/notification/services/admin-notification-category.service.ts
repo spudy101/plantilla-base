@@ -4,7 +4,8 @@ import notificationTypeRepository from '../repositories/notification-type.reposi
 import AppError from '../../../shared/http/app-error.util';
 import PaginationHelper from '../../../shared/http/pagination.util';
 import adminNotificationCategoryDtoModule from '../dtos/admin-notification-category.dto';
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 const {
   NotificationCategoryAdminDTO,
   ListNotificationCategoriesResponseDTO

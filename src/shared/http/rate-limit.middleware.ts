@@ -1,12 +1,10 @@
 // shared/middlewares/rate-limit.middleware.ts
 
 import { interopDefault } from '../utils/interop.util';
-import type { NextFunction, Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import redisClient from '../infra/redis.util';
 import ApiResponse from './app-response.util';
-import AppError from './app-error.util';
-import LoginRateLimiter from '../../modules/iam/utils/login-rate-limiter.util';
 import loggerUtilModule from '../observability/logger.util';
 const { logger } = loggerUtilModule;
 import constantsModule from '../constants';
@@ -256,48 +254,6 @@ class RateLimitMiddleware {
         return ApiResponse.tooManyRequests(res, 'Demasiadas renovaciones de sesión. Intenta en unos minutos');
       }
     });
-  }
-
-  /**
-   * Capa IP para el endpoint de login.
-   * - Verifica si la IP está bloqueada → 429 + Retry-After.
-   * - Incrementa el contador en cada intento.
-   * - Si supera el límite (10/min) → bloquea 10 minutos → 429 + Retry-After.
-   */
-  // [RF-AUTH-02] | CA-05 | Middleware de rate limiting por IP aplicado en POST /auth/login
-  static loginIpLimiter() {
-    return async (req: Request, res: Response, next: NextFunction) => {
-      const ip = getClientIp(req);
-
-      const blockedSecs = await LoginRateLimiter.checkIpBlock(ip);
-      if (blockedSecs !== null) {
-        logger.warn('Rate limit: IP bloqueada en /login', { ip, retryAfter: blockedSecs });
-        return next(
-          AppError.tooManyRequests(
-            `Demasiados intentos desde esta IP. Intenta nuevamente en ${Math.ceil(blockedSecs / 60)} minuto(s)`,
-            null,
-            blockedSecs
-          )
-        );
-      }
-
-      const newBlockSecs = await LoginRateLimiter.incrementIpAttempts(ip);
-      if (newBlockSecs !== null) {
-        logger.warn('Rate limit: IP bloqueada tras superar límite en /login', {
-          ip,
-          retryAfter: newBlockSecs
-        });
-        return next(
-          AppError.tooManyRequests(
-            `Demasiados intentos desde esta IP. Intenta nuevamente en ${Math.ceil(newBlockSecs / 60)} minuto(s)`,
-            null,
-            newBlockSecs
-          )
-        );
-      }
-
-      return next();
-    };
   }
 
   /**

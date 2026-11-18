@@ -1,5 +1,7 @@
 import type { UserTrustedDevice } from '../../../shared/database/generated/prisma/client';
-import type { SessionWithDeviceAndUser } from '../../iam/repositories/user-session.repository';
+import iamModule from '../../iam';
+const { authComponentsDto: componentsAuthModule } = iamModule;
+import type { SessionWithDeviceAndUser } from '../../iam';
 import type { AuditLogWithExecutor } from '../repositories/audit-log.repository';
 // Fase 5 — API admin de sesiones (traza forense). DTOs de salida.
 // El timeline sale de audit_logs (fuente única); la hidratación reusa DTOs admin ya existentes.
@@ -7,9 +9,9 @@ import type { AuditLogWithExecutor } from '../repositories/audit-log.repository'
 
 import componentsAuditDtoModule from './audit-components.dto';
 const { AuditLogComponent } = componentsAuditDtoModule;
-import componentsAuthModule from '../../iam/dtos/auth-components.dto';
 const { UserSessionComponent } = componentsAuthModule;
-import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
+import catalogsModule from '../../catalogs';
+const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
 
 function _deviceRef(

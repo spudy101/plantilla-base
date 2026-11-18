@@ -6,15 +6,17 @@ import type { PrivacyPolicy } from '../../../../shared/database/generated/prisma
 // biométrico (antes estaba copiada en ambos). Extraído por SOLID: S.
 
 import userRepository from '../../repositories/user.repository';
-import privacyPolicyRepository from '../../../legal/repositories/privacy-policy.repository';
-import consentRecorder from '../../../legal/services/consent-recorder.service';
+import legalModule from '../../../legal';
+const { privacyPolicyRepository, consentRecorder } = legalModule;
 import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import constantsModule from '../../../../shared/constants';
 const { INTERNAL_ROLE_NAMES } = constantsModule;
 import authLoginDtoModule from '../../dtos/auth-login.dto';
 const { PolicyUpdateRequiredDTO } = authLoginDtoModule;
-import audit, { type AuditActionKey } from '../../../audit/audit.service';
+import auditModule from '../../../audit';
+const { audit } = auditModule;
+import type { AuditActionKey } from '../../../audit';
 
 class LoginPolicyGateService {
   userRepository: typeof userRepository;

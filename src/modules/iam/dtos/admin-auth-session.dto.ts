@@ -1,8 +1,9 @@
 import type { SessionWithDeviceAndUser } from '../repositories/user-session.repository';
-import type { AuditLogWithExecutor } from '../../audit/repositories/audit-log.repository';
+import type { AuditLogWithExecutor } from '../../audit';
 import componentsAuthModule from './auth-components.dto';
 const { UserSessionComponent } = componentsAuthModule;
-import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
+import catalogsModule from '../../catalogs';
+const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
 
 type SessionRow = SessionWithDeviceAndUser;

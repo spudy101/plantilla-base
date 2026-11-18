@@ -1,7 +1,8 @@
 import type UserActivityDto from '../dtos/user-activity.dto';
 import auditLogRepository from '../repositories/audit-log.repository';
 import userChangeLogRepository from '../repositories/change-log.repository';
-import userSessionRepository from '../../iam/repositories/user-session.repository';
+import iamModule from '../../iam';
+const { userSessionRepository } = iamModule;
 import PaginationHelper from '../../../shared/http/pagination.util';
 import userActivityDtoModule from '../dtos/user-activity.dto';
 const { UserActivityListResponseDTO } = userActivityDtoModule;

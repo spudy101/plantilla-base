@@ -10,7 +10,7 @@ import notificationDtoModule from '../dtos/notification.dto';
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
-import authUserUtilModule from '../../iam/utils/auth-user.util';
+import authUserUtilModule from '../../../shared/http/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
 
 const {

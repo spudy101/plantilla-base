@@ -1,21 +1,23 @@
-import type { UserRepositoryPort } from '../../../repository-ports';
 // modules/admin/kyc/person/services/admin-person/person-query.service.ts
 //
 // Consultas de cuentas de cliente para el panel admin: listado, eliminados,
 // opciones de rol y detalle. Extraído de PersonService (SOLID: S).
 
-import userRepository from '../../../iam/repositories/user.repository';
-import roleRepository from '../../../iam/repositories/role.repository';
+import iamModule from '../../../iam';
+const { userRepository, roleRepository } = iamModule;
+type UserRepositoryPort = (typeof iamModule)['userRepository'];
 import AppError from '../../../../shared/http/app-error.util';
 import PaginationHelper from '../../../../shared/http/pagination.util';
-import componentsCatalogDtoModule from '../../../catalogs/dtos/catalog-components.dto';
+import catalogsModule from '../../../catalogs';
+const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
 import constantsModule from '../../../../shared/constants';
 const { CLIENT_ROLE_NAMES } = constantsModule;
 
 import adminPersonDtoModule from '../../dtos/admin-person.dto';
 const { UserDTO, UserListItemDTO, RoleOptionDTO } = adminPersonDtoModule;
-import audit from '../../../audit/audit.service';
+import auditModule from '../../../audit';
+const { audit } = auditModule;
 
 class PersonQueryService {
   userRepository: typeof userRepository;

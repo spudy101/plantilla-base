@@ -14,10 +14,12 @@ import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import constantsModule from '../../../shared/constants';
 const { RBAC_ROLES, notifications } = constantsModule;
-import NotificationCreationService from '../../notification/services/notification-creation.service';
+import notificationModule from '../../notification';
+const { notificationCreationService: NotificationCreationService } = notificationModule;
 import rolePermissionOverrideRepository from '../repositories/role-permission-override.repository';
 import adminRbacDtoModule from '../dtos/admin-rbac.dto';
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 const {
   RbacCatalogDTO,
   RoleMatrixDTO,

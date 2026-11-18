@@ -5,7 +5,7 @@
 // variaciones sueltas (unas sin rol, otras sin nombre).
 import type { Request, Response } from 'express';
 import type { AdminAuditContext, RequestAuditContext } from '../../../shared/types/audit-context';
-import authUserUtilModule from '../../iam/utils/auth-user.util';
+import authUserUtilModule from '../../../shared/http/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
 
 function adminAuditContext(req: Request, res: Response): AdminAuditContext {

@@ -16,7 +16,8 @@ import type * as Types from '../notification.types';
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 
 // Límite de tamaño del mensaje raw de SES (SendRawEmailCommand): 10 MB incluyendo adjuntos en base64.

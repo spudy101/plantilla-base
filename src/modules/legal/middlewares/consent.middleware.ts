@@ -6,7 +6,8 @@ import errorMiddlewareModule from '../../../shared/http/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
 import userConsentRepository from '../repositories/user-consent.repository';
 import consentTypeRepository from '../repositories/consent-type.repository';
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 // Nota: para gatear una operación por un consentimiento OBLIGATORIO, usa requireConsent() como middleware
 // de ruta. Si tu dominio necesita exigir varios consentimientos en un solo submit (acumular todas las

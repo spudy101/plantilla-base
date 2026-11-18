@@ -1,15 +1,17 @@
 import type { AdminAuditContext } from '../../../shared/types/audit-context';
 import unitOfWork from '../../../shared/database/unit-of-work';
-import userRepository from '../../iam/repositories/user.repository';
+import iamModule from '../../iam';
+const { userRepository, roleRepository } = iamModule;
 import personRepository from '../repositories/person.repository';
 import personContactRepository from '../repositories/person-contact.repository';
-import roleRepository from '../../iam/repositories/role.repository';
-import NotificationUtil from '../../notification/services/notification-creation.service';
+import notificationModule from '../../notification';
+const { notificationCreationService: NotificationUtil } = notificationModule;
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import ProfileHelper from '../helpers/profile.helper';
-import DualApprovalService from '../../approvals/services/dual-approval.service';
+import approvalsModule from '../../approvals';
+const { DualApprovalService } = approvalsModule;
 import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
 import personGuardsModule from './admin-person/person-guards';
@@ -18,7 +20,8 @@ import PersonQueryService from './admin-person/person-query.service';
 import PersonCreationService from './admin-person/person-creation.service';
 import PersonAccessService from './admin-person/person-access.service';
 import PersonCredentialsService from './admin-person/person-credentials.service';
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 /**
  * ============================================================

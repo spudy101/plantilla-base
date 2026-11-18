@@ -18,9 +18,11 @@ import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import PaginationHelper from '../../../shared/http/pagination.util';
-import NotificationCreationService from '../../notification/services/notification-creation.service';
+import notificationModule from '../../notification';
+const { notificationCreationService: NotificationCreationService } = notificationModule;
 import privacyPolicyAdminDtoModule from '../dtos/privacy-policy-admin.dto';
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 const {
   ListPrivacyPoliciesResponseDTO,
   PrivacyPolicyDetailResponseDTO,

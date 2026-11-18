@@ -1,11 +1,13 @@
 import PaginationHelper from '../../../shared/http/pagination.util';
-import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
+import catalogsModule from '../../catalogs';
+const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
 import AppError from '../../../shared/http/app-error.util';
 import userConsentRepository from '../repositories/user-consent.repository';
 import adminUserConsentDtoModule from '../dtos/admin-user-consent.dto';
 const { UserConsentAuditItemDTO } = adminUserConsentDtoModule;
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 class AdminUserConsentService {
   userConsentRepository: typeof userConsentRepository;

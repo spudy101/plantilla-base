@@ -3,7 +3,8 @@ import EncryptionUtil from '../../../shared/security/encryption.util';
 import MaskingUtil from '../../../shared/security/masking.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 // Umbral de rebotes duros para bloquear una dirección de correo. Regla de negocio (no configurable
 // por env): a los 3 hard bounces la dirección se suprime.

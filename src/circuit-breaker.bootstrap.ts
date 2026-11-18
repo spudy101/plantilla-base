@@ -15,11 +15,13 @@ import CircuitBreaker from './shared/infra/circuit-breaker.util';
 import { runOperation } from './shared/observability/operation';
 import loggerUtilModule from './shared/observability/logger.util';
 const { logger } = loggerUtilModule;
-import providerFallbackRepository from './modules/integration/repositories/provider-fallback-event.repository';
+import integrationModule from './modules/integration';
+const { providerFallbackEventRepository: providerFallbackRepository } = integrationModule;
 import errorMessageModule from './shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
-import audit from './modules/audit/audit.service';
+import auditModule from './modules/audit';
+const { audit } = auditModule;
 
 
 const MS_PER_SECOND = 1000;
@@ -44,9 +46,7 @@ async function _contarProcesosAfectados(product: string, startedAt: Date | null,
       return null;
     }
     // require diferido: como antes con shared/models, no cargar repositorios al importar el bootstrap
-    const smsDeliveryAttemptRepository = interopDefault(
-      require('./modules/notification/repositories/sms-delivery-attempt.repository') as typeof import('./modules/notification/repositories/sms-delivery-attempt.repository')
-    );
+    const smsDeliveryAttemptRepository = interopDefault(require('./modules/notification') as typeof import('./modules/notification')).smsDeliveryAttemptRepository;
     return await smsDeliveryAttemptRepository.countFailedBetween(startedAt, endedAt);
   } catch {
     return null;

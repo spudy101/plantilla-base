@@ -32,7 +32,8 @@ const CACHE_TTL_SECONDS = 60;
 // v2: los overrides pasaron a camelCase (moduleName) con Prisma; la clave nueva evita leer entradas viejas.
 const CACHE_KEY_PREFIX = 'rbac:overrides:v2:';
 
-import type { RolePermissionOverrideRepositoryPort } from '../../repository-ports';
+import type rolePermissionOverrideRepositoryModule from '../repositories/role-permission-override.repository';
+type RolePermissionOverrideRepositoryPort = typeof rolePermissionOverrideRepositoryModule;
 
 /** Override de permiso en BD (role_permission_overrides): concede una acción extra sobre un módulo. */
 interface PermissionOverride {

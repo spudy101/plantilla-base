@@ -4,8 +4,10 @@
 // solicitud y aviso al solicitante (maker) cuando se resuelve. Extraído de DualApprovalService
 // (SOLID: S) — el canal y el contenido de los avisos cambian por razones distintas que el motor.
 
-import userRepository from '../../../iam/repositories/user.repository';
-import NotificationCreationService from '../../../notification/services/notification-creation.service';
+import iamModule from '../../../iam';
+const { userRepository } = iamModule;
+import notificationModule from '../../../notification';
+const { notificationCreationService: NotificationCreationService } = notificationModule;
 import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import constantsModule from '../../../../shared/constants';

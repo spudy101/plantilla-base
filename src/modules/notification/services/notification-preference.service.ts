@@ -6,7 +6,8 @@ import notificationPreferenceDtoModule from '../dtos/notification-preference.dto
 const { UpdatePreferenceResponseDTO, CategoryPreferencesViewDTO } = notificationPreferenceDtoModule;
 import componentsNotificationDtoModule from '../dtos/notification-components.dto';
 const { UserNotificationPreferenceComponent } = componentsNotificationDtoModule;
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 /** Extrae del body solo las keys de preferencia presentes (undefined => no se toca). */
 /** Preferencias tal como llegan del body (camelCase). */

@@ -5,10 +5,12 @@ import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import S3Util from '../../../shared/infra/s3.util';
-import systemGlobalConfigRepository from '../../settings/repositories/system-global-config.repository';
+import settingsModule from '../../settings';
+const { systemGlobalConfigRepository } = settingsModule;
 import promotionalBannerDtoModule from '../dtos/admin-promotional-banner.dto';
 const { PromotionalBannerListDTO, PromotionalBannerImageDTO } = promotionalBannerDtoModule;
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 // Prefijo del bucket PÚBLICO (CloudFront). Cada imagen sube con key única (uuid), así que no hay
 // caché vieja que invalidar: la URL nueva se referencia desde el JSON del banner.

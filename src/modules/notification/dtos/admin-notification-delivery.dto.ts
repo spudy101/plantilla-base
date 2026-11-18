@@ -1,5 +1,6 @@
 import type { Notification } from '../../../shared/database/generated/prisma/client';
-import type { NotificationRepositoryPort } from '../../repository-ports';
+import type notificationRepository from '../repositories/notification.repository';
+type NotificationRepositoryPort = typeof notificationRepository;
 import MaskingUtil from '../../../shared/security/masking.util';
 
 /** Notificación con su tipo y categoría (listado/detalle de entregas del admin). */

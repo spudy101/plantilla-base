@@ -3,7 +3,8 @@ import type { AdminAuditContext } from '../../../shared/types/audit-context';
 // (capa de datos en schemas/core) y agrega la auditoría de los endpoints admin.
 
 import DualApprovalService from './dual-approval.service';
-import audit from '../../audit/audit.service';
+import auditModule from '../../audit';
+const { audit } = auditModule;
 
 const ENTITY = { entityType: 'ApprovalRequest', entityTable: 'approval_requests' };
 
