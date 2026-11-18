@@ -1,4 +1,4 @@
-import type { AuditLogRepositoryPort, UserChangeLogRepositoryPort } from '../../repository-ports';
+import type { AuditLogRepositoryPort, ChangeLogRepositoryPort } from '../../repository-ports';
 // DTO del feed de actividad del propio usuario. Client-safe: NUNCA expone `details` de audit_logs
 // (claves before/after), `previous_value`/`new_value` de user_change_logs, user_agent ni datos de
 // terceros. Keys camelCase; `source`/`action`/`category`/`outcome`/`changedByRole` son enums → snake_case.
@@ -6,7 +6,7 @@ import type { AuditLogRepositoryPort, UserChangeLogRepositoryPort } from '../../
 /** Fila de audit_logs del feed (findClientSafeByUser). */
 type AuditRow = Awaited<ReturnType<AuditLogRepositoryPort['findClientSafeByUser']>>['rows'][number];
 /** Fila de user_change_logs del feed (findExternalChangesByUserId). */
-type ChangeRow = Awaited<ReturnType<UserChangeLogRepositoryPort['findExternalChangesByUserId']>>['rows'][number];
+type ChangeRow = Awaited<ReturnType<ChangeLogRepositoryPort['findExternalChangesByUserId']>>['rows'][number];
 
 /** Ítem del feed mezclado: unión discriminada por __source. */
 type FeedItem = { __source: 'audit'; row: AuditRow; at: Date | undefined } | { __source: 'change'; row: ChangeRow; at: Date | undefined };

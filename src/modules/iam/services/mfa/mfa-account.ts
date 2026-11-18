@@ -1,4 +1,5 @@
-import type { User, UserChangeLogChangeType } from '../../../../shared/database/generated/prisma/client';
+import type { User } from '../../../../shared/database/generated/prisma/client';
+import type { ChangeType } from '../../../audit/audit.service';
 import type { RequestAuditContext } from '../../../../shared/types/audit-context';
 // modules/shared-endpoints/kyc/iam/services/mfa/mfa-account.ts
 //
@@ -55,7 +56,7 @@ class MfaAccount {
     auditContext
   }: {
     userId: string;
-    changeType: UserChangeLogChangeType;
+    changeType: ChangeType;
     previousValue: string | null;
     newValue: string | null;
     changeReason: string;

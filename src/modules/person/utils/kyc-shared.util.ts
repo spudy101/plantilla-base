@@ -1,7 +1,6 @@
 import { interopDefault } from '../../../shared/utils/interop.util';
-import userChangeLogRepository from '../../audit/repositories/user-change-log.repository';
+import audit, { type ChangeInput } from '../../audit/audit.service';
 import crypto from 'node:crypto';
-import type { UserChangeLogRepositoryPort } from '../../repository-ports';
 
 /**
  * Utilidades compartidas entre KycPerson y KycProfile services
@@ -52,14 +51,9 @@ class KycSharedUtil {
     return passwordArray.join('');
   }
 
-  /**
-   * Registra cambio en audit log
-   *
-   * @param {Object} logData - Datos del cambio
-   * @returns {Promise<Object>} Log creado
-   */
-  static logChange(logData: Parameters<UserChangeLogRepositoryPort['createLog']>[0]) {
-    return userChangeLogRepository.createLog(logData);
+  /** Registra un cambio sobre la cuenta en la bitácora (audit_logs, acción USER_FIELD_CHANGED). */
+  static logChange(change: ChangeInput) {
+    return audit.recordChange(change);
   }
 
   /**

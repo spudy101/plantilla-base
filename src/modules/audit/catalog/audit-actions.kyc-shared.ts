@@ -12,6 +12,15 @@ import auditCatalogModule from './audit-catalog';
 const { AUDIT_CATEGORIES, AUDIT_RISKS, AUDIT_MODULES } = auditCatalogModule;
 
 export default {
+  // ── CAMBIO DE UN DATO DE LA CUENTA (bitácora de cambios) ──────
+  // Un registro por campo cambiado (email, contraseña, MFA, estado, rol, documento…), con su valor
+  // anterior y nuevo en details. La vista "bitácora de cambios" es un filtro sobre esta acción.
+  USER_FIELD_CHANGED: {
+    description: 'Dato de una cuenta modificado',
+    category: AUDIT_CATEGORIES.PERSONS,
+    risk: AUDIT_RISKS.MEDIUM
+  },
+
   // ── AUTENTICACIÓN ────────────────────────────────────────────────────────
   LOGIN_SUCCESS: {
     description: 'Inicio de sesión exitoso',

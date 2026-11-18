@@ -22,7 +22,7 @@ import roleRepository from '../repositories/role.repository';
 import personRepository from '../../person/repositories/person.repository';
 import documentTypeRepository from '../../catalogs/repositories/document-type.repository';
 import userSessionRepository from '../repositories/user-session.repository';
-import userChangeLogRepository from '../../audit/repositories/user-change-log.repository';
+import userChangeLogRepository from '../../audit/repositories/change-log.repository';
 import ProfileHelper from '../../person/helpers/profile.helper';
 import unitOfWork from '../../../shared/database/unit-of-work';
 import NotificationCreationService from '../../notification/services/notification-creation.service';

@@ -1,4 +1,4 @@
-import userChangeLogRepository from '../repositories/user-change-log.repository';
+import userChangeLogRepository from '../repositories/change-log.repository';
 import PaginationHelper from '../../../shared/http/pagination.util';
 import adminChangeLogDtoModule from '../dtos/admin-change-log.dto';
 const { ListUserChangeLogsResponseDTO } = adminChangeLogDtoModule;
