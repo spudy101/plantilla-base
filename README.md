@@ -103,7 +103,7 @@ Todo lo transversal que un proyecto necesita el día 1, ya construido y probado:
 | **Auth**        | `jose` (JWT RS256), `bcryptjs`, `otplib` (TOTP)                                   |
 | **AWS**         | SES (email), SNS (push/SMS), S3 (archivos), CloudFront                            |
 | **Seguridad**   | `helmet`, `cors`, `express-rate-limit`                                            |
-| **Validación**  | `express-validator`                                                              |
+| **Validación**  | Zod (valida, tipa y genera OpenAPI)                                              |
 | **Docs API**    | `swagger-ui-express`                                                              |
 | **Jobs**        | `node-cron`                                                                       |
 | **Media/otros** | `sharp`, `multer`, `geoip-lite`, `ua-parser-js`                                   |
@@ -126,7 +126,7 @@ La guía completa, con las reglas y la tabla "¿dónde va esto?", está en
 ```
 Request
   → [middlewares globales]   operación (id + contexto + traza) → seguridad → cookies → body-parse → compression
-  → [middlewares de ruta]    Auth → RBAC → RateLimit → RequestLock → Validator
+  → [middlewares de ruta]    Auth → RBAC → RateLimit → RequestLock → validate (Zod)
   → Controller → Service → Repository → PostgreSQL
   → ApiResponse   (o AppError → handler global)
 ```
@@ -289,8 +289,8 @@ Middlewares globales (orden crítico, en `src/app.ts`): operación (id + context
 `helmet` → `cors` → headers de seguridad → `cookieParser` → `express.json` (10 MB) → captura de JSON
 inválido → `compression`.
 
-Middlewares de ruta (orden recomendado): `Auth` → `RBAC` → `RateLimit` → `RequestLock` → `Validator` →
-`handleValidationErrors` → controller.
+Middlewares de ruta (orden recomendado): `Auth` → `RBAC` → `RateLimit` → `RequestLock` → `validate(...)` →
+controller.
 
 Errores: lanzar siempre `AppError` (nunca `throw 'string'`) desde el service; el `asyncHandler` reenvía al
 handler global, que loguea, registra el error en la operación y responde con estructura uniforme. Detalle completo:

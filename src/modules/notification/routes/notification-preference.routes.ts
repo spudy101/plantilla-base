@@ -1,12 +1,12 @@
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { UpdatePreferenceBody, CategoryCodeParams } from '../requests/notification.request';
 const router = express.Router();
 import NotificationPreferenceController from '../controllers/notification-preference.controller';
-import NotificationPreferenceValidator from '../validators/notification-preference.validator';
 import iamModule from '../../iam';
 const { AuthMiddleware } = iamModule;
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 
 /**
  * TODAS LAS RUTAS REQUIEREN AUTENTICACIÓN
@@ -37,8 +37,7 @@ router.put(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  NotificationPreferenceValidator.updateGlobalPreference(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: UpdatePreferenceBody }),
   NotificationPreferenceController.updateGlobalPreference
 );
 
@@ -48,8 +47,7 @@ router.put(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  NotificationPreferenceValidator.updateCategoryPreference(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: CategoryCodeParams, body: UpdatePreferenceBody }),
   NotificationPreferenceController.updateCategoryPreference
 );
 
@@ -59,8 +57,7 @@ router.delete(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  NotificationPreferenceValidator.deleteCategoryPreference(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: CategoryCodeParams }),
   NotificationPreferenceController.deleteCategoryPreference
 );
 

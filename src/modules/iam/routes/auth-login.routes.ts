@@ -1,12 +1,12 @@
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { ClientTypeHeaders, LoginBody, VerifyMfaBody, RefreshTokenHeaders, SessionIdParams, DeviceIdParams, RenameDeviceBody } from '../requests/iam.request';
 const router = express.Router();
 import AuthLoginController from '../controllers/auth-login.controller';
-import AuthLoginValidator from '../validators/auth-login.validator';
 import AuthMiddleware from '../middlewares/auth.middleware';
 import LoginIpLimiterMiddleware from '../middlewares/login-ip-limiter.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 
 // ============================================================
 // PUBLIC
@@ -17,8 +17,7 @@ router.post(
   LoginIpLimiterMiddleware.loginIpLimiter(),
   RateLimitMiddleware.authLimiter(),
   RequestLockMiddleware.forPublicEndpoints(),
-  AuthLoginValidator.login(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ headers: ClientTypeHeaders, body: LoginBody }),
   AuthLoginController.login
 );
 
@@ -26,8 +25,7 @@ router.post(
   '/verify-mfa',
   RateLimitMiddleware.authLimiter(),
   RequestLockMiddleware.forPublicEndpoints(),
-  AuthLoginValidator.verifyMFA(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ headers: ClientTypeHeaders, body: VerifyMfaBody }),
   AuthLoginController.verifyMFA
 );
 
@@ -42,8 +40,7 @@ router.post(
   '/refresh',
   RateLimitMiddleware.refreshLimiter(),
   RequestLockMiddleware.forRefresh(),
-  AuthLoginValidator.refreshToken(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ headers: RefreshTokenHeaders }),
   AuthLoginController.refreshToken
 );
 
@@ -90,8 +87,7 @@ router.delete(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuthLoginValidator.closeSession(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: SessionIdParams }),
   AuthLoginController.closeSession
 );
 
@@ -132,8 +128,7 @@ router.patch(
   '/devices/:deviceId',
   AuthMiddleware.authenticate,
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuthLoginValidator.renameDevice(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: DeviceIdParams, body: RenameDeviceBody }),
   AuthLoginController.renameDevice
 );
 
@@ -146,8 +141,7 @@ router.post(
   '/devices/:deviceId/approve',
   AuthMiddleware.authenticate,
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuthLoginValidator.approveDevice(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: DeviceIdParams }),
   AuthLoginController.approveDevice
 );
 
@@ -161,8 +155,7 @@ router.post(
   '/devices/:deviceId/block',
   AuthMiddleware.authenticate,
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuthLoginValidator.blockDevice(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: DeviceIdParams }),
   AuthLoginController.blockDevice
 );
 
@@ -175,8 +168,7 @@ router.post(
   '/devices/:deviceId/unblock',
   AuthMiddleware.authenticate,
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AuthLoginValidator.unblockDevice(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: DeviceIdParams }),
   AuthLoginController.unblockDevice
 );
 

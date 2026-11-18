@@ -9,7 +9,7 @@
 ```
 Request
  → [middlewares globales src/app.ts]
- → [middlewares de ruta]  Auth → RBAC → RateLimit → RequestLock → Validator → handleValidationErrors
+ → [middlewares de ruta]  Auth → RBAC → RateLimit → RequestLock → validate(esquemas Zod)
  → Controller → Service → Repository → Model → DB
  → ApiResponse  (o AppError → ErrorMiddleware.handleError)
 ```
@@ -20,7 +20,7 @@ Request
 | Service    | toda la lógica; lanza `AppError`; audita con `audit.record`. No accede a DB directo. |
 | Repository | único lugar con el cliente de Prisma; extiende `PrismaRepository`.                  |
 | Schema     | `prisma/schema.prisma` (tablas, relaciones); la PII la cifra la extensión del cliente. |
-| Validator  | cadenas express-validator; extiende `BaseValidator`.                                |
+| Request    | esquema Zod en `requests/`: valida, tipa y documenta la entrada.                    |
 | DTO        | arma la respuesta en camelCase, campo a campo (nunca spread de una fila).            |
 
 ## Middlewares globales (`src/app.ts`) — ORDEN CRÍTICO
@@ -51,9 +51,8 @@ router.post(
   RbacMiddleware.requirePermission(RBAC_MODULES.X, RBAC_ACTIONS.UPDATE), // 2. autoriza
   RateLimitMiddleware.apiLimiter(), // 3. rate limit
   RequestLockMiddleware.forAuthenticatedUsers(), // 4. dedup de requests concurrentes
-  MyValidator.update(), // 5. validación
-  ValidatorUtil.handleValidationErrors, // 6. corta con 422 si hubo errores
-  MyController.update // 7. controller
+  validate({ params: MyIdParams, body: UpdateMyBody }), // 5. validación (422 si falla)
+  MyController.update // 6. controller
 );
 ```
 

@@ -84,6 +84,11 @@ export default {
 
   get SessionExpirationWorker() {
     return interopDefault(require('./workers/session-expiration.worker') as typeof import('./workers/session-expiration.worker'));
+  },
+
+  /** Campos reutilizables para los esquemas de entrada (requests). */
+  get credentialFields() {
+    return interopDefault(require('./requests/credential.fields') as typeof import('./requests/credential.fields'));
   }
 };
 

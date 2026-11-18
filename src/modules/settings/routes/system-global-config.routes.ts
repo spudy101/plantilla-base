@@ -1,12 +1,12 @@
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { UpdateSystemGlobalConfigBody } from '../requests/system-global-config.request';
 const router = express.Router();
 import SystemGlobalConfigController from '../controllers/system-global-config.controller';
-import SystemGlobalConfigValidator from '../validators/system-global-config.validator';
 import iamModule from '../../iam';
 const { AuthMiddleware, RbacMiddleware } = iamModule;
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 import rbacModule from '../../../shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
@@ -27,8 +27,7 @@ router.patch(
   RbacMiddleware.requirePermission(RBAC_MODULES.SYSTEM_CONFIG, RBAC_ACTIONS.UPDATE),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  SystemGlobalConfigValidator.update(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: UpdateSystemGlobalConfigBody }),
   SystemGlobalConfigController.updateConfig
 );
 

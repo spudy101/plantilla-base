@@ -52,5 +52,10 @@ export default {
 
   get KycSharedUtil() {
     return interopDefault(require('./utils/kyc-shared.util') as typeof import('./utils/kyc-shared.util'));
+  },
+
+  /** Campos reutilizables para los esquemas de entrada (requests). */
+  get personFields() {
+    return interopDefault(require('./requests/person.fields') as typeof import('./requests/person.fields'));
   }
 };

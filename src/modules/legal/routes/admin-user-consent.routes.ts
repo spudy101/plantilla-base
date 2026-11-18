@@ -1,12 +1,12 @@
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { AdminUserConsentListQuery, UserIdParams, PaginationQuery } from '../requests/legal.request';
 const router = express.Router();
 import AdminUserConsentController from '../controllers/admin-user-consent.controller';
-import AdminUserConsentValidator from '../validators/admin-user-consent.validator';
 import iamModule from '../../iam';
 const { AuthMiddleware, RbacMiddleware } = iamModule;
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 import constantsModule from '../../../shared/constants';
 const { RBAC_MODULES, RBAC_ACTIONS } = constantsModule;
 
@@ -16,8 +16,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.POLICY_ACCEPTANCE, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AdminUserConsentValidator.listQuery(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ query: AdminUserConsentListQuery }),
   AdminUserConsentController.list
 );
 
@@ -27,8 +26,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.POLICY_ACCEPTANCE, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AdminUserConsentValidator.userId(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: UserIdParams, query: PaginationQuery }),
   AdminUserConsentController.getHistoryByUser
 );
 

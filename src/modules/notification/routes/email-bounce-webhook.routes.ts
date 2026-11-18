@@ -9,11 +9,9 @@ import express from 'express';
 
 const router = express.Router();
 import EmailBounceWebhookController from '../controllers/email-bounce-webhook.controller';
-import EmailBounceWebhookValidator from '../validators/email-bounce-webhook.validator';
 import iamModule from '../../iam';
 const { AuthMiddleware } = iamModule;
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 import { markOperationSource } from '../../../shared/observability/operation';
 
 const WEBHOOK_BODY_LIMIT = '256kb';
@@ -25,8 +23,6 @@ router.post(
   express.text({ type: '*/*', limit: WEBHOOK_BODY_LIMIT }),
   AuthMiddleware.externalWebhookAuthenticate,
   RateLimitMiddleware.apiLimiter(),
-  EmailBounceWebhookValidator.webhook(),
-  ValidatorUtil.handleValidationErrors,
   EmailBounceWebhookController.process
 );
 

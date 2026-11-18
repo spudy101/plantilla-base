@@ -1,12 +1,12 @@
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { UpdateProfileBody, UpdateEmailBody, UpdatePhoneBody, UpdatePasswordBody, UpdateNamesBody, DeleteAccountBody } from '../requests/person.request';
 const router = express.Router();
 import ProfileController from '../controllers/profile.controller';
-import ProfileValidator from '../validators/profile.validator';
 import iamModule from '../../iam';
 const { AuthMiddleware } = iamModule;
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 
 /**
  * TODAS LAS RUTAS REQUIEREN AUTENTICACIÓN
@@ -54,8 +54,7 @@ router.put(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  ProfileValidator.updateProfile(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: UpdateProfileBody }),
   ProfileController.updateProfile
 );
 
@@ -65,8 +64,7 @@ router.put(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  ProfileValidator.updateEmail(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: UpdateEmailBody }),
   ProfileController.updateEmail
 );
 
@@ -76,8 +74,7 @@ router.put(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  ProfileValidator.updatePhone(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: UpdatePhoneBody }),
   ProfileController.updatePhone
 );
 
@@ -87,8 +84,7 @@ router.put(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  ProfileValidator.updatePassword(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: UpdatePasswordBody }),
   ProfileController.updatePassword
 );
 
@@ -101,8 +97,7 @@ router.put(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  ProfileValidator.updateNames(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: UpdateNamesBody }),
   ProfileController.updateNames
 );
 
@@ -112,8 +107,7 @@ router.delete(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  ProfileValidator.deleteAccount(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: DeleteAccountBody }),
   ProfileController.deleteAccount
 );
 

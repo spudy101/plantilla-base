@@ -597,6 +597,15 @@ module.exports = {
         // mockImplementation(async () => valor): la forma natural de un doble que devuelve una promesa
         'require-await': 'off'
       }
+    },
+    {
+      // Esquemas de entrada (Zod): los límites (longitudes, rangos) son la especificación del campo, como en
+      // la documentación OpenAPI; nombrar cada uno como constante no aporta.
+      files: ['**/requests/*.ts', '**/shared/validation/*.ts'],
+      rules: {
+        'no-magic-numbers': 'off',
+        '@typescript-eslint/no-magic-numbers': 'off'
+      }
     }
   ]
 };

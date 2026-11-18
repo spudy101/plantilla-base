@@ -214,16 +214,15 @@ export default new MyRepository();
 
 ```ts
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { MyListQuery } from '../requests/my.request';
 const router = express.Router();
 import MyController from '../controllers/my.controller';
-import MyValidator from '../validators/my.validator';
-import AuthMiddleware from '../../../../src/modules/iam/middlewares/auth.middleware';
-import RateLimitMiddleware from '../../../../src/shared/http/rate-limit.middleware';
-import RequestLockMiddleware from '../../../../src/shared/http/request-lock.middleware';
-import RbacMiddleware from '../../../../src/modules/iam/middlewares/rbac.middleware';
-import AuditAction from '../../../../src/modules/audit/middlewares/audit-action.middleware';
-import ValidatorUtil from '../../../../src/shared/http/validators.util';
-import rbacModule from '../../../../src/shared/constants/rbac';
+import iamModule from '../../iam';
+const { AuthMiddleware, RbacMiddleware } = iamModule;
+import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
+import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
+import rbacModule from '../../../shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
 router.get(
@@ -233,8 +232,7 @@ router.get(
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
   // DualApprovalMiddleware.require('OP_KEY', {...}),  ← SOLO en operaciones sensibles (write)
-  MyValidator.listQuery(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ query: MyListQuery }),
   MyController.list
 );
 
@@ -245,26 +243,21 @@ export default router;
 > ✅ El módulo y la acción deben calzar semánticamente con lo que hace el endpoint.
 > ❌ No usar `AuthMiddleware.requireRole` en rutas admin nuevas — usar RBAC.
 
-## Validator
+## Request (entrada, Zod)
 
 ```ts
-import { body, query } from 'express-validator';
-import BaseValidator from '../../../../src/shared/http/base.validator';
+// requests/my.request.ts
+import { z } from '../../../shared/validation/z';
+import { input, optionalBool, paginationQuery, searchQuery, text, uuid } from '../../../shared/validation/fields';
 
-class MyValidator {
-  static listQuery() {
-    return [...BaseValidator.pagination(), ...BaseValidator.searchQuery(), query('isActive').optional().isBoolean().toBoolean()];
-  }
+export const MyListQuery = input({ ...paginationQuery, ...searchQuery, isActive: optionalBool('El estado') });
+export const MyIdParams = input({ categoryId: uuid('La categoría') });
 
-  static create() {
-    return [
-      body('name').notEmpty().withMessage('El nombre es requerido').trim(),
-      ...BaseValidator.uuidParam('categoryId', 'La categoría')
-    ];
-  }
-}
+// z.object descarta lo que no está declarado (lista blanca)
+export const CreateMyBody = z.object({ name: text('El nombre', { max: 120 }) });
+export type CreateMyBody = z.infer<typeof CreateMyBody>; // lo que recibe el service
 
-export default MyValidator;
+// en la ruta: validate({ params: MyIdParams, body: CreateMyBody })
 ```
 
 ## Modelo y migración

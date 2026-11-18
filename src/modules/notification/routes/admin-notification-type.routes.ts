@@ -1,15 +1,14 @@
 // modules/admin/kyc/routes/admin-notification-type.routes.ts
 
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { TypeListQuery, TypeIdParams, UpdateTypeBody, GlobalNotificationBody, DirectNotificationBody } from '../requests/notification.request';
 const router = express.Router();
 import NotificationTypeController from '../controllers/admin-notification-type.controller';
-import NotificationTypeValidator from '../validators/admin-notification-type.validator';
-import BaseValidator from '../../../shared/http/base.validator';
 import iamModule from '../../iam';
 const { AuthMiddleware, RbacMiddleware } = iamModule;
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 import rbacModule from '../../../shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
@@ -25,8 +24,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.NOTIFICATION_MANAGEMENT, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  NotificationTypeValidator.listQuery(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ query: TypeListQuery }),
   NotificationTypeController.list
 );
 
@@ -44,8 +42,7 @@ router.post(
   RbacMiddleware.requirePermission(RBAC_MODULES.NOTIFICATION_MANAGEMENT, RBAC_ACTIONS.CREATE),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  NotificationTypeValidator.createGlobalNotification(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: GlobalNotificationBody }),
   NotificationTypeController.createGlobalNotification
 );
 
@@ -63,8 +60,7 @@ router.post(
   RbacMiddleware.requirePermission(RBAC_MODULES.NOTIFICATION_MANAGEMENT, RBAC_ACTIONS.CREATE),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  NotificationTypeValidator.createDirectNotification(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: DirectNotificationBody }),
   NotificationTypeController.createDirectNotification
 );
 
@@ -83,9 +79,7 @@ router.patch(
   RbacMiddleware.requirePermission(RBAC_MODULES.NOTIFICATION_MANAGEMENT, RBAC_ACTIONS.UPDATE),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  BaseValidator.uuidParam('notificationTypeId', 'El tipo de notificación'),
-  NotificationTypeValidator.update(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: TypeIdParams, body: UpdateTypeBody }),
   NotificationTypeController.update
 );
 

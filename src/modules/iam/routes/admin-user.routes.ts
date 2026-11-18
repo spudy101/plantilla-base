@@ -8,15 +8,14 @@
 // por wildcard en la matriz RBAC.
 
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { InternalUserListQuery, CreateInternalUserBody, InternalUserIdParams, UpdateInternalUserBody, ChangeInternalRoleBody, ChangeStatusBody, DeleteInternalUserBody, PaginationQuery } from '../requests/iam.request';
 const router = express.Router();
 import AdminUserController from '../controllers/admin-user.controller';
-import AdminUserValidator from '../validators/admin-user.validator';
-import BaseValidator from '../../../shared/http/base.validator';
 import AuthMiddleware from '../middlewares/auth.middleware';
 import RbacMiddleware from '../middlewares/rbac.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 import constantsModule from '../../../shared/constants';
 const { RBAC_MODULES, RBAC_ACTIONS } = constantsModule;
 
@@ -29,8 +28,7 @@ router.get(
   RbacMiddleware.requirePermission(M, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AdminUserValidator.listQuery(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ query: InternalUserListQuery }),
   AdminUserController.list
 );
 
@@ -41,8 +39,7 @@ router.post(
   RbacMiddleware.requirePermission(M, RBAC_ACTIONS.CREATE),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AdminUserValidator.create(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: CreateInternalUserBody }),
   AdminUserController.create
 );
 
@@ -54,8 +51,7 @@ router.get(
   RbacMiddleware.requirePermission(M, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AdminUserValidator.listQuery(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ query: InternalUserListQuery }),
   AdminUserController.listDeleted
 );
 
@@ -78,8 +74,7 @@ router.get(
   RbacMiddleware.requirePermission(M, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  BaseValidator.uuidParam('userId', 'El usuario'),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: InternalUserIdParams }),
   AdminUserController.getById
 );
 
@@ -90,9 +85,8 @@ router.patch(
   RbacMiddleware.requirePermission(M, RBAC_ACTIONS.UPDATE),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  BaseValidator.uuidParam('userId', 'El usuario'),
-  AdminUserValidator.update(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: InternalUserIdParams }),
+  validate({ body: UpdateInternalUserBody }),
   AdminUserController.update
 );
 
@@ -103,9 +97,8 @@ router.patch(
   RbacMiddleware.requirePermission(M, RBAC_ACTIONS.UPDATE),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  BaseValidator.uuidParam('userId', 'El usuario'),
-  AdminUserValidator.changeRole(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: InternalUserIdParams }),
+  validate({ body: ChangeInternalRoleBody }),
   AdminUserController.changeRole
 );
 
@@ -116,9 +109,8 @@ router.patch(
   RbacMiddleware.requirePermission(M, RBAC_ACTIONS.UPDATE),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  BaseValidator.uuidParam('userId', 'El usuario'),
-  AdminUserValidator.changeStatus(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: InternalUserIdParams }),
+  validate({ body: ChangeStatusBody }),
   AdminUserController.changeStatus
 );
 
@@ -131,8 +123,7 @@ router.delete(
   RbacMiddleware.requirePermission(M, RBAC_ACTIONS.DELETE),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AdminUserValidator.deleteUser(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: InternalUserIdParams, body: DeleteInternalUserBody }),
   AdminUserController.deleteUser
 );
 
@@ -143,8 +134,7 @@ router.get(
   RbacMiddleware.requirePermission(M, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  BaseValidator.uuidParam('userId', 'El usuario'),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: InternalUserIdParams }),
   AdminUserController.listSessions
 );
 
@@ -154,8 +144,7 @@ router.delete(
   RbacMiddleware.requirePermission(M, RBAC_ACTIONS.DELETE),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  BaseValidator.uuidParam('userId', 'El usuario'),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: InternalUserIdParams }),
   AdminUserController.closeSessions
 );
 
@@ -166,9 +155,8 @@ router.get(
   RbacMiddleware.requirePermission(M, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  BaseValidator.uuidParam('userId', 'El usuario'),
-  AdminUserValidator.changeLogsQuery(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: InternalUserIdParams }),
+  validate({ query: PaginationQuery }),
   AdminUserController.listChangeLogs
 );
 

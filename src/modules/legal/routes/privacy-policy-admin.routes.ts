@@ -1,16 +1,15 @@
 // modules/admin/privacy-policy/routes/privacy-policy-admin.routes.ts
 
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { PrivacyPolicyListQuery, PrivacyPolicyIdParams, CreatePrivacyPolicyBody, PrivacyPolicyFiles } from '../requests/legal.request';
 const router = express.Router();
 import PrivacyPolicyAdminController from '../controllers/privacy-policy-admin.controller';
-import PrivacyPolicyAdminValidator from '../validators/privacy-policy-admin.validator';
-import BaseValidator from '../../../shared/http/base.validator';
 import iamModule from '../../iam';
 const { AuthMiddleware, RbacMiddleware } = iamModule;
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
 import UploadMiddleware from '../../../shared/http/upload.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 import rbacModule from '../../../shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
@@ -24,8 +23,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.PRIVACY_POLICIES, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  PrivacyPolicyAdminValidator.listQuery(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ query: PrivacyPolicyListQuery }),
   PrivacyPolicyAdminController.listVersions
 );
 
@@ -39,8 +37,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.PRIVACY_POLICIES, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  BaseValidator.uuidParam('privacyPolicyId', 'La política de privacidad'),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: PrivacyPolicyIdParams }),
   PrivacyPolicyAdminController.getVersionDetail
 );
 
@@ -65,8 +62,7 @@ router.post(
     maxFileSize: UploadMiddleware.MAX_DOCUMENT_SIZE
   }),
   UploadMiddleware.handleMulterError,
-  PrivacyPolicyAdminValidator.createVersion(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: CreatePrivacyPolicyBody, files: PrivacyPolicyFiles }),
   PrivacyPolicyAdminController.createVersion
 );
 

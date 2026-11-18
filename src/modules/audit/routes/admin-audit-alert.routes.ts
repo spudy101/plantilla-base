@@ -1,12 +1,12 @@
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { AuditAlertListQuery, AuditAlertIdParams, AcknowledgeAlertsBody } from '../requests/audit.request';
 const router = express.Router();
 import AdminAuditAlertController from '../controllers/admin-audit-alert.controller';
-import AdminAuditAlertValidator from '../validators/admin-audit-alert.validator';
 import iamModule from '../../iam';
 const { AuthMiddleware, RbacMiddleware } = iamModule;
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 import constantsModule from '../../../shared/constants';
 const { RBAC_MODULES, RBAC_ACTIONS } = constantsModule;
 
@@ -16,8 +16,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.SYSTEM_ALERTS, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AdminAuditAlertValidator.listQuery(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ query: AuditAlertListQuery }),
   AdminAuditAlertController.list
 );
 
@@ -27,8 +26,7 @@ router.patch(
   RbacMiddleware.requirePermission(RBAC_MODULES.SYSTEM_ALERTS, RBAC_ACTIONS.UPDATE),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AdminAuditAlertValidator.alertId(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: AuditAlertIdParams }),
   AdminAuditAlertController.acknowledge
 );
 
@@ -38,8 +36,7 @@ router.post(
   RbacMiddleware.requirePermission(RBAC_MODULES.SYSTEM_ALERTS, RBAC_ACTIONS.UPDATE),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AdminAuditAlertValidator.acknowledgeBulk(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ body: AcknowledgeAlertsBody }),
   AdminAuditAlertController.acknowledgeBulk
 );
 

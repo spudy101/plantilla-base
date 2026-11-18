@@ -9,14 +9,14 @@
 //   DELETE /admin/api/rbac/roles/:roleName/permissions/:id       → revocar permiso
 
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { RoleNameParams, PermissionIdParams, GrantPermissionBody } from '../requests/iam.request';
 const router = express.Router();
 import AdminRbacController from '../controllers/admin-rbac.controller';
-import AdminRbacValidator from '../validators/admin-rbac.validator';
 import AuthMiddleware from '../middlewares/auth.middleware';
 import RbacMiddleware from '../middlewares/rbac.middleware';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 import constantsModule from '../../../shared/constants';
 const { RBAC_MODULES, RBAC_ACTIONS } = constantsModule;
 
@@ -53,8 +53,7 @@ router.get(
   AuthMiddleware.authenticate,
   RbacMiddleware.requirePermission(RBAC_MODULES.ROLES_PERMISSIONS, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
-  AdminRbacValidator.roleNameParam(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: RoleNameParams }),
   AdminRbacController.listOverrides
 );
 
@@ -64,8 +63,7 @@ router.post(
   RbacMiddleware.requirePermission(RBAC_MODULES.ROLES_PERMISSIONS, RBAC_ACTIONS.CREATE),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AdminRbacValidator.grantPermission(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: RoleNameParams, body: GrantPermissionBody }),
   AdminRbacController.grantPermission
 );
 
@@ -75,9 +73,8 @@ router.delete(
   RbacMiddleware.requirePermission(RBAC_MODULES.ROLES_PERMISSIONS, RBAC_ACTIONS.DELETE),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  AdminRbacValidator.roleNameParam(),
-  AdminRbacValidator.permissionIdParam(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: RoleNameParams }),
+  validate({ params: PermissionIdParams }),
   AdminRbacController.revokePermission
 );
 

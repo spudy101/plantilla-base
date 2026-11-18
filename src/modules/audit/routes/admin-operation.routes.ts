@@ -1,13 +1,13 @@
 // Traza de operaciones (admin, solo lectura). Mismo permiso RBAC que los logs de auditoría (GLOBAL_LOGS).
 import express from 'express';
+import { validate } from '../../../shared/validation/validate';
+import { OperationListQuery, OperationIdParams } from '../requests/audit.request';
 const router = express.Router();
 import AdminOperationController from '../controllers/admin-operation.controller';
-import AdminOperationValidator from '../validators/admin-operation.validator';
 import iamModule from '../../iam';
 const { AuthMiddleware, RbacMiddleware } = iamModule;
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
-import ValidatorUtil from '../../../shared/http/validators.util';
 import constantsModule from '../../../shared/constants';
 const { RBAC_MODULES, RBAC_ACTIONS } = constantsModule;
 
@@ -18,13 +18,12 @@ const guards = [
   RequestLockMiddleware.forAuthenticatedUsers()
 ];
 
-router.get('/audit/operations', ...guards, AdminOperationValidator.list(), ValidatorUtil.handleValidationErrors, AdminOperationController.list);
+router.get('/audit/operations', ...guards, validate({ query: OperationListQuery }), AdminOperationController.list);
 
 router.get(
   '/audit/operations/:operationId',
   ...guards,
-  AdminOperationValidator.timeline(),
-  ValidatorUtil.handleValidationErrors,
+  validate({ params: OperationIdParams }),
   AdminOperationController.timeline
 );
 

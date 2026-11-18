@@ -272,8 +272,8 @@ const REGEX = {
   EMAIL: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
   UUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
   // [RF-AUTH-01] | CA-05 | Regex declara {8,} pero el
-  // mínimo efectivo es 10 (impuesto por isLength en
-  // base.validator.js). Cosméticamente inconsistente.
+  // mínimo efectivo es 10 (impuesto por min(10) en
+  // modules/iam/requests/credential.fields.ts). Cosméticamente inconsistente.
   // TODO [RF-AUTH-01][CA-05]: alinear regex a {10,}
   // para que sea autoexplicativo.
   PASSWORD: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d])\S{8,}$/,
