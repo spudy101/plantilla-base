@@ -26,7 +26,6 @@ export function applyTestEnv(): void {
   process.env.DB_NAME ??= 'postgres';
   process.env.DB_USER ??= 'postgres';
   process.env.DB_PASSWORD ??= 'postgres';
-  process.env.DB_DIALECT = 'postgres';
   // Siempre se pisa (no `??=`): el DB_SCHEMA de .env es el de desarrollo
   process.env.DB_SCHEMA = process.env.TEST_DB_SCHEMA || 'test';
   // Base local o service container de CI: sin TLS

@@ -96,7 +96,7 @@ Todo lo transversal que un proyecto necesita el día 1, ya construido y probado:
 | Área            | Tecnologías                                                                      |
 | --------------- | -------------------------------------------------------------------------------- |
 | **Runtime/Web** | Node.js 24+, TypeScript (estricto), Express 4                                     |
-| **Datos**       | PostgreSQL 14+, Sequelize 6, `pg`                                                 |
+| **Datos**       | PostgreSQL 14+, Prisma 7 (`@prisma/adapter-pg`), `pg`                             |
 | **Cache/estado**| Redis (`ioredis`) — **opcional**, con fallback a memoria/BD                       |
 | **Auth**        | `jose` (JWT RS256), `bcryptjs`, `otplib` (TOTP)                                   |
 | **AWS**         | SES (email), SNS (push/SMS), S3 (archivos), CloudFront                            |
@@ -119,7 +119,7 @@ servidores admin/cliente. El código se organiza en cuatro grandes zonas:
 servers/     → entrypoints (monolith | admin | client). Todos extienden BaseServer.
 modules/     → el dominio, partido por audiencia y por capa (ver abajo).
 shared/      → infraestructura transversal (middlewares, utils, base classes, constantes, DTOs).
-config/      → configuración de Sequelize y ensamblado de Swagger.
+config/      → ensamblado de Swagger (la base: prisma/ y shared/database/).
 ```
 
 ### Cómo se parten los módulos
@@ -150,8 +150,8 @@ Request
 | -------------- | -------------------------------------------------------------------------------- |
 | **Controller** | recibe `req`, llama service, devuelve `ApiResponse`. Sin lógica de negocio.       |
 | **Service**    | toda la lógica; lanza `AppError`; llama `logAudit`. No accede a la BD directo.     |
-| **Repository** | solo Sequelize; extiende `BaseRepository`.                                        |
-| **Model**      | tabla, tipos, hooks (`afterFind` descifra PII), asociaciones.                     |
+| **Repository** | único lugar con el cliente de Prisma; extiende `PrismaRepository`.                |
+| **Schema**     | `prisma/schema.prisma`: tablas, relaciones y nombres; genera el cliente y sus tipos. |
 | **Validator**  | cadenas `express-validator`; extiende `BaseValidator`.                            |
 | **DTO**        | transforma la respuesta a camelCase y enmascara PII. Nunca hace spread de instancias. |
 
@@ -183,17 +183,16 @@ DTOs: [`docs/dtos.md`](docs/dtos.md).
 │   └── {admin,client}/app.ts   # ensamblan sus routers bajo /api/v1/{dominio}
 │
 ├── shared/
-│   ├── base/                   # BaseServer, BaseApp, BaseRepository, BaseValidator
+│   ├── base/                   # BaseServer, BaseApp, BaseValidator
 │   ├── middlewares/            # auth, rbac, dual-approval, security, rate-limit, request-lock, audit, error…
 │   ├── utils/                  # jwt, encryption, hash, redis, logger, masking, pagination, s3…
 │   ├── services/               # rbac, hmac
-│   ├── models/                 # index (asociaciones) + mixins (origin-session)
+│   ├── database/               # cliente de Prisma, extensión de PII, Unit of Work, salud
 │   ├── constants/              # config, rbac, dual-approval, pii-fields, audit-actions…
 │   ├── dtos/                   # componentes DTO compartidos (audit/core/kyc/notification)
 │   ├── repositories/ · validators/
 │
 ├── config/
-│   ├── config.ts · database.ts # Sequelize (aislamiento por esquema)
 │   ├── swagger.admin.ts · swagger.client.ts
 │   └── swagger/                # paths + schemas por módulo
 │
@@ -286,7 +285,7 @@ npm run dev
 
 ## 🗄️ Base de datos
 
-PostgreSQL + Sequelize, con **aislamiento por esquema** (`DB_SCHEMA`): una misma instancia puede alojar
+PostgreSQL + Prisma, con **aislamiento por esquema** (`DB_SCHEMA`): una misma instancia puede alojar
 varios proyectos en esquemas distintos, y el historial de migraciones (`_prisma_migrations`) vive dentro
 del esquema.
 

@@ -9,7 +9,7 @@ revisión manual: resuelven la parte mecánica y dejan lo que no saben resolver 
 | `cjs-to-ts.js` | `git mv x.js x.ts` + convierte `require`/`module.exports` a `import x = require()` / `export =` (mismo contrato CommonJS). Reporta lo que no sabe convertir. | `node scripts/ts-migration/cjs-to-ts.js <archivos.js…>` |
 | `fix-params.js` | Corre `tsc` y anota parámetros "implicitly any" cuyo nombre tiene un tipo inequívoco en el proyecto (`userId: string`, `ttl: number`, `req: Request`…). | `node scripts/ts-migration/fix-params.js [prefijo]` |
 | `fix-unknown-catch.js` | Corre `tsc` y en cada `catch` con error `unknown` cambia `error.message` por `errorMessage(error)` (agrega el import). | `node scripts/ts-migration/fix-unknown-catch.js [prefijo]` |
-| `gen-model-types.js` | Tipa las factories de modelos desde la definición que Sequelize carga (`rawAttributes`, `associations`) y escribe `shared/models/registry.ts`. Idempotente: al regenerar conserva el namespace manual. | `npx tsx scripts/ts-migration/gen-model-types.js` |
+| `gen-model-types.js` | *(eliminado con Sequelize, fase 7 de `docs/prisma-migration.md`)* Tipaba las factories de modelos desde la definición que Sequelize carga (`rawAttributes`, `associations`) y escribe `shared/models/registry.ts`. Idempotente: al regenerar conserva el namespace manual. | `npx tsx scripts/ts-migration/gen-model-types.js` |
 | `type-repositories.js` | Agrega el genérico del modelo a cada repositorio (`extends BaseRepository<defineX.Instance>`) y su `import type`. | `node scripts/ts-migration/type-repositories.js <repos.ts…>` |
 | `where-builders.js` | `const where = {}` → `WhereClause` y los bloques `where.x = {}; where.x[Op.gte] = …` → `range()`/`dateRange()`. | `node scripts/ts-migration/where-builders.js <archivos.ts…>` |
 | `gen-repository-ports.js` | Genera `modules/schemas/repository-ports.ts` (`XRepositoryPort` por repositorio). Regenerar al agregar o renombrar un repositorio. | `node scripts/ts-migration/gen-repository-ports.js` |
@@ -67,9 +67,8 @@ resultados cuya forma la define un mock). El código bajo prueba se importa sin 
 
 ## Después de la fase 6
 
-Los generadores que se siguen usando — `gen-model-types.js` (al cambiar columnas o asociaciones) y
-`gen-repository-ports.js` (al agregar un repositorio) — emiten imports/exports nativos y son
-idempotentes. El resto de los codemods (`cjs-to-ts`, `fix-*`, `class-deps`, `req-user`,
+El generador que se sigue usando — `gen-repository-ports.js` (al agregar un repositorio) — emite
+imports/exports nativos y es idempotente (`gen-model-types.js` se fue con Sequelize). El resto de los codemods (`cjs-to-ts`, `fix-*`, `class-deps`, `req-user`,
 `where-builders`, `type-repositories`, `dto-picks`) se escribieron para las fases 1–5 y generan la
 sintaxis puente de entonces (`import x = require()` / `export =`), que hoy ESLint rechaza: quedan como
 referencia de cómo se hizo la migración.

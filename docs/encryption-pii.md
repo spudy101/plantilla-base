@@ -9,19 +9,22 @@
 ## Idea general
 
 Los campos PII se guardan **cifrados** (AES-256-GCM) y, en paralelo, se guarda un **hash determinístico**
-(`*_hash`, HMAC-SHA256) que permite buscar por igualdad sin descifrar. Los modelos descifran solos en
-lectura (hook `afterFind`) y cifran + calculan el hash en escritura (`beforeCreate`/`beforeUpdate`).
+(`*_hash`, HMAC-SHA256) que permite buscar por igualdad sin descifrar. El cliente de Prisma lo hace
+solo (`piiExtension`, `shared/database/prisma-extensions.ts`): descifra al leer —también en `include`— y
+cifra + calcula el hash al escribir —también en escrituras anidadas—. Los repositorios leen y escriben en claro.
 Los `*_hash` son internos: **nunca** se exponen en DTOs.
 
 ## Campos cifrados
 
-| Modelo               | Campo cifrado                                       | Hash gemelo          |
+| Modelo de Prisma     | Campo cifrado                                       | Hash gemelo          |
 | -------------------- | --------------------------------------------------- | -------------------- |
-| `Person`             | `national_id`                                       | `national_id_hash`   |
-| `PersonContact`      | `email`, `phone_primary`, `phone_secondary`         | `*_hash` de cada uno |
-| `UserTrustedDevice`  | `hmac_secret`                                       | —                    |
+| `Person`             | `nationalId`                                        | `nationalIdHash`     |
+| `PersonContact`      | `email`, `phonePrimary`, `phoneSecondary`           | `*Hash` de cada uno  |
+| `UserTrustedDevice`  | `hmacSecret`                                        | —                    |
 
-> `UserLoginAttempt.national_id_hash` es un caso de **solo hash**: guarda el HMAC para correlacionar intentos
+> La tabla sale de `ENCRYPTED_FIELDS` (`shared/database/pii-fields.ts`): una sola declaración.
+>
+> `UserLoginAttempt.nationalIdHash` es un caso de **solo hash**: guarda el HMAC para correlacionar intentos
 > sin persistir nunca el documento.
 >
 > `HashUtil` lee `process.env.HASH_PEPPER` directamente (`shared/utils/hash.util.ts`) — única excepción viva a
@@ -32,8 +35,8 @@ Los `*_hash` son internos: **nunca** se exponen en DTOs.
 - `encrypt(data)` → `"${ivHex}:${authTagHex}:${ciphertextHex}"` (IV aleatorio de 12 bytes por operación;
   salida autocontenida). AES-256-GCM (AEAD, integridad verificada).
 - `decrypt(data)` → detecta formato nuevo (GCM, 3 partes) o legado (CBC). Lanza si el authTag no valida.
-- `safeDecrypt(value)` → descifra y, si falla, devuelve el valor original. **Úsalo en DTOs** para modelos
-  anidados donde el `afterFind` pudo no dispararse (Sequelize 6 a veces no lo aplica en asociaciones).
+- `safeDecrypt(value)` → descifra y, si falla, devuelve el valor original. Lo usa la extensión al leer
+  (un dato legado guardado en claro se devuelve tal cual) y los DTOs como defensa.
 - `generateHmac(data, secret)` → HMAC-SHA256 genérico. **La firma de requests mobile NO usa este**: usa
   `generateRequestHmac(timestamp, method, path, secret)` sobre `${timestamp}:${method}:${path}`, con ventana
   de 10 s (`shared/services/hmac.service.ts`).
@@ -50,30 +53,32 @@ Los `*_hash` son internos: **nunca** se exponen en DTOs.
 > ⚠️ El `*_hash` NO es un HMAC con la clave AES; es `HashUtil.hashForSearch` con `HASH_PEPPER`. Sin
 > `HASH_PEPPER` configurado, el server no debe arrancar.
 
-## Hooks en modelos (ejemplo `PersonContact`)
+## La extensión de Prisma (`piiExtension`)
 
-```js
-hooks: {
-  beforeCreate: c => { if (c.email) { c.email_hash = HashUtil.hashForSearch(c.email); c.email = EncryptionUtil.encrypt(c.email); } /* phones idem */ },
-  beforeUpdate: c => { /* idem, solo si el campo cambió */ },
-  afterFind: result => { /* descifra email/phone_* en cada registro (y anidados) */ }
-}
+```ts
+// shared/database/pii-fields.ts — qué se cifra (una sola declaración)
+export const ENCRYPTED_FIELDS = {
+  Person: [{ field: 'nationalId', hash: 'nationalIdHash' }],
+  PersonContact: [{ field: 'email', hash: 'emailHash' }, { field: 'phonePrimary', hash: 'phonePrimaryHash' }, …],
+  UserTrustedDevice: [{ field: 'hmacSecret' }]
+};
 ```
 
-- `Person.afterFind` además descifra el `contact` anidado si viene incluido (manejo defensivo Sequelize 6).
-- Un modelo cuyo campo cifrado sea un **JSONB** (PII anidada) o que **no deba descifrar en cada lectura** puede
-  saltarse los hooks y cifrar/descifrar explícito en su service/helper — decisión por modelo.
+- **Escritura** (`create`, `update`, `upsert`, `createMany`…, también anidadas): cifra el campo y calcula su
+  hash. Actualizar el campo actualiza el hash.
+- **Lectura** (también los `include`): descifra.
+- **`where` sobre un campo cifrado lanza**: hay que filtrar por su hash.
+- Un campo cifrado que sea **JSONB** (PII anidada) o que **no deba descifrarse en cada lectura** no se declara
+  ahí: lo cifra y descifra su service/helper (`totpSecret`, códigos de verificación).
 
 ## Búsqueda por hash (repositorios)
 
-```js
-// person.repository.ts
-findByNationalId(nationalId) {
-  return this.findOne({ national_id_hash: HashUtil.hashForSearch(nationalId) });
-}
+```ts
+import { hashValue } from '../../../../shared/database/pii-fields';
+
 // person-contact.repository.ts
-findByEmail(email, options = {}) {
-  return this.findOne({ email_hash: HashUtil.hashForSearch(email) }, options);
+async findByEmail(email: string) {
+  return (await this.db()).personContact.findFirst({ where: { emailHash: hashValue(email) } });
 }
 ```
 
@@ -83,9 +88,9 @@ findByEmail(email, options = {}) {
 ## Reglas
 
 - ❌ Los `*_hash` nunca van en DTOs ni se envían al cliente — solo para `WHERE`.
-- ✅ En DTOs, descifrar **siempre** con `EncryptionUtil.safeDecrypt(...)` — nunca confiar en el `afterFind`,
-  que no corre en includes anidados — y **enmascarar el resultado** antes de exponerlo
+- ✅ En DTOs, pasar el valor por `EncryptionUtil.safeDecrypt(...)` (defensa ante datos legados) y
+  **enmascarar el resultado** antes de exponerlo
   (`MaskingUtil.maskDocumentId/maskEmail/maskPhone`). Ver [`pii-masking.md`](./pii-masking.md).
-- ✅ Para nuevos campos PII: columna cifrada + columna `*_hash`, hooks `beforeCreate/beforeUpdate/afterFind`
-  (o helper explícito si es JSONB/anidado), método `findByX` en el repo usando `hashForSearch`, y **la key
+- ✅ Para nuevos campos PII: columna cifrada + columna `*_hash`, el campo en `ENCRYPTED_FIELDS`
+  (o helper explícito si es JSONB/anidado), método `findByX` en el repo filtrando por `hashValue()`, y **la key
   del campo declarada en `shared/constants/pii-fields.ts`** para que quede enmascarado en las respuestas.

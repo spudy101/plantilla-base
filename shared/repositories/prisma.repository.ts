@@ -1,16 +1,15 @@
 // shared/repositories/prisma.repository.ts
 //
-// Base de los repositorios que ya usan Prisma (docs/prisma-migration.md). Durante la migración conviven
-// con los de Sequelize (ReadRepository / BaseRepository / AppendOnlyRepository): cada repositorio cambia
-// de ORM sin que sus services se enteren, porque siguen dependiendo del repositorio (SOLID: D).
+// Base de todos los repositorios. Los services dependen del repositorio, nunca del cliente de Prisma
+// (SOLID: D): el ORM no sale de esta capa.
 //
 // `await this.db()` es el cliente con el que consulta el repositorio: el de la transacción de la unidad
-// de trabajo si el llamador está dentro de `unitOfWork.run()` (la abre ahí, perezosa:
-// shared/database/transaction-context.ts), si no el cliente único. Los repositorios no reciben ni pasan
+// de trabajo si el llamador está dentro de `unitOfWork.run()` (shared/database/transaction-context.ts),
+// si no el cliente único. Los repositorios no reciben ni pasan
 // transacciones.
 //
-// Los helpers de paginación reproducen el contrato de ReadRepository#findAllPaginated (mismos
-// parámetros, que arma PaginationHelper), así un service no distingue un repositorio del otro.
+// Los helpers de paginación reciben lo que arma PaginationHelper desde la query string, y los listados
+// devuelven `{ rows, count }`: el mismo contrato en todos los repositorios.
 import prisma from '../database/prisma';
 import txContext from '../database/transaction-context';
 import type { Prisma } from '../database/generated/prisma/client';
@@ -39,7 +38,7 @@ abstract class PrismaRepository {
 
   /**
    * Cliente por defecto, aunque haya una unidad de trabajo activa. Para escrituras que deben quedar aunque
-   * el flujo que las disparó se revierta (bitácoras de auditoría: con Sequelize se escribían sin transacción).
+   * el flujo que las disparó se revierta (bitácoras de auditoría).
    */
   protected independentDb(): PrismaDb {
     return this._client;
@@ -66,7 +65,7 @@ abstract class PrismaRepository {
   /**
    * skip/take/orderBy de un listado paginado. `sortBy` llega de la query string con el nombre de la
    * columna (`created_at`, como hasta ahora) o del campo (`createdAt`); solo se acepta si es un campo
-   * del modelo, si no se ordena por `defaultSort` (mismo criterio "sortBy seguro" de ReadRepository).
+   * del modelo, si no se ordena por `defaultSort` ("sortBy seguro": nunca una columna arbitraria).
    */
   protected paginationArgs(
     sortableFields: readonly string[],
@@ -82,7 +81,7 @@ abstract class PrismaRepository {
     };
   }
 
-  /** `OR` de `contains` sin distinguir mayúsculas (el iLike de Sequelize); `{}` sin término. */
+  /** `OR` de `contains` sin distinguir mayúsculas (iLike); `{}` sin término. */
   protected searchWhere(searchTerm: string | null | undefined, fields: readonly string[]) {
     if (!searchTerm || fields.length === 0) {
       return {};
@@ -91,7 +90,7 @@ abstract class PrismaRepository {
   }
 
   /**
-   * `where` + paginación de un listado de catálogo, con el contrato de ReadRepository#findAllPaginated:
+   * `where` + paginación de un listado de catálogo, con el contrato `{ rows, count }`:
    * `filters.isActive` → isActive; `filterId` mapea un filtro de la query (p. ej. `countryId`) a su
    * campo; `searchTerm` busca sin mayúsculas en `searchFields`. El `where` sale sin tipo de modelo: el
    * repositorio lo castea a su `Prisma.XWhereInput` (los nombres vienen de su propia config).
@@ -116,7 +115,7 @@ abstract class PrismaRepository {
 // eslint-disable-next-line @typescript-eslint/no-namespace
 namespace PrismaRepository {
   export type Db = PrismaDb;
-  /** Igual que ReadRepository.PaginationParams (lo arma PaginationHelper.getPaginationParams). */
+  /** Lo arma PaginationHelper.getPaginationParams desde la query string. */
   export interface PaginationParams {
     limit?: number;
     offset?: number;
@@ -131,7 +130,7 @@ namespace PrismaRepository {
     /** Filtro por id padre: `filters[key]` → `where[field]` (ej. countryId → countryId). */
     filterId?: { key: string; field: string };
   }
-  /** Resultado de un listado paginado (mismo que ReadRepository#findAllPaginated). */
+  /** Resultado de un listado paginado (`{ rows, count }`). */
   export interface Page<Row> {
     rows: Row[];
     count: number;

@@ -3,7 +3,6 @@
 // ProfileHelper recibe repositorios y KycSharedUtil por constructor (SOLID: D).
 // Se prueba SIN jest.mock de repositorios: cada test arma sus fakes.
 
-jest.mock('shared/models', () => ({}));
 
 import { fixture } from 'tests/helpers/mock';
 import profileHelperModule from 'modules/schemas/kyc/person/helpers/profile.helper';

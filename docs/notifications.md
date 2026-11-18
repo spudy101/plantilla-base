@@ -129,10 +129,10 @@ setImmediate(() => {
 - **`userId`** (opcional): si `null` → **notificación global** (inserta en `global_notifications`, llega a todos los usuarios activos). Cuidado: es masivo.
 - **`relatedEntity`** (opcional): `{ type, id }`. Se persiste en `related_entity_type` / `related_entity_id`. (Algunos casos legacy pasan un string; la forma correcta es el objeto.)
 - **`metadata`** (opcional): valores que reemplazan los `{{placeholders}}` de los templates. Pasar **todas** las variables que usan los templates o saldrán literales.
-- **`transaction`** (opcional): para crear la notificación dentro de una transacción Sequelize.
 
-Internamente: valida el code, busca el `NotificationType`, renderiza `title/body` (+ email subject/body) con `notification-content.util`, persiste y dispara el envío con `setImmediate`. Retorna `{ estado_solicitud, message }` + **una sola** de las dos
-ids, según el caso: `notification_id` (individual) o `global_notification_id` (global) — son mutuamente excluyentes.
+Internamente: valida el code, busca el `NotificationType`, renderiza `title/body` (+ email subject/body) con `notification-content.util`, persiste y dispara el envío con `setImmediate`. Si se llama dentro de un `unitOfWork.run()`, la notificación se crea en esa transacción (los repositorios la toman
+del contexto). Retorna `{ estadoSolicitud, message }` + **una sola** de las dos ids, según el caso:
+`notificationId` (individual) o `globalNotificationId` (global) — son mutuamente excluyentes.
 
 ### `crearNotificacionDirecta({ tipoNotificacion, email, metadata })`
 

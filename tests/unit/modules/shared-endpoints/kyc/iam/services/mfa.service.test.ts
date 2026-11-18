@@ -7,9 +7,7 @@
 // transacciones Sequelize se mockean (commit/rollback espiables) y las notificaciones diferidas en
 // setImmediate se vacían con flushMacrotasks. `crypto`/OTP se hacen deterministas vía MOCKS.
 
-jest.mock('shared/models', () => ({
-  sequelize: { transaction: jest.fn() }
-}));
+jest.mock('shared/database/prisma', () => ({ __esModule: true, default: { $transaction: jest.fn() } }));
 
 jest.mock('modules/schemas/kyc/iam/repositories/user.repository', () => ({
   findById: jest.fn(),
@@ -74,8 +72,8 @@ jest.mock('modules/shared-endpoints/kyc/iam/dtos/mfa.dto', () => ({
 
 import { managedTransaction } from 'tests/helpers/transaction';
 import { mocked, Loose } from 'tests/helpers/mock';
-import modelsModule from 'shared/models';
-const { sequelize } = mocked(modelsModule);
+import prismaModule from 'shared/database/prisma';
+const prisma = mocked(prismaModule);
 import userRepoModule from 'modules/schemas/kyc/iam/repositories/user.repository';
 const userRepo = mocked(userRepoModule);
 import verificationCodeRepoModule from 'modules/schemas/notification/repositories/verification-code.repository';
@@ -123,7 +121,7 @@ describe('MFAService', () => {
     userRepo.findWithPrimaryPhone.mockImplementation((...args) => userRepo.findById(...args));
     constants.MOCKS.EXTERNAL_PROVIDERS = false;
     tx = makeTx();
-    sequelize.transaction.mockImplementation(managedTransaction(tx));
+    prisma.$transaction.mockImplementation(managedTransaction(tx));
   });
 
   describe('setupTOTP', () => {
@@ -156,7 +154,7 @@ describe('MFAService', () => {
       userRepo.findById.mockResolvedValue(makeUser({ totpSecret: 'enc' }));
       TotpUtil.verify.mockReturnValue(false);
       await expect(mfa.verifyAndActivateTOTP('999999', USER_ID, 'juan', 'Juan', AUDIT)).rejects.toMatchObject({ statusCode: 400 });
-      expect(sequelize.transaction).not.toHaveBeenCalled(); // verifica antes de abrir tx
+      expect(prisma.$transaction).not.toHaveBeenCalled(); // verifica antes de abrir tx
     });
 
     it('activa TOTP en transacción, lo fija como preferido si era none, commitea y notifica', async () => {

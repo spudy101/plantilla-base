@@ -1,7 +1,7 @@
 # Principios SOLID en la plantilla
 
 > Qué principio se aplica, **dónde** está en el código y **cómo** seguirlo al crear un feature nuevo.
-> La arquitectura sigue siendo **modular por capas** (`routes → controllers → services → repositories → models`).
+> La arquitectura sigue siendo **modular por capas** (`routes → controllers → services → repositories → Prisma`).
 > SOLID no cambia esa arquitectura: la deja lista para migrar a hexagonal/clean si el dominio lo pide
 > (ver [§ Camino a hexagonal](#camino-a-hexagonal)).
 
@@ -9,9 +9,9 @@
 |---|---|---|
 | **S** — Single Responsibility | Una clase, una razón de cambio | Fachadas `auth-login/`, `auth-register/`, `mfa/`, `admin-user/`, `admin-person/`; servicios compartidos de sesión y política |
 | **O** — Open/Closed | Extender sin modificar | Canales de notificación como descriptores |
-| **L** — Liskov Substitution | Un hijo sirve donde se espera al padre | `ReadRepository` / `BaseRepository` / `AppendOnlyRepository` (todos los repos) |
-| **I** — Interface Segregation | No depender de métodos que no usas | Repos con métodos de negocio; jerarquía de repos |
-| **D** — Dependency Inversion | Depender de abstracciones inyectadas | `constructor(deps = {})`, `UnitOfWork`, cero `Op`/modelos/`include` en la capa de aplicación |
+| **L** — Liskov Substitution | Un hijo sirve donde se espera al padre | `PrismaRepository` (todos los repos); cada repo expone solo lo que su tabla admite |
+| **I** — Interface Segregation | No depender de métodos que no usas | Repos con métodos de negocio; puertos `XRepositoryPort` + `Pick` |
+| **D** — Dependency Inversion | Depender de abstracciones inyectadas | `constructor(deps = {})`, `UnitOfWork`, el cliente de Prisma solo en repositorios |
 
 Las reglas se **verifican automáticamente** en `tests/unit/guards/solid-architecture.test.ts`
 (ver [§ Cómo se verifica](#cómo-se-verifica)).
@@ -136,28 +136,23 @@ Otro ejemplo que ya existía: el `ENTITY_REGISTRY` de `admin-session-trace.servi
 
 ## L — Liskov Substitution
 
-**Antes:** `AuditLogRepository extends BaseRepository` y sobrescribía `update()` / `delete()` para
-**lanzar error** (la tabla es append-only). Si alguien recibía "un BaseRepository" y llamaba
-`delete`, explotaba: el hijo no podía reemplazar al padre.
-
-**Ahora** la jerarquía separa capacidades:
+Todos los repositorios extienden `PrismaRepository` (`shared/repositories/prisma.repository.ts`), que
+no trae operaciones genéricas: da el cliente (`db()`, el de la transacción activa si la hay) y los
+helpers de paginación y búsqueda. Cada repositorio declara **solo las operaciones que su tabla admite**,
+así ningún hijo hereda un método que no puede cumplir:
 
 ```
-ReadRepository              → findById, findAll, findByIds, findAllPaginated, count...
-├── BaseRepository          → + create, update, delete, bulkCreate/Update/Delete
-└── AppendOnlyRepository    → + create, bulkCreate          (audit_logs)
+PrismaRepository            → db(), independentDb(), paginationArgs(), searchWhere(), listQuery()
+├── GenderRepository        → findById, exists, findAllPaginated
+├── AuditLogRepository      → create + lecturas + purgeCreatedBefore   (append-only: sin update/delete)
+└── …
 ```
 
-`AuditLogRepository extends AppendOnlyRepository`: `update`/`delete` simplemente no existen.
+`AuditLogRepository` no tiene `update`/`delete` (y la base lo refuerza con un trigger). Con una clase
+base genérica, el hijo los sobrescribía para lanzar error: no podía reemplazar al padre.
 
-También se corrigieron overrides que **cambiaban la firma** del padre: varios
-`delete(id)` y `findById(id)` ignoraban el parámetro `options`, así que una llamada con
-`{ transaction }` se ejecutaba **fuera** de la transacción sin avisar. Ahora todos aceptan y
-propagan `options`, igual que la clase base.
-
-`RolePermissionOverrideRepository` era el único repositorio fuera de la jerarquía y definía
-`exists(roleName, moduleName, action)`, incompatible con `ReadRepository.exists(criteria)`. Ahora
-hereda de `BaseRepository` y la verificación de duplicados se llama `existsOverride(...)`.
+`RolePermissionOverrideRepository` verifica duplicados con `existsOverride(roleName, moduleName,
+action)` en vez de redefinir un `exists(criteria)` genérico con otra firma.
 
 **Regla práctica:** un override debe aceptar los mismos argumentos que el padre y no lanzar
 errores que el padre no lanza. Si un hijo "no puede" hacer algo del padre, la jerarquía está mal.
@@ -167,9 +162,10 @@ Si necesitas otra semántica, usa otro nombre en vez de redefinir el método del
 
 ## I — Interface Segregation
 
-1. **Jerarquía de repositorios** (arriba): un repo de solo inserción no carga con `update`/`delete`.
+1. **Cada repositorio declara sus operaciones** (arriba): uno de solo inserción no carga con `update`/`delete`.
+   Los services dependen de `XRepositoryPort` + `Pick` con los métodos que usan (`modules/schemas/repository-ports.ts`).
 2. **Métodos con nombre de negocio** en vez de un `findAll(where)` genérico que obliga al service a
-   saber de Sequelize:
+   conocer el ORM (los "antes" son de la época de Sequelize):
 
 | Antes (en el service) | Ahora |
 |---|---|
@@ -223,34 +219,36 @@ Ejemplos reales: `consent-recorder.service.test.ts`, `unit-of-work.test.ts` y el
 
 ### 2. Unit of Work
 
-Los services ya no llaman `sequelize.transaction()`. Usan el puerto `shared/database/unit-of-work.ts`,
-siempre en modo gestionado: lo que pasa dentro de `run()` se confirma junto o se revierte junto, y lo
-posterior al commit (auditoría, notificaciones) va **después**, fuera de la transacción:
+Los services no abren transacciones del ORM. Usan el puerto `shared/database/unit-of-work.ts`, siempre
+en modo gestionado: lo que pasa dentro de `run()` se confirma junto o se revierte junto, y lo posterior al
+commit (auditoría, notificaciones) va **después**, fuera de la transacción:
 
 ```ts
-const user = await this.unitOfWork.run(async transaction => {
-  await this.userRepository.update(id, data, { transaction }); // repositorio Sequelize: por parámetro
-  await this.genderRepository.exists({ genderId });            // repositorio Prisma: la toma solo
+const user = await this.unitOfWork.run(async () => {
+  const user = await this.userRepository.update(id, data); // los repositorios toman la transacción solos
+  await this.personContactRepository.update(user.personId, contact);
   return user;
 });
 logAudit('USER_UPDATED', …);
 ```
 
-No hay `begin()`/`commit()` manual: con commit a mano, un error **después** del commit hacía
-`rollback()` sobre una transacción confirmada y tapaba el error original. Mientras convivan Sequelize y
-Prisma (ver [`prisma-migration.md`](prisma-migration.md)), `run()` coordina una transacción de cada ORM.
+`run()` abre una transacción interactiva de Prisma y la publica en `transaction-context`
+(AsyncLocalStorage); `PrismaRepository#db()` la usa si está activa. No hay `begin()`/`commit()` manual:
+con commit a mano, un error **después** del commit hacía `rollback()` sobre una transacción confirmada y
+tapaba el error original.
 
 ### 3. La capa de aplicación no conoce el ORM
 
-Services, helpers, validators, controllers, middlewares y utils **no** importan `sequelize`, `Op`
-ni modelos:
+Services, helpers, validators, controllers, middlewares y utils **no** usan el cliente de Prisma
+(`shared/database/prisma`, `$queryRaw`, `$transaction`, delegates). Sí pueden importar **tipos** del cliente
+generado (`import type { User } from '…/generated/prisma/client'`): son la forma de las filas.
 
 - **Consultas e `include`** → métodos con nombre de negocio en el repositorio (tabla de § I).
 - **Enums de dominio** → `shared/constants/domain-enums.ts` (`NOTIFICATION_PROCESSING_STATUS`,
   `APPROVAL_REQUEST_STATUS`, `USER_SESSION_STATUS`, `INTEGRATION_PRODUCTS`, `INTEGRATION_RESULTS`).
-  El modelo los usa para su `ENUM`, así que hay una sola fuente de verdad.
-- **Código de `shared/`** que consultaba modelos (`auth.middleware`, `rbac.service`,
-  `mfa-status.util`, `resilience-config.util`) ahora pasa por repositorios cargados de forma diferida.
+  Toma los valores de los `enum` del schema de Prisma, con chequeo de exhaustividad: una sola fuente de verdad.
+- **Código de `shared/`** que consulta la base (`auth.middleware`, `rbac.service`,
+  `mfa-status.util`, `resilience-config.util`) pasa por repositorios cargados de forma diferida.
   `require` diferido porque esos módulos se cargan al arrancar y un import directo crearía un ciclo.
 - **Clientes de infraestructura** (SNS, S3) se inyectan: `new PushNotificationService({ snsClient })`,
   `new SmsService({ snsClient })`, `fileStorage` en banners.
@@ -259,8 +257,8 @@ ni modelos:
 
 | Dónde | Por qué |
 |---|---|
-| `shared/utils/logger.util.ts`, `integration-api-logger.util.ts` | Escriben los logs; todo el sistema depende del logger, así que no pueden depender de repositorios. |
-| `audit-archive.worker.ts` | Mueve lotes de `audit_logs` a la tabla de archivo con SQL y una transacción propios (operación de mantenimiento, no lógica de negocio). |
+| `shared/utils/logger.util.ts`, `integration-api-logger.util.ts` | Escriben los logs a través de sus repositorios, cargados de forma diferida (todo el sistema depende del logger). |
+| `audit-archive.worker.ts` | Purga lotes de `audit_logs` con `auditLogRepository.purgeCreatedBefore` (mantenimiento, no lógica de negocio). |
 | `shared/base/*`, `servers/*`, `*.bootstrap.ts` | Arranque y composición. |
 
 ---
@@ -269,13 +267,11 @@ ni modelos:
 
 - [ ] El service recibe repos/colaboradores por `constructor(deps = {})` y los usa vía `this.`.
 - [ ] Exporta la instancia **y** la clase.
-- [ ] No importa `sequelize`, `Op` ni modelos: si necesitas un filtro o un `include`, agrega un
-      método con nombre de negocio al repositorio.
-- [ ] Enums (estados, catálogos) desde `shared/constants/domain-enums.ts`, no desde el modelo.
-- [ ] Nada de `instance.update(...)` sobre lo que devolvió un repositorio: `repo.update(id, data, { transaction })`.
-- [ ] Transacciones con `this.unitOfWork`.
-- [ ] El repositorio hereda de `BaseRepository`, o de `AppendOnlyRepository` / `ReadRepository` si
-      la tabla no admite todas las operaciones. Overrides con la misma firma que el padre.
+- [ ] No usa el cliente de Prisma: si necesitas un filtro o un `include`, agrega un método con nombre de
+      negocio al repositorio (los tipos de las filas sí, con `import type`).
+- [ ] Enums (estados, catálogos) desde `shared/constants/domain-enums.ts`.
+- [ ] Transacciones con `this.unitOfWork.run(async () => …)`: los repositorios toman la transacción solos.
+- [ ] El repositorio extiende `PrismaRepository` y expone solo las operaciones que su tabla admite.
 - [ ] Si el service crece y mezcla responsabilidades, se divide y el original queda como fachada.
 - [ ] Antes de copiar lógica de otro flujo, revisa si ya hay un servicio compartido
       (`session-issuer`, `session-control`, `login-policy-gate`, `consent-recorder`).
@@ -292,15 +288,17 @@ Las plantillas de código actualizadas están en [`implementation-patterns.md`](
 
 | Regla | Principio |
 |---|---|
-| Un service / helper / validator / controller / middleware / util importa modelos | D |
-| La capa de aplicación importa `sequelize` o usa `Op.*` | I / D |
+| Algún archivo del proyecto importa `sequelize` | D |
+| Fuera de repositorios y `shared/database` se importa (como valor) el cliente de Prisma | D |
+| La capa de aplicación arma consultas de Prisma (`$queryRaw`, `$transaction`, `prisma.x.find…`) | I / D |
+| Los enums generados se leen fuera de `shared/constants/domain-enums.ts` | D |
 | Un service arma `include` con `model: X` | D |
-| Un repositorio no hereda de `ReadRepository` / `BaseRepository` / `AppendOnlyRepository` | L |
+| Un repositorio no extiende `PrismaRepository` | L |
 | Un service exporta la instancia sin exportar también la clase | D |
 | Un service importa repositorios sin recibirlos por `constructor(deps = {})` | D |
 
 Si falla, la corrección casi siempre es mover la consulta, el enum o el `include` a su lugar. No se
-arregla ampliando el allowlist del test, que solo contiene las excepciones de la tabla de § D.
+arregla relajando la guarda.
 
 Lo que la guarda **no** puede medir (y queda a criterio de revisión): si un service mezcla
 responsabilidades. Como referencia, ninguno pasa de ~600 líneas y los que superan 400
@@ -317,8 +315,8 @@ Con lo anterior, pasar a hexagonal es sobre todo **mover y renombrar**:
 |---|---|
 | Sub-services de una fachada (`token-refresh.service.ts`) | `application/use-cases/` |
 | Contrato implícito del repositorio (`findByNames`, `findActive`) | `domain/ports/*.ts` (interfaces) |
-| Repositorios Sequelize | `infrastructure/adapters/sequelize/` |
-| `UnitOfWork` | Puerto `UnitOfWork` + adaptador Sequelize (ya está separado) |
+| Repositorios (`extends PrismaRepository`) | `infrastructure/adapters/prisma/` |
+| `UnitOfWork` | Puerto `UnitOfWork` + adaptador Prisma (ya está separado) |
 | `export default Object.assign(new X(), { X })` con defaults | *Composition root* que arma todo en un solo lugar |
 
 Lo que faltaría: definir los puertos de forma explícita (en TypeScript serían `interface`) y

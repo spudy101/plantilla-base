@@ -3,7 +3,6 @@
 // blockDevice: regresión de la fase 4 de la migración a TS — el repositorio recibe desde qué
 // dispositivo de confianza se bloqueó (antes blocked_by_device_id quedaba vacío).
 
-jest.mock('shared/models', () => ({}));
 jest.mock('shared/utils/logger.util', () => ({
   logger: { error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() },
   logAudit: jest.fn()

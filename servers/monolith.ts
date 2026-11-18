@@ -6,7 +6,7 @@ import constantsModule from '../shared/constants';
 const { server } = constantsModule;
 import BaseServer from '../shared/base/base.server';
 import redisClient from '../shared/utils/redis.util';
-import db from '../shared/models';
+import { checkDatabase } from '../shared/database/database-health';
 import clientApp from '../modules/client/app';
 import adminApp from '../modules/admin/app';
 import packageModule from '../package.json';
@@ -31,7 +31,7 @@ class MonolithServer extends BaseServer {
 
       const dbStart = Date.now();
       try {
-        await db.sequelize.authenticate();
+        await checkDatabase();
         checks.database = { status: 'healthy', responseTimeMs: Date.now() - dbStart };
       } catch {
         checks.database = { status: 'unhealthy', responseTimeMs: Date.now() - dbStart };

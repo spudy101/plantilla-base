@@ -107,7 +107,7 @@ class BaseServer {
 
   async #connectDatabase() {
     logger.info('Connecting to database...');
-    await databaseHealth.checkDatabase(); // Sequelize y Prisma
+    await databaseHealth.checkDatabase();
     logger.info('✅ Database connection established');
   }
 
@@ -165,7 +165,7 @@ class BaseServer {
         logger.info('✅ HTTP server closed');
 
         await databaseHealth.closeDatabase();
-        logger.info('✅ Database connections closed (Sequelize + Prisma)');
+        logger.info('✅ Database connection closed');
 
         await redisClient.disconnect();
         logger.info('✅ Redis connection closed');

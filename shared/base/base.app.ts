@@ -121,7 +121,6 @@ class BaseApp {
     const checks: Record<string, HealthCheck> = {};
 
     // ── Database ────────────────────────────────────────────────────────────
-    // Sequelize + Prisma mientras conviven (docs/prisma-migration.md): sana si responden los dos
     const dbStart = Date.now();
     try {
       await databaseHealth.checkDatabase();

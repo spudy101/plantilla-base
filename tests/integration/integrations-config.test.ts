@@ -7,7 +7,6 @@
 
 import { randomUUID } from 'node:crypto';
 import prisma from '../../shared/database/prisma';
-import db from '../../shared/models';
 import ErrorMiddleware from '../../shared/middlewares/error.middleware';
 import systemGlobalConfigRepository from '../../modules/schemas/core/repositories/system-global-config.repository';
 import approvalRequestRepository from '../../modules/schemas/core/repositories/approval-request.repository';
@@ -40,7 +39,6 @@ describe('Integraciones y config · Prisma contra Postgres', () => {
     await prisma.person.deleteMany({ where: { personId: { in: personIds } } });
     await prisma.role.deleteMany({ where: { roleId } });
     await prisma.$disconnect();
-    await db.sequelize.close();
   });
 
   it('configuración global: la versión se incrementa en la base y los JSON se guardan tal cual', async () => {

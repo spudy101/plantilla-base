@@ -104,7 +104,7 @@ La base es funcional con nombre neutro. Para adaptarla a tu proyecto, revisa cad
   la convención existente (model → repository → service → controller → routes → dto). Ver
   [`implementation-patterns.md`](./implementation-patterns.md).
 - **Trazabilidad por sesión:** si tu entidad debe registrar quién/qué sesión la creó, declara la
-  columna `origin_session_id` (el hook central `stampOriginSession` la rellena sola) y súmala al
+  columna `origin_session_id` (la extensión del cliente de Prisma la rellena sola al crear) y súmala al
   `ENTITY_REGISTRY` del session-trace. Ver [`origin-session-tracking.md`](./origin-session-tracking.md).
 - **Consentimientos:** agrega nuevos `scope` a la tabla `consent_types` (y su CHECK) para gatear
   operaciones de tu dominio; usa `ConsentMiddleware.requireConsent(code)` en la ruta.

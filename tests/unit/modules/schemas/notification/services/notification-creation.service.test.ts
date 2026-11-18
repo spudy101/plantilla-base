@@ -62,7 +62,6 @@ jest.mock('shared/utils/logger.util', () => ({
 }));
 
 // El modelo solo aporta la constante de estado de procesamiento que usa el fuente.
-jest.mock('shared/models', () => ({}));
 
 import { mocked, fixture } from 'tests/helpers/mock';
 import notificationRepoModule from 'modules/schemas/notification/repositories/notification.repository';

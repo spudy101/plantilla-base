@@ -3,7 +3,7 @@
 // UserConsentService — catálogo/otorgamiento/revocación de consentimientos del cliente. Probamos
 // getMyConsents (merge del catálogo con lo otorgado), grant (validación de items, resolución por
 // código, commit + audit por entrada, rollback ante error) y revokeMarketing (guardas de existencia
-// y revocabilidad, rollback si no hay activo). Mockeamos repos, DTOs, sequelize y logger; AppError real.
+// y revocabilidad, rollback si no hay activo). Mockeamos repos, DTOs, el cliente de Prisma y logger; AppError real.
 
 jest.mock('modules/schemas/records/legal/repositories/consent-type.repository', () => ({
   findAllActive: jest.fn(),
@@ -22,9 +22,7 @@ jest.mock('modules/client/records/legal/dtos/user-consent.dto', () => ({
   ConsentGrantedDTO: jest.fn(r => ({ id: r.userConsentId }))
 }));
 
-jest.mock('shared/models', () => ({
-  sequelize: { transaction: jest.fn() }
-}));
+jest.mock('shared/database/prisma', () => ({ __esModule: true, default: { $transaction: jest.fn() } }));
 
 jest.mock('shared/utils/logger.util', () => ({
   logAudit: jest.fn(),
@@ -37,8 +35,8 @@ import consentTypeRepositoryModule from 'modules/schemas/records/legal/repositor
 const consentTypeRepository = mocked(consentTypeRepositoryModule);
 import userConsentRepositoryModule from 'modules/schemas/records/legal/repositories/user-consent.repository';
 const userConsentRepository = mocked(userConsentRepositoryModule);
-import modelsModule from 'shared/models';
-const { sequelize } = mocked(modelsModule);
+import prismaModule from 'shared/database/prisma';
+const prisma = mocked(prismaModule);
 import loggerUtilModule from 'shared/utils/logger.util';
 const { logAudit } = mocked(loggerUtilModule);
 import service from 'modules/client/records/legal/services/user-consent.service';
@@ -48,7 +46,7 @@ const AUDIT_CTX = { ip: '1.2.3.4', userAgent: 'jest', reason: 'ya no quiero' };
 
 function mockTx() {
   const tx = { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn().mockResolvedValue(undefined) };
-  sequelize.transaction.mockImplementation(managedTransaction(tx));
+  prisma.$transaction.mockImplementation(managedTransaction(tx));
   return tx;
 }
 
@@ -80,7 +78,7 @@ describe('UserConsentService', () => {
   describe('grant', () => {
     it('lanza badRequest si no se envían items', async () => {
       await expect(service.grant([], USER_ID, AUDIT_CTX)).rejects.toMatchObject({ statusCode: 400 });
-      expect(sequelize.transaction).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
     it('lanza badRequest y hace rollback si el código de consentimiento no existe', async () => {
@@ -134,7 +132,7 @@ describe('UserConsentService', () => {
     it('lanza notFound si el tipo de consentimiento no existe', async () => {
       consentTypeRepository.findById.mockResolvedValue(null);
       await expect(service.revokeMarketing(USER_ID, 'ct-1', AUDIT_CTX)).rejects.toMatchObject({ statusCode: 404 });
-      expect(sequelize.transaction).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
     it('lanza badRequest si el consentimiento no es revocable', async () => {

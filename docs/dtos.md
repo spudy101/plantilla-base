@@ -5,16 +5,15 @@
 
 ## Reglas base
 
-- Nunca `{ ...sequelizeInstance }` — mapear campo a campo.
+- Nunca `{ ...row }` — mapear campo a campo (una fila puede traer columnas internas: hashes, secretos).
 - Todas las keys del JSON de respuesta en **camelCase** (excepción: valores de enum de BD, ver abajo).
 - Los `*_hash` nunca se incluyen.
-- Usar `_normalizePersonAliases()` para aliases snake_case de asociaciones Sequelize.
 - **PII siempre `safeDecrypt` + máscara** (`MaskingUtil`); los JSONB propios, por `redactPayload` — ver `pii-masking.md`.
 
 ## Arquitectura en 2 capas
 
 **Capa 1 — Componentes shared (`shared/dtos/{dominio}/`)**: clases con métodos estáticos
-`build()`, `buildList()`, `buildDetail()`, `buildArray()`. Mapean desde Sequelize y son el reflejo de la BD.
+`build()`, `buildList()`, `buildDetail()`, `buildArray()`. Mapean desde las filas de Prisma (campos camelCase).
 La estructura espeja `modules/schemas/`. Cada dominio tiene un barrel `index.ts` que re-exporta todo.
 
 ```
@@ -75,34 +74,6 @@ function MyListResponseDTO(rows, metadata) {
 
 El service arma `metadata` manualmente (`{ totalItems, page, limit, sortBy, order, filters }`) y se lo
 pasa al DTO. El controller devuelve el resultado directo (ApiResponse aplana `{ data, metadata }`).
-
-## `_normalizePersonAliases()`
-
-Sequelize devuelve las asociaciones con su alias (algunas snake_case) pero los componentes esperan
-camelCase. Los DTOs de persona normalizan antes de mapear:
-
-```js
-function _normalizePersonAliases(person) {
-  if (!person) {
-    return null;
-  }
-  return {
-    // escalares, campo a campo — NUNCA `...person` (spread sobre instancia Sequelize)
-    person_id: person.person_id,
-    first_name: person.first_name,
-    // … last_name, middle_name, second_last_name, national_id (ya descifrado por el afterFind),
-    //   birth_date, gender_id, country_id, createdAt, updatedAt
-    gender: person.gender ?? null,
-    contact: person.contact ?? null, // email/teléfonos (cifrados → descifrar + enmascarar)
-    location: person.location ?? null,
-    references: person.references ?? [],
-    nationality: person.country ?? null // FK mapeada al alias del componente
-  };
-}
-```
-
-Existe en `modules/admin/kyc/person/dtos/admin-person.dto.ts` y en
-`modules/shared-endpoints/kyc/person/dtos/profile.dto.ts`.
 
 ## Excepción de snake_case: valores de enum
 

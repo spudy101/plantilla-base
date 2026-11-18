@@ -3,7 +3,6 @@
 // Regresiones de bugs que destapó el tipado de modules/schemas/notification (fase 4 de la
 // migración a TS). Repositorios y modelos se reemplazan por dobles.
 
-jest.mock('shared/models', () => ({}));
 jest.mock('shared/utils/logger.util', () => ({
   logger: { error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() },
   logAudit: jest.fn()

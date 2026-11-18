@@ -1,6 +1,6 @@
 // tests/unit/guards/smoke.test.ts
-// Test de humo mínimo para verificar que la infraestructura de test funciona
-// y que el catálogo de modelos carga sin errores de asociación.
+// Test de humo mínimo para verificar que la infraestructura de test funciona y que el cliente de Prisma
+// (con la extensión de PII) carga sin conectarse: el pool de pg conecta recién en la primera consulta.
 
 import { interopDefault } from 'shared/utils/interop.util';
 describe('smoke', () => {
@@ -8,13 +8,13 @@ describe('smoke', () => {
     expect(process.env.NODE_ENV).toBe('test');
   });
 
-  it('el catálogo de modelos (shared/models) carga y expone los modelos core', () => {
-    const db = interopDefault(require('shared/models') as typeof import('shared/models'));
-    expect(db.User).toBeDefined();
-    expect(db.Person).toBeDefined();
-    expect(db.UserSession).toBeDefined();
-    expect(db.AuditLog).toBeDefined();
-    expect(db.ApprovalRequest).toBeDefined();
-    expect(db.Notification).toBeDefined();
+  it('el cliente de Prisma carga y expone los modelos core', () => {
+    const prisma = interopDefault(require('shared/database/prisma') as typeof import('shared/database/prisma'));
+    expect(prisma.user).toBeDefined();
+    expect(prisma.person).toBeDefined();
+    expect(prisma.userSession).toBeDefined();
+    expect(prisma.auditLog).toBeDefined();
+    expect(prisma.approvalRequest).toBeDefined();
+    expect(prisma.notification).toBeDefined();
   });
 });
