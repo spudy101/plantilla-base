@@ -15,7 +15,7 @@ GET /kyc/iam/rbac/me        → permisos del usuario logueado (solo authenticate
 
 Por cada ítem del menú, su `rbacModule` se contrasta contra `/rbac/me`: si el usuario no tiene al menos
 `read` en ese módulo, el ítem no se pinta. El árbol y las agrupaciones viven en `RBAC_MODULE_GROUPS`
-(`shared/constants/rbac.js`); estos docs explican cada grupo.
+(`src/shared/constants/rbac.ts`); estos docs explican cada grupo.
 
 ## Convenciones (comunes a todos los archivos)
 
@@ -44,8 +44,8 @@ Por cada ítem del menú, su `rbacModule` se contrasta contra `/rbac/me`: si el 
 
 ## Alcance
 
-Este set cubre el **hub admin**. Los endpoints `client`/`shared-endpoints` (app del cliente, auth
+Este set cubre el **hub admin**. Los endpoints `client` y compartidos (app del cliente, auth
 self-service) son de otro frontend y no llevan módulo RBAC: su permiso es "estar autenticado". Varios de
-esos `shared-endpoints` **sí se montan también en la app admin** (sesión/dispositivos, MFA propio, perfil,
+esos endpoints compartidos **sí se montan también en la app admin** (sesión/dispositivos, MFA propio, perfil,
 preferencias de notificación, campana, catálogos de maintainers), pero no tienen fila por módulo porque no
 tienen módulo RBAC.

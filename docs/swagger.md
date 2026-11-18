@@ -12,8 +12,8 @@ config/
   swagger/
     schemas/           ← schemas globales compartidos (index.ts los re-exporta). Ej: core.schema.ts
     responses/common.responses.ts  ← helpers de respuestas estándar (ok, paginated, created, accepted, errores)
-    modules/{admin|client|shared-endpoints}/{dominio}/{subdominio}/{recurso}.paths.js
-                       ← paths + schemas por módulo (93 archivos; `core` y `notification` van sin subdominio)
+src/modules/<dominio>/docs/<recurso>.paths.ts
+                       ← paths + schemas de cada recurso, junto a su módulo
 ```
 
 Cada `*.paths.ts` exporta `{ paths, schemas, tags? }`. `swagger.admin.ts`/`swagger.client.ts` hacen
@@ -83,9 +83,9 @@ export default { schemas, paths };
 
 ## Registrar un módulo nuevo en el ensamblador
 
-En `config/swagger.admin.ts` (o `.client.js`):
+En `src/config/swagger.admin.ts` (o `swagger.client.ts`):
 
-1. `import miRecursoPaths from './swagger/modules/admin/{dominio}/mi-recurso.paths';`
+1. `import miRecursoPaths from '../modules/{dominio}/docs/mi-recurso.paths';`
 2. Agregar `...miRecursoPaths.paths` al objeto `allPaths`.
 3. Agregar `...miRecursoPaths.schemas` al objeto `allModuleSchemas`.
 
@@ -98,7 +98,7 @@ En `config/swagger.admin.ts` (o `.client.js`):
 
 Los paths se escriben con la ruta completa tal como queda montada en el monolito:
 `/{server}/api/v1/{dominio}/{subdominio}/{recurso}` (ej. `/admin/api/v1/kyc/person`),
-donde `{server}` ∈ `admin | client` (las specs de endpoints compartidos viven en la carpeta `shared-endpoints/`)
+donde `{server}` ∈ `admin | client` (las rutas compartidas se documentan en ambos specs)
 y `{dominio}` ∈ `kyc | records | notification | core | integration | auth`.
 Excepción: `core`, `notification`, `integration` y `auth` no llevan `{subdominio}` (ej. `/admin/api/v1/core/approval-requests`).
 Al agregar uno nuevo, seguir el patrón del módulo hermano más cercano.
@@ -113,7 +113,7 @@ Al agregar uno nuevo, seguir el patrón del módulo hermano más cercano.
 6. **Enums del modelo**: reflejar todos los valores de `Model.STATUS` en el `enum: [...]`.
 7. **AppError / ApiResponse**: mensajes de error y estructura de respuesta fieles a lo real (usar `common.responses`).
 8. **PII enmascarada**: en los campos de **respuesta** con documento, correo, teléfono, TIN o cuenta, poner la
-   `description` de `config/swagger/schemas/pii-masking.doc.ts` y un `example` enmascarado (`******4050`,
+   `description` de `src/config/swagger/schemas/pii-masking.doc.ts` y un `example` enmascarado (`******4050`,
    `****n@example.com`, `****7890`). ⚠️ **Los `requestBody` y `parameters` NUNCA**: la entrada va completa. Si
    un mismo `const` sirve a request y response, pártelo en dos. Ver `docs/pii-masking.md`.
 

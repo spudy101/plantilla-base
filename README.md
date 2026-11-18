@@ -20,7 +20,7 @@
 - [Stack tecnológico](#️-stack-tecnológico)
 - [Arquitectura](#️-arquitectura)
 - [Estructura del proyecto](#-estructura-del-proyecto)
-- [Modos de ejecución](#-modos-de-ejecución)
+- [Ejecución](#-ejecución)
 - [Requisitos previos](#-requisitos-previos)
 - [Instalación](#-instalación)
 - [Configuración (.env)](#️-configuración-env)
@@ -57,10 +57,12 @@ Todo lo transversal que un proyecto necesita el día 1, ya construido y probado:
   queda `202 Accepted` hasta que un segundo funcionario la aprueba.
   Detalle: [`docs/dual-approval-global.md`](docs/dual-approval-global.md).
 
-### 📝 Auditoría, alertas y trazabilidad — [`docs/audit-and-alerts.md`](docs/audit-and-alerts.md)
+### 📝 Auditoría, alertas y trazabilidad — [`docs/audit-and-observability.md`](docs/audit-and-observability.md)
 
-- `logAudit` → rastro de auditoría append-only en BD (`audit_logs`) + S3, con `correlationId` propagado
-  vía `AsyncLocalStorage`. Dispara **alertas** para acciones marcadas.
+- `audit.record` → hechos de negocio append-only en `audit_logs`, escritos en la misma transacción que el
+  cambio, con catálogo tipado y **alertas** para las acciones marcadas. Copia diaria a S3.
+- **Traza de operaciones** → una fila por petición, webhook, ciclo de worker o tarea de sistema
+  (`operations`), con el mismo `correlationId` que los logs y la auditoría.
 - **Trazabilidad por sesión**: cada fila de dominio se ata a su sesión de origen (`origin_session_id`,
   automático). Timeline forense de "qué hizo el usuario en la sesión".
   Detalle: [`docs/origin-session-tracking.md`](docs/origin-session-tracking.md).
@@ -112,52 +114,33 @@ Todo lo transversal que un proyecto necesita el día 1, ya construido y probado:
 
 ## 🏛️ Arquitectura
 
-Es un **monolito modular**. La misma base de código se puede levantar como un solo proceso o partida en
-servidores admin/cliente. El código se organiza en cuatro grandes zonas:
+**Monolito modular**: un solo proceso y un solo despliegue, dividido en **módulos por dominio**. Cada módulo
+es dueño de todo lo suyo (rutas, lógica, datos, workers, documentación) y expone una API pública en su
+`index.ts`. `shared/` es infraestructura técnica que no conoce el negocio.
 
-```
-servers/     → entrypoints (monolith | admin | client). Todos extienden BaseServer.
-modules/     → el dominio, partido por audiencia y por capa (ver abajo).
-shared/      → infraestructura transversal (middlewares, utils, base classes, constantes, DTOs).
-config/      → ensamblado de Swagger (la base: prisma/ y shared/database/).
-```
-
-### Cómo se parten los módulos
-
-```
-modules/
-  schemas/            ← CAPA DE DATOS compartida: models, repositories, workers, services de dominio.
-                        No sabe de HTTP. La consumen las tres audiencias.
-  admin/              ← endpoints del panel ADMIN (controllers/services/routes/dtos/validators).
-  client/             ← endpoints de la app CLIENTE.
-  shared-endpoints/   ← endpoints comunes a ambos (login, MFA, perfil, preferencias, campana).
-```
-
-Cada audiencia (`admin`, `client`, `shared-endpoints`) se subdivide por **dominio funcional**:
-`core`, `kyc` (iam / person / maintainers), `notification`, `records` (audit / legal), `integration`.
+La guía completa, con las reglas y la tabla "¿dónde va esto?", está en
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). **Léela antes de agregar código.**
 
 ### Flujo por capas (dentro de un request)
 
 ```
 Request
-  → [middlewares globales]   Correlation → Security(helmet/cors) → body-parse → auditContext → compression → httpLogger
-  → [middlewares de ruta]    Auth → RBAC → RateLimit → RequestLock → Validator → AuditAction.declare
-  → Controller → Service → Repository → Model → PostgreSQL
+  → [middlewares globales]   operación (id + contexto + traza) → seguridad → cookies → body-parse → compression
+  → [middlewares de ruta]    Auth → RBAC → RateLimit → RequestLock → Validator
+  → Controller → Service → Repository → PostgreSQL
   → ApiResponse   (o AppError → handler global)
 ```
 
-| Capa           | Responsabilidad                                                                  |
-| -------------- | -------------------------------------------------------------------------------- |
-| **Controller** | recibe `req`, llama service, devuelve `ApiResponse`. Sin lógica de negocio.       |
-| **Service**    | toda la lógica; lanza `AppError`; llama `logAudit`. No accede a la BD directo.     |
-| **Repository** | único lugar con el cliente de Prisma; extiende `PrismaRepository`.                |
-| **Schema**     | `prisma/schema.prisma`: tablas, relaciones y nombres; genera el cliente y sus tipos. |
-| **Validator**  | cadenas `express-validator`; extiende `BaseValidator`.                            |
-| **DTO**        | transforma la respuesta a camelCase y enmascara PII. Nunca hace spread de instancias. |
+| Capa           | Responsabilidad                                                                    |
+| -------------- | ---------------------------------------------------------------------------------- |
+| **Route**      | URL + middlewares (auth, RBAC, validación). Sin lógica.                             |
+| **Controller** | traduce HTTP ↔ servicio y devuelve `ApiResponse`. Sin lógica de negocio.            |
+| **Service**    | reglas de negocio; lanza `AppError`; audita con `audit.record`. No conoce Express.  |
+| **Repository** | único lugar con el cliente de Prisma; extiende `PrismaRepository`.                  |
+| **DTO**        | arma la respuesta: lista blanca de campos y PII enmascarada.                        |
 
-Detalle del pipeline, errores y contexto: [`docs/request-flow.md`](docs/request-flow.md) ·
-plantillas de código por capa: [`docs/implementation-patterns.md`](docs/implementation-patterns.md) ·
-DTOs: [`docs/dtos.md`](docs/dtos.md).
+Detalle del pipeline: [`docs/request-flow.md`](docs/request-flow.md) · auditoría, operaciones y logs:
+[`docs/audit-and-observability.md`](docs/audit-and-observability.md).
 
 ---
 
@@ -165,74 +148,51 @@ DTOs: [`docs/dtos.md`](docs/dtos.md).
 
 ```
 .
-├── servers/                    # Entrypoints
-│   ├── monolith.ts            # admin + client en un proceso (default)
-│   ├── admin.ts               # solo admin
-│   └── client.ts              # solo client
+├── src/
+│   ├── server.ts               # arranque: infraestructura, workers, listen, apagado ordenado
+│   ├── app.ts                  # Express: middlewares globales + rutas /admin y /client
+│   ├── config/                 # Swagger
+│   ├── modules/                # un módulo por dominio, cada uno con su index.ts (API pública)
+│   │   ├── iam/                # usuarios, roles, RBAC, sesiones, login, MFA, biometría
+│   │   ├── person/             # persona, contactos, ubicación, referencias, perfil
+│   │   ├── catalogs/           # países, ciudades, géneros, tipos de documento, avatares
+│   │   ├── notification/       # tipos, envío (email/SMS/push), preferencias, rebotes
+│   │   ├── audit/              # auditoría, alertas, operaciones, bitácora de cambios
+│   │   ├── legal/              # consentimientos, políticas de privacidad
+│   │   ├── approvals/          # doble aprobación (maker-checker)
+│   │   ├── settings/           # configuración global
+│   │   ├── banners/            # banners promocionales
+│   │   └── integration/        # monitoreo de proveedores externos
+│   └── shared/                 # database · http · security · infra · observability · constants · types · utils
 │
-├── modules/
-│   ├── schemas/                # Capa de datos compartida (models / repositories / workers)
-│   │   ├── core/              # config global, doble aprobación, banners
-│   │   ├── kyc/               # iam (auth/sesiones/mfa/rbac), person, maintainers
-│   │   ├── notification/      # motor de notificaciones + workers
-│   │   ├── records/           # audit, legal
-│   │   └── integration/       # logs de integraciones externas
-│   ├── admin/                  # Endpoints del panel admin (por dominio)
-│   ├── client/                 # Endpoints de la app cliente
-│   ├── shared-endpoints/       # Endpoints comunes (login, MFA, perfil, campana)
-│   └── {admin,client}/app.ts   # ensamblan sus routers bajo /api/v1/{dominio}
-│
-├── shared/
-│   ├── base/                   # BaseServer, BaseApp, BaseValidator
-│   ├── middlewares/            # auth, rbac, dual-approval, security, rate-limit, request-lock, audit, error…
-│   ├── utils/                  # jwt, encryption, hash, redis, logger, masking, pagination, s3…
-│   ├── services/               # rbac, hmac
-│   ├── database/               # cliente de Prisma, extensión de PII, Unit of Work, salud
-│   ├── constants/              # config, rbac, dual-approval, pii-fields, audit-actions…
-│   ├── dtos/                   # componentes DTO compartidos (audit/core/kyc/notification)
-│   ├── repositories/ · validators/
-│
-├── config/
-│   ├── swagger.admin.ts · swagger.client.ts
-│   └── swagger/                # paths + schemas por módulo
-│
-├── prisma/                     # schema.prisma, migrations/ (0_init + las siguientes), seed.ts + seeds/
-├── scripts/                    # db-migrate.ts, db-reset.ts, generate-keys.util.ts
-├── tests/                      # unit / integration (jest)
+├── prisma/                     # schema.prisma, migrations/, seed.ts + seeds/
+├── scripts/                    # db-migrate, db-reset, generate-keys
+├── tests/                      # helpers, integración, guardas de arquitectura (los unitarios van junto al código)
 ├── docs/                       # documentación técnica (ver §Documentación)
 ├── Dockerfile · entrypoint.sh
 └── package.json
 ```
 
-> Los **workers** no viven en una carpeta `workers/` raíz: están junto a su dominio en
-> `modules/schemas/**/workers/` (notificaciones, expiración de sesiones, doble aprobación, archivado de auditoría).
-
 ---
 
-## 🚀 Modos de ejecución
+## 🚀 Ejecución
 
-Hay **tres entrypoints** en `servers/`; todos montan la misma infraestructura (Redis, DB, workers). El
-modo lo elige el **comando que levantás**, no puertos distintos: los tres usan el mismo `PORT` y **solo
-corre uno a la vez**.
+Un solo servidor expone las dos audiencias: `/admin/...` (panel) y `/client/...` (app), cada una con sus
+políticas de autenticación y su Swagger (`/admin/docs`, `/client/docs`).
 
-| Modo               | Qué expone                                                              | Dev (hot-reload)      | Producción             |
-| ------------------ | ---------------------------------------------------------------------- | --------------------- | ---------------------- |
-| **Monolito** (def) | admin **y** client (`/admin/...` + `/client/...`) en un proceso        | `npm run dev`         | `npm start`            |
-| Solo admin         | únicamente `adminApp`                                                   | `npm run dev:admin`   | `npm run start:admin`  |
-| Solo client        | únicamente `clientApp`                                                  | `npm run dev:client`  | `npm run start:client` |
+| | Comando |
+|---|---|
+| Desarrollo (hot-reload) | `npm run dev` |
+| Producción | `npm run build` y luego `npm start` |
 
-Producción corre el build compilado: `npm run build` antes de `npm start` (ver
-[`docs/typescript-migration.md`](docs/typescript-migration.md)).
-
-Prefijos de ruta reales (bajo cada app): `/api/v1/auth`, `/api/v1/kyc`, `/api/v1/notification`,
-`/api/v1/records`, `/api/v1/core`, `/api/v1/integration`. En modo monolito se antepone `/admin` o
-`/client` al mount. Detalle: [`docs/run-modes.md`](docs/run-modes.md).
+Prefijos de ruta bajo cada audiencia: `/api/v1/auth`, `/api/v1/kyc`, `/api/v1/notification`,
+`/api/v1/records`, `/api/v1/core`, `/api/v1/integration`.
 
 ---
 
 ## 📦 Requisitos previos
 
-- **Node.ts** v18+
+- **Node.js** v24+
 - **PostgreSQL** v14+
 - **Redis** v7+ — _opcional_ (sin él, cache/rate-limit/locks caen a memoria/BD)
 - Credenciales **AWS** (SES/SNS/S3) — opcionales en desarrollo (ver `MOCK_EXTERNAL_PROVIDERS`)
@@ -309,8 +269,8 @@ Detalle: [`docs/database.md`](docs/database.md).
 ## 💻 Uso
 
 ```bash
-# Desarrollo (hot-reload)     Producción              Otros modos
-npm run dev                   npm start               npm run dev:admin  / npm run dev:client
+# Desarrollo (hot-reload)     Producción
+npm run dev                   npm run build && npm start
 
 # Calidad
 npm run lint        # eslint .
@@ -318,25 +278,22 @@ npm run lint:fix    # eslint . --fix
 npm run format      # prettier --write .
 ```
 
-- **Health check**: `GET /health` (en monolito reporta ambos sub-servicios).
-- **Docs Swagger**: `GET /{servicio}/docs` y el JSON en `GET /{servicio}/docs.json`.
+- **Health check**: `GET /health` (base de datos y Redis).
+- **Docs Swagger**: `GET /admin/docs` y `GET /client/docs` (el JSON en `…/docs.json`).
 
 ---
 
 ## 🔀 Flujo de un request
 
-Middlewares globales (orden crítico, en `shared/base/base.app.ts`): `correlationId` → `helmet` → `cors` →
-headers de seguridad → `express.json` (10 MB) → captura de JSON inválido → `auditContext`
-(+ `AsyncLocalStorage`) → `compression` → `httpLogger`.
+Middlewares globales (orden crítico, en `src/app.ts`): operación (id + contexto + traza en `operations`) →
+`helmet` → `cors` → headers de seguridad → `cookieParser` → `express.json` (10 MB) → captura de JSON
+inválido → `compression`.
 
 Middlewares de ruta (orden recomendado): `Auth` → `RBAC` → `RateLimit` → `RequestLock` → `Validator` →
-`handleValidationErrors` → `AuditAction.declare` → controller.
-
-> `cookieParser()` lo monta **solo el monolito**. En standalone (`dev:admin`/`dev:client`) no hay cookies:
-> el canal se resuelve por `Authorization: Bearer`.
+`handleValidationErrors` → controller.
 
 Errores: lanzar siempre `AppError` (nunca `throw 'string'`) desde el service; el `asyncHandler` reenvía al
-handler global, que loguea, **audita el fallo** y responde con estructura uniforme. Detalle completo:
+handler global, que loguea, registra el error en la operación y responde con estructura uniforme. Detalle completo:
 [`docs/request-flow.md`](docs/request-flow.md).
 
 ---
@@ -382,14 +339,14 @@ Toda la documentación técnica vive en [`docs/`](docs/). El README es el mapa; 
 
 | Doc | Qué cubre |
 | --- | --------- |
+| [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) | **La guía de arquitectura:** estructura, capas, reglas y dónde va cada cosa. |
 | [`getting-started.md`](docs/getting-started.md) | **Empieza aquí:** setup local, correr la app y checklist de rebranding para hacer tuya la plantilla. |
 | [`request-flow.md`](docs/request-flow.md) | Pipeline de un request, middlewares, `AppError`/`ApiResponse`, contexto de auditoría. |
-| [`run-modes.md`](docs/run-modes.md) | Los tres modos de ejecución, comandos y variables. |
 | [`auth-sessions.md`](docs/auth-sessions.md) | Login, tokens JWT RS256, rotación de refresh, sesiones, inactividad/tope, códigos 401. |
 | [`rbac/rbac.md`](docs/rbac/rbac.md) | Roles, módulos, matriz de permisos, overrides, middleware RBAC. |
 | [`rbac/modulos/`](docs/rbac/modulos/) | Binding módulo ↔ routes ↔ roles (autoritativo para el front). |
 | [`dual-approval-global.md`](docs/dual-approval-global.md) | Framework maker-checker: cómo funciona y cómo agregar operaciones. |
-| [`audit-and-alerts.md`](docs/audit-and-alerts.md) | `logAudit` vs `logger`, `audit_logs`, alertas, timeline forense. |
+| [`audit-and-observability.md`](docs/audit-and-observability.md) | Auditoría (`audit.record`), traza de operaciones y logs: qué va en cada uno. |
 | [`origin-session-tracking.md`](docs/origin-session-tracking.md) | `origin_session_id` y cómo extenderlo en tablas nuevas. |
 | [`notifications.md`](docs/notifications.md) | Motor de notificaciones: categorías/tipos, canales, workers, preferencias, adjuntos. |
 | [`encryption-pii.md`](docs/encryption-pii.md) | Cifrado at-rest (AES-256-GCM) + hash de búsqueda. |
@@ -408,7 +365,8 @@ Toda la documentación técnica vive en [`docs/`](docs/). El README es el mapa; 
 - **Capas estrictas**: controller → service → repository → model. La lógica vive en el service.
 - **Errores**: siempre `AppError`; sin try/catch en controllers (usar `asyncHandler`).
 - **Respuestas**: `ApiResponse` (camelCase, PII enmascarada, aplanado automático de listados).
-- **Auditoría**: `logAudit` en todo punto de entrada con `entityType`/`entityTable`.
+- **Auditoría**: `audit.record` en el service por cada hecho de negocio, con `entityType`/`entityTable`.
+- **Fronteras**: entre módulos, solo el `index.ts` del otro; `shared/` nunca importa `modules/`.
 - **BD**: editar la migración original + `db:reset` (no acumular `ALTER TABLE`).
 - **Swagger** en el mismo pase que el código.
 - Estilo: **ES6+**, ESLint + Prettier, Conventional Commits.

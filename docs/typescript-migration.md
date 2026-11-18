@@ -1,5 +1,8 @@
 # Migración a TypeScript
 
+> **Histórico.** Esta migración ya terminó y el documento queda como registro de decisiones. Las rutas y
+> la estructura que menciona pueden no existir más: la estructura actual está en [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
 > La plantilla pasó de JavaScript a TypeScript **por fases, en la rama `feat/typescript`** (ver
 > [Fases](#fases)): **la migración está completa** — no queda código `.js` en la app, los tests, las
 > migraciones ni los scripts (`allowJs: false`). Decisiones tomadas: base en la rama SOLID, Sequelize se
@@ -24,7 +27,7 @@
 `esModuleInterop`. `tsconfig.test.json` extiende el anterior y agrega lo que no entra al build (tests,
 `migrations/`, `seeders/`, `scripts/*.ts`), que corre con Jest o `tsx` desde las fuentes.
 
-> ⚠️ `node servers/monolith.ts` no funciona (Node no ejecuta TypeScript del proyecto así). Usa
+> ⚠️ `node src/server.ts` no funciona (Node no ejecuta TypeScript del proyecto así). Usa
 > `npm run dev` (tsx) o `npm run build && npm start`.
 
 ## Reglas del código
@@ -54,7 +57,7 @@
    ```
 
 2. **Cargas diferidas** (para cortar un ciclo de imports o no cargar `shared/models` al importar un
-   puerto): `interopDefault(require('./x') as typeof import('./x'))` (`shared/utils/interop.util`).
+   puerto): `interopDefault(require('./x') as typeof import('./x'))` (`src/shared/utils/interop.util`).
    Un `require('./x').default` a secas se rompe cuando `./x` está reemplazado por un `jest.mock` con
    factory (el objeto del mock no tiene `.default`); `interopDefault` hace lo mismo que `import x from`.
 3. Sin `any` salvo que esté justificado en un comentario. En tests, la laxitud vive en
@@ -79,7 +82,7 @@
 |---|---|---|
 | **1. Infraestructura + núcleo** | tsconfig, build, dev, Jest, ESLint, Docker, CLI de BD vía tsx; `AppError`, `ReadRepository` / `BaseRepository` / `AppendOnlyRepository` (genéricos `<M extends Model>`), `UnitOfWork` (con su puerto `Port`), `domain-enums` (uniones literales), `es256-signature.util` | ✅ |
 | **2. Resto de `shared/`** | `constants/`, `utils/`, `dtos/`, `middlewares/`, `services/`, `validators/`, `base/`, `models/index` + mixin: **`shared/` ya no tiene `.js`** | ✅ |
-| **3. Modelos + repositorios** | Los 41 modelos tipados **desde su definición real** (`gen-model-types.js`: `Attributes`, `CreationAttributes`, `Instance` con asociaciones, `Static`) y registro tipado `shared/models/registry.ts`; los 41 repositorios en TS con `extends BaseRepository<defineX.Instance>`; contratos `XRepositoryPort` en `modules/schemas/repository-ports.ts` de los que cada service deriva su puerto con `Pick<…>` | ✅ |
+| **3. Modelos + repositorios** | Los 41 modelos tipados **desde su definición real** (`gen-model-types.js`: `Attributes`, `CreationAttributes`, `Instance` con asociaciones, `Static`) y registro tipado `shared/models/registry.ts`; los 41 repositorios en TS con `extends BaseRepository<defineX.Instance>`; contratos `XRepositoryPort` en `src/modules/repository-ports.ts` de los que cada service deriva su puerto con `Pick<…>` | ✅ |
 | **4. Dominios** (uno por commit) | `modules/schemas`, `modules/shared-endpoints`, `modules/client`, `modules/admin` (services, controllers, routes, dtos, validators): **`modules/` ya no tiene `.js`** | ✅ |
 | **5. Arranque y config** | `servers/` (monolith/client/admin), `config/` (Sequelize, perfiles de BD, Swagger). `npm run dev*` arranca los `.ts`; `.sequelizerc` apunta a `config/database.ts` (sequelize-cli corre vía `tsx`). **Toda la app es TypeScript** | ✅ |
 | **6. Cierre** | Tests a `.ts` (`tests/helpers/mock.ts`), migraciones/seeders/scripts a `.ts` (+ `db:tracking` para SequelizeMeta/SequelizeData), `export default` / `import` nativos (`interopDefault` para los require diferidos; excepción: `config/database.ts`), `allowJs: false`, sin Babel | ✅ |
@@ -94,14 +97,14 @@ parámetros y `catch` (ver su README para el flujo y las trampas conocidas).
 
 Tipos y helpers compartidos:
 
-- `shared/utils/error-message.util.ts`: `errorMessage(e)`, `errorName(e)`, `isOperationalError(e)` para los
+- `src/shared/utils/error-message.util.ts`: `errorMessage(e)`, `errorName(e)`, `isOperationalError(e)` para los
   `catch` (con `strict` el error es `unknown`). Si una función recibe un parámetro llamado
   `errorMessage`, usar `errorMessageModule.errorMessage(…)` para no taparlo.
-- `shared/types/express.d.ts`: propiedades que los middlewares agregan a `req` (`user`, `correlationId`,
+- `src/shared/types/express.d.ts`: propiedades que los middlewares agregan a `req` (`user`, `correlationId`,
   `serverContext`, `externalService`, `lockKey`).
-- `shared/types/db-rows.ts`: formas mínimas de filas (`UserRefRow`, `DbDate`, `Maybe<T>`) para tipar lo
+- `src/shared/types/db-rows.ts`: formas mínimas de filas (`UserRefRow`, `DbDate`, `Maybe<T>`) para tipar lo
   que leen los DTOs sin depender de los modelos (estructurales: los modelos tipados de la fase 3 encajan).
-- `shared/utils/auth-user.util.ts`: `requireAuthUser(req)` — el usuario autenticado tipado, o 401 si la
+- `src/modules/iam/utils/auth-user.util.ts`: `requireAuthUser(req)` — el usuario autenticado tipado, o 401 si la
   ruta quedó sin AuthMiddleware (antes era un `TypeError` → 500).
 - **Modelos** (`modules/schemas/**/models/*.model.ts`): la factory `defineX(sequelize)` y sus tipos en un
   namespace fusionado (`defineX.Attributes`, `defineX.CreationAttributes`, `defineX.Instance`,
@@ -115,23 +118,23 @@ Tipos y helpers compartidos:
   según filtros opcionales, y `range()` / `dateRange()` para rangos `[Op.gte, Op.lte]`.
 - `ReadRepository#aggregate<R>(options)`: `findAll` con `raw: true` para COUNT/AVG/GROUP BY; `R` describe
   las columnas que devuelve (no son instancias del modelo). `ReadRepository#sequelize` para `query()` crudas.
-- **Puertos de repositorio** (`modules/schemas/repository-ports.ts`, generado con
+- **Puertos de repositorio** (`src/modules/repository-ports.ts`, generado con
   `gen-repository-ports.js`): `UserRepositoryPort = typeof userRepository`, etc. Un service no depende
   del contrato entero sino de lo que usa: `type UserReader = Pick<UserRepositoryPort, 'findByUserId'>`
-  (ejemplo en `shared/services/rbac.service.ts`).
+  (ejemplo en `src/modules/iam/services/rbac.service.ts`).
 - **Services con dependencias** (`constructor(deps = {})`): `class-deps.js` declara cada campo con el
   tipo de su default (`userRepository: typeof userRepository`) y genera `XService.Deps`. Composiciones
   (`deps.x ?? new X(...)`) quedan como `InstanceType<typeof X>`.
 - **Controllers**: `requireAuthUser(req)` / `requireAuthPerson(req)` (un `const user` por handler) y
-  `routeParam(req, 'id')` (`shared/utils/route-param.util`): string garantizado o 400. Lo aplica
-  `req-user.js`. Cookies de sesión web: `shared/utils/auth-cookies.util` (una sola definición).
-- **Contextos**: `shared/types/audit-context.ts` — `RequestAuditContext` (HTTP: ip, userAgent,
+  `routeParam(req, 'id')` (`src/shared/http/route-param.util`): string garantizado o 400. Lo aplica
+  `req-user.js`. Cookies de sesión web: `src/modules/iam/utils/auth-cookies.util` (una sola definición).
+- **Contextos**: `src/shared/types/audit-context.ts` — `RequestAuditContext` (HTTP: ip, userAgent,
   fingerprint…) y `AdminAuditContext` (quién hace la acción admin). `KeyValueCache`
-  (`shared/types/cache.ts`) para código que recibe Redis o la caché local indistintamente.
+  (`src/shared/types/cache.ts`) para código que recibe Redis o la caché local indistintamente.
 - **Query string**: `PaginationHelper.stringParam(query, 'x')` (string no vacío o null) y
   `PaginationHelper.booleanParam(query, 'x')` (acepta el boolean que dejan los validators con
   `.toBoolean()` — Express 4 reescribe `req.query` — o `'true'`/`'false'`).
-- **Contexto admin**: `shared/utils/admin-audit-context.util` → `adminAuditContext(req, res)` (antes 6 copias
+- **Contexto admin**: `src/modules/audit/utils/admin-audit-context.util` → `adminAuditContext(req, res)` (antes 6 copias
   locales con variaciones).
 - **Tipos que cruzan archivos** van en un `*.types.ts` del dominio (`notification.types`,
   `notification-feed.types`, `profile.types`): un módulo que exporta una instancia (`export default
