@@ -7,19 +7,27 @@ import { interopDefault } from '../../shared/utils/interop.util';
 
 export default {
   get consentTypeRepository() {
-    return interopDefault(require('./repositories/consent-type.repository') as typeof import('./repositories/consent-type.repository'));
+    return interopDefault(
+      require('./repositories/consent-type.repository') as typeof import('./repositories/consent-type.repository')
+    );
   },
 
   get privacyPolicyAdminRepository() {
-    return interopDefault(require('./repositories/privacy-policy-admin.repository') as typeof import('./repositories/privacy-policy-admin.repository'));
+    return interopDefault(
+      require('./repositories/privacy-policy-admin.repository') as typeof import('./repositories/privacy-policy-admin.repository')
+    );
   },
 
   get privacyPolicyRepository() {
-    return interopDefault(require('./repositories/privacy-policy.repository') as typeof import('./repositories/privacy-policy.repository'));
+    return interopDefault(
+      require('./repositories/privacy-policy.repository') as typeof import('./repositories/privacy-policy.repository')
+    );
   },
 
   get userConsentRepository() {
-    return interopDefault(require('./repositories/user-consent.repository') as typeof import('./repositories/user-consent.repository'));
+    return interopDefault(
+      require('./repositories/user-consent.repository') as typeof import('./repositories/user-consent.repository')
+    );
   },
 
   get adminUserConsentRoutes() {
@@ -31,7 +39,9 @@ export default {
   },
 
   get privacyPolicyAdminRoutes() {
-    return interopDefault(require('./routes/privacy-policy-admin.routes') as typeof import('./routes/privacy-policy-admin.routes'));
+    return interopDefault(
+      require('./routes/privacy-policy-admin.routes') as typeof import('./routes/privacy-policy-admin.routes')
+    );
   },
 
   get userConsentRoutes() {
@@ -44,6 +54,14 @@ export default {
 
   /** Componentes de salida (consentimientos, tipos, política) que usan otros módulos. */
   get legalComponentsDto() {
-    return interopDefault(require('./responses/legal-components.response') as typeof import('./responses/legal-components.response'));
+    return interopDefault(
+      require('./responses/legal-components.response') as typeof import('./responses/legal-components.response')
+    );
+  },
+
+  /** Esquemas de salida (Zod) de legal que otros módulos incluyen en sus respuestas. */
+  get legalSchemas() {
+    const m = require('./responses/legal-components.response') as typeof import('./responses/legal-components.response');
+    return { MyConsentCatalogItemSchema: m.MyConsentCatalogItemSchema };
   }
 };

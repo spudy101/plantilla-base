@@ -1,7 +1,7 @@
 // config/swagger/modules/admin/kyc/iam/admin-user.paths.ts
 
 import commonResponses from '../../../config/swagger/responses/common.responses';
-import piiMaskingDocModule from '../../../config/swagger/schemas/pii-masking.doc';
+import piiMaskingDocModule from '../../../shared/validation/pii-masking.doc';
 const { MASKED_EMAIL_DESC } = piiMaskingDocModule;
 
 /**
