@@ -38,10 +38,10 @@ jest.mock('../../../shared/constants', () => ({
 }));
 
 // DTOs a identidad/passthrough para no acoplar a su forma interna.
-jest.mock('../../catalogs/dtos/catalog-components.dto', () => ({
+jest.mock('../../catalogs/responses/catalog-components.response', () => ({
   MetadataDTO: { build: (meta: Loose) => ({ ...meta }) }
 }));
-jest.mock('../dtos/admin-audit-alert.dto', () => ({
+jest.mock('../responses/admin-audit-alert.response', () => ({
   AuditAlertListDTO: (row: Loose) => ({ dto: true, ...row })
 }));
 

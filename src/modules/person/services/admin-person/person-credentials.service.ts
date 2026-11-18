@@ -19,7 +19,7 @@ import ProfileHelper from '../../helpers/profile.helper';
 import constantsModule from '../../../../shared/constants';
 const { notifications } = constantsModule;
 
-import adminPersonDtoModule from '../../dtos/admin-person.dto';
+import adminPersonDtoModule from '../../responses/admin-person.response';
 const { ResetPasswordDTO, ChangeEmailDTO, ChangeNationalIdDTO, DisableMFADTO } = adminPersonDtoModule;
 import personGuardsModule from './person-guards';
 const { assertNotDeleted, requirePerson } = personGuardsModule;

@@ -10,7 +10,7 @@ import catalogsModule from '../../catalogs';
 const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
 import auditAlertRepository from '../repositories/audit-alert.repository';
-import adminAuditAlertDtoModule from '../dtos/admin-audit-alert.dto';
+import adminAuditAlertDtoModule from '../responses/admin-audit-alert.response';
 const { AuditAlertListDTO } = adminAuditAlertDtoModule;
 import audit from '../audit.service';
 

@@ -7,7 +7,7 @@ import { interopDefault } from '../../shared/utils/interop.util';
 
 export default {
   get catalogComponentsDto() {
-    return interopDefault(require('./dtos/catalog-components.dto') as typeof import('./dtos/catalog-components.dto'));
+    return interopDefault(require('./responses/catalog-components.response') as typeof import('./responses/catalog-components.response'));
   },
 
   get avatarThemeRepository() {

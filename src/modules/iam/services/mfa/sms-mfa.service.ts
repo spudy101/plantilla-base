@@ -15,7 +15,7 @@ import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import constantsModule from '../../../../shared/constants';
 const { MOCKS } = constantsModule;
-import mfaDtoModule from '../../dtos/mfa.dto';
+import mfaDtoModule from '../../responses/mfa.response';
 const { SMSMFAActivationResponseDTO, SMSActivationRequestResponseDTO } = mfaDtoModule;
 import MfaAccount from './mfa-account';
 import errorMessageModule from '../../../../shared/utils/error-message.util';

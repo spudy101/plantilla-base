@@ -4,7 +4,7 @@ const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
 import AppError from '../../../shared/http/app-error.util';
 import userConsentRepository from '../repositories/user-consent.repository';
-import adminUserConsentDtoModule from '../dtos/admin-user-consent.dto';
+import adminUserConsentDtoModule from '../responses/admin-user-consent.response';
 const { UserConsentAuditItemDTO } = adminUserConsentDtoModule;
 import auditModule from '../../audit';
 const { audit } = auditModule;

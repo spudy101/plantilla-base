@@ -27,14 +27,14 @@ import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
-import authBiometricDtoModule from '../dtos/auth-biometric.dto';
+import authBiometricDtoModule from '../responses/auth-biometric.response';
 const {
   BiometricRegisterStartDTO,
   BiometricRegisterFinishDTO,
   BiometricLoginStartDTO,
   BiometricCredentialListDTO
 } = authBiometricDtoModule;
-import authLoginDtoModule from '../dtos/auth-login.dto';
+import authLoginDtoModule from '../responses/auth-login.response';
 const { LoginResponseDTO } = authLoginDtoModule;
 // ============================================================
 // CONSTANTES

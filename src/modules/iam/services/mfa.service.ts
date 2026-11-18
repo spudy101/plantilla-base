@@ -19,7 +19,7 @@ import userRepository from '../repositories/user.repository';
 import notificationModule from '../../notification';
 const { verificationCodeRepository, notifier, SmsService } = notificationModule;
 import AppError from '../../../shared/http/app-error.util';
-import mfaDtoModule from '../dtos/mfa.dto';
+import mfaDtoModule from '../responses/mfa.response';
 const { PasswordValidationResponseDTO, MFAStatusResponseDTO, PreferredMethodResponseDTO } = mfaDtoModule;
 import MfaAccount from './mfa/mfa-account';
 import TotpMfaService from './mfa/totp-mfa.service';

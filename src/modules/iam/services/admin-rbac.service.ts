@@ -17,7 +17,7 @@ const { RBAC_ROLES, notifications } = constantsModule;
 import notificationModule from '../../notification';
 const { notifier } = notificationModule;
 import rolePermissionOverrideRepository from '../repositories/role-permission-override.repository';
-import adminRbacDtoModule from '../dtos/admin-rbac.dto';
+import adminRbacDtoModule from '../responses/admin-rbac.response';
 import auditModule from '../../audit';
 const { audit } = auditModule;
 const {

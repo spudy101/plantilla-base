@@ -1,5 +1,5 @@
 import type { NotificationCategoryRow } from '../repositories/notification-category.repository';
-import componentsNotificationDtoModule from './notification-components.dto';
+import componentsNotificationDtoModule from './notification-components.response';
 const { NotificationCategoryComponent } = componentsNotificationDtoModule;
 import catalogsModule from '../../catalogs';
 const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;

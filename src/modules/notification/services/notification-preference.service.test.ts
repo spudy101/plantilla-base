@@ -22,13 +22,13 @@ jest.mock('../repositories/notification-category.repository', () => ({
   findAllActive: jest.fn()
 }));
 
-jest.mock('../dtos/notification-preference.dto', () => ({
+jest.mock('../responses/notification-preference.response', () => ({
   // Clase: con `new` devuelve el objeto retornado por la impl.
   UpdatePreferenceResponseDTO: jest.fn(preference => ({ built: preference })),
   CategoryPreferencesViewDTO: { buildArray: jest.fn() }
 }));
 
-jest.mock('../dtos/notification-components.dto', () => ({
+jest.mock('../responses/notification-components.response', () => ({
   UserNotificationPreferenceComponent: { buildArray: jest.fn() }
 }));
 
@@ -42,13 +42,13 @@ import prefRepoModule from '../repositories/user-notification-preference.reposit
 const prefRepo = mocked(prefRepoModule);
 import categoryRepoModule from '../repositories/notification-category.repository';
 const categoryRepo = mocked(categoryRepoModule);
-import notificationPreferenceDtoModuleModule from '../dtos/notification-preference.dto';
+import notificationPreferenceDtoModuleModule from '../responses/notification-preference.response';
 const notificationPreferenceDtoModule = mocked(notificationPreferenceDtoModuleModule);
 const {
   UpdatePreferenceResponseDTO,
   CategoryPreferencesViewDTO
 } = mocked(notificationPreferenceDtoModule);
-import componentsNotificationDtoModule from '../dtos/notification-components.dto';
+import componentsNotificationDtoModule from '../responses/notification-components.response';
 const { UserNotificationPreferenceComponent } = mocked(componentsNotificationDtoModule);
 import service from './notification-preference.service';
 

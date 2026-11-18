@@ -29,11 +29,11 @@ jest.mock('../../../shared/http/pagination.util', () => ({
   getPaginationParams: jest.fn()
 }));
 
-jest.mock('../../catalogs/dtos/catalog-components.dto', () => ({
+jest.mock('../../catalogs/responses/catalog-components.response', () => ({
   MetadataDTO: { build: jest.fn(params => ({ meta: params })) }
 }));
 
-jest.mock('../dtos/consent-type.dto', () => ({
+jest.mock('../responses/consent-type.response', () => ({
   ConsentTypeListDTO: jest.fn(r => ({ list: r.code })),
   ConsentTypeDTO: jest.fn(r => ({ detail: r.code }))
 }));

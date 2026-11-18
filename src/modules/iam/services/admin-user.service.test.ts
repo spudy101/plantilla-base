@@ -82,7 +82,7 @@ jest.mock('../../../shared/http/pagination.util', () => ({
   getPaginationParams: jest.fn().mockReturnValue({ limit: 10, offset: 0, page: 1, sortBy: 'created_at', order: 'DESC' })
 }));
 
-jest.mock('../../catalogs/dtos/catalog-components.dto', () => ({
+jest.mock('../../catalogs/responses/catalog-components.response', () => ({
   MetadataDTO: { build: (meta: Loose) => ({ meta: true, ...meta }) }
 }));
 
@@ -106,7 +106,7 @@ jest.mock('../../audit/utils/audit-diff.util', () => ({
   buildAuditDiff: jest.fn().mockReturnValue({ before: { firstName: 'A' }, after: { firstName: 'B' } })
 }));
 
-jest.mock('../dtos/admin-user.dto', () => ({
+jest.mock('../responses/admin-user.response', () => ({
   InternalUserDTO: (u: Loose) => (u ? { dto: 'user', ...u } : null),
   InternalUserListDTO: (u: Loose) => ({ dto: 'list', ...u }),
   InternalUserCreatedDTO: (u: Loose, pwd: Loose) => ({ dto: 'created', temporaryPassword: pwd, ...u }),

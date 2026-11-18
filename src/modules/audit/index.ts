@@ -11,7 +11,7 @@ export default {
   },
 
   get auditComponentsDto() {
-    return interopDefault(require('./dtos/audit-components.dto') as typeof import('./dtos/audit-components.dto'));
+    return interopDefault(require('./responses/audit-components.response') as typeof import('./responses/audit-components.response'));
   },
 
   get auditAlertRepository() {

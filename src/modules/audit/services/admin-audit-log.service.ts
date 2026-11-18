@@ -8,7 +8,7 @@ import catalogsModule from '../../catalogs';
 const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
 const { MetadataDTO } = componentsCatalogDtoModule;
 import auditLogRepository from '../repositories/audit-log.repository';
-import adminAuditLogDtoModule from '../dtos/admin-audit-log.dto';
+import adminAuditLogDtoModule from '../responses/admin-audit-log.response';
 const { AuditLogListDTO, AuditLogDTO } = adminAuditLogDtoModule;
 import audit from '../audit.service';
 

@@ -1,4 +1,4 @@
-import type SessionTraceDto from '../dtos/admin-session-trace.dto';
+import type SessionTraceDto from '../responses/admin-session-trace.response';
 // Fase 5 — API admin de sesiones (el consumidor de la trazabilidad).
 // Superficie forense: dada una sesión, reconstruye qué se hizo en ella y con qué filas de dominio.
 //
@@ -18,13 +18,13 @@ const { userConsentRepository } = legalModule;
 // eslint-disable-next-line max-len
 import notificationModule from '../../notification';
 const { notificationPreferenceRepository: notificationPreferenceRepo } = notificationModule;
-import componentsAuditDtoModule from '../dtos/audit-components.dto';
+import componentsAuditDtoModule from '../responses/audit-components.response';
 const {
   UserConsentComponent,
   NotificationPreferenceComponent,
   TrustedDeviceComponent
 } = componentsAuditDtoModule;
-import adminSessionTraceDtoModule from '../dtos/admin-session-trace.dto';
+import adminSessionTraceDtoModule from '../responses/admin-session-trace.response';
 const { SessionTraceListDTO, SessionTimelineDTO, SessionEntitiesDTO } = adminSessionTraceDtoModule;
 import audit from '../audit.service';
 

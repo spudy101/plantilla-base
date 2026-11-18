@@ -35,12 +35,12 @@ jest.mock('../../../shared/observability/logger.util', () => ({
 }));
 jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
-jest.mock('../../catalogs/dtos/catalog-components.dto', () => ({
+jest.mock('../../catalogs/responses/catalog-components.response', () => ({
   MetadataDTO: { build: (meta: Loose) => ({ ...meta }) }
 }));
 
 // DTOs a passthrough. buildProductView marca 'sns' como caído para ejercitar el conteo de fallbacks.
-jest.mock('../dtos/integration-monitoring.dto', () => ({
+jest.mock('../responses/integration-monitoring.response', () => ({
   IntegrationDashboardDTO: (x: Loose) => x,
   buildProductView: jest.fn((stat, circuit) => ({
     product: circuit.product,

@@ -3,7 +3,7 @@ import type { UserProfileRow, UserWith } from '../repositories/user.repository';
 import personModule from '../../person';
 const { personComponentsDto: componentsPersonModule } = personModule;
 const { UserComponent, PersonComponent, PersonContactComponent, PersonLocationComponent } = componentsPersonModule;
-import componentsAuthModule from './auth-components.dto';
+import componentsAuthModule from './auth-components.response';
 const { TrustedDeviceComponent } = componentsAuthModule;
 
 /**

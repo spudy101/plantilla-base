@@ -9,7 +9,7 @@ const {
   AUDIT_RISK_ORDER,
   AUDIT_MODULES
 } = auditactionsModule;
-import adminAuditActionCatalogDtoModule from '../dtos/admin-audit-action-catalog.dto';
+import adminAuditActionCatalogDtoModule from '../responses/admin-audit-action-catalog.response';
 const { CategoryDTO, RiskDTO, ModuleDTO, ActionListDTO } = adminAuditActionCatalogDtoModule;
 import audit from '../audit.service';
 

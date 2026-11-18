@@ -8,7 +8,7 @@ import DeviceBlocklistUtil from '../../utils/device-blocklist.util';
 import AppError from '../../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
-import authLoginDtoModule from '../../dtos/auth-login.dto';
+import authLoginDtoModule from '../../responses/auth-login.response';
 const { TrustedDeviceListDTO, TrustedDeviceUpdateDTO } = authLoginDtoModule;
 import auditModule from '../../../audit';
 const { audit } = auditModule;

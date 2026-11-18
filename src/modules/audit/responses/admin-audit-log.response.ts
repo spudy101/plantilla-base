@@ -1,4 +1,4 @@
-import componentsAuditDtoModule from './audit-components.dto';
+import componentsAuditDtoModule from './audit-components.response';
 const { AuditLogComponent } = componentsAuditDtoModule;
 
 const AuditLogListDTO = (record: Parameters<typeof AuditLogComponent.buildList>[0]) => AuditLogComponent.buildList(record);

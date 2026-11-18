@@ -1,6 +1,6 @@
 import type { Person } from '../../../shared/database/generated/prisma/client';
 import type { UserProfileRow } from '../../iam';
-import componentsPersonModule from './person-components.dto';
+import componentsPersonModule from './person-components.response';
 const { UserComponent, PersonComponent, PersonContactComponent, PersonLocationComponent } = componentsPersonModule;
 
 import auditModule from '../../audit';

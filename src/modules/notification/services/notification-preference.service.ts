@@ -2,9 +2,9 @@ import AppError from '../../../shared/http/app-error.util';
 // eslint-disable-next-line max-len
 import userNotificationPreferenceRepository from '../repositories/user-notification-preference.repository';
 import notificationCategoryRepository from '../repositories/notification-category.repository';
-import notificationPreferenceDtoModule from '../dtos/notification-preference.dto';
+import notificationPreferenceDtoModule from '../responses/notification-preference.response';
 const { UpdatePreferenceResponseDTO, CategoryPreferencesViewDTO } = notificationPreferenceDtoModule;
-import componentsNotificationDtoModule from '../dtos/notification-components.dto';
+import componentsNotificationDtoModule from '../responses/notification-components.response';
 const { UserNotificationPreferenceComponent } = componentsNotificationDtoModule;
 import auditModule from '../../audit';
 const { audit } = auditModule;

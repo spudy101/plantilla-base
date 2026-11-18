@@ -14,7 +14,7 @@ const { MetadataDTO } = componentsCatalogDtoModule;
 import constantsModule from '../../../../shared/constants';
 const { CLIENT_ROLE_NAMES } = constantsModule;
 
-import adminPersonDtoModule from '../../dtos/admin-person.dto';
+import adminPersonDtoModule from '../../responses/admin-person.response';
 const { UserDTO, UserListItemDTO, RoleOptionDTO } = adminPersonDtoModule;
 import auditModule from '../../../audit';
 const { audit } = auditModule;

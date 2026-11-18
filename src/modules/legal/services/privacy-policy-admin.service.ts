@@ -20,7 +20,7 @@ const { logger } = loggerUtilModule;
 import PaginationHelper from '../../../shared/http/pagination.util';
 import notificationModule from '../../notification';
 const { notifier } = notificationModule;
-import privacyPolicyAdminDtoModule from '../dtos/privacy-policy-admin.dto';
+import privacyPolicyAdminDtoModule from '../responses/privacy-policy-admin.response';
 import auditModule from '../../audit';
 const { audit } = auditModule;
 const {

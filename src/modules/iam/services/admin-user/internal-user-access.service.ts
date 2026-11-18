@@ -18,7 +18,7 @@ import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import constantsModule from '../../../../shared/constants';
 const { notifications } = constantsModule;
-import adminUserDtoModule from '../../dtos/admin-user.dto';
+import adminUserDtoModule from '../../responses/admin-user.response';
 const { InternalUserDTO } = adminUserDtoModule;
 import internalUserGuardsModule from './internal-user-guards';
 const { InternalUserGuards, displayName } = internalUserGuardsModule;

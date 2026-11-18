@@ -12,7 +12,7 @@ import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import constantsModule from '../../../../shared/constants';
 const { INTERNAL_ROLE_NAMES } = constantsModule;
-import authLoginDtoModule from '../../dtos/auth-login.dto';
+import authLoginDtoModule from '../../responses/auth-login.response';
 const { PolicyUpdateRequiredDTO } = authLoginDtoModule;
 import auditModule from '../../../audit';
 const { audit } = auditModule;

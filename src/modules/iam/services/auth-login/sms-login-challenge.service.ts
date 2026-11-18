@@ -16,7 +16,7 @@ import loggerUtilModule from '../../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import constantsModule from '../../../../shared/constants';
 const { MOCKS } = constantsModule;
-import authLoginDtoModule from '../../dtos/auth-login.dto';
+import authLoginDtoModule from '../../responses/auth-login.response';
 const { MFARequiredResponseDTO } = authLoginDtoModule;
 import errorMessageModule from '../../../../shared/utils/error-message.util';
 

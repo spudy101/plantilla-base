@@ -3,7 +3,7 @@ import type { PersonReference } from '../../../shared/database/generated/prisma/
 
 import AppError from '../../../shared/http/app-error.util';
 import personReferenceRepository from '../repositories/person-reference.repository';
-import personReferenceDtoModule from '../dtos/person-reference.dto';
+import personReferenceDtoModule from '../responses/person-reference.response';
 const { PersonReferenceDTO, PersonReferenceListDTO } = personReferenceDtoModule;
 import auditModule from '../../audit';
 const { audit } = auditModule;

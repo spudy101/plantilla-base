@@ -16,7 +16,7 @@ const { notifier } = notificationModule;
 import PaginationHelper from '../../../shared/http/pagination.util';
 import domainEnumsModule from '../../../shared/constants/domain-enums';
 const { USER_SESSION_STATUS } = domainEnumsModule;
-import adminAuthSessionDtoModule from '../dtos/admin-auth-session.dto';
+import adminAuthSessionDtoModule from '../responses/admin-auth-session.response';
 const { SessionListDTO, AuthAttemptListDTO } = adminAuthSessionDtoModule;
 const AUTH_CATEGORY = 'Autenticación';
 const DEFAULT_DATE_FROM = new Date('2000-01-01');

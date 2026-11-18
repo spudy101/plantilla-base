@@ -60,7 +60,7 @@ jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 jest.mock('../../../shared/constants', () => ({ MOCKS: { EXTERNAL_PROVIDERS: false } }));
 
 // DTOs a passthrough para no acoplar a su forma.
-jest.mock('../dtos/mfa.dto', () => ({
+jest.mock('../responses/mfa.response', () => ({
   TOTPSetupResponseDTO: (x: Loose) => x,
   TOTPActivationResponseDTO: (x: Loose) => x,
   TOTPVerificationResponseDTO: (x: Loose) => x,

@@ -7,7 +7,7 @@ import AppError from '../../../shared/http/app-error.util';
 import PaginationHelper from '../../../shared/http/pagination.util';
 import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
-import adminNotificationTypeDtoModule from '../dtos/admin-notification-type.dto';
+import adminNotificationTypeDtoModule from '../responses/admin-notification-type.response';
 import auditModule from '../../audit';
 const { audit } = auditModule;
 const {

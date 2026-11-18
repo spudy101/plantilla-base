@@ -29,7 +29,7 @@ jest.mock('../../../shared/http/pagination.util', () => ({
   buildFilters: jest.fn().mockReturnValue({})
 }));
 
-jest.mock('../../catalogs/dtos/catalog-components.dto', () => ({
+jest.mock('../../catalogs/responses/catalog-components.response', () => ({
   MetadataDTO: { build: (meta: Loose) => ({ ...meta }) }
 }));
 
@@ -39,7 +39,7 @@ jest.mock('../repositories/audit-log.repository', () => ({
   searchForExport: jest.fn()
 }));
 
-jest.mock('../dtos/admin-audit-log.dto', () => ({
+jest.mock('../responses/admin-audit-log.response', () => ({
   AuditLogListDTO: (row: Loose) => ({ dto: 'list', ...row }),
   AuditLogDTO: (row: Loose) => ({ dto: 'detail', ...row })
 }));

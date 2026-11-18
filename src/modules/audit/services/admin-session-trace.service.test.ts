@@ -30,7 +30,7 @@ jest.mock('../../iam/repositories/auth-trusted-device.repository', () => ({
   findByIds: jest.fn()
 }));
 
-jest.mock('../dtos/audit-components.dto', () => ({
+jest.mock('../responses/audit-components.response', () => ({
   UserConsentComponent: { build: jest.fn(r => ({ built: 'consent', id: r.userConsentId })) },
   NotificationPreferenceComponent: { build: jest.fn(r => ({ built: 'pref', id: r.id })) },
   TrustedDeviceComponent: { build: jest.fn(r => ({ built: 'device', id: r.userTrustedDeviceId })) }
@@ -43,7 +43,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
 jest.mock('../audit.service', () => ({ record: jest.fn() }));
 
 
-jest.mock('../dtos/admin-session-trace.dto', () => ({
+jest.mock('../responses/admin-session-trace.response', () => ({
   SessionTraceListDTO: jest.fn(() => ({ dto: 'list' })),
   SessionTimelineDTO: jest.fn(() => ({ dto: 'timeline' })),
   SessionEntitiesDTO: jest.fn(() => ({ dto: 'entities' }))
@@ -60,7 +60,7 @@ import trustedDeviceRepoModule from '../../iam/repositories/auth-trusted-device.
 const trustedDeviceRepo = mocked(trustedDeviceRepoModule);
 import auditServiceModule from '../audit.service';
 const logAudit = mocked(auditServiceModule).record;
-import adminSessionTraceDtoModuleModule from '../dtos/admin-session-trace.dto';
+import adminSessionTraceDtoModuleModule from '../responses/admin-session-trace.response';
 const adminSessionTraceDtoModule = mocked(adminSessionTraceDtoModuleModule);
 const {
   SessionTraceListDTO,

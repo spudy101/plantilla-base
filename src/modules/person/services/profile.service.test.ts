@@ -47,7 +47,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
 jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
 // DTOs passthrough: objetos etiquetados para verificar qué recibieron.
-jest.mock('../dtos/profile.dto', () => ({
+jest.mock('../responses/profile.response', () => ({
   BasicProfileDTO: jest.fn((...args) => ({ dto: 'basic', args })),
   ExtendedProfileDTO: jest.fn((...args) => ({ dto: 'extended', args })),
   UpdateEmailResponseDTO: jest.fn((newEmail, updatedAt) => ({ dto: 'email', newEmail, updatedAt })),
@@ -62,7 +62,7 @@ jest.mock('../dtos/profile.dto', () => ({
 }));
 
 // Componentes shared requeridos de forma diferida dentro de getContactInfo/getLocation.
-jest.mock('../dtos/person-components.dto', () => ({
+jest.mock('../responses/person-components.response', () => ({
   PersonContactComponent: { build: jest.fn(c => ({ built: 'contact', c })) },
   PersonLocationComponent: { build: jest.fn(l => ({ built: 'location', l })) }
 }));
@@ -91,9 +91,9 @@ import ProfileHelperModule from '../helpers/profile.helper';
 const ProfileHelper = mocked(ProfileHelperModule);
 import auditServiceModule from '../../audit/audit.service';
 const logAudit = mocked(auditServiceModule).record;
-import kycModule from '../dtos/person-components.dto';
+import kycModule from '../responses/person-components.response';
 const { PersonContactComponent, PersonLocationComponent } = mocked(kycModule);
-import profileDtoModule from '../dtos/profile.dto';
+import profileDtoModule from '../responses/profile.response';
 const profileDto = mocked(profileDtoModule);
 import service from './profile.service';
 

@@ -29,7 +29,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
 }));
 jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
-jest.mock('../dtos/privacy-policy-admin.dto', () => ({
+jest.mock('../responses/privacy-policy-admin.response', () => ({
   ListPrivacyPoliciesResponseDTO: jest.fn(() => ({ dto: 'list' })),
   PrivacyPolicyDetailResponseDTO: jest.fn(() => ({ dto: 'detail' })),
   PrivacyPolicyCreatedResponseDTO: jest.fn(() => ({ dto: 'created' }))
@@ -48,7 +48,7 @@ import loggerUtilModule from '../../../shared/observability/logger.util';
 import auditServiceModule from '../../audit/audit.service';
 const { logger } = mocked(loggerUtilModule);
 const logAudit = mocked(auditServiceModule).record;
-import privacyPolicyAdminDtoModuleModule from '../dtos/privacy-policy-admin.dto';
+import privacyPolicyAdminDtoModuleModule from '../responses/privacy-policy-admin.response';
 const privacyPolicyAdminDtoModule = mocked(privacyPolicyAdminDtoModuleModule);
 const {
   ListPrivacyPoliciesResponseDTO,

@@ -1,6 +1,5 @@
-// modules/client/kyc/dtos/auth-biometric.dto.ts
 
-import componentsAuthModule from './auth-components.dto';
+import componentsAuthModule from './auth-components.response';
 const { BiometricCredentialComponent } = componentsAuthModule;
 
 /**

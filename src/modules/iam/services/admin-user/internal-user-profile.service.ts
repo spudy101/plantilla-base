@@ -20,7 +20,7 @@ const { auditDiffUtil: auditDiffUtilModule, audit } = auditModule;
 const { buildAuditDiff } = auditDiffUtilModule;
 import constantsModule from '../../../../shared/constants';
 const { RBAC_ROLES, notifications } = constantsModule;
-import adminUserDtoModule from '../../dtos/admin-user.dto';
+import adminUserDtoModule from '../../responses/admin-user.response';
 const { InternalUserDTO, InternalUserCreatedDTO } = adminUserDtoModule;
 import internalUserGuardsModule from './internal-user-guards';
 const { InternalUserGuards } = internalUserGuardsModule;

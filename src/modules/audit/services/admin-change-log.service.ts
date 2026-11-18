@@ -1,6 +1,6 @@
 import userChangeLogRepository from '../repositories/change-log.repository';
 import PaginationHelper from '../../../shared/http/pagination.util';
-import adminChangeLogDtoModule from '../dtos/admin-change-log.dto';
+import adminChangeLogDtoModule from '../responses/admin-change-log.response';
 const { ListUserChangeLogsResponseDTO } = adminChangeLogDtoModule;
 import audit from '../audit.service';
 

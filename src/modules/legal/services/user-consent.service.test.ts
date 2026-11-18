@@ -17,7 +17,7 @@ jest.mock('../repositories/user-consent.repository', () => ({
   revoke: jest.fn()
 }));
 
-jest.mock('../dtos/user-consent.dto', () => ({
+jest.mock('../responses/user-consent.response', () => ({
   MyConsentCatalogDTO: jest.fn((type, record) => ({ code: type.code, granted: !!record })),
   ConsentGrantedDTO: jest.fn(r => ({ id: r.userConsentId }))
 }));

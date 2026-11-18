@@ -21,7 +21,7 @@ import ProfileHelper from '../../helpers/profile.helper';
 import constantsModule from '../../../../shared/constants';
 const { notifications, RBAC_ROLES } = constantsModule;
 
-import adminPersonDtoModule from '../../dtos/admin-person.dto';
+import adminPersonDtoModule from '../../responses/admin-person.response';
 const { CreateUserDTO } = adminPersonDtoModule;
 import auditModule from '../../../audit';
 const { audit } = auditModule;

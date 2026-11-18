@@ -3,9 +3,8 @@ import iamModule from '../../iam';
 const { adminUserDto: adminUserDtoModule } = iamModule;
 import type { UserProfileRow } from '../../iam';
 const { RoleOptionDTO } = adminUserDtoModule;
-// modules/admin/kyc/dtos/admin-person.dto.ts
 
-import componentsPersonModule from './person-components.dto';
+import componentsPersonModule from './person-components.response';
 const { UserComponent, PersonComponent, PersonContactComponent, PersonLocationComponent } = componentsPersonModule;
 import EncryptionUtil from '../../../shared/security/encryption.util';
 const safeDecrypt = (value: unknown) => EncryptionUtil.safeDecrypt(value);

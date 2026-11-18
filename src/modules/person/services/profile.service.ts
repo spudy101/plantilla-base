@@ -15,7 +15,7 @@ import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import KycSharedUtil from '../utils/kyc-shared.util';
 import ProfileHelper from '../helpers/profile.helper';
-import profileDtoModule from '../dtos/profile.dto';
+import profileDtoModule from '../responses/profile.response';
 import auditModule from '../../audit';
 const { audit } = auditModule;
 const {
@@ -92,7 +92,7 @@ class ProfileService {
   }
 
   async getContactInfo(personId: string, userId: string) {
-    const { PersonContactComponent } = interopDefault(require('../dtos/person-components.dto') as typeof import('../dtos/person-components.dto'));
+    const { PersonContactComponent } = interopDefault(require('../responses/person-components.response') as typeof import('../responses/person-components.response'));
     const personContactRepository = interopDefault(require('../repositories/person-contact.repository') as typeof import('../repositories/person-contact.repository'));
     const contact = await personContactRepository.findByPersonIdWithPrefixes(personId);
     if (!contact) {
@@ -109,7 +109,7 @@ class ProfileService {
   }
 
   async getLocation(personId: string, userId: string) {
-    const { PersonLocationComponent } = interopDefault(require('../dtos/person-components.dto') as typeof import('../dtos/person-components.dto'));
+    const { PersonLocationComponent } = interopDefault(require('../responses/person-components.response') as typeof import('../responses/person-components.response'));
     const personLocationRepository = interopDefault(require('../repositories/person-location.repository') as typeof import('../repositories/person-location.repository'));
     const location = await personLocationRepository.findByPersonId(personId);
     await audit.record('PROFILE_LOCATION_VIEWED', {

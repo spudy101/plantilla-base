@@ -7,11 +7,11 @@ import { interopDefault } from '../../shared/utils/interop.util';
 
 export default {
   get adminUserDto() {
-    return interopDefault(require('./dtos/admin-user.dto') as typeof import('./dtos/admin-user.dto'));
+    return interopDefault(require('./responses/admin-user.response') as typeof import('./responses/admin-user.response'));
   },
 
   get authComponentsDto() {
-    return interopDefault(require('./dtos/auth-components.dto') as typeof import('./dtos/auth-components.dto'));
+    return interopDefault(require('./responses/auth-components.response') as typeof import('./responses/auth-components.response'));
   },
 
   get AuthMiddleware() {

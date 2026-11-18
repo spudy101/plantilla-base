@@ -23,7 +23,7 @@ jest.mock('../../../shared/observability/logger.util', () => ({
 }));
 jest.mock('../audit.service', () => ({ record: jest.fn() }));
 
-jest.mock('../dtos/admin-change-log.dto', () => ({
+jest.mock('../responses/admin-change-log.response', () => ({
   ListUserChangeLogsResponseDTO: jest.fn((rows, metadata) => ({ data: rows, metadata }))
 }));
 
@@ -34,7 +34,7 @@ import PaginationHelperModule from '../../../shared/http/pagination.util';
 const PaginationHelper = mocked(PaginationHelperModule);
 import auditServiceModule from '../audit.service';
 const logAudit = mocked(auditServiceModule).record;
-import adminChangeLogDtoModule from '../dtos/admin-change-log.dto';
+import adminChangeLogDtoModule from '../responses/admin-change-log.response';
 const { ListUserChangeLogsResponseDTO } = mocked(adminChangeLogDtoModule);
 import service from './admin-change-log.service';
 

@@ -19,7 +19,7 @@ jest.mock('../../../shared/http/pagination.util', () => ({
   getPaginationParams: jest.fn().mockReturnValue({ page: 1, limit: 10, offset: 0, sortBy: 'created_at', order: 'DESC' })
 }));
 
-jest.mock('../../catalogs/dtos/catalog-components.dto', () => ({
+jest.mock('../../catalogs/responses/catalog-components.response', () => ({
   MetadataDTO: { build: jest.fn(meta => ({ ...meta })) }
 }));
 
@@ -28,14 +28,14 @@ jest.mock('../repositories/user-consent.repository', () => ({
   findHistoryByUser: jest.fn()
 }));
 
-jest.mock('../dtos/admin-user-consent.dto', () => ({
+jest.mock('../responses/admin-user-consent.response', () => ({
   UserConsentAuditItemDTO: jest.fn(r => ({ dto: true, ...r }))
 }));
 
 import { mocked } from 'tests/helpers/mock';
 import consentRepoModule from '../repositories/user-consent.repository';
 const consentRepo = mocked(consentRepoModule);
-import componentsCatalogDtoModule from '../../catalogs/dtos/catalog-components.dto';
+import componentsCatalogDtoModule from '../../catalogs/responses/catalog-components.response';
 const { MetadataDTO } = mocked(componentsCatalogDtoModule);
 import auditServiceModule from '../../audit/audit.service';
 const logAudit = mocked(auditServiceModule).record;
