@@ -40,5 +40,10 @@ export default {
 
   get consentRecorder() {
     return interopDefault(require('./services/consent-recorder.service') as typeof import('./services/consent-recorder.service'));
+  },
+
+  /** Componentes de salida (consentimientos, tipos, política) que usan otros módulos. */
+  get legalComponentsDto() {
+    return interopDefault(require('./responses/legal-components.response') as typeof import('./responses/legal-components.response'));
   }
 };

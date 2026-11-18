@@ -30,8 +30,11 @@ jest.mock('../../iam/repositories/auth-trusted-device.repository', () => ({
   findByIds: jest.fn()
 }));
 
+jest.mock('../../legal/responses/legal-components.response', () => ({
+  UserConsentComponent: { build: jest.fn(r => ({ built: 'consent', id: r.userConsentId })) }
+}));
+
 jest.mock('../responses/audit-components.response', () => ({
-  UserConsentComponent: { build: jest.fn(r => ({ built: 'consent', id: r.userConsentId })) },
   NotificationPreferenceComponent: { build: jest.fn(r => ({ built: 'pref', id: r.id })) },
   TrustedDeviceComponent: { build: jest.fn(r => ({ built: 'device', id: r.userTrustedDeviceId })) }
 }));

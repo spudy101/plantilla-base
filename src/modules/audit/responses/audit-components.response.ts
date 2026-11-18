@@ -58,49 +58,6 @@ interface AuditAlertRow {
 }
 
 // Filas de Prisma (camelCase): consent_types, privacy_policies y user_consents ya migraron (fase 5).
-interface ConsentTypeRow {
-  consentTypeId: string;
-  code: string;
-  name?: Maybe<string>;
-  description?: Maybe<string>;
-  isMandatory?: Maybe<boolean>;
-  isRevocable?: Maybe<boolean>;
-  isActive?: Maybe<boolean>;
-  scope?: Maybe<string>;
-  createdAt?: Maybe<DbDate>;
-  updatedAt?: Maybe<DbDate>;
-}
-
-interface PrivacyPolicyRefRow {
-  privacyPolicyId: string;
-  version: string;
-  documentUrl?: Maybe<string>;
-  effectiveDate?: Maybe<DbDate>;
-}
-
-/** Usuario incluido en un consentimiento (Prisma). El de las filas de auditoría sigue en snake_case. */
-interface ConsentUserRow {
-  userId: string;
-  username?: Maybe<string>;
-  person?: Maybe<{ firstName?: Maybe<string>; lastName?: Maybe<string> }>;
-}
-
-interface UserConsentRow {
-  userConsentId: string;
-  userId?: Maybe<string>;
-  user?: Maybe<ConsentUserRow>;
-  consentTypeId?: Maybe<string>;
-  consentType?: Maybe<ConsentTypeRow>;
-  privacyPolicy?: Maybe<PrivacyPolicyRefRow>;
-  grantedAt?: Maybe<DbDate>;
-  grantedIp?: Maybe<string>;
-  originSessionId?: Maybe<string>;
-  revokedAt?: Maybe<DbDate>;
-  revocationReason?: Maybe<string>;
-  isCurrent?: Maybe<boolean>;
-  createdAt?: Maybe<DbDate>;
-}
-
 /** Fila de Prisma (fase 5, grupo 3); el horario de no molestar llega como 'HH:MM:SS'. */
 interface NotificationPreferenceRow {
   userNotificationPreferenceId: string;
@@ -128,10 +85,7 @@ interface TrustedDeviceTraceRow {
   createdAt?: Maybe<DbDate>;
 }
 
-/** Variantes de UserConsentComponent que buildArray puede aplicar a cada registro. */
-type UserConsentVariant = 'build' | 'buildForClient' | 'buildGranted';
-
-function _buildUserRef(user: Maybe<AuditUserRow | ConsentUserRow>) {
+function _buildUserRef(user: Maybe<AuditUserRow>) {
   if (!user) {
     return null;
   }
@@ -223,146 +177,6 @@ class AuditAlertComponent {
 }
 
 // ============================================================
-// CONSENT TYPE COMPONENT — RF-ADM-04
-// ============================================================
-
-class ConsentTypeComponent {
-  static build(consentType: Maybe<ConsentTypeRow>) {
-    if (!consentType) {
-      return null;
-    }
-    return {
-      consentTypeId: consentType.consentTypeId,
-      code: consentType.code,
-      name: consentType.name,
-      isMandatory: consentType.isMandatory,
-      isRevocable: consentType.isRevocable,
-      isActive: consentType.isActive,
-      scope: consentType.scope
-    };
-  }
-
-  static buildDetail(consentType: Maybe<ConsentTypeRow>) {
-    if (!consentType) {
-      return null;
-    }
-    return {
-      ...ConsentTypeComponent.build(consentType),
-      description: consentType.description ?? null,
-      createdAt: consentType.createdAt,
-      updatedAt: consentType.updatedAt
-    };
-  }
-
-  static buildList(consentType: Maybe<ConsentTypeRow>) {
-    if (!consentType) {
-      return null;
-    }
-    return {
-      ...ConsentTypeComponent.build(consentType),
-      createdAt: consentType.createdAt
-    };
-  }
-}
-
-// ============================================================
-// PRIVACY POLICY REF COMPONENT
-// ============================================================
-
-class PrivacyPolicyRefComponent {
-  static build(policy: Maybe<PrivacyPolicyRefRow>) {
-    if (!policy) {
-      return null;
-    }
-    return {
-      privacyPolicyId: policy.privacyPolicyId,
-      version: policy.version,
-      documentUrl: policy.documentUrl,
-      effectiveDate: policy.effectiveDate
-    };
-  }
-}
-
-// ============================================================
-// USER CONSENT COMPONENT — RF-ADM-04
-// ============================================================
-
-class UserConsentComponent {
-  static build(record: Maybe<UserConsentRow>) {
-    if (!record) {
-      return null;
-    }
-    return {
-      userConsentId: record.userConsentId,
-      userId: record.userId,
-      user: _buildUserRef(record.user),
-      consentType: ConsentTypeComponent.build(record.consentType),
-      privacyPolicy: PrivacyPolicyRefComponent.build(record.privacyPolicy),
-      grantedAt: record.grantedAt,
-      grantedIp: record.grantedIp,
-      // Solo variante admin: ata el consentimiento a su sesión de origen (user_sessions / audit_logs).
-      // NO se expone en buildForClient/buildGranted/buildClientCatalogItem.
-      originSessionId: record.originSessionId ?? null,
-      revokedAt: record.revokedAt ?? null,
-      revocationReason: record.revocationReason ?? null,
-      isCurrent: record.isCurrent,
-      createdAt: record.createdAt
-    };
-  }
-
-  static buildForClient(record: Maybe<UserConsentRow>) {
-    if (!record) {
-      return null;
-    }
-    return {
-      userConsentId: record.userConsentId,
-      consentType: ConsentTypeComponent.build(record.consentType),
-      privacyPolicy: PrivacyPolicyRefComponent.build(record.privacyPolicy),
-      grantedAt: record.grantedAt,
-      revokedAt: record.revokedAt ?? null,
-      isCurrent: record.isCurrent
-    };
-  }
-
-  static buildGranted(record: Maybe<UserConsentRow>) {
-    if (!record) {
-      return null;
-    }
-    return {
-      userConsentId: record.userConsentId,
-      consentTypeId: record.consentTypeId,
-      grantedAt: record.grantedAt,
-      isCurrent: record.isCurrent
-    };
-  }
-
-  // Item de catálogo para el cliente: un tipo de consentimiento activo + el estado de otorgamiento
-  // del usuario. Si no existe otorgamiento vigente (record null), granted=false y los campos de
-  // otorgamiento quedan en null.
-  static buildClientCatalogItem(consentType: Maybe<ConsentTypeRow>, record: Maybe<UserConsentRow>) {
-    if (!consentType) {
-      return null;
-    }
-    return {
-      consentType: ConsentTypeComponent.build(consentType),
-      granted: Boolean(record),
-      userConsentId: record ? record.userConsentId : null,
-      privacyPolicy: record ? PrivacyPolicyRefComponent.build(record.privacyPolicy) : null,
-      grantedAt: record ? record.grantedAt : null,
-      revokedAt: record ? (record.revokedAt ?? null) : null,
-      isCurrent: record ? record.isCurrent : false
-    };
-  }
-
-  static buildArray(records: Maybe<UserConsentRow[]>, variant: UserConsentVariant = 'build') {
-    if (!records || records.length === 0) {
-      return [];
-    }
-    return records.map(r => UserConsentComponent[variant](r));
-  }
-}
-
-// ============================================================
 // SESSION-TRACE ENTITY COMPONENTS — hidratación forense de acciones del usuario
 // Componentes livianos que el ENTITY_REGISTRY del session-trace usa para mostrar QUÉ tocó el
 // usuario en una sesión. Sin PII (o enmascarada): esta vista NO es self-view.
@@ -412,9 +226,6 @@ class TrustedDeviceComponent {
 export default {
   AuditLogComponent,
   AuditAlertComponent,
-  ConsentTypeComponent,
-  PrivacyPolicyRefComponent,
-  UserConsentComponent,
   NotificationPreferenceComponent,
   TrustedDeviceComponent
 };

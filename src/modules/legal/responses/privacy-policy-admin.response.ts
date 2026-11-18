@@ -1,3 +1,5 @@
+import { z } from '../../../shared/validation/z';
+import { dateTime } from '../../../shared/validation/output';
 import type { PrivacyPolicy } from '../../../shared/database/generated/prisma/client';
 
 import catalogsModule from '../../catalogs';
@@ -62,6 +64,23 @@ function PrivacyPolicyCreatedResponseDTO(policy: PrivacyPolicy) {
     createdAt: policy.createdAt
   };
 }
+
+// ============================================================
+// ESQUEMAS DE SALIDA
+// ============================================================
+
+export const PrivacyPolicyItemSchema = z.object({
+  id: z.uuid(),
+  version: z.string().meta({ example: '1.1' }),
+  isActive: z.boolean(),
+  summary: z.string().nullable(),
+  effectiveDate: dateTime(),
+  createdAt: dateTime()
+});
+export const PrivacyPolicyDetailSchema = PrivacyPolicyItemSchema.extend({
+  documentUrl: z.string().meta({ description: 'URL pública (CloudFront) del PDF.' }),
+  updatedAt: dateTime().optional().meta({ description: 'Solo en el detalle (no en la respuesta de creación).' })
+});
 
 export default {
   ListPrivacyPoliciesResponseDTO,

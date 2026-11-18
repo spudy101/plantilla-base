@@ -14,16 +14,16 @@ import auditLogRepository from '../repositories/audit-log.repository';
 import iamModule from '../../iam';
 const { userSessionRepository, trustedDeviceRepository: trustedDeviceRepo } = iamModule;
 import legalModule from '../../legal';
-const { userConsentRepository } = legalModule;
+const { userConsentRepository, legalComponentsDto } = legalModule;
 // eslint-disable-next-line max-len
 import notificationModule from '../../notification';
 const { notificationPreferenceRepository: notificationPreferenceRepo } = notificationModule;
 import componentsAuditDtoModule from '../responses/audit-components.response';
 const {
-  UserConsentComponent,
   NotificationPreferenceComponent,
   TrustedDeviceComponent
 } = componentsAuditDtoModule;
+const { UserConsentComponent } = legalComponentsDto;
 import adminSessionTraceDtoModule from '../responses/admin-session-trace.response';
 const { SessionTraceListDTO, SessionTimelineDTO, SessionEntitiesDTO } = adminSessionTraceDtoModule;
 import audit from '../audit.service';
