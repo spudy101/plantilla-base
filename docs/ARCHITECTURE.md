@@ -195,6 +195,12 @@ const res = await callProvider({ product: 'ses', endpoint: 'SES:SendEmailCommand
 - El estado vive en Redis (memoria si no hay Redis) y no vence solo: cada apertura tiene su cierre. Al abrirse y
   al cerrarse, `modules/integration` registra la ventana en `provider_fallback_events` y lo audita.
 
+> **Alternativa conocida (no adoptada):** las librerías habituales en Node son [opossum](https://github.com/nodeshift/opossum)
+> (circuit breaker) y [cockatiel](https://github.com/connor4312/cockatiel) (reintento + breaker + timeout combinados).
+> Guardan el estado en memoria de cada proceso: con varias instancias, cada una abre su propio circuito y avisa su
+> propia ventana de fallback. Se eligió el estado compartido en Redis para tener una sola ventana por caída. Si eso
+> deja de importar, cambiar `circuit-breaker.util` por una de ellas no toca a los que usan `callProvider`.
+
 ## Auditoría, operaciones y logs
 
 Son tres cosas distintas y cada una tiene su lugar:
