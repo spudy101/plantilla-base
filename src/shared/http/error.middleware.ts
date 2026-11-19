@@ -9,10 +9,16 @@ const { logger, sanitizeForLog } = loggerUtilModule;
 import { auditInfraEvent } from '../observability/audit-hook';
 import constantsModule from '../constants';
 const { HTTP_STATUS, ERROR_CODES, ERROR_MESSAGES, server, FIELD_LABELS, DEFAULT_FIELD_LABEL } = constantsModule;
+import { isDatabaseUnavailable, isTransactionConflict } from '../database/database-errors';
+
+// Cuánto esperar antes de reintentar cuando la base no está disponible o hubo un conflicto de
+// transacción que no se resolvió repitiéndola (ver docs/errors-and-retries.md).
+const DATABASE_UNAVAILABLE_RETRY_AFTER_S = 5;
+const TRANSACTION_CONFLICT_RETRY_AFTER_S = 1;
 
 /**
  * Lo que el handler lee de un error. Puede llegar cualquier cosa lanzada (AppError, errores de
- * Sequelize/Multer/JWT, Error nativo): todos los campos son opcionales.
+ * Prisma/Multer/JWT, Error nativo): todos los campos son opcionales.
  */
 interface HandledError {
   name?: string;
@@ -23,8 +29,6 @@ interface HandledError {
   details?: unknown;
   retryAfter?: number | null;
   isOperational?: boolean;
-  /** SequelizeValidationError / UniqueConstraintError */
-  errors?: Array<{ path?: string; message?: string; value?: unknown }>;
   /** PrismaClientKnownRequestError: campos de la restricción violada (según versión/adaptador) */
   meta?: {
     target?: string[] | string;
@@ -88,8 +92,27 @@ class ErrorMiddleware {
   // [RF-LP-03] | CA-05 | JWT, RateLimit, Multer con mensajes
   // genéricos. Aceptable para errores de sistema, no de formulario.
   static _handleKnownErrors(err: HandledError, res: Response, req: Request): Response | null {
-    if (err.name?.startsWith('Sequelize')) {
-      return ErrorMiddleware._handleSequelizeError(err, res, req.correlationId);
+    // Primero lo temporal de la base: no es culpa de la petición, y un 500 haría que el cliente no reintente
+    if (isDatabaseUnavailable(err)) {
+      return ApiResponse.error(
+        res,
+        'La base de datos no está disponible en este momento. Intentá de nuevo en unos segundos',
+        HTTP_STATUS.SERVICE_UNAVAILABLE,
+        'DATABASE_UNAVAILABLE',
+        { correlationId: req.correlationId },
+        { retryAfter: DATABASE_UNAVAILABLE_RETRY_AFTER_S }
+      );
+    }
+    if (isTransactionConflict(err)) {
+      // El Unit of Work ya repitió la transacción y siguió chocando con otra: reintentar más tarde funciona
+      return ApiResponse.error(
+        res,
+        'La operación chocó con otra en curso sobre los mismos datos. Intentá de nuevo',
+        HTTP_STATUS.CONFLICT,
+        'TRANSACTION_CONFLICT',
+        { correlationId: req.correlationId },
+        { retryable: true, retryAfter: TRANSACTION_CONFLICT_RETRY_AFTER_S }
+      );
     }
     if (err.name === 'PrismaClientKnownRequestError') {
       return ErrorMiddleware._handlePrismaError(err, res, req.correlationId);
@@ -222,8 +245,8 @@ class ErrorMiddleware {
   // PRIVATE
   // ==============================================
 
-  // Mismas respuestas que con Sequelize para las restricciones de la base (docs/prisma-migration.md, fase 5):
-  // P2002 UNIQUE → 409 con la etiqueta del campo; P2003 FK → 400; P2025 fila inexistente → 404.
+  // Restricciones de la base (docs/prisma-migration.md, fase 5): P2002 UNIQUE → 409 con la etiqueta del
+  // campo; P2003 FK → 400; P2025 fila inexistente → 404. Lo demás es un bug: 500 (permanente).
   static _handlePrismaError(err: HandledError, res: Response, correlationId: string | undefined): Response {
     switch (err.code) {
       case 'P2002': {
@@ -235,42 +258,6 @@ class ErrorMiddleware {
         return ApiResponse.badRequest(res, 'Referencia inválida');
       case 'P2025':
         return ApiResponse.notFound(res, 'Recurso no encontrado');
-      default:
-        return ApiResponse.error(
-          res,
-          'Error de base de datos',
-          HTTP_STATUS.INTERNAL_SERVER_ERROR,
-          ERROR_CODES.DATABASE_ERROR,
-          correlationId ? { correlationId } : null
-        );
-    }
-  }
-
-  static _handleSequelizeError(err: HandledError, res: Response, correlationId: string | undefined): Response {
-    switch (err.name) {
-      case 'SequelizeValidationError': {
-        const errors = (err.errors ?? []).map(e => ({
-          field: e.path,
-          message: e.message,
-          value: e.value
-        }));
-        return ApiResponse.validationError(res, errors);
-      }
-
-      // [RF-LP-03][HALLAZGO CORREGIDO]: e.path mapeado a label amigable via FIELD_LABELS.
-      // Campos no mapeados usan DEFAULT_FIELD_LABEL para no filtrar nombres internos de BD.
-      case 'SequelizeUniqueConstraintError': {
-        const rawPath = err.errors?.[0]?.path || 'unknown';
-        const label = FIELD_LABELS[rawPath] || DEFAULT_FIELD_LABEL;
-        return ApiResponse.conflict(res, `Ya existe un registro con ese ${label}`);
-      }
-
-      // TODO [RF-LP-03][CA-05]: error de FK no identifica campo
-      // afectado. Agregar field con nombre de relación cuando
-      // esté disponible.
-      case 'SequelizeForeignKeyConstraintError':
-        return ApiResponse.badRequest(res, 'Referencia inválida');
-
       default:
         return ApiResponse.error(
           res,
