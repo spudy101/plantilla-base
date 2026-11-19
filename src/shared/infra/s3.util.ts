@@ -27,7 +27,7 @@ const { logger } = loggerUtilModule;
 import AppError from '../http/app-error.util';
 import constantsModule from '../constants';
 const { aws } = constantsModule;
-import { callProvider } from './provider-call.util';
+import { callProvider, AWS_CLIENT_OPTIONS } from './provider-call.util';
 import errorMessageModule from '../utils/error-message.util';
 
 const { errorMessage, errorName, isOperationalError } = errorMessageModule;
@@ -56,7 +56,7 @@ class S3Util {
 
   static get s3Client() {
     if (!this._s3Client) {
-      this._s3Client = new S3Client({ region: aws.region });
+      this._s3Client = new S3Client({ ...AWS_CLIENT_OPTIONS, region: aws.region });
     }
     return this._s3Client;
   }

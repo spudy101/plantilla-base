@@ -6,7 +6,7 @@ const { logger } = loggerUtilModule;
 import AppError from '../../../shared/http/app-error.util';
 import constantsModule from '../../../shared/constants';
 const { notifications, aws } = constantsModule;
-import { callProvider, CircuitOpenError } from '../../../shared/infra/provider-call.util';
+import { callProvider, CircuitOpenError, AWS_CLIENT_OPTIONS } from '../../../shared/infra/provider-call.util';
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
@@ -28,12 +28,12 @@ class PushNotificationService {
   get snsClient(): SnsSender {
     if (!this._snsClient) {
       this._snsClient = new SNSClient({
+        ...AWS_CLIENT_OPTIONS,
         region: aws.region,
         credentials: {
           accessKeyId: aws.accessKeyId,
           secretAccessKey: aws.secretAccessKey
         }
-        // Sin timeout acá: lo pone callProvider en cada intento (settings → integrationResilience.timeoutMs)
       });
     }
     return this._snsClient;

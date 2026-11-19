@@ -22,6 +22,14 @@ import type DomainEnums from '../constants/domain-enums';
 
 const { errorMessage } = errorMessageModule;
 
+/**
+ * Opciones para todo cliente del AWS SDK cuyas llamadas pasan por callProvider: `new SESClient({ ...AWS_CLIENT_OPTIONS, … })`.
+ * El SDK v3 reintenta por su cuenta (3 intentos por defecto). Sumado a los reintentos de callProvider, una
+ * llamada caída hacía hasta 9 intentos, con timeouts y backoff que no salían de settings. Acá reintenta solo
+ * callProvider. Sin timeout en el cliente: lo pone callProvider en cada intento.
+ */
+const AWS_CLIENT_OPTIONS = Object.freeze({ maxAttempts: 1 });
+
 const HTTP_TOO_MANY_REQUESTS = 429;
 const HTTP_REQUEST_TIMEOUT = 408;
 const HTTP_SERVER_ERROR = 500;
@@ -103,5 +111,5 @@ async function callProvider<T>(call: ProviderCall<T>, fn: (signal: AbortSignal) 
   }
 }
 
-export { callProvider, isTransientError, CircuitOpenError };
-export default { callProvider, isTransientError, CircuitOpenError };
+export { callProvider, isTransientError, CircuitOpenError, AWS_CLIENT_OPTIONS };
+export default { callProvider, isTransientError, CircuitOpenError, AWS_CLIENT_OPTIONS };

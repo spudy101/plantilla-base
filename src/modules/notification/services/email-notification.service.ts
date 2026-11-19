@@ -3,7 +3,7 @@ import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import constantsModule from '../../../shared/constants';
 const { notifications, aws } = constantsModule;
-import { callProvider } from '../../../shared/infra/provider-call.util';
+import { callProvider, AWS_CLIENT_OPTIONS } from '../../../shared/infra/provider-call.util';
 import MaskingUtil from '../../../shared/security/masking.util';
 import emailSuppressionService from './email-suppression.service';
 import NotificationContentUtil from '../utils/notification-content.util';
@@ -38,12 +38,12 @@ class EmailNotificationService {
   get sesClient() {
     if (!this._sesClient) {
       this._sesClient = new SESClient({
+        ...AWS_CLIENT_OPTIONS,
         region: aws.region,
         credentials: {
           accessKeyId: aws.accessKeyId,
           secretAccessKey: aws.secretAccessKey
         }
-        // Sin timeout acá: lo pone callProvider en cada intento (settings → integrationResilience.timeoutMs)
       });
     }
     return this._sesClient;
