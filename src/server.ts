@@ -17,8 +17,6 @@ const { AuditArchiveWorker } = auditModule;
 import approvalsModule from './modules/approvals';
 const { DualApprovalExpirationWorker, dualApprovalBootstrap: dualApprovalBootstrapModule } = approvalsModule;
 const { registerDualApprovalHandlers } = dualApprovalBootstrapModule;
-import circuitBreakerBootstrapModule from './circuit-breaker.bootstrap';
-const { registerCircuitBreakerCallbacks } = circuitBreakerBootstrapModule;
 import app from './app';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
@@ -105,7 +103,6 @@ async function start() {
     logger.info(`🚀 Iniciando API (${server.nodeEnv})`);
     await connectInfrastructure();
     registerDualApprovalHandlers();
-    registerCircuitBreakerCallbacks();
     startWorkers();
     const httpServer = await listen();
     setupShutdown(httpServer);

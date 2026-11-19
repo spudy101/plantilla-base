@@ -69,7 +69,6 @@ const paths = {
               auditHotPurgeEnabled: false,
               integrationResilience: {
                 timeoutMs: 30000,
-                manualReviewTimeoutMs: 10000,
                 maxRetries: 3,
                 circuitBreaker: { failureThreshold: 5, recoveryTimeMs: 60000, failuresTtlS: 300 }
               }
@@ -90,7 +89,6 @@ const paths = {
               auditHotPurgeEnabled: false,
               integrationResilience: {
                 timeoutMs: 30000,
-                manualReviewTimeoutMs: 10000,
                 maxRetries: 3,
                 circuitBreaker: { failureThreshold: 5, recoveryTimeMs: 60000, failuresTtlS: 300 }
               }

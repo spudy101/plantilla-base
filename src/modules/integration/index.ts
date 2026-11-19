@@ -10,8 +10,9 @@ export default {
     return interopDefault(require('./repositories/integration-api-log.repository') as typeof import('./repositories/integration-api-log.repository'));
   },
 
-  get providerFallbackEventRepository() {
-    return interopDefault(require('./repositories/provider-fallback-event.repository') as typeof import('./repositories/provider-fallback-event.repository'));
+  /** onOpen/onClose del circuit breaker: ventanas de fallback y su auditoría (los conecta src/app.ts). */
+  get providerFallback() {
+    return interopDefault(require('./services/provider-fallback.service') as typeof import('./services/provider-fallback.service'));
   },
 
   get adminIntegrationMonitoringRoutes() {

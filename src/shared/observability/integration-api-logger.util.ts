@@ -37,9 +37,6 @@ interface ApiLogEntry {
   responsePayload?: unknown;
   isSystemError?: boolean;
   notificationId?: string | null;
-  /** Metadatos de gating/costo del proveedor (resolveAwsGate). Hoy no se persisten. */
-  integrationId?: string | null;
-  unitCost?: number | null;
 }
 
 
@@ -114,9 +111,6 @@ class IntegrationApiLogger {
    * @param {Object}  [params.responsePayload] - Respuesta cruda del proveedor (se sanitiza)
    * @param {boolean} [params.isSystemError]   - true = payload inválido señalado por el proveedor (bug nuestro)
    * @param {string}  [params.notificationId]  - Notificación asociada (SES/SNS), para correlacionar reintentos
-   *
-   * Nota: se aceptan (e ignoran) `integrationId`, `unitCost`, `personId`, `queryNumber` por
-   * compatibilidad con call-sites heredados; este template no gestiona catálogo de integraciones.
    */
   log({
     product,

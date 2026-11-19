@@ -3,9 +3,8 @@
 // EmailNotificationService — canal de email vía AWS SES. Probamos la orquestación de
 // enviarNotificacion (soporte por categoría, templates ausentes, ruta con/ sin adjuntos y
 // propagación de errores) y los dos caminos de envío real (enviarEmail / enviarEmailConAdjuntos):
-// supresión por rebotes duros, circuit breaker abierto, camino feliz (recordSuccess + log success)
-// y fallo tras reintentos (recordFailure + log failed). SES, retry, circuit-breaker, suppression y
-// masking se mockean para no tocar AWS ni depender de su implementación real. Además se cubren los
+// supresión por rebotes duros y que cada envío pase por callProvider (breaker, reintentos, timeout y
+// log se prueban en provider-call.util.test). SES, callProvider, suppression y masking se mockean para no tocar AWS ni depender de su implementación real. Además se cubren los
 // helpers puros de plantillas/adjuntos (_reemplazarVariables, _envolverEnLayout, _normalizarAdjunto).
 
 jest.mock('@aws-sdk/client-ses', () => ({
@@ -14,20 +13,7 @@ jest.mock('@aws-sdk/client-ses', () => ({
   SendRawEmailCommand: class { constructor(public params: unknown) {} }
 }));
 
-jest.mock('../../../shared/infra/retry.util', () => ({ withRetry: jest.fn() }));
-
-jest.mock('../../../shared/infra/circuit-breaker.util', () => ({
-  canCall: jest.fn().mockResolvedValue(true),
-  recordSuccess: jest.fn().mockResolvedValue(undefined),
-  recordFailure: jest.fn().mockResolvedValue(undefined)
-}));
-
-jest.mock('../../../shared/observability/integration-api-logger.util', () => ({ log: jest.fn() }));
-
-jest.mock('../../../shared/infra/aws-provider-meta.util', () => ({
-  resolveAwsGate: jest.fn().mockResolvedValue({ integrationId: 'int-1', unitCost: 0.001 }),
-  awsErrorCode: jest.fn().mockReturnValue('SES_ERR')
-}));
+jest.mock('../../../shared/infra/provider-call.util', () => ({ callProvider: jest.fn() }));
 
 jest.mock('../../../shared/security/masking.util', () => ({
   maskEmail: jest.fn().mockReturnValue('m***@test.cl'),
@@ -50,12 +36,8 @@ jest.mock('../../../shared/constants', () => ({
 }));
 
 import { mocked, fixture } from 'tests/helpers/mock';
-import retryUtilModule from '../../../shared/infra/retry.util';
-const { withRetry } = mocked(retryUtilModule);
-import CircuitBreakerModule from '../../../shared/infra/circuit-breaker.util';
-const CircuitBreaker = mocked(CircuitBreakerModule);
-import ProviderApiLoggerModule from '../../../shared/observability/integration-api-logger.util';
-const ProviderApiLogger = mocked(ProviderApiLoggerModule);
+import * as providerCallModule from '../../../shared/infra/provider-call.util';
+const callProvider = mocked(providerCallModule.callProvider);
 import emailSuppressionModule from './email-suppression.service';
 const emailSuppression = mocked(emailSuppressionModule);
 import auditServiceModule from '../../audit/audit.service';
@@ -67,9 +49,8 @@ const DEST = 'user@test.cl';
 describe('EmailNotificationService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    CircuitBreaker.canCall.mockResolvedValue(true);
     emailSuppression.isSuppressed.mockResolvedValue(false);
-    withRetry.mockResolvedValue({ MessageId: 'ses-msg-1' });
+    callProvider.mockResolvedValue({ MessageId: 'ses-msg-1' });
   });
 
   describe('enviarNotificacion', () => {
@@ -150,37 +131,24 @@ describe('EmailNotificationService', () => {
       expect(result).toBeNull();
       expect(logAudit).toHaveBeenCalledWith('EMAIL_SUPPRESSED_SEND_SKIPPED', expect.objectContaining({ actorId: 'system', details: expect.objectContaining({ notificationId: 'notif-3' }), entityType: 'EmailBounceSuppression' })
       );
-      expect(withRetry).not.toHaveBeenCalled();
+      expect(callProvider).not.toHaveBeenCalled();
     });
 
-    it('lanza error si el circuit breaker está abierto', async () => {
-      CircuitBreaker.canCall.mockResolvedValue(false);
-
-      await expect(service.enviarEmail(DEST, 'S', '<p>hi</p>')).rejects.toThrow(/circuit breaker/i);
-      expect(withRetry).not.toHaveBeenCalled();
-    });
-
-    it('camino feliz: registra éxito, loguea success y retorna la respuesta', async () => {
-      withRetry.mockResolvedValue({ MessageId: 'ses-ok' });
+    it('envía por callProvider (producto ses) y pasa la señal de timeout a SES', async () => {
+      const send = jest.fn().mockResolvedValue({ MessageId: 'ses-ok' });
+      service._sesClient = fixture({ send });
+      callProvider.mockImplementation((_call, fn) => fn(new AbortController().signal));
 
       const result = await service.enviarEmail(DEST, 'S', '<p>hi</p>', 'texto', 'notif-4');
 
-      expect(CircuitBreaker.recordSuccess).toHaveBeenCalledWith('ses');
-      expect(CircuitBreaker.recordFailure).not.toHaveBeenCalled();
-      expect(ProviderApiLogger.log).toHaveBeenCalledWith(expect.objectContaining({ result: 'success', notificationId: 'notif-4' }));
+      expect(callProvider).toHaveBeenCalledWith({ product: 'ses', endpoint: 'SES:SendEmailCommand', notificationId: 'notif-4' }, expect.any(Function));
+      expect(send).toHaveBeenCalledWith(expect.anything(), { abortSignal: expect.any(AbortSignal) });
       expect(result).toEqual({ MessageId: 'ses-ok' });
     });
 
-    it('fallo tras reintentos: registra fallo, loguea failed y re-lanza', async () => {
-      withRetry.mockRejectedValue(new Error('SES down'));
-
+    it('propaga el error de callProvider (fallo o circuito abierto)', async () => {
+      callProvider.mockRejectedValue(new Error('SES down'));
       await expect(service.enviarEmail(DEST, 'S', '<p>hi</p>')).rejects.toThrow('SES down');
-
-      expect(CircuitBreaker.recordFailure).toHaveBeenCalledWith('ses');
-      expect(CircuitBreaker.recordSuccess).not.toHaveBeenCalled();
-      expect(ProviderApiLogger.log).toHaveBeenCalledWith(
-        expect.objectContaining({ result: 'failed', errorCode: 'SES_ERR', errorMessage: 'SES down' })
-      );
     });
   });
 
@@ -196,38 +164,25 @@ describe('EmailNotificationService', () => {
       expect(logAudit).toHaveBeenCalledWith('EMAIL_SUPPRESSED_SEND_SKIPPED', expect.objectContaining({ actorId: 'system' }));
     });
 
-    it('lanza error si el circuit breaker está abierto', async () => {
-      CircuitBreaker.canCall.mockResolvedValue(false);
-
-      await expect(service.enviarEmailConAdjuntos(DEST, 'S', '<p>hi</p>', adjuntos)).rejects.toThrow(/circuit breaker/i);
-    });
-
     it('lanza error si el email supera el límite de 10 MB', async () => {
       const enorme = [{ filename: 'big.bin', contentType: 'application/octet-stream', base64: 'A'.repeat(11 * 1024 * 1024) }];
 
       await expect(service.enviarEmailConAdjuntos(DEST, 'S', '<p>hi</p>', enorme)).rejects.toThrow(/10 MB/);
-      expect(withRetry).not.toHaveBeenCalled();
+      expect(callProvider).not.toHaveBeenCalled();
     });
 
-    it('camino feliz: registra éxito y loguea success', async () => {
-      withRetry.mockResolvedValue({ MessageId: 'ses-raw-ok' });
+    it('envía por callProvider con SendRawEmailCommand', async () => {
+      callProvider.mockResolvedValue({ MessageId: 'ses-raw-ok' });
 
       const result = await service.enviarEmailConAdjuntos(DEST, 'S', '<p>hi</p>', adjuntos, 'notif-5');
 
-      expect(CircuitBreaker.recordSuccess).toHaveBeenCalledWith('ses');
-      expect(ProviderApiLogger.log).toHaveBeenCalledWith(
-        expect.objectContaining({ endpoint: 'SES:SendRawEmailCommand', result: 'success', notificationId: 'notif-5' })
-      );
+      expect(callProvider).toHaveBeenCalledWith({ product: 'ses', endpoint: 'SES:SendRawEmailCommand', notificationId: 'notif-5' }, expect.any(Function));
       expect(result).toEqual({ MessageId: 'ses-raw-ok' });
     });
 
-    it('fallo tras reintentos: registra fallo, loguea failed y re-lanza', async () => {
-      withRetry.mockRejectedValue(new Error('raw fail'));
-
+    it('propaga el error de callProvider', async () => {
+      callProvider.mockRejectedValue(new Error('raw fail'));
       await expect(service.enviarEmailConAdjuntos(DEST, 'S', '<p>hi</p>', adjuntos)).rejects.toThrow('raw fail');
-
-      expect(CircuitBreaker.recordFailure).toHaveBeenCalledWith('ses');
-      expect(ProviderApiLogger.log).toHaveBeenCalledWith(expect.objectContaining({ result: 'failed', errorCode: 'SES_ERR' }));
     });
   });
 

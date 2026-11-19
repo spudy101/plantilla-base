@@ -2,10 +2,9 @@
 //
 // PushNotificationService — canal de push (iOS/Android) vía AWS SNS Platform Endpoints. Probamos las
 // ramas de valor sin tocar AWS: (1) registrarDispositivo → validación de plataforma (400 antes del
-// try/catch), camino feliz y fallo tras reintentos (500); (2) eliminarDispositivo → OK y fallo (500);
-// (3) enviarPushIndividual → éxito (log 'success' + devuelve respuesta) vs fallo tras reintentos
-// (log 'failed' con errorCode normalizado y devuelve null, NO lanza); (4) enviarPushMasivo →
-// agregación de estadísticas. `withRetry` se mockea para no invocar el cliente SNS real.
+// try/catch), camino feliz, fallo (500) y circuito abierto (503); (2) eliminarDispositivo → OK y fallo
+// (500); (3) enviarPushIndividual → éxito vs fallo (devuelve null, NO lanza); (4) enviarPushMasivo →
+// agregación de estadísticas. `callProvider` (breaker, reintentos, timeout y log) se mockea.
 
 jest.mock('@aws-sdk/client-sns', () => ({
   SNSClient: class {},
@@ -14,11 +13,11 @@ jest.mock('@aws-sdk/client-sns', () => ({
   PublishCommand: class {}
 }));
 
-jest.mock('../../../shared/infra/retry.util', () => ({ withRetry: jest.fn() }));
-jest.mock('../../../shared/observability/integration-api-logger.util', () => ({ log: jest.fn() }));
-jest.mock('../../../shared/infra/aws-provider-meta.util', () => ({
-  resolveAwsGate: jest.fn().mockResolvedValue({ integrationId: 'int-1', unitCost: 0 }),
-  awsErrorCode: jest.fn().mockReturnValue('SNS_ERR')
+jest.mock('../../../shared/infra/provider-call.util', () => ({
+  callProvider: jest.fn(),
+  CircuitOpenError: class CircuitOpenError extends Error {
+    statusCode = 503;
+  }
 }));
 
 jest.mock('../../../shared/observability/logger.util', () => ({
@@ -31,12 +30,9 @@ jest.mock('../../../shared/constants', () => ({
 }));
 
 import { mocked } from 'tests/helpers/mock';
-import retryUtilModule from '../../../shared/infra/retry.util';
-const { withRetry } = mocked(retryUtilModule);
-import ProviderApiLoggerModule from '../../../shared/observability/integration-api-logger.util';
-const ProviderApiLogger = mocked(ProviderApiLoggerModule);
-import awsProviderMetaUtilModule from '../../../shared/infra/aws-provider-meta.util';
-const { resolveAwsGate, awsErrorCode } = mocked(awsProviderMetaUtilModule);
+import * as providerCallModule from '../../../shared/infra/provider-call.util';
+const callProvider = mocked(providerCallModule.callProvider);
+const { CircuitOpenError } = providerCallModule;
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = mocked(loggerUtilModule);
 import push from './push-notification.service';
@@ -46,8 +42,6 @@ const ENDPOINT_ARN = 'arn:aws:sns:endpoint:1';
 describe('PushNotificationService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    resolveAwsGate.mockResolvedValue({ integrationId: 'int-1', unitCost: 0 });
-    awsErrorCode.mockReturnValue('SNS_ERR');
   });
 
   describe('registrarDispositivo', () => {
@@ -56,15 +50,15 @@ describe('PushNotificationService', () => {
         statusCode: 400,
         code: 'BAD_REQUEST'
       });
-      expect(withRetry).not.toHaveBeenCalled();
+      expect(callProvider).not.toHaveBeenCalled();
     });
 
     it('camino feliz: registra el endpoint y devuelve el EndpointArn', async () => {
-      withRetry.mockResolvedValue({ EndpointArn: ENDPOINT_ARN });
+      callProvider.mockResolvedValue({ EndpointArn: ENDPOINT_ARN });
 
       const result = await push.registrarDispositivo('tok', 'iOS', 'u-1');
 
-      expect(withRetry).toHaveBeenCalledTimes(1);
+      expect(callProvider).toHaveBeenCalledTimes(1);
       expect(result).toBe(ENDPOINT_ARN);
       expect(logger.info).toHaveBeenCalledWith(
         'Dispositivo registrado exitosamente',
@@ -72,8 +66,8 @@ describe('PushNotificationService', () => {
       );
     });
 
-    it('fallo tras reintentos: lanza internal (500) y registra warning', async () => {
-      withRetry.mockRejectedValue(new Error('SNS down'));
+    it('fallo del proveedor: lanza internal (500) y registra warning', async () => {
+      callProvider.mockRejectedValue(new Error('SNS down'));
 
       await expect(push.registrarDispositivo('tok', 'android', 'u-1')).rejects.toMatchObject({
         statusCode: 500,
@@ -83,17 +77,24 @@ describe('PushNotificationService', () => {
     });
   });
 
+  describe('registrarDispositivo — circuito abierto', () => {
+    it('propaga el 503 del circuito en vez de convertirlo en 500', async () => {
+      callProvider.mockRejectedValue(new CircuitOpenError('sns'));
+      await expect(push.registrarDispositivo('tok', 'ios', 'u-1')).rejects.toMatchObject({ statusCode: 503 });
+    });
+  });
+
   describe('eliminarDispositivo', () => {
     it('camino feliz: elimina el endpoint y devuelve true', async () => {
-      withRetry.mockResolvedValue({});
+      callProvider.mockResolvedValue({});
 
       await expect(push.eliminarDispositivo(ENDPOINT_ARN)).resolves.toBe(true);
-      expect(withRetry).toHaveBeenCalledTimes(1);
+      expect(callProvider).toHaveBeenCalledTimes(1);
       expect(logger.info).toHaveBeenCalledWith('Dispositivo eliminado exitosamente', { endpointArn: ENDPOINT_ARN });
     });
 
-    it('fallo tras reintentos: lanza internal (500)', async () => {
-      withRetry.mockRejectedValue(new Error('boom'));
+    it('fallo del proveedor: lanza internal (500)', async () => {
+      callProvider.mockRejectedValue(new Error('boom'));
 
       await expect(push.eliminarDispositivo(ENDPOINT_ARN)).rejects.toMatchObject({
         statusCode: 500,
@@ -104,42 +105,30 @@ describe('PushNotificationService', () => {
   });
 
   describe('enviarPushIndividual', () => {
-    it('camino feliz: publica, loguea integración con result=success y devuelve la respuesta', async () => {
+    it('camino feliz: publica por callProvider (sns) y devuelve la respuesta', async () => {
       const response = { MessageId: 'm-1' };
-      withRetry.mockResolvedValue(response);
+      callProvider.mockResolvedValue(response);
 
       const result = await push.enviarPushIndividual(ENDPOINT_ARN, 'Titulo', 'Cuerpo', { k: 'v' }, 'notif-1');
 
-      expect(resolveAwsGate).toHaveBeenCalledWith('aws_sns');
+      expect(callProvider).toHaveBeenCalledWith({ product: 'sns', endpoint: 'SNS:PublishCommand', notificationId: 'notif-1' }, expect.any(Function));
       expect(result).toBe(response);
-      expect(ProviderApiLogger.log).toHaveBeenCalledWith(
-        expect.objectContaining({ product: 'sns', endpoint: 'SNS:PublishCommand', result: 'success', notificationId: 'notif-1' })
-      );
       expect(logger.info).toHaveBeenCalledWith('Push individual enviado exitosamente', expect.any(Object));
     });
 
-    it('fallo tras reintentos: loguea result=failed con errorCode normalizado y devuelve null (no lanza)', async () => {
-      withRetry.mockRejectedValue(new Error('SNS timeout'));
+    it('fallo: devuelve null (no lanza) y registra warning', async () => {
+      callProvider.mockRejectedValue(new Error('SNS timeout'));
 
       const result = await push.enviarPushIndividual(ENDPOINT_ARN, 'Titulo', 'Cuerpo', {}, 'notif-2');
 
       expect(result).toBeNull();
-      expect(awsErrorCode).toHaveBeenCalled();
-      expect(ProviderApiLogger.log).toHaveBeenCalledWith(
-        expect.objectContaining({
-          result: 'failed',
-          errorCode: 'SNS_ERR',
-          errorMessage: 'SNS timeout',
-          notificationId: 'notif-2'
-        })
-      );
       expect(logger.warn).toHaveBeenCalled();
     });
   });
 
   describe('enviarPushMasivo', () => {
     it('camino feliz: agrega estadísticas success=total, failed=0', async () => {
-      withRetry.mockResolvedValue({ MessageId: 'm-x' });
+      callProvider.mockResolvedValue({ MessageId: 'm-x' });
 
       const stats = await push.enviarPushMasivo(['arn-a', 'arn-b', 'arn-c'], 'T', 'B');
 
@@ -151,7 +140,7 @@ describe('PushNotificationService', () => {
       // enviarPushIndividual devuelve null en vez de lanzar/rechazar cuando el push falla, así que el
       // `.then(() => ({ success: true }))` de enviarPushMasivo nunca observa el fallo. Este test fija el
       // comportamiento ACTUAL (buggy) para que un futuro fix salte a la vista.
-      withRetry.mockRejectedValue(new Error('todos fallan'));
+      callProvider.mockRejectedValue(new Error('todos fallan'));
 
       const stats = await push.enviarPushMasivo(['arn-a', 'arn-b'], 'T', 'B');
 

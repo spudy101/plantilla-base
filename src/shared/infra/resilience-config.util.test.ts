@@ -25,13 +25,11 @@ describe('ResilienceConfig', () => {
   });
 
   describe('HARD_DEFAULTS', () => {
-    it('expone los defaults duros históricos (30s/10s/3 + umbrales del breaker)', () => {
+    it('expone los defaults duros históricos (30s / 3 intentos + umbrales del breaker)', () => {
       expect(ResilienceConfig.HARD_DEFAULTS).toMatchObject({
         timeoutMs: 30000,
-        manualReviewTimeoutMs: 10000,
         maxRetries: 3,
-        circuitBreaker: { failureThreshold: 5, recoveryTimeMs: 60000, failuresTtlS: 300 },
-        screeningThrottle: { batchSize: 50, spacingMs: 100 }
+        circuitBreaker: { failureThreshold: 5, recoveryTimeMs: 60000, failuresTtlS: 300 }
       });
     });
 
@@ -46,10 +44,8 @@ describe('ResilienceConfig', () => {
       mockFindOne.mockResolvedValue({
         integrationResilience: {
           timeout_ms: 12000,
-          manual_review_timeout_ms: 4000,
           max_retries: 7,
-          circuit_breaker: { failure_threshold: 9, recovery_time_ms: 15000, failures_ttl_s: 111 },
-          screening_throttle: { batch_size: 25, spacing_ms: 250 }
+          circuit_breaker: { failure_threshold: 9, recovery_time_ms: 15000, failures_ttl_s: 111 }
         }
       });
 
@@ -57,10 +53,8 @@ describe('ResilienceConfig', () => {
 
       expect(cfg).toEqual({
         timeoutMs: 12000,
-        manualReviewTimeoutMs: 4000,
         maxRetries: 7,
-        circuitBreaker: { failureThreshold: 9, recoveryTimeMs: 15000, failuresTtlS: 111 },
-        screeningThrottle: { batchSize: 25, spacingMs: 250 }
+        circuitBreaker: { failureThreshold: 9, recoveryTimeMs: 15000, failuresTtlS: 111 }
       });
     });
 
@@ -75,7 +69,6 @@ describe('ResilienceConfig', () => {
       const cfg = await ResilienceConfig.get();
 
       expect(cfg.timeoutMs).toBe(8000);
-      expect(cfg.manualReviewTimeoutMs).toBe(10000); // default duro
       expect(cfg.maxRetries).toBe(3); // default duro
       expect(cfg.circuitBreaker).toEqual({
         failureThreshold: 2, // override

@@ -28,6 +28,8 @@ interface RetryOptions {
   maxRetries?: number;
   baseDelayMs?: number;
   label?: string;
+  /** Si devuelve false, el error se propaga sin reintentar (p. ej. un error del cliente, no del proveedor). */
+  shouldRetry?: (error: unknown) => boolean;
 }
 
 import errorMessageModule from '../utils/error-message.util';
@@ -36,7 +38,7 @@ const { errorMessage } = errorMessageModule;
 
 async function withRetry<T>(
   fn: () => Promise<T>,
-  { maxRetries = DEFAULT_MAX_RETRIES, baseDelayMs = DEFAULT_BASE_DELAY_MS, label = '' }: RetryOptions = {}
+  { maxRetries = DEFAULT_MAX_RETRIES, baseDelayMs = DEFAULT_BASE_DELAY_MS, label = '', shouldRetry = () => true }: RetryOptions = {}
 ): Promise<T> {
   let lastError: unknown;
 
@@ -46,6 +48,9 @@ async function withRetry<T>(
     } catch (err) {
       lastError = err;
 
+      if (!shouldRetry(err)) {
+        throw err;
+      }
       if (attempt < maxRetries) {
         const delayMs = baseDelayMs * 2 ** (attempt - 1);
         logger.warn(`[RetryUtil] ${label} — intento ${attempt}/${maxRetries} fallido, reintentando en ${delayMs}ms`, {

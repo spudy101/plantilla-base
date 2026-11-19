@@ -1,12 +1,9 @@
-// Resolver de configuración de RESILIENCIA de integraciones (RF-INT-01 CA-6).
+// Configuración de resiliencia de las llamadas a proveedores externos: timeout, reintentos y umbrales
+// del circuit breaker. Un solo valor para todos los proveedores, editable por el admin en settings
+// (system_global_config.integration_resilience). La usan callProvider y el circuit breaker.
 //
-// Fuente única: SystemGlobalConfig.integration_resilience (un solo valor homologado para TODAS las
-// integraciones salientes — sin overrides por proveedor). Lo consumen el circuit breaker y todos los
-// clientes (timeout de axios + reintentos de withRetry + umbrales del breaker).
-//
-// El circuit breaker corre en CADA llamada saliente → esto se cachea en memoria (TTL 60s, mismo criterio
-// que el IntegrationGuard). Si la global no está disponible (arranque temprano, BD caída), se cae a
-// FALLBACK DURO con los mismos defaults históricos: el breaker NUNCA queda sin umbrales.
+// Se lee en cada llamada saliente, así que se cachea 60s. Si no se puede leer (arranque, BD caída)
+// se usa el último valor o los defaults: nunca queda sin umbrales.
 
 import loggerUtilModule from '../observability/logger.util';
 const { logger } = loggerUtilModule;
@@ -16,36 +13,27 @@ const { errorMessage } = errorMessageModule;
 
 const CACHE_TTL_MS = 60000;
 
-// Fallback duro = los valores hardcodeados/env de siempre (30s / 10s / 3 / 5-60s-300s).
+// Defaults si no hay configuración guardada (o no se puede leer).
 const HARD_DEFAULTS = Object.freeze({
   timeoutMs: 30000,
-  manualReviewTimeoutMs: 10000,
   maxRetries: 3,
-  circuitBreaker: Object.freeze({ failureThreshold: 5, recoveryTimeMs: 60000, failuresTtlS: 300 }),
-  // §7.2/§7.5 — Control de caudal del worker de screening hacia la CENTRAL. NO son límites del
-  // proveedor: son una estimación PRUDENTE del dev. Existen para NO golpear a la central con ráfagas.
-  // Ajustar SOLO cuando la central entregue su límite real (consultas/segundo, tope diario). La señal
-  // por evento despierta al worker pero NO salta este throttle: un screening por evento pasa por el
-  // mismo lote + espaciado que uno tomado por el cron.
-  screeningThrottle: Object.freeze({ batchSize: 50, spacingMs: 100 })
+  circuitBreaker: Object.freeze({ failureThreshold: 5, recoveryTimeMs: 60000, failuresTtlS: 300 })
 });
 
 /** Configuración de resiliencia en camelCase (lo que consumen los clientes de integraciones). */
 interface ResilienceConfig {
+  /** Timeout de cada intento (callProvider). */
   timeoutMs: number;
-  manualReviewTimeoutMs: number;
+  /** Intentos totales por llamada, incluido el primero (callProvider). */
   maxRetries: number;
   circuitBreaker: { failureThreshold: number; recoveryTimeMs: number; failuresTtlS: number };
-  screeningThrottle: { batchSize: number; spacingMs: number };
 }
 
 /** Forma persistida (snake_case) en system_global_config.integration_resilience. */
 interface StoredResilience {
   timeout_ms?: number;
-  manual_review_timeout_ms?: number;
   max_retries?: number;
   circuit_breaker?: { failure_threshold?: number; recovery_time_ms?: number; failures_ttl_s?: number };
-  screening_throttle?: { batch_size?: number; spacing_ms?: number };
 }
 
 let _cache: ResilienceConfig | null = null;
@@ -68,19 +56,13 @@ async function _load(): Promise<ResilienceConfig> {
   // integration_resilience es JSONB: lo escribe el admin validado por su DTO
   const r = ((source ? await source() : null) ?? {}) as StoredResilience;
   const cb = r.circuit_breaker ?? {};
-  const st = r.screening_throttle ?? {};
   return {
     timeoutMs: r.timeout_ms ?? HARD_DEFAULTS.timeoutMs,
-    manualReviewTimeoutMs: r.manual_review_timeout_ms ?? HARD_DEFAULTS.manualReviewTimeoutMs,
     maxRetries: r.max_retries ?? HARD_DEFAULTS.maxRetries,
     circuitBreaker: {
       failureThreshold: cb.failure_threshold ?? HARD_DEFAULTS.circuitBreaker.failureThreshold,
       recoveryTimeMs: cb.recovery_time_ms ?? HARD_DEFAULTS.circuitBreaker.recoveryTimeMs,
       failuresTtlS: cb.failures_ttl_s ?? HARD_DEFAULTS.circuitBreaker.failuresTtlS
-    },
-    screeningThrottle: {
-      batchSize: st.batch_size ?? HARD_DEFAULTS.screeningThrottle.batchSize,
-      spacingMs: st.spacing_ms ?? HARD_DEFAULTS.screeningThrottle.spacingMs
     }
   };
 }
@@ -89,7 +71,6 @@ async function _load(): Promise<ResilienceConfig> {
  * Devuelve la config de resiliencia homologada (cacheada 60s). Nunca lanza: ante error usa el
  * último valor cacheado o el fallback duro.
  *
- * @returns {Promise<{timeoutMs:number, manualReviewTimeoutMs:number, maxRetries:number, circuitBreaker:object}>}
  */
 async function get(): Promise<ResilienceConfig> {
   if (_cache && Date.now() - _cacheAt < CACHE_TTL_MS) {
