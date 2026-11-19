@@ -60,9 +60,8 @@ class NotificationDeliveryRepository extends PrismaRepository {
   /**
    * Toma hasta `limit` entregas pendientes y vencidas, y las reserva `leaseMs` (las corre hacia adelante).
    * SQL crudo: Prisma no expresa FOR UPDATE SKIP LOCKED. El `schema` de PrismaPg no cambia el search_path,
-   * así que la tabla va calificada. Las fechas van como parámetros de JS y no como now(): así se comparan
-   * igual que las escribe Prisma (el adaptador manda los timestamptz sin zona y la sesión los interpreta
-   * en la suya; con now() la comparación quedaría corrida si esa zona no es UTC).
+   * así que la tabla va calificada. Las fechas van como parámetros de JS (el reloj de la app), igual que
+   * las escribe Prisma.
    */
   async claimDue(limit: number, leaseMs: number): Promise<ClaimedDelivery[]> {
     const table = Prisma.raw(`${database.schema ? `"${database.schema}".` : ''}"notification_deliveries"`);

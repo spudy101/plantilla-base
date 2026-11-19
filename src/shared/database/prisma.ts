@@ -32,6 +32,12 @@ function sslConfig() {
 // DATABASE_UNAVAILABLE (shared/database/database-errors.ts) y el cliente reintenta.
 const POOL_CONNECTION_TIMEOUT_MS = 5_000;
 
+// Sesión siempre en UTC. El adapter escribe las fechas como hora UTC sin offset y al leer reemplaza el
+// offset por +00:00: si la sesión tomaba la zona del servidor (p. ej. America/Santiago en una base local)
+// cada instante quedaba guardado corrido 3-4 h y `now()` en SQL no coincidía con las fechas de la app.
+// Guardamos instantes UTC; el cliente los muestra en la zona de su dispositivo.
+const SESSION_OPTIONS = '-c TimeZone=UTC';
+
 const adapter = new PrismaPg(
   {
     host: database.host,
@@ -40,7 +46,8 @@ const adapter = new PrismaPg(
     user: database.user,
     password: database.password,
     ssl: sslConfig(),
-    connectionTimeoutMillis: POOL_CONNECTION_TIMEOUT_MS
+    connectionTimeoutMillis: POOL_CONNECTION_TIMEOUT_MS,
+    options: SESSION_OPTIONS
   },
   { schema: database.schema || 'public' }
 );
