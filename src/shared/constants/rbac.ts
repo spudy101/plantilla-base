@@ -57,8 +57,6 @@ const RBAC_MODULES = {
   POLICY_ACCEPTANCE: 'policyAcceptance',
 
   // ── Integraciones ───────────────────────────────────────────────────────
-  INTEGRATION_DASHBOARD: 'integrationDashboard',
-  API_LOGS: 'apiLogs',
   PROVIDERS: 'providers',
 
   // ── Auditoría ───────────────────────────────────────────────────────────
@@ -162,12 +160,6 @@ const RBAC_MODULE_GROUPS = [
     label: 'Integraciones',
     description: 'Estado y trazabilidad de las integraciones externas.',
     modules: [
-      {
-        id: RBAC_MODULES.INTEGRATION_DASHBOARD,
-        label: 'Dashboard de Integraciones',
-        description: 'Tablero de estado y salud de integraciones.'
-      },
-      { id: RBAC_MODULES.API_LOGS, label: 'API Logs', description: 'Bitácora de llamadas a APIs externas.' },
       { id: RBAC_MODULES.PROVIDERS, label: 'Proveedores', description: 'Proveedores externos y su disponibilidad.' }
     ]
   },

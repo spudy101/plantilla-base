@@ -57,7 +57,7 @@ Reglas:
 
 ### ¿Cuándo NO ponerla?
 Infra/sistema, catálogos y la sesión misma no la llevan: `audit_logs` (usa `session_id`), `audit_alerts`,
-`user_sessions`, `integration_api_logs`, `sms_delivery_attempts`, `email_bounce_suppressions`, maintainers
+`user_sessions`, `sms_delivery_attempts`, `email_bounce_suppressions`, maintainers
 (país/ciudad/…), `notification_categories`/`notification_types`, `roles`, `consent_types`, `privacy_policies`.
 **`users` tampoco**: sus cambios se trazan en la bitácora de cambios (`USER_FIELD_CHANGED` en `audit_logs`, que lleva `session_id`);
 duplicarlo en `users` sería redundante.

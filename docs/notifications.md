@@ -238,7 +238,7 @@ El retry de SMS corre en un cron aparte con offset `:05/:20/:35/:50` para no col
 ### Métricas de entrega (% de éxito)
 
 `GET /api/v1/notification/notification-delivery/metrics?from&to&userId` (RBAC `notificationResend` + READ).
-Devuelve agregados sobre la tabla `notifications` (no sobre `integration_api_logs`, que es nivel proveedor):
+Devuelve agregados sobre la tabla `notifications` (no sobre las llamadas al proveedor, que son métricas de CloudWatch):
 
 - `total` y `byStatus` (completed / partial_failure / failed / pending / processing).
 - `byChannel` para email, push y SMS: `{ attempted, sent, failed, successRate }`. `successRate = sent /
@@ -248,8 +248,8 @@ Devuelve agregados sobre la tabla `notifications` (no sobre `integration_api_log
 
 Implementación: `notification.repository.deliveryMetrics()` (`COUNT(*) FILTER (WHERE ...)` agrupado por
 categoría) → `NotificationDeliveryMetricsDTO` (calcula overall + tasas). Es la vista de **negocio**
-("¿de lo que intenté, cuánto llegó?"); la vista de **proveedor** ("¿AWS aceptó mis llamadas?") es el
-dashboard de `integration_api_logs`.
+("¿de lo que intenté, cuánto llegó?"); la vista de **proveedor** ("¿AWS aceptó mis llamadas?") son las
+métricas `ProviderCalls` de CloudWatch (ver docs/ARCHITECTURE.md, "Llamadas a proveedores externos").
 
 ### Reintentable vs no reintentable (hard bounce) — cómo se diferencia
 
@@ -262,16 +262,13 @@ Sólo las notificaciones **por canal externo** (email/push) pueden fallar: el ca
 | **Hard bounce** (buzón/endpoint muerto)           | seteado   | **`null`**        | ❌ **no**                                |
 | Nunca intentado / reseteado                       | `null`    | `null`            | n/a                                      |
 
-- **Cómo se detecta el hard bounce.** Un fallo es _hard bounce_ cuando AWS devuelve un `error_code` terminal (email: `MessageRejected`/`InvalidParameterValue`/`AccountSendingPausedException`; push: `EndpointDisabled`/`InvalidParameter` — catálogo en `src/shared/constants/aws-error-codes.ts`, `isHardBounce(channel, code)`). El worker de reintentos (`notification-retry.service`) lo lee del **último log de integración** de esa notificación, correlacionado por `integration_api_logs.notification_id` (que las utils SES/SNS rellenan en la fila `product='ses'`/`'sns'`). Al detectarlo, **cierra el canal** con `markEmail/PushPermanentFailure`, que deja `*_error` seteado y **`*_next_retry_at = null`**.
+- **Cómo se detecta el hard bounce.** Un fallo es _hard bounce_ cuando AWS devuelve un `error_code` terminal (email: `MessageRejected`/`InvalidParameterValue`/`AccountSendingPausedException`; push: `EndpointDisabled`/`InvalidParameter` — catálogo en `src/shared/constants/aws-error-codes.ts`, `isHardBounce(channel, code)`). Al fallar un envío, `notification-sending.service` guarda ese código en la propia notificación (`email_error_code` / `push_error_code`, junto a `*_error`); un éxito lo limpia. En push, como un usuario puede tener varios dispositivos, el código se guarda solo si **todos** fallaron con un código definitivo; si alguno falló por algo temporal queda `null` y se reintenta. El worker de reintentos (`notification-retry.service`) lee ese código de la fila. Al detectarlo, **cierra el canal** con `markEmail/PushPermanentFailure`, que deja `*_error` seteado y **`*_next_retry_at = null`**.
 - **Señal canónica del cierre.** `*_error != null && *_next_retry_at === null` ⇒ hard bounce, no reintentable. Es inequívoco porque `resetForRetry` y el estado inicial dejan `*_error = null`; un temporal agotado conserva **fecha** en `*_next_retry_at`, por eso **sí** se puede reenviar manualmente.
 - **Ambos caminos respetan la misma señal.** El worker automático deja de seleccionar el canal cerrado (`findPending*Retries` filtra `*_next_retry_at <= now`; `null` no matchea). El reenvío manual del admin aplica la misma regla en `_resolverCanal()`: si los canales con error son hard bounce, devuelve `null` y `retry()` responde `400 'No hay canales con error pendiente de reintento…'`. Así el admin **no** puede reintentar en loop un buzón/endpoint muerto, pero **sí** puede reenviar fallos temporales agotados.
 
-> **Aclaración (`notification_id` correlaciona el envío, no la integración de negocio).** La columna
-> `integration_api_logs.notification_id` correlaciona la llamada **SES/SNS** (el envío) con la notificación
-> que entregaba. Cualquier integración de negocio que agregue un proyecto derivado (con su propio `product`)
-> tendrá `notification_id = null`: esas llamadas no son envíos de correo/push. Si una de esas integraciones
-> dispara además una notificación por correo, su reintento se rige por esta misma maquinaria genérica, sin
-> nada específico por dominio.
+> **Pendiente conocido (push).** Un `EndpointDisabled` significa que **ese dispositivo** está dado de baja. Hoy
+> solo cierra el canal push de la notificación cuando todos los dispositivos fallan así; lo correcto a futuro es
+> desactivar el token de ese dispositivo en `user_push_tokens`.
 
 ## Seed de tipos y categorías
 

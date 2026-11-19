@@ -195,12 +195,32 @@ describe('NotificationSendingService', () => {
 
     it('si todos los tokens fallan registra error y audita', async () => {
       userPushTokenRepo.findActiveByUser.mockResolvedValue([{ token: 'tok-abc-1234567890' }]);
-      pushService.enviarPushIndividual.mockResolvedValue(null); // el push service devuelve null al fallar
+      pushService.enviarPushIndividual.mockRejectedValue(new Error('SNS caído'));
 
       await sending.enviarPushIndividual(UID, 't', 'b', {}, NID);
 
-      expect(notificationRepo.recordPushError).toHaveBeenCalled();
+      expect(notificationRepo.recordPushError).toHaveBeenCalledWith(NID, 'Todos los envíos fallaron', null, null);
       expect(logAudit).toHaveBeenCalledWith('PUSH_DELIVERY_FAILED', expect.objectContaining({ actorId: null }));
+    });
+
+    it('si TODOS los dispositivos dan un rebote definitivo, guarda el código (el worker cierra el canal)', async () => {
+      userPushTokenRepo.findActiveByUser.mockResolvedValue([{ token: 'tok-a-1234567890123' }, { token: 'tok-b-1234567890123' }]);
+      pushService.enviarPushIndividual.mockRejectedValue(Object.assign(new Error('disabled'), { name: 'EndpointDisabled' }));
+
+      await sending.enviarPushIndividual(UID, 't', 'b', {}, NID);
+
+      expect(notificationRepo.recordPushError).toHaveBeenCalledWith(NID, 'Todos los envíos fallaron', null, 'EndpointDisabled');
+    });
+
+    it('si algún dispositivo falló por algo temporal, no guarda código (se reintenta)', async () => {
+      userPushTokenRepo.findActiveByUser.mockResolvedValue([{ token: 'tok-a-1234567890123' }, { token: 'tok-b-1234567890123' }]);
+      pushService.enviarPushIndividual
+        .mockRejectedValueOnce(Object.assign(new Error('disabled'), { name: 'EndpointDisabled' }))
+        .mockRejectedValueOnce(Object.assign(new Error('throttled'), { name: 'ThrottlingException' }));
+
+      await sending.enviarPushIndividual(UID, 't', 'b', {}, NID);
+
+      expect(notificationRepo.recordPushError).toHaveBeenCalledWith(NID, 'Todos los envíos fallaron', null, null);
     });
   });
 
@@ -224,8 +244,15 @@ describe('NotificationSendingService', () => {
     it('si el envío falla registra error y audita', async () => {
       emailService.enviarNotificacion.mockRejectedValueOnce(new Error('SES down'));
       await sending.enviarEmailIndividual(UID, fixture(type), { email: 'a@b.com' }, NID);
-      expect(notificationRepo.recordEmailError).toHaveBeenCalledWith(NID, 'SES down');
+      // un Error genérico no trae código del proveedor
+      expect(notificationRepo.recordEmailError).toHaveBeenCalledWith(NID, 'SES down', null, null);
       expect(logAudit).toHaveBeenCalledWith('EMAIL_DELIVERY_FAILED', expect.objectContaining({ actorId: null }));
+    });
+
+    it('guarda el código del proveedor para que el worker detecte el rebote', async () => {
+      emailService.enviarNotificacion.mockRejectedValueOnce(Object.assign(new Error('rechazado'), { name: 'MessageRejected' }));
+      await sending.enviarEmailIndividual(UID, fixture(type), { email: 'a@b.com' }, NID);
+      expect(notificationRepo.recordEmailError).toHaveBeenCalledWith(NID, 'rechazado', null, 'MessageRejected');
     });
   });
 

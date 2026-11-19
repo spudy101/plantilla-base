@@ -6,10 +6,6 @@
 import { interopDefault } from '../../shared/utils/interop.util';
 
 export default {
-  get integrationApiLogRepository() {
-    return interopDefault(require('./repositories/integration-api-log.repository') as typeof import('./repositories/integration-api-log.repository'));
-  },
-
   /** onOpen/onClose del circuit breaker: ventanas de fallback y su auditoría (los conecta src/app.ts). */
   get providerFallback() {
     return interopDefault(require('./services/provider-fallback.service') as typeof import('./services/provider-fallback.service'));

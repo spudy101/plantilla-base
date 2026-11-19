@@ -22,7 +22,6 @@ jest.mock('../../../shared/infra/provider-call.util', () => ({
   callProvider: jest.fn(),
   CircuitOpenError: class CircuitOpenError extends Error {}
 }));
-jest.mock('../../../shared/observability/integration-api-logger.util', () => ({ log: jest.fn() }));
 jest.mock('../../../shared/security/encryption.util', () => ({ generateHash: jest.fn().mockReturnValue('phone-hash') }));
 
 jest.mock('../../../shared/observability/logger.util', () => ({
@@ -81,15 +80,14 @@ describe('SmsService', () => {
   });
 
   describe('enviarSmsOtp — camino feliz', () => {
-    it('envía por callProvider (aws_sms, teléfono hasheado en el log) y marca enviado', async () => {
+    it('envía por callProvider (aws_sms) y marca enviado', async () => {
       callProvider.mockResolvedValue({ messageId: 'msg-99' });
 
       const result = await sms.enviarSmsOtp(okParams);
 
-      expect(callProvider).toHaveBeenCalledWith(
-        expect.objectContaining({ product: 'aws_sms', requestPayload: { phoneHash: 'phone-hash', purpose: 'mfa_login', provider: 'aws_sms' } }),
-        expect.any(Function)
-      );
+      expect(callProvider).toHaveBeenCalledWith({ product: 'aws_sms', endpoint: 'SNS:PublishCommand:SMS' }, expect.any(Function));
+      // el teléfono va hasheado a la tabla de intentos, nunca al log
+      expect(attemptRepo.createAttempt).toHaveBeenCalledWith(expect.objectContaining({ phoneHash: 'phone-hash', purpose: 'mfa_login' }));
       expect(attemptRepo.markSent).toHaveBeenCalledWith(ATTEMPT_ID, { providerMessageId: 'msg-99' });
       expect(result).toEqual({ success: true, attemptId: ATTEMPT_ID });
     });

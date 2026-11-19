@@ -79,7 +79,18 @@ describe('NotificationRepository', () => {
 
     expect(mockDb.notification.updateManyAndReturn).toHaveBeenCalledWith({
       where: { notificationId: 'n-1' },
-      data: { pushError: 'boom', pushRetryCount: { increment: 1 }, pushNextRetryAt: expect.any(Date) }
+      data: { pushError: 'boom', pushErrorCode: null, pushRetryCount: { increment: 1 }, pushNextRetryAt: expect.any(Date) }
+    });
+  });
+
+  it('recordEmailError guarda el código del proveedor junto al mensaje', async () => {
+    mockDb.notification.updateManyAndReturn.mockResolvedValue([{ notificationId: 'n-1' }]);
+
+    await notificationRepository.recordEmailError('n-1', 'rechazado', null, 'MessageRejected');
+
+    expect(mockDb.notification.updateManyAndReturn).toHaveBeenCalledWith({
+      where: { notificationId: 'n-1' },
+      data: expect.objectContaining({ emailError: 'rechazado', emailErrorCode: 'MessageRejected' })
     });
   });
 

@@ -5,7 +5,6 @@ type SnsSender = Pick<InstanceType<typeof SNSClient>, 'send'>;
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import { callProvider, CircuitOpenError, AWS_CLIENT_OPTIONS } from '../../../shared/infra/provider-call.util';
-import ProviderApiLogger from '../../../shared/observability/integration-api-logger.util';
 import EncryptionUtil from '../../../shared/security/encryption.util';
 import constantsModule from '../../../shared/constants';
 const { MOCKS, aws } = constantsModule;
@@ -20,7 +19,7 @@ const { errorMessage } = errorMessageModule;
 // === Envío de SMS vía AWS SNS ===
 // Canal de SMS transaccional / OTP. Proveedor: AWS SNS. AWS es infraestructura fail-open: no se
 // gatea por estado. El circuit breaker sobre el producto 'aws_sms' protege ante fallos de envío, y
-// cada intento queda en sms_delivery_attempts + integration_api_logs (dashboard de monitoreo).
+// cada intento queda en sms_delivery_attempts (y su llamada, en los logs/métricas de CloudWatch).
 
 const PRODUCT = 'aws_sms';
 const ENDPOINT = 'SNS:PublishCommand:SMS';
@@ -94,14 +93,9 @@ class SmsService {
     }
 
     try {
-      const result = await callProvider<{ messageId: string | null }>(
-        {
-          product: PRODUCT,
-          endpoint: ENDPOINT,
-          requestPayload: { phoneHash, purpose, provider: PRODUCT },
-          responsePayload: r => ({ messageId: r.messageId })
-        },
-        abortSignal => this._ejecutarEnvio({ phoneNumber, message }, abortSignal)
+      // El intento (teléfono hasheado, propósito, messageId) queda en sms_delivery_attempts.
+      const result = await callProvider({ product: PRODUCT, endpoint: ENDPOINT }, abortSignal =>
+        this._ejecutarEnvio({ phoneNumber, message }, abortSignal)
       );
       await this.smsDeliveryAttemptRepository.markSent(attempt.smsAttemptId, {
         providerMessageId: result.messageId || null
@@ -166,14 +160,6 @@ class SmsService {
 
     await this.smsDeliveryAttemptRepository.markSent(attempt.smsAttemptId, {
       providerMessageId: `MOCK-${attempt.smsAttemptId}`
-    });
-
-    ProviderApiLogger.log({
-      product: PRODUCT,
-      endpoint: 'mock',
-      responsePayload: { providerMessageId: `MOCK-${attempt.smsAttemptId}` },
-      result: 'success',
-      responseTimeMs: 0
     });
 
     return { success: true, attemptId: attempt.smsAttemptId, mock: true };

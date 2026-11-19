@@ -38,8 +38,8 @@ No dejan fila: `/health`, `/` y los assets de Swagger.
 - `GET /admin/api/v1/records/audit/operations`: listado con filtros por origen, estado, usuario, nombre
   y fechas.
 - `GET /admin/api/v1/records/audit/operations/:operationId`: línea de tiempo. Une la operación, sus
-  operaciones hijas, sus hechos de auditoría y sus llamadas a proveedores externos, y trae la consulta
-  de CloudWatch Logs Insights con los logs paso a paso.
+  operaciones hijas y sus hechos de auditoría, y trae la consulta de CloudWatch Logs Insights con los
+  logs paso a paso (incluida una línea por cada llamada a un proveedor externo).
 
 ## Auditoría (`src/modules/audit`)
 

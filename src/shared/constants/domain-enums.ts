@@ -9,8 +9,6 @@
 // Los services leen los enums desde aquí (SOLID: D — no importan el cliente de Prisma para un enum).
 import {
   ApprovalRequestStatus as PrismaApprovalRequestStatus,
-  IntegrationApiLogProduct,
-  IntegrationApiLogResult,
   NotificationProcessingStatus as PrismaNotificationProcessingStatus,
   UserSessionStatus as PrismaUserSessionStatus
 } from '../database/generated/prisma/enums';
@@ -39,10 +37,6 @@ const USER_SESSION_STATUS = Object.freeze({
   CLOSED: PrismaUserSessionStatus.closed
 } as const);
 
-// Bitácora de llamadas a proveedores (integration_api_logs): producto y resultado.
-const INTEGRATION_PRODUCTS = Object.freeze(Object.values(IntegrationApiLogProduct));
-const INTEGRATION_RESULTS = Object.freeze(Object.values(IntegrationApiLogResult));
-
 type ValueOf<T> = T[keyof T];
 exhaustive<ValueOf<typeof NOTIFICATION_PROCESSING_STATUS>, PrismaNotificationProcessingStatus>(true);
 exhaustive<ValueOf<typeof APPROVAL_REQUEST_STATUS>, PrismaApprovalRequestStatus>(true);
@@ -51,9 +45,7 @@ exhaustive<ValueOf<typeof USER_SESSION_STATUS>, PrismaUserSessionStatus>(true);
 const DomainEnums = {
   NOTIFICATION_PROCESSING_STATUS,
   APPROVAL_REQUEST_STATUS,
-  USER_SESSION_STATUS,
-  INTEGRATION_PRODUCTS,
-  INTEGRATION_RESULTS
+  USER_SESSION_STATUS
 };
 
 // eslint-disable-next-line @typescript-eslint/no-namespace, @typescript-eslint/no-redeclare
@@ -61,8 +53,6 @@ declare namespace DomainEnums {
   type NotificationProcessingStatus = ValueOf<typeof NOTIFICATION_PROCESSING_STATUS>;
   type ApprovalRequestStatus = ValueOf<typeof APPROVAL_REQUEST_STATUS>;
   type UserSessionStatus = ValueOf<typeof USER_SESSION_STATUS>;
-  type IntegrationProduct = IntegrationApiLogProduct;
-  type IntegrationResult = IntegrationApiLogResult;
 }
 
 export default DomainEnums;

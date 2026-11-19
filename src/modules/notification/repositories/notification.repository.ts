@@ -114,11 +114,11 @@ class NotificationRepository extends PrismaRepository {
   }
 
   markPushSent(notificationId: string) {
-    return this.update(notificationId, { pushSent: true, pushSentAt: new Date(), pushError: null });
+    return this.update(notificationId, { pushSent: true, pushSentAt: new Date(), pushError: null, pushErrorCode: null });
   }
 
   markEmailSent(notificationId: string) {
-    return this.update(notificationId, { emailSent: true, emailSentAt: new Date(), emailError: null });
+    return this.update(notificationId, { emailSent: true, emailSentAt: new Date(), emailError: null, emailErrorCode: null });
   }
 
   markSmsSent(notificationId: string) {
@@ -126,17 +126,21 @@ class NotificationRepository extends PrismaRepository {
   }
 
   // El contador se incrementa en la base (antes: leer + escribir, y dos errores simultáneos perdían uno).
-  recordPushError(notificationId: string, error: string, nextRetryAt: Date | null = null) {
+  /** `errorCode`: código del proveedor (lo lee el worker de reintentos para detectar rebotes definitivos). */
+  recordPushError(notificationId: string, error: string, nextRetryAt: Date | null = null, errorCode: string | null = null) {
     return this.update(notificationId, {
       pushError: error,
+      pushErrorCode: errorCode,
       pushRetryCount: { increment: 1 },
       pushNextRetryAt: nextRetryAt || new Date(Date.now() + PUSH_RETRY_DELAY_MS)
     });
   }
 
-  recordEmailError(notificationId: string, error: string, nextRetryAt: Date | null = null) {
+  /** `errorCode`: código del proveedor (lo lee el worker de reintentos para detectar rebotes definitivos). */
+  recordEmailError(notificationId: string, error: string, nextRetryAt: Date | null = null, errorCode: string | null = null) {
     return this.update(notificationId, {
       emailError: error,
+      emailErrorCode: errorCode,
       emailRetryCount: { increment: 1 },
       emailNextRetryAt: nextRetryAt || new Date(Date.now() + EMAIL_RETRY_DELAY_MS)
     });

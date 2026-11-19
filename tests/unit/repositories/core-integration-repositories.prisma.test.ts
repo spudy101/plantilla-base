@@ -7,10 +7,7 @@
 const mockDb = {
   $transaction: jest.fn(),
   approvalRequest: { updateMany: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn() },
-  providerFallbackEvent: { findFirst: jest.fn(), update: jest.fn() },
-  integrationApiLog: { findMany: jest.fn(), count: jest.fn(), findUnique: jest.fn() },
-  user: { findMany: jest.fn() },
-  userSession: { findMany: jest.fn() }
+  providerFallbackEvent: { findFirst: jest.fn(), update: jest.fn() }
 };
 
 jest.mock('../../../src/shared/database/prisma', () => mockDb);
@@ -18,7 +15,6 @@ jest.mock('../../../src/shared/database/prisma', () => mockDb);
 import { Prisma } from '../../../src/shared/database/generated/prisma/client';
 import approvalRequestRepository from '../../../src/modules/approvals/repositories/approval-request.repository';
 import providerFallbackEventRepository from '../../../src/modules/integration/repositories/provider-fallback-event.repository';
-import integrationApiLogRepository from '../../../src/modules/integration/repositories/integration-api-log.repository';
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -87,27 +83,3 @@ describe('ProviderFallbackEventRepository.closeFallback', () => {
   });
 });
 
-describe('IntegrationApiLogRepository', () => {
-  it('adjunta el usuario y la sesión de origen con una consulta por tabla', async () => {
-    mockDb.integrationApiLog.findMany.mockResolvedValue([
-      { apiLogId: 'l-1', userId: 'u-1', sessionId: 's-1' },
-      { apiLogId: 'l-2', userId: null, sessionId: null }
-    ]);
-    mockDb.integrationApiLog.count.mockResolvedValue(2);
-    mockDb.user.findMany.mockResolvedValue([{ userId: 'u-1', username: 'ana' }]);
-    mockDb.userSession.findMany.mockResolvedValue([{ userSessionId: 's-1', status: 'active' }]);
-
-    const { rows, count } = await integrationApiLogRepository.findAllPaginated({ product: 'ses' }, { limit: 10, offset: 0 });
-
-    expect(count).toBe(2);
-    expect(rows[0]).toMatchObject({ user: { username: 'ana' }, session: { status: 'active' } });
-    expect(rows[1]).toMatchObject({ user: null, session: null });
-    expect(mockDb.user.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: { in: ['u-1'] } } }));
-  });
-
-  it('un producto o resultado fuera del enum no coincide con nada (sin consultar)', async () => {
-    await expect(integrationApiLogRepository.findAllPaginated({ product: 'twilio' })).resolves.toEqual({ rows: [], count: 0 });
-    await expect(integrationApiLogRepository.findAllPaginated({ result: 'weird' })).resolves.toEqual({ rows: [], count: 0 });
-    expect(mockDb.integrationApiLog.findMany).not.toHaveBeenCalled();
-  });
-});

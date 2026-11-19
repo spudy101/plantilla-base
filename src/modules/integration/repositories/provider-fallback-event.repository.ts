@@ -65,10 +65,6 @@ class ProviderFallbackEventRepository extends PrismaRepository {
     return (await this.db()).providerFallbackEvent.count({ where: { endedAt: null } });
   }
 
-  async findRecent(limit = 20): Promise<ProviderFallbackEvent[]> {
-    return (await this.db()).providerFallbackEvent.findMany({ orderBy: { startedAt: 'desc' }, take: limit });
-  }
-
   async findAllPaginated(
     {
       provider = null,

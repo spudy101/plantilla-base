@@ -1,128 +1,31 @@
 import { z } from '../../../shared/validation/z';
 import { dateTime } from '../../../shared/validation/output';
 import type { ProviderFallbackEvent } from '../../../shared/database/generated/prisma/client';
-import type { IntegrationLogRow } from '../repositories/integration-api-log.repository';
-import type integrationApiLogRepository from '../repositories/integration-api-log.repository';
-type IntegrationApiLogRepositoryPort = typeof integrationApiLogRepository;
-// DTOs del monitoreo de integraciones externas (solo AWS). Vistas de solo lectura: el template
-// no gestiona integraciones, solo las observa.
+import type CircuitBreaker from '../../../shared/infra/circuit-breaker.util';
+// Salidas del monitoreo de proveedores externos (solo lectura): semáforo del circuit breaker e
+// historial de caídas. Las métricas por llamada están en CloudWatch, no acá.
 
-/** Estado del circuito tal como lo expone CircuitBreaker.getStatus(). */
-interface CircuitStatus {
-  status: string;
-  failures: number;
-  openedAtISO?: string | null;
-}
+type CircuitStatus = Awaited<ReturnType<typeof CircuitBreaker.getStatus>>;
 
-/** Métricas de un producto (IntegrationApiLogRepository.getStats().byProduct). */
-type ProductStats = IntegrationApiLogRepositoryPort extends { getStats(...a: never[]): Promise<{ byProduct: Record<string, infer P> }> } ? P : never;
+const AVAILABILITY = { CLOSED: 'Disponible', HALF_OPEN: 'Degradado', OPEN: 'No disponible' } as const;
 
-function _circuitView(circuit: CircuitStatus | null | undefined) {
-  if (!circuit) {
-    return { state: 'CLOSED', failures: 0, openedAt: null };
-  }
-  return {
-    state: circuit.status,
-    failures: circuit.failures,
-    openedAt: circuit.openedAtISO ?? null
-  };
-}
-
-// Semáforo de disponibilidad por producto a partir del estado del circuito + % de éxito reciente.
-function _availability(circuit: CircuitStatus | null | undefined, stat: ProductStats | null | undefined, minSuccessRate: number) {
-  if (circuit?.status === 'OPEN') {
-    return 'No disponible';
-  }
-  if (circuit?.status === 'HALF_OPEN' || (stat && stat.success + stat.failed > 0 && stat.successRate < minSuccessRate)) {
-    return 'Degradado';
-  }
-  return 'Disponible';
-}
-
-function IntegrationDashboardDTO({
-  summary,
-  products,
+function ProvidersHealthDTO({
+  circuits,
   activeFallbacks,
-  recentFallbacks,
-  meta,
-  minSuccessRate
+  generatedAt
 }: {
-  summary: Record<string, unknown>;
-  products: Array<ReturnType<typeof buildProductView>>;
+  circuits: CircuitStatus[];
   activeFallbacks: number;
-  recentFallbacks: ProviderFallbackEvent[];
-  meta: { from: unknown; to: unknown; generatedAt: string };
-  minSuccessRate: number;
+  generatedAt: string;
 }) {
   return {
-    summary: {
-      ...summary,
-      activeFallbacks,
-      degraded: products.filter(p => p.availabilityStatus === 'Degradado' || p.availabilityStatus === 'No disponible').length
-    },
-    products: products.map(p => ({
-      product: p.product,
-      availabilityStatus: p.availabilityStatus,
-      circuit: p.circuit,
-      totalCalls: p.total,
-      success: p.success,
-      failed: p.failed,
-      circuitOpen: p.circuitOpen,
-      systemError: p.systemError,
-      successRate: p.successRate,
-      avgResponseMs: p.avgResponseMs
+    providers: circuits.map(c => ({
+      product: c.product,
+      availabilityStatus: AVAILABILITY[c.status],
+      circuit: { state: c.status, failures: c.failures, openedAt: c.openedAtISO }
     })),
-    recentFallbacks: recentFallbacks.map(FallbackEventDTO),
-    metadata: {
-      from: meta.from,
-      to: meta.to,
-      generatedAt: meta.generatedAt,
-      minSuccessRate
-    }
-  };
-}
-
-// Combina las métricas del producto con el estado del circuito y el semáforo de disponibilidad.
-function buildProductView(stat: ProductStats, circuit: CircuitStatus | null | undefined, minSuccessRate: number) {
-  return {
-    ...stat,
-    circuit: _circuitView(circuit),
-    availabilityStatus: _availability(circuit, stat, minSuccessRate)
-  };
-}
-
-// Ítem del drill-down por llamada: incluye QUIÉN llamó y en QUÉ sesión (lo que pediste ver).
-function IntegrationLogListItemDTO(row: IntegrationLogRow) {
-  return {
-    apiLogId: row.apiLogId,
-    product: row.product,
-    endpoint: row.endpoint,
-    result: row.result,
-    responseTimeMs: row.responseTimeMs,
-    errorCode: row.errorCode,
-    isSystemError: row.isSystemError,
-    notificationId: row.notificationId,
-    createdAt: row.createdAt,
-    user: row.user ? { userId: row.user.userId, username: row.user.username } : null,
-    session: row.session
-      ? {
-          sessionId: row.session.userSessionId,
-          ipAddress: row.session.ipAddress,
-          userAgent: row.session.userAgent,
-          status: row.session.status,
-          startedAt: row.session.startedAt
-        }
-      : null
-  };
-}
-
-// Detalle forense de una llamada: agrega los payloads sanitizados.
-function IntegrationLogDetailDTO(row: IntegrationLogRow) {
-  return {
-    ...IntegrationLogListItemDTO(row),
-    errorMessage: row.errorMessage,
-    requestPayload: row.requestPayload,
-    responsePayload: row.responsePayload
+    activeFallbacks,
+    generatedAt
   };
 }
 
@@ -147,11 +50,10 @@ function FallbackEventDTO(row: ProviderFallbackEvent) {
 // ============================================================
 
 const CircuitView = z.object({
-  state: z.string().meta({ example: 'CLOSED', description: 'CLOSED | OPEN | HALF_OPEN' }),
-  failures: z.number().int(),
-  openedAt: z.string().nullable()
+  state: z.enum(['CLOSED', 'OPEN', 'HALF_OPEN']),
+  failures: z.number().int().meta({ description: 'Fallos seguidos en la ventana de conteo.' }),
+  openedAt: z.string().nullable().meta({ description: 'Desde cuándo está abierto (null si está cerrado).' })
 });
-const availability = z.enum(['Disponible', 'Degradado', 'No disponible']);
 
 export const FallbackEventSchema = z.object({
   fallbackEventId: z.uuid(),
@@ -164,68 +66,16 @@ export const FallbackEventSchema = z.object({
   affectedProcessesCount: z.number().int().nullable()
 });
 
-export const IntegrationDashboardSchema = z.object({
-  summary: z.object({
-    totalCalls: z.number().int(),
-    success: z.number().int(),
-    failed: z.number().int(),
-    circuitOpen: z.number().int(),
-    successRate: z.number().meta({ description: 'Porcentaje de éxito (sin contar circuito abierto).' }),
-    activeFallbacks: z.number().int(),
-    degraded: z.number().int().meta({ description: 'Proveedores degradados o no disponibles.' })
-  }),
-  products: z.array(
-    z.object({
-      product: z.string().meta({ example: 'ses' }),
-      availabilityStatus: availability,
-      circuit: CircuitView,
-      totalCalls: z.number().int(),
-      success: z.number().int(),
-      failed: z.number().int(),
-      circuitOpen: z.number().int(),
-      systemError: z.number().int(),
-      successRate: z.number(),
-      avgResponseMs: z.number().nullable()
-    })
-  ),
-  recentFallbacks: z.array(FallbackEventSchema),
-  metadata: z.object({ from: z.unknown(), to: z.unknown(), generatedAt: z.string(), minSuccessRate: z.number() })
-});
-
 export const ProvidersHealthSchema = z.object({
   providers: z.array(
-    z.object({ product: z.string(), availabilityStatus: availability, circuit: CircuitView, successRate: z.number(), avgResponseMs: z.number().nullable() })
+    z.object({
+      product: z.string().meta({ example: 'ses' }),
+      availabilityStatus: z.enum(['Disponible', 'Degradado', 'No disponible']),
+      circuit: CircuitView
+    })
   ),
-  activeFallbacks: z.number().int(),
+  activeFallbacks: z.number().int().meta({ description: 'Caídas abiertas (provider_fallback_events sin fin).' }),
   generatedAt: z.string()
 });
 
-export const IntegrationLogItemSchema = z.object({
-  apiLogId: z.uuid(),
-  product: z.string(),
-  endpoint: z.string(),
-  result: z.string(),
-  responseTimeMs: z.number().int().nullable(),
-  errorCode: z.string().nullable(),
-  isSystemError: z.boolean(),
-  notificationId: z.string().nullable(),
-  createdAt: dateTime(),
-  user: z.object({ userId: z.uuid(), username: z.string().nullable() }).nullable(),
-  session: z
-    .object({ sessionId: z.uuid(), ipAddress: z.string().nullable(), userAgent: z.string().nullable(), status: z.string(), startedAt: dateTime() })
-    .nullable()
-});
-
-export const IntegrationLogDetailSchema = IntegrationLogItemSchema.extend({
-  errorMessage: z.string().nullable(),
-  requestPayload: z.unknown().meta({ description: 'Payload enviado al proveedor (sanitizado).' }),
-  responsePayload: z.unknown().meta({ description: 'Respuesta del proveedor (sanitizada).' })
-});
-
-export default {
-  IntegrationDashboardDTO,
-  buildProductView,
-  IntegrationLogListItemDTO,
-  IntegrationLogDetailDTO,
-  FallbackEventDTO
-};
+export default { ProvidersHealthDTO, FallbackEventDTO };
