@@ -109,3 +109,11 @@ export const AuthAttemptSchema = z
     errorMessage: z.string().nullable()
   })
   .meta({ description: 'Intento de autenticación (registro de auditoría de la categoría Autenticación).' });
+
+// Resultado armado en el service (sin función DTO)
+export const SessionRevokedSchema = z.object({
+  sessionId: z.uuid(),
+  status: z.literal('closed'),
+  closeReason: z.literal('revoked_by_admin')
+});
+export type SessionRevoked = z.infer<typeof SessionRevokedSchema>;

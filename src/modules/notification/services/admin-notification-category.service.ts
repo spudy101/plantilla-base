@@ -5,6 +5,7 @@ import AppError from '../../../shared/http/app-error.util';
 import PaginationHelper from '../../../shared/http/pagination.util';
 import adminNotificationCategoryDtoModule from '../responses/admin-notification-category.response';
 import auditModule from '../../audit';
+import type { NotificationCategoryDeleted } from '../responses/admin-notification-category.response';
 const { audit } = auditModule;
 const {
   NotificationCategoryAdminDTO,
@@ -165,7 +166,7 @@ class NotificationCategoryService {
       entityId: notificationCategoryId
     });
 
-    return { notificationCategoryId, deleted: true };
+    return { notificationCategoryId, deleted: true } satisfies NotificationCategoryDeleted;
   }
 }
 

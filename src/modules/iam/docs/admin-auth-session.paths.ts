@@ -1,4 +1,5 @@
 import commonResponses from '../../../config/swagger/responses/common.responses';
+import { SessionRevokedSchema } from '../responses/admin-auth-session.response';
 import { toOpenApi, toParameters } from '../../../shared/validation/openapi';
 import {
   AdminSessionListQuery,
@@ -28,7 +29,8 @@ import { AdminSessionSchema, AuthAttemptSchema } from '../responses/admin-auth-s
 // Generados desde los esquemas Zod de requests/ y responses/.
 const schemas = {
   AdminSession: toOpenApi(AdminSessionSchema, 'output'),
-  AuthAttempt: toOpenApi(AuthAttemptSchema, 'output')
+  AuthAttempt: toOpenApi(AuthAttemptSchema, 'output'),
+  AdminSessionRevoked: toOpenApi(SessionRevokedSchema, 'output')
 };
 
 const paths = {
@@ -83,16 +85,7 @@ El usuario es deslogueado de esa sesión de forma inmediata. **Las demás sesion
 Si el cliente de la sesión revocada intenta renovar, recibe 401 con \`details.code = SESSION_CLOSED\`.`,
       parameters: toParameters(RevokeSessionParams, 'path'),
       responses: {
-        200: commonResponses.ok(
-          {
-            type: 'object',
-            properties: {
-              sessionId: { type: 'string', format: 'uuid' },
-              status: { type: 'string', example: 'closed' }
-            }
-          },
-          'Sesión revocada exitosamente.'
-        ),
+        200: commonResponses.ok({ $ref: '#/components/schemas/AdminSessionRevoked' }, 'Sesión revocada exitosamente.'),
         ...commonResponses.BadRequest,
         ...commonResponses.NotFound,
         ...commonResponses.Unauthorized,

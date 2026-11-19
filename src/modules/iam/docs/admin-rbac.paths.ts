@@ -1,6 +1,7 @@
 // config/swagger/modules/admin/kyc/iam/admin-rbac.paths.ts
 
 import commonResponses from '../../../config/swagger/responses/common.responses';
+import { PermissionRevokedSchema } from '../responses/admin-rbac.response';
 import { jsonBody, toOpenApi, toParameters } from '../../../shared/validation/openapi';
 import { GrantPermissionBody, PermissionIdParams, RoleNameParams } from '../requests/iam.request';
 import {
@@ -35,7 +36,8 @@ const schemas = {
   RbacEffectivePermissions: toOpenApi(EffectivePermissionsSchema, 'output'),
   RolePermissionOverride: toOpenApi(RolePermissionOverrideSchema, 'output'),
   RolePermissionsListResult: toOpenApi(RolePermissionsListSchema, 'output'),
-  GrantPermissionRequest: toOpenApi(GrantPermissionBody)
+  GrantPermissionRequest: toOpenApi(GrantPermissionBody),
+  RolePermissionRevoked: toOpenApi(PermissionRevokedSchema, 'output')
 };
 
 // ─── Parámetros comunes ────────────────────────────────────────
@@ -171,16 +173,7 @@ Los overrides complementan la matriz base definida en código. Requiere permiso 
       security: adminSecurity,
       parameters: [...toParameters(RoleNameParams, 'path'), ...toParameters(PermissionIdParams, 'path')],
       responses: {
-        200: commonResponses.ok(
-          {
-            type: 'object',
-            properties: {
-              permissionId: { type: 'string', format: 'uuid' },
-              deleted: { type: 'boolean', example: true }
-            }
-          },
-          'Permiso revocado exitosamente'
-        ),
+        200: commonResponses.ok({ $ref: '#/components/schemas/RolePermissionRevoked' }, 'Permiso revocado exitosamente'),
         ...commonResponses.Unauthorized,
         ...commonResponses.Forbidden,
         ...commonResponses.NotFound,

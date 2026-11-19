@@ -40,3 +40,4 @@ export const NotificationCategoryAdminSchema = NotificationCategorySchema.extend
 });
 
 export const NotificationCategoryDeletedSchema = z.object({ notificationCategoryId: z.uuid(), deleted: z.literal(true) });
+export type NotificationCategoryDeleted = z.infer<typeof NotificationCategoryDeletedSchema>;

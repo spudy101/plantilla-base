@@ -23,6 +23,7 @@ import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 import auditModule from '../../audit';
+import type { NotificationDeliveryRetry } from '../responses/admin-notification-delivery.response';
 const { audit } = auditModule;
 
 const {
@@ -213,7 +214,7 @@ class AdminNotificationDeliveryService {
       notificationId,
       channel: effectiveChannel,
       status: 'retry_initiated'
-    };
+    } satisfies NotificationDeliveryRetry;
   }
 }
 

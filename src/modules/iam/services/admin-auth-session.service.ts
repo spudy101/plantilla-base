@@ -17,6 +17,7 @@ import PaginationHelper from '../../../shared/http/pagination.util';
 import domainEnumsModule from '../../../shared/constants/domain-enums';
 const { USER_SESSION_STATUS } = domainEnumsModule;
 import adminAuthSessionDtoModule from '../responses/admin-auth-session.response';
+import type { SessionRevoked } from '../responses/admin-auth-session.response';
 const { SessionListDTO, AuthAttemptListDTO } = adminAuthSessionDtoModule;
 const AUTH_CATEGORY = 'Autenticación';
 const DEFAULT_DATE_FROM = new Date('2000-01-01');
@@ -172,7 +173,7 @@ class AdminAuthSessionService {
       }).catch(err => logger.warn('Error enviando AUTH_SESSION_REVOKED_CLIENT', { error: err.message }));
     });
 
-    return { sessionId, status: 'closed', closeReason: 'revoked_by_admin' };
+    return { sessionId, status: 'closed', closeReason: 'revoked_by_admin' } satisfies SessionRevoked;
   }
 
   // Traduce el query HTTP a criterios de negocio (sin Sequelize): scope, usuario, outcome y rango de fechas.

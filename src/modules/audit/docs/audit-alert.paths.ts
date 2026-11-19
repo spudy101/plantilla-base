@@ -1,4 +1,5 @@
 import commonResponses from '../../../config/swagger/responses/common.responses';
+import { AlertsAcknowledgedSchema } from '../responses/admin-audit-alert.response';
 import { jsonBody, toOpenApi, toParameters } from '../../../shared/validation/openapi';
 import { AcknowledgeAlertsBody, AuditAlertIdParams, AuditAlertListQuery } from '../requests/audit.request';
 import { AuditAlertSchema } from '../responses/audit-components.response';
@@ -19,7 +20,8 @@ import { AuditAlertSchema } from '../responses/audit-components.response';
 // Generados desde los esquemas Zod de requests/ y responses/.
 const schemas = {
   AuditAlert: toOpenApi(AuditAlertSchema, 'output'),
-  AcknowledgeAlertsRequest: toOpenApi(AcknowledgeAlertsBody)
+  AcknowledgeAlertsRequest: toOpenApi(AcknowledgeAlertsBody),
+  AlertsAcknowledged: toOpenApi(AlertsAcknowledgedSchema, 'output')
 };
 
 const paths = {
@@ -106,16 +108,7 @@ Solo afecta a alertas que aún no han sido reconocidas — las ya reconocidas so
 Devuelve \`acknowledged\` (cuántas se marcaron) y \`requested\` (cuántas se enviaron).`,
       requestBody: jsonBody('AcknowledgeAlertsRequest'),
       responses: {
-        200: commonResponses.ok(
-          {
-            type: 'object',
-            properties: {
-              acknowledged: { type: 'integer', example: 3, description: 'Alertas marcadas como reconocidas.' },
-              requested: { type: 'integer', example: 3, description: 'Total de alertas en la solicitud.' }
-            }
-          },
-          '3 alertas reconocidas exitosamente.'
-        ),
+        200: commonResponses.ok({ $ref: '#/components/schemas/AlertsAcknowledged' }, 'Alertas reconocidas exitosamente.'),
         ...commonResponses.ValidationError,
         ...commonResponses.Unauthorized,
         ...commonResponses.Forbidden,

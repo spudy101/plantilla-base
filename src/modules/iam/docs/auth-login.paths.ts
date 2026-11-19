@@ -1,4 +1,5 @@
 import commonResponses from '../../../config/swagger/responses/common.responses';
+import { OtherSessionsClosedSchema, SessionClosedSchema } from '../responses/auth-login.response';
 import { jsonBody, toOpenApi, toParameters } from '../../../shared/validation/openapi';
 import {
   ClientTypeHeaders,
@@ -30,7 +31,9 @@ const schemas = {
   TrustedDeviceUpdate: toOpenApi(TrustedDeviceUpdateSchema, 'output'),
   LoginRequest: toOpenApi(LoginBody),
   VerifyMfaRequest: toOpenApi(VerifyMfaBody),
-  RenameDeviceRequest: toOpenApi(RenameDeviceBody)
+  RenameDeviceRequest: toOpenApi(RenameDeviceBody),
+  SessionClosed: toOpenApi(SessionClosedSchema, 'output'),
+  OtherSessionsClosed: toOpenApi(OtherSessionsClosedSchema, 'output')
 };
 
 // ─── Parámetros reutilizables ─────────────────────────────────
@@ -164,16 +167,7 @@ Se requiere enviar **exactamente uno** de los dos campos (\`totpCode\` o \`smsCo
         'Cierra todas las sesiones activas del usuario **excepto la sesión actual**. Por cada sesión cerrada se revoca el refresh token y se **invalida su access token de inmediato** (vía umbral por sesión en Redis), por lo que dejan de funcionar al instante, sin esperar a su expiración natural.',
       responses: {
         200: commonResponses.ok(
-          {
-            type: 'object',
-            properties: {
-              closedCount: {
-                type: 'integer',
-                example: 3,
-                description: 'Número de sesiones cerradas.'
-              }
-            }
-          },
+          { $ref: '#/components/schemas/OtherSessionsClosed' },
           'Todas las demás sesiones han sido cerradas.'
         ),
         ...commonResponses.Unauthorized,
@@ -192,16 +186,7 @@ Se requiere enviar **exactamente uno** de los dos campos (\`totpCode\` o \`smsCo
         'Cierra una sesión activa específica del usuario **que no sea la sesión actual**. Revoca su refresh token e **invalida su access token de inmediato** (umbral por sesión en Redis), por lo que esa sesión deja de funcionar al instante. Para cerrar la sesión actual usa `/auth/logout`.',
       parameters: toParameters(SessionIdParams, 'path'),
       responses: {
-        200: commonResponses.ok(
-          {
-            type: 'object',
-            properties: {
-              sessionId: { type: 'string', format: 'uuid' },
-              status: { type: 'string', example: 'closed' }
-            }
-          },
-          'Sesión cerrada exitosamente.'
-        ),
+        200: commonResponses.ok({ $ref: '#/components/schemas/SessionClosed' }, 'Sesión cerrada exitosamente.'),
         ...commonResponses.BadRequest,
         ...commonResponses.NotFound,
         ...commonResponses.Unauthorized,

@@ -250,3 +250,4 @@ export const NotificationDeliveryRetrySchema = z.object({
   channel: z.enum(['email', 'push', 'sms', 'all']).meta({ description: 'Canal que se reintenta (puede diferir del pedido).' }),
   status: z.literal('retry_initiated')
 });
+export type NotificationDeliveryRetry = z.infer<typeof NotificationDeliveryRetrySchema>;

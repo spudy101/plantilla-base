@@ -19,6 +19,7 @@ const { notifier } = notificationModule;
 import rolePermissionOverrideRepository from '../repositories/role-permission-override.repository';
 import adminRbacDtoModule from '../responses/admin-rbac.response';
 import auditModule from '../../audit';
+import type { PermissionRevoked } from '../responses/admin-rbac.response';
 const { audit } = auditModule;
 const {
   RbacCatalogDTO,
@@ -172,7 +173,7 @@ class AdminRbacService {
       }).catch(err => logger.warn('Error enviando IAM_RBAC_PERMISSION_REVOKED', { error: err.message }));
     });
 
-    return { deleted: true, permissionId };
+    return { deleted: true, permissionId } satisfies PermissionRevoked;
   }
 
   // ============================================================

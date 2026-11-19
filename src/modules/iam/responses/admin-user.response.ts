@@ -139,3 +139,9 @@ export const InternalUserCreatedSchema = InternalUserSchema.extend({
 });
 
 export const RoleOptionSchema = z.object({ roleId: z.uuid(), name: z.string(), description: z.string().nullable() });
+
+// Resultados armados en el service (sin función DTO)
+export const InternalUserDeletedSchema = z.object({ userId: z.uuid(), deleted: z.literal(true) });
+export type InternalUserDeleted = z.infer<typeof InternalUserDeletedSchema>;
+export const InternalUserSessionsClosedSchema = z.object({ userId: z.uuid(), closed: z.literal(true) });
+export type InternalUserSessionsClosed = z.infer<typeof InternalUserSessionsClosedSchema>;
