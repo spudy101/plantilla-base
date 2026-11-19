@@ -4,7 +4,7 @@ import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 type SnsSender = Pick<InstanceType<typeof SNSClient>, 'send'>;
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
-import { callProvider, CircuitOpenError } from '../../../shared/infra/provider-call.util';
+import { callProvider, CircuitOpenError, AWS_CLIENT_OPTIONS } from '../../../shared/infra/provider-call.util';
 import ProviderApiLogger from '../../../shared/observability/integration-api-logger.util';
 import EncryptionUtil from '../../../shared/security/encryption.util';
 import constantsModule from '../../../shared/constants';
@@ -46,6 +46,7 @@ class SmsService {
   get snsClient(): SnsSender {
     if (!this._snsClient) {
       this._snsClient = new SNSClient({
+        ...AWS_CLIENT_OPTIONS,
         region: aws.region,
         credentials: {
           accessKeyId: aws.accessKeyId,

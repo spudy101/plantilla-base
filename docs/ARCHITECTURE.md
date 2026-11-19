@@ -186,6 +186,8 @@ const res = await callProvider({ product: 'ses', endpoint: 'SES:SendEmailCommand
 ```
 
 - Timeout, intentos y umbrales del breaker salen de settings (`integrationResilience`), no del código.
+- Los clientes del SDK (SES, SNS, S3) se crean con `...AWS_CLIENT_OPTIONS` (`maxAttempts: 1`): reintenta solo
+  `callProvider`, no también el SDK. Lo verifica `tests/unit/guards/provider-calls.test.ts`.
 - Solo los errores **transitorios** (5xx, 408/429, throttling, timeout, red) se reintentan y cuentan para el
   circuito. Un 4xx (dirección inválida, acceso denegado) muestra que el proveedor responde: se propaga al primer intento.
 - Con el circuito abierto se lanza `CircuitOpenError` (503) sin llamar al proveedor. Pasado `recoveryTimeMs`,
