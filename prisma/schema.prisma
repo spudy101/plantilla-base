@@ -438,6 +438,29 @@ model Operation {
   @@map("operations")
 }
 
+/// Claves de idempotencia: la primera petición con una clave se ejecuta y guarda su respuesta; las que
+/// repiten la clave (reintentos tras un timeout) reciben esa respuesta sin ejecutar de nuevo. Una fila por
+/// (scope, clave): scope = quién llama (usuario o sistema externo), así dos clientes no comparten claves.
+/// Ver docs/idempotency.md.
+model IdempotencyKey {
+  scope          String               @db.VarChar(100)
+  key            String               @map("idempotency_key") @db.VarChar(255)
+  /// SHA-256 de método + ruta + body: la misma clave con otra petición es un error del cliente (422).
+  requestHash    String               @map("request_hash") @db.Char(64)
+  status         IdempotencyKeyStatus @default(in_progress)
+  responseStatus Int?                 @map("response_status") @db.SmallInt
+  responseBody   Json?                @map("response_body")
+  /// Mientras está en curso: hasta cuándo la petición dueña tiene la clave. Si vence (el proceso se cayó a
+  /// mitad), otra petición con la misma clave la retoma.
+  lockedUntil    DateTime?            @map("locked_until") @db.Timestamptz(6)
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt      DateTime             @map("expires_at") @db.Timestamptz(6)
+
+  @@id([scope, key], map: "pk_idempotency_keys")
+  @@index([expiresAt], map: "idx_idempotency_keys_expires_at")
+  @@map("idempotency_keys")
+}
+
 model PersonContact {
   personContactId          String       @id(map: "pk_person_contacts") @default(uuid()) @map("person_contact_id") @db.Uuid
   personId                 String       @unique(map: "uq_person_contacts_person_id") @map("person_id") @db.Uuid
@@ -975,6 +998,13 @@ enum OperationStatus {
   failure
 
   @@map("enum_operations_status")
+}
+
+enum IdempotencyKeyStatus {
+  in_progress
+  completed
+
+  @@map("enum_idempotency_keys_status")
 }
 
 enum ApprovalRequestStatus {

@@ -79,8 +79,11 @@ const paths = {
       description: `Envía una notificación masiva a **todos los clientes** (roles \`CLIENTE\` y \`CLIENTE_VERIFICADO\`).
 No se envía a usuarios internos.
 
-La notificación se encola (\`processingStatus: queued\`) y se procesa en background — la respuesta es inmediata pero el envío puede tardar dependiendo del volumen de clientes.`,
+La notificación se encola (\`processingStatus: queued\`) y se procesa en background — la respuesta es inmediata pero el envío puede tardar dependiendo del volumen de clientes.
+
+${commonResponses.IDEMPOTENCY_DESCRIPTION}`,
       security: adminSecurity,
+      parameters: [commonResponses.IdempotencyKeyHeader],
       requestBody: jsonBody('AdminGlobalNotificationRequest'),
       responses: {
         201: commonResponses.created(
@@ -90,6 +93,7 @@ La notificación se encola (\`processingStatus: queued\`) y se procesa en backgr
         ...commonResponses.BadRequest,
         ...commonResponses.Unauthorized,
         ...commonResponses.Forbidden,
+        ...commonResponses.RequestInProgress,
         ...commonResponses.ValidationError,
         ...commonResponses.RateLimitExceeded,
         ...commonResponses.InternalServerError
@@ -104,8 +108,11 @@ La notificación se encola (\`processingStatus: queued\`) y se procesa en backgr
       operationId: 'adminCreateDirectNotification',
       description: `Envía una notificación a **un usuario específico** (no global).
 
-El usuario destinatario debe existir y estar **activo**. La notificación se encola (\`processingStatus: queued\`) y se procesa en background respetando las preferencias y quiet hours del usuario.`,
+El usuario destinatario debe existir y estar **activo**. La notificación se encola (\`processingStatus: queued\`) y se procesa en background respetando las preferencias y quiet hours del usuario.
+
+${commonResponses.IDEMPOTENCY_DESCRIPTION}`,
       security: adminSecurity,
+      parameters: [commonResponses.IdempotencyKeyHeader],
       requestBody: jsonBody('AdminDirectNotificationRequest'),
       responses: {
         201: commonResponses.created(
@@ -116,6 +123,7 @@ El usuario destinatario debe existir y estar **activo**. La notificación se enc
         ...commonResponses.Unauthorized,
         ...commonResponses.Forbidden,
         ...commonResponses.NotFound,
+        ...commonResponses.RequestInProgress,
         ...commonResponses.ValidationError,
         ...commonResponses.RateLimitExceeded,
         ...commonResponses.InternalServerError

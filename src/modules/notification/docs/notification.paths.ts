@@ -110,8 +110,11 @@ const paths = {
         '`notification_types` con el `code` indicado.',
         '',
         'La notificación se encola en el worker y se envía según la configuración del tipo',
-        '(push, email) y las preferencias del usuario destinatario.'
+        '(push, email) y las preferencias del usuario destinatario.',
+        '',
+        commonResponses.IDEMPOTENCY_DESCRIPTION
       ].join('\n'),
+      parameters: [commonResponses.IdempotencyKeyHeader],
       requestBody: jsonBody('NotificationCreateRequest'),
       responses: {
         201: commonResponses.created(
@@ -120,7 +123,10 @@ const paths = {
         ),
         ...commonResponses.BadRequest,
         ...commonResponses.Unauthorized,
-        ...commonResponses.InternalServerError
+        ...commonResponses.RequestInProgress,
+        ...commonResponses.ValidationError,
+        ...commonResponses.InternalServerError,
+        ...commonResponses.ServiceUnavailable
       }
     },
 
