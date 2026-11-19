@@ -40,6 +40,15 @@ class UserNotificationPreferenceRepository extends PrismaRepository {
     return row && toRow(row);
   }
 
+  /** Las de varios usuarios, por user_id (envío masivo: una consulta por página). */
+  async findByUsers(userIds: readonly string[]): Promise<Map<string, PreferenceRow>> {
+    if (userIds.length === 0) {
+      return new Map();
+    }
+    const rows = await (await this.db()).userNotificationPreference.findMany({ where: { userId: { in: [...userIds] } } });
+    return new Map(rows.map(row => [row.userId, toRow(row)]));
+  }
+
   /** Filas por id (hidratación del session-trace). */
   async findByIds(ids: readonly string[]): Promise<PreferenceRow[]> {
     if (ids.length === 0) {
