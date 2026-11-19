@@ -3,7 +3,7 @@
 // pg → @prisma/adapter-pg → Prisma, y cambia entre versiones.
 //   - base inalcanzable          → isDatabaseUnavailable (→ 503)
 //   - pool agotado (timeout)     → isDatabaseUnavailable (→ 503)
-//   - deadlock entre dos tx      → isTransactionConflict (→ el Unit of Work repite la transacción)
+//   - deadlock entre dos tx      → isTransactionConflict, y con unitOfWork.run se resuelve repitiendo la abortada
 
 import { randomUUID } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -11,6 +11,8 @@ import { PrismaClient } from '../../src/shared/database/generated/prisma/client'
 import prisma from '../../src/shared/database/prisma';
 import constantsModule from '../../src/shared/constants';
 import { isDatabaseUnavailable, isTransactionConflict } from '../../src/shared/database/database-errors';
+import unitOfWork from '../../src/shared/database/unit-of-work';
+import txContext from '../../src/shared/database/transaction-context';
 
 const { database } = constantsModule;
 const TAG = `dberr-it-${randomUUID().slice(0, 8)}`;
@@ -117,6 +119,41 @@ describe('Errores de la base · Postgres real', () => {
       expect(failed).toHaveLength(1);
       expect(isTransactionConflict(failed[0]!.reason)).toBe(true);
       expect(isDatabaseUnavailable(failed[0]!.reason)).toBe(false);
+    });
+
+    it('con unitOfWork.run el mismo deadlock se resuelve solo: la abortada se repite y las dos confirman', async () => {
+      const [a, b] = roleIds as [string, string];
+      let lockedCount = 0;
+      let bothLocked!: () => void;
+      const barrier = new Promise<void>(resolve => {
+        bothLocked = resolve;
+      });
+      const attempts = { ab: 0, ba: 0 };
+      // Solo el PRIMER intento de cada una espera a la otra: el reintento ya no tiene con quién chocar
+      const lockThenCross = (first: string, second: string, label: 'ab' | 'ba') =>
+        unitOfWork.run(
+          async () => {
+            attempts[label] += 1;
+            const db = await txContext.activeUnit()!.prisma();
+            await db.role.update({ where: { roleId: first }, data: { description: `${label}-1` } });
+            if (attempts[label] === 1) {
+              lockedCount += 1;
+              if (lockedCount === 2) {
+                bothLocked();
+              }
+              await barrier;
+            }
+            await db.role.update({ where: { roleId: second }, data: { description: `${label}-2` } });
+            return label;
+          },
+          { timeout: 10_000 }
+        );
+
+      const results = await Promise.all([lockThenCross(a, b, 'ab'), lockThenCross(b, a, 'ba')]);
+
+      expect(results).toEqual(['ab', 'ba']);
+      // Una de las dos se repitió (la que Postgres eligió abortar)
+      expect(attempts.ab + attempts.ba).toBe(3);
     });
   });
 });
