@@ -241,8 +241,15 @@ de `notification_deliveries`:
 "¿le llegó el correo a este usuario?". Las métricas de éxito por proveedor están en CloudWatch
 (`ProviderCalls`, ver docs/ARCHITECTURE.md).
 
-> **Pendiente conocido (push).** Un `EndpointDisabled` significa que **ese dispositivo** está dado de baja.
-> Lo correcto es desactivar su token en `user_push_tokens`.
+**Dispositivos dados de baja.** Un `EndpointDisabled` de SNS significa que **ese dispositivo** ya no existe
+para APNs/FCM (app desinstalada, token vencido): su token se desactiva en `user_push_tokens`
+(`deactivateTokens`) y no se le vuelve a enviar, tanto en las entregas individuales como en el envío
+masivo de las globales. No cambia el resultado de la entrega (si llegó a otro dispositivo, sigue `sent`).
+Si el usuario vuelve a registrar el dispositivo, `upsertToken` lo reactiva y `registrarDispositivo` vuelve a
+habilitar su endpoint en SNS (`CreatePlatformEndpoint` solo no lo hace: se lee con `GetEndpointAttributes` y,
+si está deshabilitado o tiene otro token/usuario, se corrige con `SetEndpointAttributes`). Si el token ya
+tenía endpoint de otro usuario (dispositivo compartido), se reutiliza ese endpoint. Los inactivos se borran a
+los 90 días (limpieza diaria). `InvalidParameter` no desactiva: puede ser el mensaje y no el dispositivo.
 
 ## Notificaciones globales (`global_notifications`)
 

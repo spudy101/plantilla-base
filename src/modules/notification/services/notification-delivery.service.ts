@@ -32,7 +32,7 @@ const { errorMessage } = errorMessageModule;
 import awsProviderMetaUtilModule from '../../../shared/infra/aws-provider-meta.util';
 const { awsErrorCode } = awsProviderMetaUtilModule;
 import awsErrorCodesModule from '../../../shared/constants/aws-error-codes';
-const { isHardBounce } = awsErrorCodesModule;
+const { isHardBounce, isEndpointDisabled } = awsErrorCodesModule;
 import auditModule from '../../audit';
 const { audit } = auditModule;
 
@@ -269,6 +269,11 @@ class NotificationDeliveryService {
         )
       )
     );
+
+    // Los dispositivos dados de baja (EndpointDisabled) no vuelven a recibir: se desactiva su token
+    const codes = results.map(r => (r.status === 'rejected' ? providerErrorCode(r.reason) : null));
+    await this.deactivateDisabledTokens(tokens.filter((_, i) => isEndpointDisabled(codes[i])).map(t => t.token));
+
     if (results.some(r => r.status === 'fulfilled')) {
       return { status: 'sent' };
     }
@@ -276,13 +281,25 @@ class NotificationDeliveryService {
     // Rebote definitivo solo si TODOS los dispositivos fallaron con un código definitivo (p. ej. todos
     // EndpointDisabled). Si alguno falló por algo temporal, se reintenta.
     const errors = results.map(r => (r as PromiseRejectedResult).reason);
-    const codes = errors.map(providerErrorCode);
     return {
       status: 'error',
       error: `Falló el envío a los ${tokens.length} dispositivos: ${errorMessage(errors[0])}`,
       errorCode: codes[0] ?? null,
       permanent: codes.every(code => isHardBounce('push', code))
     };
+  }
+
+  /** Desactiva tokens dados de baja. No afecta el resultado de la entrega: si falla, solo se registra. */
+  async deactivateDisabledTokens(tokens: readonly string[]) {
+    if (tokens.length === 0) {
+      return;
+    }
+    try {
+      const deactivated = await this.userPushTokenRepo.deactivateTokens(tokens);
+      logger.info('Tokens push desactivados (EndpointDisabled)', { deactivated });
+    } catch (error) {
+      logger.warn('No se pudieron desactivar tokens push', { error: errorMessage(error) });
+    }
   }
 
   /** Al email de metadata.email (si viene) o al del contacto del usuario. */

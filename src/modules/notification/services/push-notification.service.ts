@@ -1,4 +1,11 @@
-import { SNSClient, CreatePlatformEndpointCommand, DeleteEndpointCommand, PublishCommand } from '@aws-sdk/client-sns';
+import {
+  SNSClient,
+  CreatePlatformEndpointCommand,
+  DeleteEndpointCommand,
+  GetEndpointAttributesCommand,
+  PublishCommand,
+  SetEndpointAttributesCommand
+} from '@aws-sdk/client-sns';
 /** Lo único que se usa del cliente SNS (un doble de test solo necesita send). */
 type SnsSender = Pick<InstanceType<typeof SNSClient>, 'send'>;
 import loggerUtilModule from '../../../shared/observability/logger.util';
@@ -8,10 +15,17 @@ import constantsModule from '../../../shared/constants';
 const { notifications, aws } = constantsModule;
 import { callProvider, AWS_CLIENT_OPTIONS } from '../../../shared/infra/provider-call.util';
 import { providerFailure } from '../../../shared/infra/provider-errors';
+import awsProviderMetaUtilModule from '../../../shared/infra/aws-provider-meta.util';
+const { awsErrorCode } = awsProviderMetaUtilModule;
+import awsErrorCodesModule from '../../../shared/constants/aws-error-codes';
+const { isEndpointDisabled } = awsErrorCodesModule;
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
+/** SNS rechaza CreatePlatformEndpoint si el token ya tiene endpoint con otros atributos (otro usuario
+ * en el mismo dispositivo) y nombra ese endpoint en el mensaje: lo reutilizamos. */
+const EXISTING_ENDPOINT_RE = /Endpoint (arn:aws:sns:\S+) already exists with the same [Tt]oken/;
 
 class PushNotificationService {
   _snsClient: SnsSender | null;
@@ -51,7 +65,9 @@ class PushNotificationService {
   }
 
   /**
-   * Registra un dispositivo para recibir push notifications
+   * Registra un dispositivo para recibir push notifications. Sigue la receta de AWS: crear el endpoint
+   * (o reutilizar el que ya tiene ese token) y, si SNS lo dejó deshabilitado (EndpointDisabled) o con
+   * otro token/usuario, actualizarlo y habilitarlo. CreatePlatformEndpoint solo no lo rehabilita.
    * @param {string} deviceToken - Token del dispositivo
    * @param {string} platform    - 'ios' o 'android'
    * @param {string} userId      - ID del usuario
@@ -67,25 +83,54 @@ class PushNotificationService {
     }
 
     try {
-      const command = new CreatePlatformEndpointCommand({
-        PlatformApplicationArn: platformArn,
-        Token: deviceToken,
-        CustomUserData: userId
-      });
-      // getter (no el campo): el campo es null hasta el primer uso y registrar fallaba siempre en frío
-      const response = await callProvider({ product: 'sns', endpoint: 'SNS:CreatePlatformEndpoint' }, abortSignal => this.snsClient.send(command, { abortSignal }));
+      const endpointArn = await this._crearEndpoint(platformArn, deviceToken, userId);
+      if (endpointArn) {
+        await this._habilitarEndpoint(endpointArn, deviceToken, userId);
+      }
 
-      logger.info('Dispositivo registrado exitosamente', {
-        userId,
-        platform,
-        endpointArn: response.EndpointArn
-      });
+      logger.info('Dispositivo registrado exitosamente', { userId, platform, endpointArn });
 
-      return response.EndpointArn;
+      return endpointArn;
     } catch (error) {
       logger.warn('Error al registrar dispositivo', { error: errorMessage(error), userId, platform });
       throw providerFailure(error, 'Error al registrar dispositivo para notificaciones');
     }
+  }
+
+  /** Crea el endpoint del token, o devuelve el que ya existe para ese token con otros atributos. */
+  async _crearEndpoint(platformArn: string, deviceToken: string, userId: string): Promise<string | undefined> {
+    const command = new CreatePlatformEndpointCommand({ PlatformApplicationArn: platformArn, Token: deviceToken, CustomUserData: userId });
+    try {
+      // getter (no el campo): el campo es null hasta el primer uso y registrar fallaba siempre en frío
+      const response = await callProvider({ product: 'sns', endpoint: 'SNS:CreatePlatformEndpoint' }, abortSignal =>
+        this.snsClient.send(command, { abortSignal })
+      );
+      return response.EndpointArn;
+    } catch (error) {
+      const existing = awsErrorCode(error) === 'InvalidParameter' ? EXISTING_ENDPOINT_RE.exec(errorMessage(error)) : null;
+      if (!existing) throw error;
+      return existing[1];
+    }
+  }
+
+  /** Deja el endpoint habilitado, con el token y el usuario actuales (solo escribe si algo difiere). */
+  async _habilitarEndpoint(endpointArn: string, deviceToken: string, userId: string): Promise<void> {
+    const current = await callProvider({ product: 'sns', endpoint: 'SNS:GetEndpointAttributes' }, abortSignal =>
+      this.snsClient.send(new GetEndpointAttributesCommand({ EndpointArn: endpointArn }), { abortSignal })
+    );
+    const attrs = current.Attributes ?? {};
+    if (attrs.Enabled === 'true' && attrs.Token === deviceToken && attrs.CustomUserData === userId) return;
+
+    await callProvider({ product: 'sns', endpoint: 'SNS:SetEndpointAttributes' }, abortSignal =>
+      this.snsClient.send(
+        new SetEndpointAttributesCommand({
+          EndpointArn: endpointArn,
+          Attributes: { Token: deviceToken, CustomUserData: userId, Enabled: 'true' }
+        }),
+        { abortSignal }
+      )
+    );
+    logger.info('Endpoint SNS rehabilitado', { endpointArn, wasEnabled: attrs.Enabled === 'true', userId });
   }
 
   /**
@@ -141,28 +186,36 @@ class PushNotificationService {
    * @param {string} title              - Título
    * @param {string} body               - Cuerpo
    * @param {Object} data               - Datos adicionales (opcional)
-   * @returns {Promise<{ success: number, failed: number }>}
+   * @returns {Promise<{ success: number, failed: number, disabledEndpoints: string[] }>} disabledEndpoints: los
+   *   que SNS reportó dados de baja (EndpointDisabled), para desactivar su token.
    */
   async enviarPushMasivo(endpointArns: string[], title: string, body: string, data: Record<string, unknown> = {}) {
     try {
-      const promises = endpointArns.map(arn =>
-        this.enviarPushIndividual(arn, title, body, data)
-          .then(() => ({ success: true }))
-          .catch(() => ({ success: false }))
+      const results = await Promise.all(
+        endpointArns.map(arn =>
+          this.enviarPushIndividual(arn, title, body, data)
+            .then(() => ({ arn, success: true, disabled: false }))
+            .catch((error: unknown) => ({ arn, success: false, disabled: isEndpointDisabled(awsErrorCode(error)) }))
+        )
       );
 
-      const results = await Promise.allSettled(promises);
-
       const stats = {
-        success: results.filter(r => r.status === 'fulfilled' && r.value.success !== false).length,
-        failed: results.filter(r => r.status === 'rejected' || r.value.success === false).length
+        success: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length,
+        disabledEndpoints: results.filter(r => r.disabled).map(r => r.arn)
       };
 
-      logger.info('Push masivo completado', { ...stats, total: endpointArns.length, title });
+      logger.info('Push masivo completado', {
+        success: stats.success,
+        failed: stats.failed,
+        disabled: stats.disabledEndpoints.length,
+        total: endpointArns.length,
+        title
+      });
       return stats;
     } catch (error) {
       logger.warn('Error al enviar push masivo', { error: errorMessage(error) });
-      return { success: 0, failed: endpointArns.length };
+      return { success: 0, failed: endpointArns.length, disabledEndpoints: [] as string[] };
     }
   }
 
