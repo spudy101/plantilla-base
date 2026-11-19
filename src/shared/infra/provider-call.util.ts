@@ -12,6 +12,7 @@
 //     signal => sesClient.send(command, { abortSignal: signal }));
 
 import CircuitBreaker, { CircuitOpenError } from './circuit-breaker.util';
+import { isTransientError } from './provider-errors';
 import ResilienceConfig from './resilience-config.util';
 import retryUtilModule from './retry.util';
 const { withRetry } = retryUtilModule;
@@ -32,41 +33,6 @@ const { errorMessage } = errorMessageModule;
  * callProvider. Sin timeout en el cliente: lo pone callProvider en cada intento.
  */
 const AWS_CLIENT_OPTIONS = Object.freeze({ maxAttempts: 1 });
-
-const HTTP_TOO_MANY_REQUESTS = 429;
-const HTTP_REQUEST_TIMEOUT = 408;
-const HTTP_SERVER_ERROR = 500;
-const THROTTLING_NAMES = new Set([
-  'ThrottlingException',
-  'Throttling',
-  'TooManyRequestsException',
-  'ProvisionedThroughputExceededException',
-  'RequestLimitExceeded',
-  'SlowDown'
-]);
-
-/**
- * ¿El error dice que el proveedor está mal (vale reintentar y cuenta para el circuito)?
- * Sí: throttling, 5xx, 408/429, timeouts y errores de red (sin respuesta HTTP).
- * No: el resto de 4xx — el proveedor respondió y el problema es la petición.
- */
-function isTransientError(error: unknown): boolean {
-  const e = error as { name?: string; $retryable?: unknown; $fault?: string; $metadata?: { httpStatusCode?: number } } | null;
-  if (!e || typeof e !== 'object') {
-    return true;
-  }
-  if (e.$retryable || (e.name && THROTTLING_NAMES.has(e.name))) {
-    return true;
-  }
-  const status = e.$metadata?.httpStatusCode;
-  if (status) {
-    return status >= HTTP_SERVER_ERROR || status === HTTP_TOO_MANY_REQUESTS || status === HTTP_REQUEST_TIMEOUT;
-  }
-  if (e.$fault) {
-    return e.$fault === 'server';
-  }
-  return true;
-}
 
 /** Productos con circuito propio. Uno nuevo (p. ej. mercadopago) se agrega acá. */
 const PROVIDER_PRODUCTS = Object.freeze(['ses', 's3', 'sns', 'aws_sms'] as const);
@@ -167,6 +133,6 @@ async function callProvider<T>(call: ProviderCall, fn: (signal: AbortSignal) => 
   }
 }
 
-export { callProvider, isTransientError, CircuitOpenError, AWS_CLIENT_OPTIONS, PROVIDER_PRODUCTS };
+export { callProvider, CircuitOpenError, AWS_CLIENT_OPTIONS, PROVIDER_PRODUCTS };
 export type { ProviderProduct };
-export default { callProvider, isTransientError, CircuitOpenError, AWS_CLIENT_OPTIONS, PROVIDER_PRODUCTS };
+export default { callProvider, CircuitOpenError, AWS_CLIENT_OPTIONS, PROVIDER_PRODUCTS };

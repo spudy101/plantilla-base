@@ -13,12 +13,17 @@ jest.mock('@aws-sdk/client-sns', () => ({
   PublishCommand: class {}
 }));
 
-jest.mock('../../../shared/infra/provider-call.util', () => ({
-  callProvider: jest.fn(),
-  CircuitOpenError: class CircuitOpenError extends Error {
-    statusCode = 503;
+// callProvider se mockea; CircuitOpenError es un AppError 503 como el real. providerFailure (provider-errors) es el real.
+jest.mock('../../../shared/infra/provider-call.util', () => {
+  const AppError = jest.requireActual('../../../shared/http/app-error.util').default;
+  class CircuitOpenError extends AppError {
+    constructor(product: string, retryInMs: number) {
+      super(`Servicio externo no disponible temporalmente (${product})`, 503, 'CIRCUIT_OPEN', null, true);
+      this.retryAfter = Math.ceil(retryInMs / 1000);
+    }
   }
-}));
+  return { callProvider: jest.fn(), CircuitOpenError };
+});
 
 jest.mock('../../../shared/observability/logger.util', () => ({
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn() }
@@ -66,21 +71,37 @@ describe('PushNotificationService', () => {
       );
     });
 
-    it('fallo del proveedor: lanza internal (500) y registra warning', async () => {
+    it('error que no viene del proveedor (bug nuestro): 500 permanente y registra warning', async () => {
       callProvider.mockRejectedValue(new Error('SNS down'));
 
       await expect(push.registrarDispositivo('tok', 'android', 'u-1')).rejects.toMatchObject({
         statusCode: 500,
-        code: 'INTERNAL_ERROR'
+        code: 'INTERNAL_ERROR',
+        retryable: false
       });
       expect(logger.warn).toHaveBeenCalled();
+    });
+
+    it('el proveedor falló de forma transitoria (5xx tras los reintentos): 503 temporal, no 500', async () => {
+      callProvider.mockRejectedValue(Object.assign(new Error('caído'), { name: 'InternalError', $metadata: { httpStatusCode: 500 } }));
+
+      await expect(push.registrarDispositivo('tok', 'android', 'u-1')).rejects.toMatchObject({
+        statusCode: 503,
+        retryable: true
+      });
+    });
+
+    it('el proveedor rechazó la petición (4xx): 500, reintentar no lo arregla', async () => {
+      callProvider.mockRejectedValue(Object.assign(new Error('token inválido'), { name: 'InvalidParameter', $metadata: { httpStatusCode: 400 } }));
+
+      await expect(push.registrarDispositivo('tok', 'android', 'u-1')).rejects.toMatchObject({ statusCode: 500, retryable: false });
     });
   });
 
   describe('registrarDispositivo — circuito abierto', () => {
     it('propaga el 503 del circuito en vez de convertirlo en 500', async () => {
       callProvider.mockRejectedValue(new CircuitOpenError('sns', 5000));
-      await expect(push.registrarDispositivo('tok', 'ios', 'u-1')).rejects.toMatchObject({ statusCode: 503 });
+      await expect(push.registrarDispositivo('tok', 'ios', 'u-1')).rejects.toMatchObject({ statusCode: 503, code: 'CIRCUIT_OPEN', retryAfter: 5 });
     });
   });
 

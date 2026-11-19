@@ -22,9 +22,4 @@ function errorName(error: unknown): string | undefined {
   return error && typeof error === 'object' && 'name' in error && typeof error.name === 'string' ? error.name : undefined;
 }
 
-/** true si es un error de negocio ya formateado (AppError con isOperational) que se debe re-lanzar tal cual. */
-function isOperationalError(error: unknown): boolean {
-  return Boolean(error && typeof error === 'object' && 'isOperational' in error && error.isOperational);
-}
-
-export default { errorMessage, errorName, isOperationalError };
+export default { errorMessage, errorName };

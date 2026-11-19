@@ -6,7 +6,8 @@ const { logger } = loggerUtilModule;
 import AppError from '../../../shared/http/app-error.util';
 import constantsModule from '../../../shared/constants';
 const { notifications, aws } = constantsModule;
-import { callProvider, CircuitOpenError, AWS_CLIENT_OPTIONS } from '../../../shared/infra/provider-call.util';
+import { callProvider, AWS_CLIENT_OPTIONS } from '../../../shared/infra/provider-call.util';
+import { providerFailure } from '../../../shared/infra/provider-errors';
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
@@ -83,10 +84,7 @@ class PushNotificationService {
       return response.EndpointArn;
     } catch (error) {
       logger.warn('Error al registrar dispositivo', { error: errorMessage(error), userId, platform });
-      if (error instanceof CircuitOpenError) {
-        throw error;
-      }
-      throw AppError.internal('Error al registrar dispositivo para notificaciones');
+      throw providerFailure(error, 'Error al registrar dispositivo para notificaciones');
     }
   }
 
@@ -103,10 +101,7 @@ class PushNotificationService {
       return true;
     } catch (error) {
       logger.warn('Error al eliminar dispositivo', { error: errorMessage(error), endpointArn });
-      if (error instanceof CircuitOpenError) {
-        throw error;
-      }
-      throw AppError.internal('Error al eliminar dispositivo');
+      throw providerFailure(error, 'Error al eliminar dispositivo');
     }
   }
 

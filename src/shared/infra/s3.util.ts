@@ -28,9 +28,11 @@ import AppError from '../http/app-error.util';
 import constantsModule from '../constants';
 const { aws } = constantsModule;
 import { callProvider, AWS_CLIENT_OPTIONS } from './provider-call.util';
+import { providerFailure } from './provider-errors';
 import errorMessageModule from '../utils/error-message.util';
 
-const { errorMessage, errorName, isOperationalError } = errorMessageModule;
+const { errorMessage, errorName } = errorMessageModule;
+import { shouldPropagate } from '../http/error-propagation';
 
 
 const DEFAULT_PRESIGNED_EXPIRES = 3600; // 1 hora — documentos normales
@@ -155,7 +157,7 @@ class S3Util {
       if (errorName(error) === 'NoSuchKey' || errorName(error) === 'NotFound') {
         throw AppError.notFound('Archivo no encontrado en S3');
       }
-      throw AppError.internal('Error al descargar el documento');
+      throw providerFailure(error, 'Error al descargar el documento');
     }
   }
 
@@ -206,13 +208,13 @@ class S3Util {
       return s3Key;
     } catch (error) {
       logger.error('Error subiendo imagen a S3', { error: errorMessage(error), folder });
-      if (isOperationalError(error)) {
+      if (shouldPropagate(error)) {
         throw error;
       }
       if (errorMessage(error)?.includes('Input buffer') || errorMessage(error)?.includes('unsupported')) {
         throw AppError.badRequest('Formato de imagen no válido');
       }
-      throw AppError.internal('Error al subir la imagen');
+      throw providerFailure(error, 'Error al subir la imagen');
     }
   }
 
@@ -257,10 +259,10 @@ class S3Util {
       return s3Key;
     } catch (error) {
       logger.error('Error subiendo documento a S3', { error: errorMessage(error), fileName, folder });
-      if (isOperationalError(error)) {
+      if (shouldPropagate(error)) {
         throw error;
       }
-      throw AppError.internal('Error al subir el documento');
+      throw providerFailure(error, 'Error al subir el documento');
     }
   }
 
@@ -328,10 +330,10 @@ class S3Util {
       return publicUrl;
     } catch (error) {
       logger.error('Error subiendo documento público a S3', { error: errorMessage(error), s3Key });
-      if (isOperationalError(error)) {
+      if (shouldPropagate(error)) {
         throw error;
       }
-      throw AppError.internal('Error al subir el documento público');
+      throw providerFailure(error, 'Error al subir el documento público');
     }
   }
 
@@ -408,13 +410,13 @@ class S3Util {
       return true;
     } catch (error) {
       logger.error('Error eliminando archivo de S3', { error: errorMessage(error), s3Key });
-      if (isOperationalError(error)) {
+      if (shouldPropagate(error)) {
         throw error;
       }
       if (errorName(error) === 'NoSuchKey') {
         throw AppError.notFound('Archivo no encontrado');
       }
-      throw AppError.internal('Error al eliminar el archivo');
+      throw providerFailure(error, 'Error al eliminar el archivo');
     }
   }
 
@@ -434,13 +436,13 @@ class S3Util {
       return true;
     } catch (error) {
       logger.error('Error eliminando archivo público de S3', { error: errorMessage(error), s3Key });
-      if (isOperationalError(error)) {
+      if (shouldPropagate(error)) {
         throw error;
       }
       if (errorName(error) === 'NoSuchKey') {
         throw AppError.notFound('Archivo no encontrado');
       }
-      throw AppError.internal('Error al eliminar el archivo público');
+      throw providerFailure(error, 'Error al eliminar el archivo público');
     }
   }
 
