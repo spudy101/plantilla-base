@@ -24,7 +24,8 @@ import constantsModule from '../../../shared/constants';
 const { RBAC_ROLES, notifications } = constantsModule;
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
-const { errorMessage, isOperationalError } = errorMessageModule;
+const { errorMessage } = errorMessageModule;
+import { shouldPropagate } from '../../../shared/http/error-propagation';
 import auditModule from '../../audit';
 const { audit } = auditModule;
 
@@ -199,7 +200,7 @@ class AuthRegisterService {
     } catch (error) {
       // La transacción interna de _createUserInDB ya revirtió cualquier escritura parcial;
       // aquí solo mapeamos el error a una respuesta operativa.
-      if (isOperationalError(error)) {
+      if (shouldPropagate(error)) {
         throw error;
       }
       // Errores de la base: se loguean sus campos de diagnóstico si vienen

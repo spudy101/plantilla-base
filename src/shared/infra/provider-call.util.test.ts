@@ -17,7 +17,9 @@ import loggerUtilModule from '../observability/logger.util';
 const { logger } = mocked(loggerUtilModule);
 import CircuitBreaker from './circuit-breaker.util';
 import txContext from '../database/transaction-context';
-import { callProvider, isTransientError, CircuitOpenError } from './provider-call.util';
+import { callProvider, CircuitOpenError } from './provider-call.util';
+import { isTransientError, providerFailure } from './provider-errors';
+import AppError from '../http/app-error.util';
 
 const awsError = (name: string, httpStatusCode: number, extra: object = {}) =>
   Object.assign(new Error(name), { name, $metadata: { httpStatusCode }, ...extra });
@@ -37,6 +39,31 @@ describe('isTransientError', () => {
     ['$fault client sin status', Object.assign(new Error('x'), { $fault: 'client' }), false]
   ])('%s → %s', (_label, error, expected) => {
     expect(isTransientError(error)).toBe(expected);
+  });
+});
+
+describe('providerFailure: qué responder cuando falló una llamada a un proveedor', () => {
+  it('un AppError (circuito abierto, o un 4xx de negocio) sale tal cual', () => {
+    const notFound = AppError.notFound('no está');
+    expect(providerFailure(notFound, 'x')).toBe(notFound);
+    const open = new CircuitOpenError('s3', 3000);
+    expect(providerFailure(open, 'x')).toBe(open);
+  });
+
+  it.each([
+    ['5xx del proveedor', awsError('InternalError', 500)],
+    ['throttling', awsError('ThrottlingException', 400)],
+    ['timeout', Object.assign(new Error('t'), { name: 'TimeoutError' })],
+    ['red', Object.assign(new Error('r'), { code: 'ECONNRESET' })]
+  ])('%s → 503 temporal', (_label, error) => {
+    expect(providerFailure(error, 'Error al subir')).toMatchObject({ statusCode: 503, retryable: true, message: 'Error al subir' });
+  });
+
+  it.each([
+    ['4xx: el proveedor rechazó la petición', awsError('AccessDenied', 403)],
+    ['un bug nuestro (no vino del proveedor)', new TypeError('x is undefined')]
+  ])('%s → 500 permanente', (_label, error) => {
+    expect(providerFailure(error, 'Error al subir')).toMatchObject({ statusCode: 500, retryable: false });
   });
 });
 

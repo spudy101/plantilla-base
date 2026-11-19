@@ -18,7 +18,8 @@ const { logger } = loggerUtilModule;
 import unitOfWork from '../../../shared/database/unit-of-work';
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
-const { errorMessage, isOperationalError } = errorMessageModule;
+const { errorMessage } = errorMessageModule;
+import { shouldPropagate } from '../../../shared/http/error-propagation';
 
 
 class InternalUserHelper {
@@ -46,7 +47,7 @@ class InternalUserHelper {
     try {
       return await InternalUserHelper._createInDB({ ...data, authUsername });
     } catch (error) {
-      if (isOperationalError(error)) {
+      if (shouldPropagate(error)) {
         throw error;
       }
       logger.error('createInternalUser — fallo al crear en BD', { error: errorMessage(error) });
