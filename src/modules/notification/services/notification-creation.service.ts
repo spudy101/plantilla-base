@@ -203,7 +203,13 @@ class NotificationCreationService {
     body: string,
     metadata: Record<string, unknown>
   ) {
-    // 1. Crear notificación global
+    // Carga perezosa: el envío masivo importa el módulo iam, que a su vez usa notificaciones.
+    const batchModule = require('./notification-batch.service') as typeof import('./notification-batch.service');
+    const batchService = interopDefault(batchModule);
+
+    // 1. La global, ya reservada para enviarla desde aquí. Si quien llama está en una unidad de trabajo
+    //    (su commit llega después), queda pendiente sin reserva y la toma el despachador.
+    const canSendNow = txContext.activeUnit() === null;
     const globalNotification = await this.globalNotificationRepo.create({
       notificationTypeId: notificationType.notificationTypeId,
       title,
@@ -211,31 +217,13 @@ class NotificationCreationService {
       metadata: metadata as Prisma.InputJsonValue,
       sendPush: notificationType.category?.supportsPush ?? true,
       sendEmail: notificationType.category?.supportsEmail ?? true,
-      sendInApp: true,
-      batchSize: 100,
-      isActive: true
+      ...(canSendNow ? { status: 'processing', lockedUntil: new Date(Date.now() + batchModule.LEASE_MS) } : {})
     });
 
-    // 2. Programar procesamiento masivo en background
-    // FIX: nombre de archivo corregido de notificationBatch.service → notification-batch.service
-    const batchService = interopDefault(require('./notification-batch.service') as typeof import('./notification-batch.service'));
-
-    setImmediate(() => {
-      batchService
-        .procesarNotificacionGlobal(
-          globalNotification.globalNotificationId,
-          notificationType,
-          title,
-          body,
-          metadata
-        )
-        .catch(err => {
-          logger.error('Error procesando notificación global', {
-            error: err.message,
-            globalNotificationId: globalNotification.globalNotificationId
-          });
-        });
-    });
+    // 2. Envío masivo en segundo plano (si se interrumpe, el despachador lo retoma desde el cursor)
+    if (canSendNow) {
+      batchService.sendInBackground({ ...globalNotification, notificationType });
+    }
 
     // 3. Aviso broadcast del contador: la global es una sola fila para todos, así que cada
     // conexión SSE abierta recalcula su propio count al recibir { global: true }.

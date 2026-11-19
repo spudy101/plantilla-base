@@ -1,268 +1,195 @@
-// tests/unit/modules/schemas/notification/services/notification-batch.service.test.ts
-//
-// NotificationBatchService — procesamiento de notificaciones globales por lotes (push + email). Se
-// prueba la orquestación sin tocar Redis/AWS/BD: (1) procesarNotificacionGlobal en camino feliz
-// dispara ambos canales y marca los estados de procesamiento; (2) su rama de error marca los canales
-// como failed; (3) el gating por categoría salta el canal no soportado; (4) enviarPushGlobalPorLotes
-// corta cuando no hay tokens; (5) enviarEmailGlobalPorLotes descifra emails GCM y cuenta
-// éxitos/fallos, y corta cuando no hay usuarios con email; (6) _actualizarEstadoLote refresca el
-// estado en cache. Repos, cache, servicios de envío, rate-limit, user-repo, encryption y logger se
-// mockean. Se usan fake timers para no dejar colgado el setTimeout de limpieza (1h) ni el sleep
-// entre lotes (se mantiene un solo lote por prueba para evitar el sleep).
+// NotificationBatchService — envío masivo de notificaciones globales por páginas de usuarios. Probamos:
+// que avanza página a página guardando el cursor (y retoma desde él), el filtro por preferencia (una
+// consulta por página, y la categoría crítica que la ignora), los contadores de enviados, el cierre
+// (completed / failed sin tipo) y el despachador. Repos, servicios de canal y rate limit se mockean.
 
+jest.mock('../../iam/repositories/user.repository', () => ({ findActivePageByRoleNames: jest.fn() }));
 jest.mock('../repositories/global-notification.repository', () => ({
-  update: jest.fn().mockResolvedValue(undefined),
-  updatePushProcessingStatus: jest.fn().mockResolvedValue(undefined),
-  updateEmailProcessingStatus: jest.fn().mockResolvedValue(undefined),
-  incrementPushSentCount: jest.fn().mockResolvedValue(undefined),
-  incrementEmailSentCount: jest.fn().mockResolvedValue(undefined)
+  claimDue: jest.fn(),
+  recordPage: jest.fn(),
+  finish: jest.fn()
 }));
-
-jest.mock('../repositories/user-notification-preference.repository', () => ({
-  findByUser: jest.fn().mockResolvedValue(null)
-}));
-
-jest.mock('../repositories/user-push-token.repository', () => ({
-  findActiveByUsers: jest.fn().mockResolvedValue([])
-}));
-
-// Redis no disponible → el servicio usa el cache local (cache.util), que es el que controlamos.
-jest.mock('../../../shared/infra/redis.util', () => ({
-  isAvailable: jest.fn().mockReturnValue(false)
-}));
-
-jest.mock('../../../shared/infra/cache.util', () => ({
-  get: jest.fn().mockResolvedValue(null),
-  set: jest.fn().mockResolvedValue(undefined),
-  del: jest.fn().mockResolvedValue(undefined)
-}));
-
-jest.mock('./email-notification.service', () => ({
-  enviarNotificacion: jest.fn().mockResolvedValue(undefined)
-}));
-
-jest.mock('./push-notification.service', () => ({
-  enviarPushMasivo: jest.fn().mockResolvedValue({ success: 0, failed: 0 })
-}));
-
+jest.mock('../repositories/user-notification-preference.repository', () => ({ findByUsers: jest.fn() }));
+jest.mock('../repositories/user-push-token.repository', () => ({ findActiveByUsers: jest.fn() }));
+jest.mock('./email-notification.service', () => ({ enviarNotificacion: jest.fn() }));
+jest.mock('./push-notification.service', () => ({ enviarPushMasivo: jest.fn() }));
 jest.mock('./notification-rate-limit.service', () => ({
   checkSNSRateLimit: jest.fn().mockResolvedValue(undefined),
   checkSESRateLimit: jest.fn().mockResolvedValue(undefined)
 }));
-
-// Requerido de forma perezosa dentro de procesarNotificacionGlobal — igualmente interceptable.
-jest.mock('../../iam/repositories/user.repository', () => ({
-  findActiveUsersByRoleNamesDetailed: jest.fn().mockResolvedValue([])
-}));
-
-// Requerido de forma perezosa dentro de _procesarLoteEmail.
-jest.mock('../../../shared/security/encryption.util', () => ({
-  decrypt: jest.fn(value => `dec(${value})`)
-}));
-
+jest.mock('../../../shared/infra/redis.util', () => ({ isAvailable: jest.fn(() => false) }));
+jest.mock('../../../shared/security/encryption.util', () => ({ safeDecrypt: jest.fn((v: string) => v) }));
 jest.mock('../../../shared/observability/logger.util', () => ({
-  logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }
+  logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn() },
+  logAudit: jest.fn()
 }));
 
-jest.mock('../../../shared/constants', () => ({
-  CLIENT_ROLE_NAMES: ['CLIENTE', 'CLIENTE_VERIFICADO']
-}));
-
-import { mocked, fixture } from 'tests/helpers/mock';
-import globalNotificationRepoModule from '../repositories/global-notification.repository';
-const globalNotificationRepo = mocked(globalNotificationRepoModule);
-import preferenceRepoModule from '../repositories/user-notification-preference.repository';
-const preferenceRepo = mocked(preferenceRepoModule);
-import pushTokenRepoModule from '../repositories/user-push-token.repository';
-const pushTokenRepo = mocked(pushTokenRepoModule);
-import localCacheModule from '../../../shared/infra/cache.util';
-const localCache = mocked(localCacheModule);
+import { mocked, Loose } from 'tests/helpers/mock';
+import userRepoModule from '../../iam/repositories/user.repository';
+const userRepo = mocked(userRepoModule);
+import globalRepoModule from '../repositories/global-notification.repository';
+const globalRepo = mocked(globalRepoModule);
+import prefRepoModule from '../repositories/user-notification-preference.repository';
+const prefRepo = mocked(prefRepoModule);
+import tokenRepoModule from '../repositories/user-push-token.repository';
+const tokenRepo = mocked(tokenRepoModule);
 import emailServiceModule from './email-notification.service';
 const emailService = mocked(emailServiceModule);
 import pushServiceModule from './push-notification.service';
 const pushService = mocked(pushServiceModule);
-import rateLimitServiceModule from './notification-rate-limit.service';
-const rateLimitService = mocked(rateLimitServiceModule);
-import userRepositoryModule from '../../iam/repositories/user.repository';
-const userRepository = mocked(userRepositoryModule);
-import EncryptionUtilModule from '../../../shared/security/encryption.util';
-const EncryptionUtil = mocked(EncryptionUtilModule);
-import loggerUtilModule from '../../../shared/observability/logger.util';
-const { logger } = mocked(loggerUtilModule);
-import service from './notification-batch.service';
+import rateLimitModule from './notification-rate-limit.service';
+const rateLimit = mocked(rateLimitModule);
+import batch, { LEASE_MS } from './notification-batch.service';
 
-const GID = 'g-1';
+const user = (id: string, email: string | null = `${id}@x.cl`): Loose => ({ userId: id, person: { contact: { email } } });
+/** n usuarios u-001, u-002... (orden por user_id) */
+const users = (from: number, n: number) => Array.from({ length: n }, (_, i) => user(`u-${String(from + i).padStart(3, '0')}`));
+const global = (overrides: Loose = {}): Loose => ({
+  globalNotificationId: 'g-1',
+  title: 'Aviso',
+  body: 'Para todos',
+  metadata: { x: 1 },
+  sendPush: true,
+  sendEmail: true,
+  cursorUserId: null,
+  notificationType: { code: 'NOTIFICACION_GENERAL', category: { isCritical: false } },
+  ...overrides
+});
 
-function pushCategoryType(overrides = {}) {
-  return { category: { code: 'CAT', supportsPush: true, supportsEmail: true, ...overrides } };
-}
+beforeEach(() => {
+  jest.clearAllMocks();
+  prefRepo.findByUsers.mockResolvedValue(new Map());
+  tokenRepo.findActiveByUsers.mockResolvedValue([]);
+  pushService.enviarPushMasivo.mockImplementation(async (arns: string[]) => ({ success: arns.length, failed: 0 }));
+  emailService.enviarNotificacion.mockResolvedValue({ MessageId: 'm' });
+});
 
-describe('NotificationBatchService', () => {
-  beforeEach(() => {
-    jest.useFakeTimers();
-    jest.clearAllMocks();
-    preferenceRepo.findByUser.mockResolvedValue(null);
-    pushTokenRepo.findActiveByUsers.mockResolvedValue([]);
-    pushService.enviarPushMasivo.mockResolvedValue({ success: 0, failed: 0 });
-    EncryptionUtil.decrypt.mockImplementation(value => `dec(${value})`);
+describe('send', () => {
+  it('recorre las páginas guardando el cursor y termina en completed', async () => {
+    userRepo.findActivePageByRoleNames.mockResolvedValueOnce(users(1, 100)).mockResolvedValueOnce(users(101, 3));
+
+    await batch.send(global({ sendPush: false }));
+
+    expect(userRepo.findActivePageByRoleNames).toHaveBeenNthCalledWith(1, expect.any(Array), null, 100);
+    expect(userRepo.findActivePageByRoleNames).toHaveBeenNthCalledWith(2, expect.any(Array), 'u-100', 100);
+    // la segunda página vino incompleta: no se pide una tercera
+    expect(userRepo.findActivePageByRoleNames).toHaveBeenCalledTimes(2);
+    expect(globalRepo.recordPage).toHaveBeenNthCalledWith(1, 'g-1', {
+      cursorUserId: 'u-100',
+      pushSent: 0,
+      emailSent: 100,
+      leaseMs: LEASE_MS
+    });
+    expect(globalRepo.recordPage).toHaveBeenNthCalledWith(2, 'g-1', {
+      cursorUserId: 'u-103',
+      pushSent: 0,
+      emailSent: 3,
+      leaseMs: LEASE_MS
+    });
+    expect(globalRepo.finish).toHaveBeenCalledWith('g-1', 'completed');
   });
 
-  afterEach(() => {
-    jest.clearAllTimers();
-    jest.useRealTimers();
+  it('retoma desde el cursor guardado', async () => {
+    userRepo.findActivePageByRoleNames.mockResolvedValue([]);
+
+    await batch.send(global({ cursorUserId: 'u-250' }));
+
+    expect(userRepo.findActivePageByRoleNames).toHaveBeenCalledWith(expect.any(Array), 'u-250', 100);
+    expect(globalRepo.recordPage).not.toHaveBeenCalled();
+    expect(globalRepo.finish).toHaveBeenCalledWith('g-1', 'completed');
   });
 
-  describe('procesarNotificacionGlobal', () => {
-    it('procesa ambos canales, marca estados de procesamiento y guarda el estado de lotes', async () => {
-      const users = [{ userId: 'u-1', person: { contact: { email: 'a@b.cl' } } }];
-      userRepository.findActiveUsersByRoleNamesDetailed.mockResolvedValue(users);
-      pushTokenRepo.findActiveByUsers.mockResolvedValue([{ token: 'arn-1' }]);
-      pushService.enviarPushMasivo.mockResolvedValue({ success: 1, failed: 0 });
+  it('sin tipo no se puede enviar: failed', async () => {
+    await batch.send(global({ notificationType: null }));
 
-      await service.procesarNotificacionGlobal(GID, fixture(pushCategoryType()), 'Título', 'Cuerpo', { x: 1 });
-
-      // Total de usuarios objetivo y arranque del procesamiento.
-      expect(globalNotificationRepo.update).toHaveBeenCalledWith(
-        GID,
-        expect.objectContaining({ totalTargetUsers: 1 })
-      );
-      // Estados push: processing → completed.
-      expect(globalNotificationRepo.updatePushProcessingStatus).toHaveBeenNthCalledWith(1, GID, 'processing');
-      expect(globalNotificationRepo.updatePushProcessingStatus).toHaveBeenNthCalledWith(2, GID, 'completed');
-      expect(pushService.enviarPushMasivo).toHaveBeenCalledWith(['arn-1'], 'Título', 'Cuerpo', { x: 1 });
-      // Estados email: processing → completed y envío del email.
-      expect(globalNotificationRepo.updateEmailProcessingStatus).toHaveBeenNthCalledWith(1, GID, 'processing');
-      expect(globalNotificationRepo.updateEmailProcessingStatus).toHaveBeenNthCalledWith(2, GID, 'completed');
-      expect(emailService.enviarNotificacion).toHaveBeenCalledTimes(1);
-      // Cierre del procesamiento y persistencia del estado de lotes.
-      expect(globalNotificationRepo.update).toHaveBeenCalledWith(
-        GID,
-        expect.objectContaining({ processingCompletedAt: expect.any(Date) })
-      );
-      expect(localCache.set).toHaveBeenCalledWith(
-        `global_notif:${GID}:batch_state`,
-        expect.any(String),
-        expect.any(Number)
-      );
-    });
-
-    it('salta el canal push cuando la categoría no lo soporta', async () => {
-      userRepository.findActiveUsersByRoleNamesDetailed.mockResolvedValue([
-        { userId: 'u-1', person: { contact: { email: 'a@b.cl' } } }
-      ]);
-
-      await service.procesarNotificacionGlobal(GID, fixture(pushCategoryType({ supportsPush: false })), 'T', 'B', {});
-
-      expect(globalNotificationRepo.updatePushProcessingStatus).not.toHaveBeenCalled();
-      expect(pushService.enviarPushMasivo).not.toHaveBeenCalled();
-      // El email sí se procesa.
-      expect(globalNotificationRepo.updateEmailProcessingStatus).toHaveBeenCalled();
-    });
-
-    it('marca ambos canales como failed si el procesamiento lanza (rama catch)', async () => {
-      userRepository.findActiveUsersByRoleNamesDetailed.mockRejectedValue(new Error('db down'));
-
-      await service.procesarNotificacionGlobal(GID, fixture(pushCategoryType()), 'T', 'B', {});
-
-      expect(logger.warn).toHaveBeenCalledWith('Error en procesamiento global', expect.objectContaining({ error: 'db down' }));
-      expect(globalNotificationRepo.update).toHaveBeenCalledWith(
-        GID,
-        expect.objectContaining({ pushProcessingStatus: 'failed', emailProcessingStatus: 'failed' })
-      );
-    });
+    expect(userRepo.findActivePageByRoleNames).not.toHaveBeenCalled();
+    expect(globalRepo.finish).toHaveBeenCalledWith('g-1', 'failed');
   });
 
-  describe('enviarPushGlobalPorLotes', () => {
-    it('corta y avisa cuando no hay tokens activos', async () => {
-      pushTokenRepo.findActiveByUsers.mockResolvedValue([]);
+  it('si una página falla, no la da por enviada ni termina (la retoma el despachador)', async () => {
+    userRepo.findActivePageByRoleNames.mockRejectedValue(new Error('db down'));
 
-      await service.enviarPushGlobalPorLotes(GID, fixture([{ userId: 'u-1' }]), 'T', 'B', {}, localCache);
+    await expect(batch.send(global())).rejects.toThrow('db down');
+    expect(globalRepo.recordPage).not.toHaveBeenCalled();
+    expect(globalRepo.finish).not.toHaveBeenCalled();
+  });
+});
 
-      expect(logger.warn).toHaveBeenCalledWith('No hay tokens activos para push global');
-      expect(pushService.enviarPushMasivo).not.toHaveBeenCalled();
-    });
+describe('sendPage', () => {
+  const cache: Loose = {};
 
-    it('filtra por preferencia y envía el lote a los tokens de los usuarios permitidos', async () => {
-      // u-2 no permite push → se descarta antes de resolver tokens.
-      preferenceRepo.findByUser.mockImplementation((userId: string) =>
-        Promise.resolve(userId === 'u-1' ? null : { allowPush: false })
-      );
-      pushTokenRepo.findActiveByUsers.mockResolvedValue([{ token: 'arn-1' }]);
-      pushService.enviarPushMasivo.mockResolvedValue({ success: 1, failed: 0 });
+  it('filtra por la preferencia de cada usuario, en una sola consulta', async () => {
+    const page = [user('u-1'), user('u-2'), user('u-3', null)];
+    prefRepo.findByUsers.mockResolvedValue(
+      new Map([
+        ['u-1', { allowPush: false, allowEmail: true }],
+        ['u-2', { allowPush: true, allowEmail: false }]
+      ])
+    );
+    tokenRepo.findActiveByUsers.mockResolvedValue([{ token: 'arn-2' }, { token: 'arn-3' }]);
 
-      await service.enviarPushGlobalPorLotes(GID, fixture([{ userId: 'u-1' }, { userId: 'u-2' }]), 'T', 'B', {}, localCache);
+    const result = await batch.sendPage(global(), page, cache);
 
-      expect(pushTokenRepo.findActiveByUsers).toHaveBeenCalledWith(['u-1']);
-      expect(rateLimitService.checkSNSRateLimit).toHaveBeenCalledWith(localCache);
-      expect(pushService.enviarPushMasivo).toHaveBeenCalledWith(['arn-1'], 'T', 'B', {});
-      expect(globalNotificationRepo.incrementPushSentCount).toHaveBeenCalledWith(GID, 1);
-    });
+    expect(prefRepo.findByUsers).toHaveBeenCalledWith(['u-1', 'u-2', 'u-3']);
+    expect(tokenRepo.findActiveByUsers).toHaveBeenCalledWith(['u-2', 'u-3']);
+    expect(pushService.enviarPushMasivo).toHaveBeenCalledWith(['arn-2', 'arn-3'], 'Aviso', 'Para todos', { x: 1 });
+    // u-2 no acepta email y u-3 no tiene: solo u-1
+    expect(emailService.enviarNotificacion).toHaveBeenCalledTimes(1);
+    expect(emailService.enviarNotificacion).toHaveBeenCalledWith(
+      'u-1@x.cl',
+      expect.objectContaining({ code: 'NOTIFICACION_GENERAL' }),
+      { x: 1 }
+    );
+    expect(result).toEqual({ pushSent: 2, emailSent: 1 });
+    expect(rateLimit.checkSNSRateLimit).toHaveBeenCalledTimes(1);
+    expect(rateLimit.checkSESRateLimit).toHaveBeenCalledTimes(1);
   });
 
-  describe('enviarEmailGlobalPorLotes', () => {
-    it('descifra el email en formato GCM y deja el email plano tal cual', async () => {
-      const users = [
-        { userId: 'u-1', person: { contact: { email: 'iv:tag:cipher' } } }, // 3 partes → GCM
-        { userId: 'u-2', person: { contact: { email: 'plano@b.cl' } } }
-      ];
+  it('una categoría crítica ignora la preferencia', async () => {
+    prefRepo.findByUsers.mockResolvedValue(new Map([['u-1', { allowPush: false, allowEmail: false }]]));
 
-      await service.enviarEmailGlobalPorLotes(GID, fixture(users), fixture({ code: 'WELCOME' }), { m: 1 }, localCache);
+    const result = await batch.sendPage(
+      global({ sendPush: false, notificationType: { code: 'X', category: { isCritical: true } } }),
+      [user('u-1')],
+      cache
+    );
 
-      expect(EncryptionUtil.decrypt).toHaveBeenCalledWith('iv:tag:cipher');
-      expect(emailService.enviarNotificacion).toHaveBeenCalledWith('dec(iv:tag:cipher)', { code: 'WELCOME' }, { m: 1 });
-      expect(emailService.enviarNotificacion).toHaveBeenCalledWith('plano@b.cl', { code: 'WELCOME' }, { m: 1 });
-      // 2 enviados con éxito.
-      expect(globalNotificationRepo.incrementEmailSentCount).toHaveBeenCalledWith(GID, 2);
-    });
-
-    it('cuenta como fallido el email cuyo envío rechaza (Promise.allSettled)', async () => {
-      emailService.enviarNotificacion.mockRejectedValueOnce(new Error('SES caído'));
-
-      await service.enviarEmailGlobalPorLotes(
-        GID,
-        fixture([{ userId: 'u-1', person: { contact: { email: 'a@b.cl' } } }]),
-        fixture({ code: 'WELCOME' }),
-        {},
-        localCache
-      );
-
-      expect(logger.warn).toHaveBeenCalledWith('Error enviando email', expect.objectContaining({ error: 'SES caído' }));
-      expect(globalNotificationRepo.incrementEmailSentCount).toHaveBeenCalledWith(GID, 0);
-    });
-
-    it('corta y avisa cuando no hay usuarios con email habilitado', async () => {
-      preferenceRepo.findByUser.mockResolvedValue({ allowEmail: false });
-
-      await service.enviarEmailGlobalPorLotes(
-        GID,
-        fixture([{ userId: 'u-1', person: { contact: { email: 'a@b.cl' } } }]),
-        fixture({ code: 'WELCOME' }),
-        {},
-        localCache
-      );
-
-      expect(logger.warn).toHaveBeenCalledWith('No hay usuarios con email habilitado');
-      expect(emailService.enviarNotificacion).not.toHaveBeenCalled();
-    });
+    expect(result.emailSent).toBe(1);
   });
 
-  describe('_actualizarEstadoLote', () => {
-    it('lee el estado desde cache, suma los procesados y lo vuelve a guardar', async () => {
-      localCache.get.mockResolvedValue(JSON.stringify({ processedUsers: 10, currentBatch: 0 }));
+  it('solo cuenta los emails que salieron (no los rechazados ni las direcciones suprimidas)', async () => {
+    emailService.enviarNotificacion.mockResolvedValueOnce({}).mockResolvedValueOnce(null).mockRejectedValueOnce(new Error('SES'));
 
-      await service._actualizarEstadoLote(localCache, GID, 3, 5);
+    const result = await batch.sendPage(global({ sendPush: false }), [user('u-1'), user('u-2'), user('u-3')], cache);
 
-      const [, savedRaw] = localCache.set.mock.calls[0];
-      const saved = JSON.parse(savedRaw);
-      expect(saved.processedUsers).toBe(15);
-      expect(saved.currentBatch).toBe(3);
-    });
+    expect(result.emailSent).toBe(1);
+  });
 
-    it('no falla si el cache no tiene estado (no llama set)', async () => {
-      localCache.get.mockResolvedValue(null);
+  it('respeta los canales de la global', async () => {
+    const result = await batch.sendPage(global({ sendPush: false, sendEmail: false }), [user('u-1')], cache);
 
-      await expect(service._actualizarEstadoLote(localCache, GID, 1, 5)).resolves.toBeUndefined();
-      expect(localCache.set).not.toHaveBeenCalled();
-    });
+    expect(result).toEqual({ pushSent: 0, emailSent: 0 });
+    expect(tokenRepo.findActiveByUsers).not.toHaveBeenCalled();
+    expect(emailService.enviarNotificacion).not.toHaveBeenCalled();
+  });
+});
+
+describe('dispatchDue', () => {
+  it('sin envíos que retomar no abre la operación', async () => {
+    globalRepo.claimDue.mockResolvedValue([]);
+    const wrap = jest.fn();
+
+    await expect(batch.dispatchDue(wrap)).resolves.toEqual({ resumed: 0 });
+    expect(globalRepo.claimDue).toHaveBeenCalledWith(LEASE_MS);
+    expect(wrap).not.toHaveBeenCalled();
+  });
+
+  it('retoma cada envío tomado', async () => {
+    globalRepo.claimDue.mockResolvedValue([global({ cursorUserId: 'u-100' })]);
+    userRepo.findActivePageByRoleNames.mockResolvedValue([]);
+
+    await expect(batch.dispatchDue()).resolves.toEqual({ resumed: 1 });
+    expect(userRepo.findActivePageByRoleNames).toHaveBeenCalledWith(expect.any(Array), 'u-100', 100);
+    expect(globalRepo.finish).toHaveBeenCalledWith('g-1', 'completed');
   });
 });

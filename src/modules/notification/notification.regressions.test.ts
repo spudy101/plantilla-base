@@ -20,8 +20,6 @@ jest.mock('@aws-sdk/client-sns', () => {
 import { fixture } from 'tests/helpers/mock';
 import pushNotificationServiceModule from './services/push-notification.service';
 const { PushNotificationService } = pushNotificationServiceModule;
-import notificationBatchServiceModule from './services/notification-batch.service';
-const { NotificationBatchService } = notificationBatchServiceModule;
 import notificationCreationServiceModule from './services/notification-creation.service';
 const { NotificationCreationService } = notificationCreationServiceModule;
 
@@ -37,27 +35,6 @@ describe('PushNotificationService.registrarDispositivo', () => {
 
     await expect(service.registrarDispositivo('fcm-token', 'android', 'u-1')).resolves.toBe('arn:aws:sns:endpoint/1');
     expect(mockSend).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('NotificationBatchService._scheduleCacheCleanup', () => {
-  // Antes: cache.del(...).catch(...) con la caché local (síncrona, del() devuelve un número) lanzaba
-  // TypeError dentro del timer → uncaughtException → process.exit(1) en producción.
-  it('tolera una caché síncrona (sin Redis)', async () => {
-    jest.useFakeTimers();
-    try {
-      const syncCache = { get: jest.fn(), set: jest.fn(), del: jest.fn(() => 1) };
-      const service = new NotificationBatchService({});
-
-      service._scheduleCacheCleanup(syncCache, 'g-1');
-      expect(() => jest.runOnlyPendingTimers()).not.toThrow();
-      await Promise.resolve();
-      await Promise.resolve();
-
-      expect(syncCache.del).toHaveBeenCalledWith('global_notif:g-1:batch_state');
-    } finally {
-      jest.useRealTimers();
-    }
   });
 });
 

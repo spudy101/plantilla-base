@@ -16,6 +16,7 @@ import globalNotificationReadRepository from '../../src/modules/notification/rep
 import preferenceRepository from '../../src/modules/notification/repositories/user-notification-preference.repository';
 import verificationCodeRepository from '../../src/modules/notification/repositories/verification-code.repository';
 import emailBounceSuppressionRepository from '../../src/modules/notification/repositories/email-bounce-suppression.repository';
+import userRepository from '../../src/modules/iam/repositories/user.repository';
 
 const TAG = `notif-it-${randomUUID().slice(0, 8)}`;
 const CODE = TAG.toUpperCase().replace(/-/g, '_');
@@ -133,14 +134,8 @@ describe('Notificaciones · Prisma contra Postgres', () => {
     expect(await notificationRepository.markAsReadByIds([n.notificationId])).toBe(0);
   });
 
-  it('global: vigente por defecto (startsAt = ahora), leída una vez aunque se marque dos', async () => {
-    const g = await globalNotificationRepository.create({
-      notificationTypeId: typeId,
-      title: 'G',
-      body: 'B',
-      sendInApp: true,
-      isActive: true
-    });
+  it('global: leída una vez aunque se marque dos', async () => {
+    const g = await globalNotificationRepository.create({ notificationTypeId: typeId, title: 'G', body: 'B', status: 'completed' });
     expect((await globalNotificationRepository.findUnreadByUser(userId)).map(r => r.globalNotificationId)).toContain(
       g.globalNotificationId
     );
@@ -152,12 +147,41 @@ describe('Notificaciones · Prisma contra Postgres', () => {
     expect((await globalNotificationRepository.findUnreadByUser(userId)).map(r => r.globalNotificationId)).not.toContain(
       g.globalNotificationId
     );
+  });
 
-    await globalNotificationRepository.incrementPushSentCount(g.globalNotificationId, 5);
-    await globalNotificationRepository.incrementPushSentCount(g.globalNotificationId, 2);
-    expect(
-      (await prisma.globalNotification.findUnique({ where: { globalNotificationId: g.globalNotificationId } }))?.pushSentCount
-    ).toBe(7);
+  it('global: el despachador la toma una sola vez, guarda el avance y no la retoma terminada', async () => {
+    const g = await globalNotificationRepository.create({ notificationTypeId: typeId, title: 'G2', body: 'B', sendPush: true });
+    const id = g.globalNotificationId;
+
+    // Dos ciclos a la vez: solo uno la toma, con su tipo y categoría
+    const [a, b] = await Promise.all([globalNotificationRepository.claimDue(60_000), globalNotificationRepository.claimDue(60_000)]);
+    const taken = [...a, ...b].filter(x => x.globalNotificationId === id);
+    expect(taken).toHaveLength(1);
+    expect(taken[0]).toMatchObject({ status: 'processing', notificationType: { category: { code: CODE } } });
+    // Reservada: no se vuelve a tomar
+    expect((await globalNotificationRepository.claimDue(60_000)).some(x => x.globalNotificationId === id)).toBe(false);
+
+    await globalNotificationRepository.recordPage(id, { cursorUserId: userId, pushSent: 5, emailSent: 1, leaseMs: 60_000 });
+    await globalNotificationRepository.recordPage(id, { cursorUserId: userId, pushSent: 2, emailSent: 0, leaseMs: 60_000 });
+    expect(await prisma.globalNotification.findUnique({ where: { globalNotificationId: id } })).toMatchObject({
+      cursorUserId: userId,
+      pushSentCount: 7,
+      emailSentCount: 1
+    });
+
+    // Reserva vencida (proceso muerto): se retoma con su cursor
+    await prisma.globalNotification.update({ where: { globalNotificationId: id }, data: { lockedUntil: new Date(Date.now() - 1000) } });
+    expect((await globalNotificationRepository.claimDue(60_000)).find(x => x.globalNotificationId === id)?.cursorUserId).toBe(userId);
+
+    await globalNotificationRepository.finish(id, 'completed');
+    await prisma.globalNotification.update({ where: { globalNotificationId: id }, data: { lockedUntil: new Date(Date.now() - 1000) } });
+    expect((await globalNotificationRepository.claimDue(60_000)).some(x => x.globalNotificationId === id)).toBe(false);
+  });
+
+  it('usuarios por páginas: orden por user_id y a partir del cursor', async () => {
+    const page = await userRepository.findActivePageByRoleNames([TAG], null, 10);
+    expect(page.map(u => u.userId)).toEqual([userId]);
+    expect(await userRepository.findActivePageByRoleNames([TAG], userId, 10)).toEqual([]);
   });
 
   it('código de verificación: rate limit, intentos y verificación', async () => {

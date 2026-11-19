@@ -53,7 +53,8 @@ jest.mock('./email-notification.service', () => ({
 }));
 
 jest.mock('./notification-batch.service', () => ({
-  procesarNotificacionGlobal: jest.fn().mockResolvedValue(undefined)
+  LEASE_MS: 300000,
+  sendInBackground: jest.fn()
 }));
 
 jest.mock('../../../shared/security/encryption.util', () => ({
@@ -237,26 +238,35 @@ describe('NotificationCreationService', () => {
     });
 
     describe('global (userId ausente)', () => {
-      it('crea la notificación global, despacha el batch y devuelve globalNotificationId', async () => {
+      it('crea la global ya reservada, lanza el envío masivo y devuelve globalNotificationId', async () => {
         const type = notificationType({ category: { supportsPush: true, supportsEmail: false } });
         notificationTypeRepo.findByCode.mockResolvedValue(type);
         globalNotificationRepo.create.mockResolvedValue({ globalNotificationId: 'g-1' });
+        const before = Date.now();
 
         const result = await creationService.crearNotificacion({ tipoNotificacion: 'BROADCAST', metadata: { x: 1 } });
 
         expect(globalNotificationRepo.create).toHaveBeenCalledWith(
-          expect.objectContaining({
-            notificationTypeId: 't-1',
-            sendPush: true,
-            sendEmail: false,
-            sendInApp: true
-          })
+          expect.objectContaining({ notificationTypeId: 't-1', sendPush: true, sendEmail: false, status: 'processing' })
         );
+        const { lockedUntil } = globalNotificationRepo.create.mock.calls[0]![0];
+        expect(lockedUntil.getTime()).toBeGreaterThanOrEqual(before + 300000);
+        expect(batchService.sendInBackground).toHaveBeenCalledWith({ globalNotificationId: 'g-1', notificationType: type });
         expect(result).toMatchObject({ estadoSolicitud: 1, globalNotificationId: 'g-1' });
 
         await flush();
-        expect(batchService.procesarNotificacionGlobal).toHaveBeenCalledTimes(1);
         expect(NotificationCountUtil.emitGlobalCountInvalidation).toHaveBeenCalled();
+      });
+
+      it('dentro de la unidad de trabajo de quien llama queda pendiente para el despachador', async () => {
+        notificationTypeRepo.findByCode.mockResolvedValue(notificationType());
+        globalNotificationRepo.create.mockResolvedValue({ globalNotificationId: 'g-2' });
+        txContext.activeUnit.mockReturnValueOnce({} as never);
+
+        await creationService.crearNotificacion({ tipoNotificacion: 'BROADCAST' });
+
+        expect(globalNotificationRepo.create.mock.calls[0]![0]).not.toHaveProperty('lockedUntil');
+        expect(batchService.sendInBackground).not.toHaveBeenCalled();
       });
 
       it('propaga el error si el repositorio global falla', async () => {

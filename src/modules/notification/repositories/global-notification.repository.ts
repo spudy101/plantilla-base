@@ -1,62 +1,91 @@
-// modules/schemas/notification/repositories/global-notification.repository.ts
-//
-// Notificaciones globales (a todos los usuarios): estado del envío masivo por canal y vigencia in-app.
+// Notificaciones globales (para todos los clientes): una fila que todos ven in-app y el avance de su
+// envío masivo por push/email (estado, cursor por user_id, reserva y contadores).
 import PrismaRepository from '../../../shared/database/prisma.repository';
-import type { GlobalNotification, NotificationProcessingStatus, Prisma } from '../../../shared/database/generated/prisma/client';
+import type { GlobalNotification, Prisma } from '../../../shared/database/generated/prisma/client';
 
 const WITH_TYPE = { notificationType: true } satisfies Prisma.GlobalNotificationInclude;
+const WITH_TYPE_AND_CATEGORY = { notificationType: { include: { category: true } } } satisfies Prisma.GlobalNotificationInclude;
 
-/** Activas, visibles in-app y vigentes ahora (empezaron y no terminaron). */
-function activeNow(): Prisma.GlobalNotificationWhereInput {
-  const now = new Date();
-  return {
-    isActive: true,
-    sendInApp: true,
-    startsAt: { lte: now },
-    OR: [{ endsAt: null }, { endsAt: { gt: now } }]
-  };
-}
+export type GlobalNotificationWithType = Prisma.GlobalNotificationGetPayload<{ include: typeof WITH_TYPE_AND_CATEGORY }>;
 
 class GlobalNotificationRepository extends PrismaRepository {
   async create(data: Prisma.GlobalNotificationUncheckedCreateInput): Promise<GlobalNotification> {
-    // starts_at: el DEFAULT now() lo ponía el modelo de Sequelize; el schema de Prisma no lo declara.
-    return (await this.db()).globalNotification.create({ data: { startsAt: new Date(), ...data } });
+    return (await this.db()).globalNotification.create({ data });
   }
 
-  /** null si la fila ya no existe. */
-  async update(globalNotificationId: string, data: Prisma.GlobalNotificationUncheckedUpdateManyInput): Promise<GlobalNotification | null> {
-    const [row] = await (await this.db()).globalNotification.updateManyAndReturn({ where: { globalNotificationId }, data });
-    return row ?? null;
+  /**
+   * Toma los envíos masivos pendientes o a medias cuya reserva venció, y los reserva `leaseMs`. Dos
+   * instancias no toman el mismo: el UPDATE vuelve a evaluar la condición sobre la fila ya bloqueada.
+   * Las fechas van desde JS (como las escribe Prisma), no con now() de la base.
+   */
+  async claimDue(leaseMs: number): Promise<GlobalNotificationWithType[]> {
+    const now = new Date();
+    const db = await this.db();
+    const claimed = await db.globalNotification.updateManyAndReturn({
+      where: { status: { in: ['pending', 'processing'] }, OR: [{ lockedUntil: null }, { lockedUntil: { lte: now } }] },
+      data: { status: 'processing', lockedUntil: new Date(now.getTime() + leaseMs) },
+      select: { globalNotificationId: true }
+    });
+    if (claimed.length === 0) {
+      return [];
+    }
+    return db.globalNotification.findMany({
+      where: { globalNotificationId: { in: claimed.map(c => c.globalNotificationId) } },
+      include: WITH_TYPE_AND_CATEGORY,
+      orderBy: { createdAt: 'asc' }
+    });
   }
 
-  updatePushProcessingStatus(globalNotificationId: string, status: NotificationProcessingStatus) {
-    return this.update(globalNotificationId, { pushProcessingStatus: status });
+  /** Avance de una página: corre el cursor, suma los enviados y renueva la reserva. */
+  recordPage(
+    globalNotificationId: string,
+    { cursorUserId, pushSent, emailSent, leaseMs }: GlobalNotificationRepository.PageProgress
+  ) {
+    return this.update(globalNotificationId, {
+      cursorUserId,
+      pushSentCount: { increment: pushSent },
+      emailSentCount: { increment: emailSent },
+      lockedUntil: new Date(Date.now() + leaseMs)
+    });
   }
 
-  updateEmailProcessingStatus(globalNotificationId: string, status: NotificationProcessingStatus) {
-    return this.update(globalNotificationId, { emailProcessingStatus: status });
+  /** Termina el envío masivo (completed, o failed si no se puede enviar). */
+  finish(globalNotificationId: string, status: 'completed' | 'failed') {
+    return this.update(globalNotificationId, { status, lockedUntil: null });
   }
 
-  incrementPushSentCount(globalNotificationId: string, amount = 1) {
-    return this.update(globalNotificationId, { pushSentCount: { increment: amount } });
-  }
-
-  incrementEmailSentCount(globalNotificationId: string, amount = 1) {
-    return this.update(globalNotificationId, { emailSentCount: { increment: amount } });
-  }
-
-  /** Vigentes para mostrar a los usuarios, más recientes primero, con su tipo. */
+  /** Todas, más recientes primero, con su tipo (la bandeja de todos los usuarios). */
   async findActiveNotifications() {
-    return (await this.db()).globalNotification.findMany({ where: activeNow(), include: WITH_TYPE, orderBy: { createdAt: 'desc' } });
+    return (await this.db()).globalNotification.findMany({ include: WITH_TYPE, orderBy: { createdAt: 'desc' } });
   }
 
-  /** Vigentes que el usuario todavía no leyó, con su tipo. */
+  /** Las que el usuario todavía no leyó, con su tipo. */
   async findUnreadByUser(userId: string) {
     return (await this.db()).globalNotification.findMany({
-      where: { ...activeNow(), globalNotificationReads: { none: { userId } } },
+      where: { globalNotificationReads: { none: { userId } } },
       include: WITH_TYPE,
       orderBy: { createdAt: 'desc' }
     });
+  }
+
+  /** null si la fila ya no existe. */
+  private async update(
+    globalNotificationId: string,
+    data: Prisma.GlobalNotificationUncheckedUpdateManyInput
+  ): Promise<GlobalNotification | null> {
+    const [row] = await (await this.db()).globalNotification.updateManyAndReturn({ where: { globalNotificationId }, data });
+    return row ?? null;
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-namespace
+namespace GlobalNotificationRepository {
+  export interface PageProgress {
+    /** Último user_id de la página enviada. */
+    cursorUserId: string;
+    pushSent: number;
+    emailSent: number;
+    leaseMs: number;
   }
 }
 

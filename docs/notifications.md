@@ -122,7 +122,7 @@ setImmediate(() => {
 ```
 
 - **`tipoNotificacion`** (req): `code` del tipo.
-- **`userId`** (opcional): si `null` → **notificación global** (inserta en `global_notifications`, llega a todos los usuarios activos). Cuidado: es masivo.
+- **`userId`** (opcional): si `null` → **notificación global** (una fila en `global_notifications` que todos ven in-app + envío masivo por push/email a todos los clientes activos; ver "Notificaciones globales"). Cuidado: es masivo.
 - **`relatedEntity`** (opcional): `{ type, id }`. Se persiste en `related_entity_type` / `related_entity_id`. (Algunos casos legacy pasan un string; la forma correcta es el objeto.)
 - **`metadata`** (opcional): valores que reemplazan los `{{placeholders}}` de los templates. Pasar **todas** las variables que usan los templates o saldrán literales.
 
@@ -244,11 +244,29 @@ de `notification_deliveries`:
 > **Pendiente conocido (push).** Un `EndpointDisabled` significa que **ese dispositivo** está dado de baja.
 > Lo correcto es desactivar su token en `user_push_tokens`.
 
+## Notificaciones globales (`global_notifications`)
+
+Una sola fila que todos ven en su bandeja (cada lectura va a `global_notification_reads`) y un **envío
+masivo** por push/email a todos los clientes activos (`CLIENT_ROLE_NAMES`), según `send_push`/`send_email`
+(los canales de la categoría al crearla).
+
+- **Por páginas de 100 usuarios, ordenadas por `user_id`.** Cada página filtra con la preferencia de esos
+  usuarios (una consulta; una categoría crítica la ignora), envía push en tandas de 100 tokens y email en
+  tandas de 50 (con el rate limit de SNS/SES) y guarda el avance en la fila: `cursor_user_id` (último
+  enviado), `push_sent_count`/`email_sent_count` y renueva la reserva `locked_until`.
+- **`status`:** `pending` → `processing` → `completed`; `failed` si no se puede enviar (sin tipo).
+- **Recuperación.** Al crearla queda reservada y se envía en segundo plano. Si el proceso muere, la reserva
+  vence y el despachador la retoma **desde el cursor** (no vuelve a empezar ni queda colgada). Dentro de un
+  `unitOfWork.run()` de quien llama queda `pending` y la envía el despachador tras el commit. Como las
+  entregas individuales, es "al menos una vez": la página en curso al morir se reenvía.
+- No hay vigencia ni segmentación: todas las globales se muestran a todos. Si llegaran a hacer falta, se
+  agregan cuando haya un caso real.
+
 ## Workers — cron jobs (`notification-worker.ts`)
 
 | Cron          | Frecuencia  | Qué hace                                                        |
 | ------------- | ----------- | --------------------------------------------------------------- |
-| `* * * * *`   | cada minuto | despachador: envía las entregas vencidas                         |
+| `* * * * *`   | cada minuto | despachador: entregas vencidas + envíos masivos a retomar        |
 | `0 3 * * *`   | 3 AM diario | limpia notificaciones leídas antiguas (sus entregas en cascada) |
 | `0 4 * * *`   | 4 AM diario | limpia códigos de verificación (OTP) expirados                  |
 

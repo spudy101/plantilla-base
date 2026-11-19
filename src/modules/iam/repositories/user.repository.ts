@@ -154,11 +154,16 @@ class UserRepository extends PrismaRepository {
     });
   }
 
-  /** Usuarios activos cuyo rol está en roleNames, con el perfil básico (broadcast de notificaciones). */
-  async findActiveUsersByRoleNamesDetailed(roleNames: readonly string[]): Promise<UserProfileRow[]> {
+  /**
+   * Una página de usuarios activos cuyo rol está en roleNames, ordenados por user_id y a partir del
+   * siguiente a `afterUserId`, con su contacto (envío masivo de notificaciones globales).
+   */
+  async findActivePageByRoleNames(roleNames: readonly string[], afterUserId: string | null, limit: number) {
     return (await this.db()).user.findMany({
-      where: { isActive: true, role: { name: { in: [...roleNames] } } },
-      include: INCLUDES.basic
+      where: { isActive: true, role: { name: { in: [...roleNames] } }, ...(afterUserId ? { userId: { gt: afterUserId } } : {}) },
+      include: INCLUDES.minimal,
+      orderBy: { userId: 'asc' },
+      take: limit
     });
   }
 

@@ -1,10 +1,12 @@
 // Crons de notificaciones:
 //   * despachador (cada minuto): envía las entregas vencidas — diferidas por horario de silencio,
 //     reintentos, y las que quedaron a medias si el proceso murió. Seguro con varias instancias (cada
-//     entrega la toma una sola, FOR UPDATE SKIP LOCKED).
+//     entrega la toma una sola, FOR UPDATE SKIP LOCKED). En el mismo ciclo retoma los envíos masivos de
+//     notificaciones globales pendientes o interrumpidos, desde su cursor.
 //   * limpiezas diarias (retención de notificaciones leídas y códigos de verificación vencidos).
 import cron from 'node-cron';
 import notificationDeliveryService from '../services/notification-delivery.service';
+import notificationBatchService from '../services/notification-batch.service';
 import notificationCleanupService from '../services/notification-cleanup.service';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
@@ -20,8 +22,12 @@ class NotificationWorker {
         const { attempted } = await notificationDeliveryService.dispatchDue(send =>
           runOperation({ source: 'worker', name: 'notification.dispatch' }, send)
         );
-        if (attempted > 0) {
-          logger.info('Entregas de notificaciones despachadas', { attempted });
+        // Envíos masivos de globales pendientes o interrumpidos: se retoman desde su cursor
+        const { resumed } = await notificationBatchService.dispatchDue(send =>
+          runOperation({ source: 'worker', name: 'notification.global-dispatch' }, send)
+        );
+        if (attempted > 0 || resumed > 0) {
+          logger.info('Notificaciones despachadas', { attempted, resumed });
         }
       } catch (error) {
         // Falló la toma (p. ej. base no disponible): el próximo ciclo lo vuelve a intentar.

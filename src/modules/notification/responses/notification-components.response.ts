@@ -52,10 +52,6 @@ interface GlobalNotificationRow {
   metadata?: unknown;
   sendPush?: Maybe<boolean>;
   sendEmail?: Maybe<boolean>;
-  sendInApp?: Maybe<boolean>;
-  isActive?: Maybe<boolean>;
-  startsAt?: Maybe<DbDate>;
-  endsAt?: Maybe<DbDate>;
   createdAt?: Maybe<DbDate>;
   notificationType?: Maybe<NotificationTypeRow>;
 }
@@ -179,10 +175,6 @@ class GlobalNotificationComponent {
       metadata: MaskingUtil.redactPayload(globalNotification.metadata) || null,
       sendPush: globalNotification.sendPush,
       sendEmail: globalNotification.sendEmail,
-      sendInApp: globalNotification.sendInApp,
-      isActive: globalNotification.isActive,
-      startsAt: globalNotification.startsAt,
-      endsAt: globalNotification.endsAt || null,
       createdAt: globalNotification.createdAt,
       ...(isRead !== null ? { isRead } : {}),
       ...(includeType && globalNotification.notificationType
@@ -251,10 +243,6 @@ export const GlobalNotificationSchema = z.object({
   metadata: maskedMetadata,
   sendPush: z.boolean(),
   sendEmail: z.boolean(),
-  sendInApp: z.boolean(),
-  isActive: z.boolean(),
-  startsAt: dateTime(),
-  endsAt: dateTime().nullable(),
   createdAt: dateTime(),
   isRead: z.boolean().optional().meta({ description: 'Si el usuario actual ya la leyó.' }),
   notificationType: NotificationTypeSchema.optional()

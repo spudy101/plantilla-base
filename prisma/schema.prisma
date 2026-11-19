@@ -272,42 +272,34 @@ model GlobalNotificationRead {
   @@map("global_notification_reads")
 }
 
+/// Notificación para todos los clientes: una fila in-app que todos ven + envío masivo por push/email.
+/// El envío va por páginas de usuarios (orden user_id) y guarda su avance en cursor_user_id: si el proceso
+/// muere, la reserva (locked_until) vence y el despachador lo retoma desde el cursor.
 model GlobalNotification {
-  globalNotificationId    String                        @id(map: "pk_global_notifications") @default(uuid()) @map("global_notification_id") @db.Uuid
-  notificationTypeId      String?                       @map("notification_type_id") @db.Uuid
+  globalNotificationId    String                       @id(map: "pk_global_notifications") @default(uuid()) @map("global_notification_id") @db.Uuid
+  notificationTypeId      String?                      @map("notification_type_id") @db.Uuid
   title                   String
   body                    String
   metadata                Json?
-  sendPush                Boolean?                      @default(false) @map("send_push")
-  sendEmail               Boolean?                      @default(false) @map("send_email")
-  sendInApp               Boolean?                      @default(true) @map("send_in_app")
-  pushProcessingStatus    NotificationProcessingStatus? @default(pending) @map("push_processing_status")
-  emailProcessingStatus   NotificationProcessingStatus? @default(pending) @map("email_processing_status")
-  pushSentCount           Int?                          @default(0) @map("push_sent_count")
-  emailSentCount          Int?                          @default(0) @map("email_sent_count")
-  isActive                Boolean?                      @default(true) @map("is_active")
-  startsAt                DateTime?                     @map("starts_at") @db.Timestamptz(6)
-  endsAt                  DateTime?                     @map("ends_at") @db.Timestamptz(6)
-  targetUserRole          String?                       @map("target_user_role") @db.VarChar(50)
-  targetConditions        Json?                         @map("target_conditions")
-  createdBy               String?                       @map("created_by") @db.Uuid
-  batchSize               Int?                          @default(100) @map("batch_size")
-  processingStartedAt     DateTime?                     @map("processing_started_at") @db.Timestamptz(6)
-  processingCompletedAt   DateTime?                     @map("processing_completed_at") @db.Timestamptz(6)
-  totalTargetUsers        Int?                          @default(0) @map("total_target_users")
-  originSessionId         String?                       @map("origin_session_id") @db.Uuid
-  originCorrelationId     String?                       @map("origin_correlation_id") @db.VarChar(128)
-  createdAt               DateTime                      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt               DateTime                      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sendPush                Boolean                      @default(false) @map("send_push")
+  sendEmail               Boolean                      @default(false) @map("send_email")
+  /// Envío masivo: pending → processing → completed (failed: no se puede enviar, p. ej. sin tipo).
+  status                  NotificationProcessingStatus @default(pending)
+  /// Último user_id ya enviado; la próxima página empieza después de él.
+  cursorUserId            String?                      @map("cursor_user_id") @db.Uuid
+  /// Reserva del envío en curso; vencida, el despachador lo retoma.
+  lockedUntil             DateTime?                    @map("locked_until") @db.Timestamptz(6)
+  pushSentCount           Int                          @default(0) @map("push_sent_count")
+  emailSentCount          Int                          @default(0) @map("email_sent_count")
+  originSessionId         String?                      @map("origin_session_id") @db.Uuid
+  originCorrelationId     String?                      @map("origin_correlation_id") @db.VarChar(128)
+  createdAt               DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(6)
   globalNotificationReads GlobalNotificationRead[]
-  creator                 User?                         @relation(fields: [createdBy], references: [userId], map: "fk_global_notifications_created_by")
-  notificationType        NotificationType?             @relation(fields: [notificationTypeId], references: [notificationTypeId], map: "fk_global_notifications_notification_type_id")
+  notificationType        NotificationType?            @relation(fields: [notificationTypeId], references: [notificationTypeId], map: "fk_global_notifications_notification_type_id")
 
-  @@index([createdBy], map: "idx_global_notifications_created_by")
-  @@index([emailProcessingStatus], map: "idx_global_notifications_email_processing_status")
-  @@index([isActive, startsAt, endsAt], map: "idx_global_notifications_is_active_starts_at_ends_at")
+  @@index([status], map: "idx_global_notifications_status")
   @@index([notificationTypeId], map: "idx_global_notifications_notification_type_id")
-  @@index([pushProcessingStatus], map: "idx_global_notifications_push_processing_status")
   @@index([originSessionId], map: "idx_global_notifications_origin_session_id")
   @@map("global_notifications")
 }
@@ -927,7 +919,6 @@ model User {
   biometricChallenges              BiometricChallenge[]
   emailBounceSuppressions          EmailBounceSuppression[]
   globalNotificationReads          GlobalNotificationRead[]
-  globalNotifications              GlobalNotification[]
   notifications                    Notification[]
   resetCredentials                 ResetCredentials[]
   rolePermissionOverrides          RolePermissionOverride[]
@@ -1041,7 +1032,7 @@ enum EmailBounceSuppressionStatus {
   @@map("enum_email_bounce_suppressions_status")
 }
 
-/// Estado de procesamiento de las notificaciones globales.
+/// Estado del envío masivo de una notificación global (partial_failure ya no se usa).
 enum NotificationProcessingStatus {
   pending
   processing
