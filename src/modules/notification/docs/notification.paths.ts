@@ -1,6 +1,7 @@
 // config/swagger/modules/shared-endpoints/notification/notification.paths.ts
 
 import commonResponses from '../../../config/swagger/responses/common.responses';
+import { NotificationCreatedSchema } from '../responses/notification.response';
 import { jsonBody, toOpenApi, toParameters } from '../../../shared/validation/openapi';
 import { CreateNotificationBody, NotificationListQuery } from '../requests/notification.request';
 import { NotificationMixedItemSchema, UnreadCountSchema } from '../responses/notification.response';
@@ -28,7 +29,8 @@ import { NotificationMixedItemSchema, UnreadCountSchema } from '../responses/not
 const schemas = {
   NotificationCreateRequest: toOpenApi(CreateNotificationBody),
   NotificationMixedItem: toOpenApi(NotificationMixedItemSchema, 'output'),
-  UnreadCountResponse: toOpenApi(UnreadCountSchema, 'output')
+  UnreadCountResponse: toOpenApi(UnreadCountSchema, 'output'),
+  NotificationCreated: toOpenApi(NotificationCreatedSchema, 'output')
 };
 
 // ─── Parámetros de paginación comunes ────────────────────────
@@ -113,7 +115,7 @@ const paths = {
       requestBody: jsonBody('NotificationCreateRequest'),
       responses: {
         201: commonResponses.created(
-          { type: 'object', nullable: true },
+          { $ref: '#/components/schemas/NotificationCreated' },
           'Notificación encolada exitosamente en el worker de notificaciones.'
         ),
         ...commonResponses.BadRequest,

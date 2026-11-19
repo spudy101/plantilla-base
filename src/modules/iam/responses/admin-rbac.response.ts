@@ -148,3 +148,7 @@ export const RolePermissionOverrideSchema = z.object({
 });
 
 export const RolePermissionsListSchema = z.object({ role: z.string(), overrides: z.array(RolePermissionOverrideSchema) });
+
+// Resultado armado en el service (sin función DTO)
+export const PermissionRevokedSchema = z.object({ deleted: z.literal(true), permissionId: z.uuid() });
+export type PermissionRevoked = z.infer<typeof PermissionRevokedSchema>;

@@ -12,6 +12,7 @@ const { logger } = loggerUtilModule;
 import constantsModule from '../../../../shared/constants';
 const { SECURITY } = constantsModule;
 import auditModule from '../../../audit';
+import type { OtherSessionsClosed, SessionClosed } from '../../responses/auth-login.response';
 const { audit } = auditModule;
 
 class SessionControlService {
@@ -70,7 +71,7 @@ class SessionControlService {
       entityTable: 'user_sessions'
     });
 
-    return { sessionId, status: 'closed' };
+    return { sessionId, status: 'closed' } satisfies SessionClosed;
   }
 
   // [RF-AUTH-02] | CA-02 | Cierra todas las sesiones salvo la actual
@@ -80,7 +81,7 @@ class SessionControlService {
     const others = await this.userSessionRepository.findActiveByUserExcept(userId, currentSessionId);
 
     if (others.length === 0) {
-      return { closedCount: 0 };
+      return { closedCount: 0 } satisfies OtherSessionsClosed;
     }
 
     await this.userSessionRepository.closeAllByUserExcept(userId, currentSessionId, 'logout_others');
@@ -111,7 +112,7 @@ class SessionControlService {
       entityTable: 'users'
     });
 
-    return { closedCount: others.length };
+    return { closedCount: others.length } satisfies OtherSessionsClosed;
   }
 
   // ============================================================

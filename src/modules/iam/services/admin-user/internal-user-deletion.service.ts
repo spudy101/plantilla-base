@@ -20,6 +20,7 @@ const { notifications } = constantsModule;
 import internalUserGuardsModule from './internal-user-guards';
 const { InternalUserGuards } = internalUserGuardsModule;
 import auditModule from '../../../audit';
+import type { InternalUserDeleted } from '../../responses/admin-user.response';
 const { audit } = auditModule;
 
 class InternalUserDeletionService {
@@ -68,7 +69,7 @@ class InternalUserDeletionService {
     }
 
     await this.executeDeleteUser(userId, auditCtx);
-    return { userId, deleted: true };
+    return { userId, deleted: true } satisfies InternalUserDeleted;
   }
 
   /**

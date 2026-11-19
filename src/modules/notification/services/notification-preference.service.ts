@@ -7,6 +7,7 @@ const { UpdatePreferenceResponseDTO, CategoryPreferencesViewDTO } = notification
 import componentsNotificationDtoModule from '../responses/notification-components.response';
 const { UserNotificationPreferenceComponent } = componentsNotificationDtoModule;
 import auditModule from '../../audit';
+import type { PreferenceDeleted } from '../responses/notification-preference.response';
 const { audit } = auditModule;
 
 /** Extrae del body solo las keys de preferencia presentes (undefined => no se toca). */
@@ -110,7 +111,7 @@ class NotificationPreferenceService {
       entityTable: 'user_notification_preferences'
     });
 
-    return { notificationCategoryCode: categoryCode };
+    return { notificationCategoryCode: categoryCode } satisfies PreferenceDeleted;
   }
 
   /**

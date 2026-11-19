@@ -99,11 +99,9 @@ export const CategoryPreferenceViewSchema = NotificationCategorySchema.extend({
   isSilenceable: z.boolean().meta({ description: 'true si el usuario puede silenciarla (allowDnd y no crítica).' }),
   preference: z
     .object({
-      source: z
-        .enum(['category', 'global', 'default'])
-        .meta({
-          description: 'Origen de la preferencia efectiva: ajuste de la categoría, preferencia global o valor por defecto.'
-        }),
+      source: z.enum(['category', 'global', 'default']).meta({
+        description: 'Origen de la preferencia efectiva: ajuste de la categoría, preferencia global o valor por defecto.'
+      }),
       allowPush: z.boolean(),
       allowEmail: z.boolean(),
       allowSms: z.boolean(),
@@ -114,3 +112,4 @@ export const CategoryPreferenceViewSchema = NotificationCategorySchema.extend({
 });
 
 export const PreferenceDeletedSchema = z.object({ notificationCategoryCode: z.string() });
+export type PreferenceDeleted = z.infer<typeof PreferenceDeletedSchema>;
