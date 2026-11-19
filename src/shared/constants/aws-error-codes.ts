@@ -1,7 +1,7 @@
 // CAMBIO 6 — Clasificación canónica de códigos de error del AWS SDK v3 para reintentos.
 //
-// El worker de reintentos de notificaciones lee el error_code (error.name del SDK, vía
-// awsErrorCode) del último intento en integration_api_logs y decide:
+// El worker de reintentos de notificaciones lee el código del proveedor (error.name del SDK, vía
+// awsErrorCode) que el envío guardó en la notificación (email_error_code / push_error_code) y decide:
 //   - hard bounce → NO reintentar, cerrar (markEmail/PushPermanentFailure)
 //   - temporal / desconocido → reintentar normalmente (default seguro: ante duda, reintenta)
 //

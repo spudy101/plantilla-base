@@ -5,8 +5,6 @@
 import { fixture } from 'tests/helpers/mock';
 import componentsApprovalDtoModule from '../../../src/modules/approvals/responses/approval-components.response';
 const { ApprovalRequestComponent } = componentsApprovalDtoModule;
-import integrationMonitoringDtoModule from '../../../src/modules/integration/responses/integration-monitoring.response';
-const { IntegrationLogListItemDTO } = integrationMonitoringDtoModule;
 import adminAuditContextUtilModule from '../../../src/modules/audit/utils/admin-audit-context.util';
 const { adminAuditContext } = adminAuditContextUtilModule;
 import PaginationHelper from '../../../src/shared/http/pagination.util';
@@ -22,10 +20,6 @@ describe('Timestamps de modelos underscored', () => {
     expect(dto?.createdAt).toBe(createdAt);
     expect(dto?.updatedAt).toBe(updatedAt);
     expect(ApprovalRequestComponent.buildList({ approvalRequestId: 'ar-1', operationKey: 'X', status: 'pending', createdAt })?.createdAt).toBe(createdAt);
-  });
-
-  it('IntegrationLogListItemDTO devuelve la fecha de la llamada', () => {
-    expect(IntegrationLogListItemDTO(fixture({ apiLogId: 'l-1', product: 'ses', createdAt })).createdAt).toBe(createdAt);
   });
 });
 

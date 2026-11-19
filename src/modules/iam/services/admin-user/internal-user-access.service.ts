@@ -23,6 +23,7 @@ const { InternalUserDTO } = adminUserDtoModule;
 import internalUserGuardsModule from './internal-user-guards';
 const { InternalUserGuards, displayName } = internalUserGuardsModule;
 import auditModule from '../../../audit';
+import type { InternalUserSessionsClosed } from '../../responses/admin-user.response';
 const { audit } = auditModule;
 
 const ENTITY = { entityType: 'InternalUser', entityTable: 'users' };
@@ -231,7 +232,7 @@ class InternalUserAccessService {
         metadata: { nombre }
       }).catch(err => logger.warn('Error enviando IAM_INTERNAL_USER_SESSIONS_CLOSED', { error: err.message }));
     });
-    return { userId, closed: true };
+    return { userId, closed: true } satisfies InternalUserSessionsClosed;
   }
 }
 

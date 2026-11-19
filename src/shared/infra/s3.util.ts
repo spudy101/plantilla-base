@@ -27,13 +27,12 @@ const { logger } = loggerUtilModule;
 import AppError from '../http/app-error.util';
 import constantsModule from '../constants';
 const { aws } = constantsModule;
-import CircuitBreaker from './circuit-breaker.util';
-import ProviderApiLogger from '../observability/integration-api-logger.util';
-import awsProviderMetaUtilModule from './aws-provider-meta.util';
-const { resolveAwsGate, awsErrorCode } = awsProviderMetaUtilModule;
+import { callProvider, AWS_CLIENT_OPTIONS } from './provider-call.util';
+import { providerFailure } from './provider-errors';
 import errorMessageModule from '../utils/error-message.util';
 
-const { errorMessage, errorName, isOperationalError } = errorMessageModule;
+const { errorMessage, errorName } = errorMessageModule;
+import { shouldPropagate } from '../http/error-propagation';
 
 
 const DEFAULT_PRESIGNED_EXPIRES = 3600; // 1 hora — documentos normales
@@ -59,9 +58,14 @@ class S3Util {
 
   static get s3Client() {
     if (!this._s3Client) {
-      this._s3Client = new S3Client({ region: aws.region });
+      this._s3Client = new S3Client({ ...AWS_CLIENT_OPTIONS, region: aws.region });
     }
     return this._s3Client;
+  }
+
+  /** Toda llamada de red a S3 pasa por acá: circuit breaker, reintentos, timeout y log (callProvider). */
+  private static call<T>(endpoint: string, run: (client: InstanceType<typeof S3Client>, abortSignal: AbortSignal) => Promise<T>): Promise<T> {
+    return callProvider({ product: 's3', endpoint }, abortSignal => run(S3Util.s3Client, abortSignal));
   }
 
   /** Bucket PRIVADO — datos de usuarios */
@@ -142,7 +146,7 @@ class S3Util {
       throw AppError.badRequest('S3 key requerida para descargar el documento');
     }
     try {
-      const response = await S3Util.s3Client.send(new GetObjectCommand({ Bucket: S3Util.bucketName, Key: key }));
+      const response = await S3Util.call('S3:GetObject', (c, abortSignal) => c.send(new GetObjectCommand({ Bucket: S3Util.bucketName, Key: key }), { abortSignal }));
       if (!response.Body) {
         throw AppError.notFound('Archivo no encontrado en S3');
       }
@@ -153,7 +157,7 @@ class S3Util {
       if (errorName(error) === 'NoSuchKey' || errorName(error) === 'NotFound') {
         throw AppError.notFound('Archivo no encontrado en S3');
       }
-      throw AppError.internal('Error al descargar el documento');
+      throw providerFailure(error, 'Error al descargar el documento');
     }
   }
 
@@ -176,11 +180,6 @@ class S3Util {
         throw AppError.badRequest('No se proporcionó ninguna imagen');
       }
 
-      const allowed = await CircuitBreaker.canCall('s3');
-      if (!allowed) {
-        throw AppError.internal('Servicio de almacenamiento no disponible temporalmente (circuit breaker abierto)');
-      }
-
       let buffer = imageBuffer;
       if (typeof imageBuffer === 'string' && imageBuffer.includes('base64')) {
         const base64Data = imageBuffer.split(',')[1] || imageBuffer;
@@ -195,40 +194,9 @@ class S3Util {
         .toBuffer();
 
       const s3Key = `archivos_empresas/${folder}/${uuidv4()}.${format}`;
-      const { integrationId, unitCost } = await resolveAwsGate('aws_s3');
-      const startTime = Date.now();
-
-      try {
-        await S3Util.s3Client.send(
-          new PutObjectCommand({
-            Bucket: S3Util.bucketName,
-            Key: s3Key,
-            Body: compressedBuffer,
-            ContentType: `image/${format}`
-          })
-        );
-        await CircuitBreaker.recordSuccess('s3');
-        ProviderApiLogger.log({
-          product: 's3',
-          endpoint: `s3://${S3Util.bucketName}`,
-          result: 'success',
-          responseTimeMs: Date.now() - startTime,
-          integrationId,
-          unitCost
-        });
-      } catch (s3Error) {
-        await CircuitBreaker.recordFailure('s3');
-        ProviderApiLogger.log({
-          product: 's3',
-          endpoint: `s3://${S3Util.bucketName}`,
-          result: 'failed',
-          responseTimeMs: Date.now() - startTime,
-          integrationId,
-          errorCode: awsErrorCode(s3Error),
-          errorMessage: errorMessage(s3Error)
-        });
-        throw s3Error;
-      }
+      await S3Util.call('S3:PutObject', (c, abortSignal) =>
+        c.send(new PutObjectCommand({ Bucket: S3Util.bucketName, Key: s3Key, Body: compressedBuffer, ContentType: `image/${format}` }), { abortSignal })
+      );
 
       logger.info('Imagen subida a S3 privado', {
         s3Key,
@@ -240,13 +208,13 @@ class S3Util {
       return s3Key;
     } catch (error) {
       logger.error('Error subiendo imagen a S3', { error: errorMessage(error), folder });
-      if (isOperationalError(error)) {
+      if (shouldPropagate(error)) {
         throw error;
       }
       if (errorMessage(error)?.includes('Input buffer') || errorMessage(error)?.includes('unsupported')) {
         throw AppError.badRequest('Formato de imagen no válido');
       }
-      throw AppError.internal('Error al subir la imagen');
+      throw providerFailure(error, 'Error al subir la imagen');
     }
   }
 
@@ -269,11 +237,6 @@ class S3Util {
         throw AppError.badRequest('Nombre de archivo requerido');
       }
 
-      const allowed = await CircuitBreaker.canCall('s3');
-      if (!allowed) {
-        throw AppError.internal('Servicio de almacenamiento no disponible temporalmente (circuit breaker abierto)');
-      }
-
       let buffer = fileBuffer;
       if (typeof fileBuffer === 'string' && fileBuffer.includes('base64')) {
         const base64Data = fileBuffer.split(',')[1] || fileBuffer;
@@ -282,40 +245,9 @@ class S3Util {
 
       const extension = fileName.split('.').pop();
       const s3Key = `archivos_empresas/${folder}/${uuidv4()}.${extension}`;
-      const { integrationId, unitCost } = await resolveAwsGate('aws_s3');
-      const startTime = Date.now();
-
-      try {
-        await S3Util.s3Client.send(
-          new PutObjectCommand({
-            Bucket: S3Util.bucketName,
-            Key: s3Key,
-            Body: buffer,
-            ContentType: contentType
-          })
-        );
-        await CircuitBreaker.recordSuccess('s3');
-        ProviderApiLogger.log({
-          product: 's3',
-          endpoint: `s3://${S3Util.bucketName}`,
-          result: 'success',
-          responseTimeMs: Date.now() - startTime,
-          integrationId,
-          unitCost
-        });
-      } catch (s3Error) {
-        await CircuitBreaker.recordFailure('s3');
-        ProviderApiLogger.log({
-          product: 's3',
-          endpoint: `s3://${S3Util.bucketName}`,
-          result: 'failed',
-          responseTimeMs: Date.now() - startTime,
-          integrationId,
-          errorCode: awsErrorCode(s3Error),
-          errorMessage: errorMessage(s3Error)
-        });
-        throw s3Error;
-      }
+      await S3Util.call('S3:PutObject', (c, abortSignal) =>
+        c.send(new PutObjectCommand({ Bucket: S3Util.bucketName, Key: s3Key, Body: buffer, ContentType: contentType }), { abortSignal })
+      );
 
       logger.info('Documento subido a S3 privado', {
         s3Key,
@@ -327,10 +259,10 @@ class S3Util {
       return s3Key;
     } catch (error) {
       logger.error('Error subiendo documento a S3', { error: errorMessage(error), fileName, folder });
-      if (isOperationalError(error)) {
+      if (shouldPropagate(error)) {
         throw error;
       }
-      throw AppError.internal('Error al subir el documento');
+      throw providerFailure(error, 'Error al subir el documento');
     }
   }
 
@@ -363,14 +295,11 @@ class S3Util {
    * así el que la llama puede reintentar sin duplicar.
    */
   static async uploadArchive(s3Key: string, body: string, contentType = 'application/x-ndjson'): Promise<void> {
-    await S3Util.s3Client.send(
-      new PutObjectCommand({
-        Bucket: S3Util.bucketName,
-        Key: s3Key,
-        Body: Buffer.from(body),
-        ContentType: contentType,
-        StorageClass: 'STANDARD_IA'
-      })
+    await S3Util.call('S3:PutObject', (c, abortSignal) =>
+      c.send(
+        new PutObjectCommand({ Bucket: S3Util.bucketName, Key: s3Key, Body: Buffer.from(body), ContentType: contentType, StorageClass: 'STANDARD_IA' }),
+        { abortSignal }
+      )
     );
   }
 
@@ -383,13 +312,8 @@ class S3Util {
         throw AppError.badRequest('S3 key de destino requerida');
       }
 
-      await S3Util.s3Client.send(
-        new PutObjectCommand({
-          Bucket: S3Util.publicBucketName,
-          Key: s3Key,
-          Body: fileBuffer,
-          ContentType: contentType
-        })
+      await S3Util.call('S3:PutObject', (c, abortSignal) =>
+        c.send(new PutObjectCommand({ Bucket: S3Util.publicBucketName, Key: s3Key, Body: fileBuffer, ContentType: contentType }), { abortSignal })
       );
 
       // Construir URL pública via CloudFront
@@ -406,10 +330,10 @@ class S3Util {
       return publicUrl;
     } catch (error) {
       logger.error('Error subiendo documento público a S3', { error: errorMessage(error), s3Key });
-      if (isOperationalError(error)) {
+      if (shouldPropagate(error)) {
         throw error;
       }
-      throw AppError.internal('Error al subir el documento público');
+      throw providerFailure(error, 'Error al subir el documento público');
     }
   }
 
@@ -480,24 +404,19 @@ class S3Util {
         throw AppError.badRequest('S3 key requerida');
       }
 
-      await S3Util.s3Client.send(
-        new DeleteObjectCommand({
-          Bucket: S3Util.bucketName,
-          Key: s3Key
-        })
-      );
+      await S3Util.call('S3:DeleteObject', (c, abortSignal) => c.send(new DeleteObjectCommand({ Bucket: S3Util.bucketName, Key: s3Key }), { abortSignal }));
 
       logger.info('Archivo eliminado de S3 privado', { s3Key });
       return true;
     } catch (error) {
       logger.error('Error eliminando archivo de S3', { error: errorMessage(error), s3Key });
-      if (isOperationalError(error)) {
+      if (shouldPropagate(error)) {
         throw error;
       }
       if (errorName(error) === 'NoSuchKey') {
         throw AppError.notFound('Archivo no encontrado');
       }
-      throw AppError.internal('Error al eliminar el archivo');
+      throw providerFailure(error, 'Error al eliminar el archivo');
     }
   }
 
@@ -511,24 +430,19 @@ class S3Util {
         throw AppError.badRequest('S3 key requerida');
       }
 
-      await S3Util.s3Client.send(
-        new DeleteObjectCommand({
-          Bucket: S3Util.publicBucketName,
-          Key: s3Key
-        })
-      );
+      await S3Util.call('S3:DeleteObject', (c, abortSignal) => c.send(new DeleteObjectCommand({ Bucket: S3Util.publicBucketName, Key: s3Key }), { abortSignal }));
 
       logger.info('Archivo eliminado de S3 público', { s3Key });
       return true;
     } catch (error) {
       logger.error('Error eliminando archivo público de S3', { error: errorMessage(error), s3Key });
-      if (isOperationalError(error)) {
+      if (shouldPropagate(error)) {
         throw error;
       }
       if (errorName(error) === 'NoSuchKey') {
         throw AppError.notFound('Archivo no encontrado');
       }
-      throw AppError.internal('Error al eliminar el archivo público');
+      throw providerFailure(error, 'Error al eliminar el archivo público');
     }
   }
 
@@ -563,7 +477,7 @@ class S3Util {
       if (!s3Key) {
         return false;
       }
-      await S3Util.s3Client.send(new HeadObjectCommand({ Bucket: S3Util.bucketName, Key: s3Key }));
+      await S3Util.call('S3:HeadObject', (c, abortSignal) => c.send(new HeadObjectCommand({ Bucket: S3Util.bucketName, Key: s3Key }), { abortSignal }));
       return true;
     } catch (error) {
       if (errorName(error) === 'NotFound' || errorName(error) === 'NoSuchKey') {

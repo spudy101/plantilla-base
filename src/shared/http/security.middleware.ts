@@ -91,7 +91,19 @@ class SecurityMiddleware {
         'x-id-token',
         'x-client-type'
       ],
-      exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Limit', 'X-Correlation-Id'],
+      // Retry-After / RateLimit-*: el front necesita leerlos para reintentar bien (sin exponerlos, el
+      // navegador los oculta en respuestas cross-origin). Idempotent-Replayed: la respuesta es la guardada.
+      exposedHeaders: [
+        'X-Total-Count',
+        'X-Page',
+        'X-Limit',
+        'X-Correlation-Id',
+        'Retry-After',
+        'RateLimit-Limit',
+        'RateLimit-Remaining',
+        'RateLimit-Reset',
+        'Idempotent-Replayed'
+      ],
       maxAge: 86400 // 24 horas — preflight cacheado en el browser
     });
   }

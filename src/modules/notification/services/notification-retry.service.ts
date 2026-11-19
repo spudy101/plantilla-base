@@ -1,8 +1,6 @@
 import type { Notification } from '../../../shared/database/generated/prisma/client';
 import notificationRepo from '../repositories/notification.repository';
 import notificationTypeRepo from '../repositories/notification-type.repository';
-import integrationModule from '../../integration';
-const { integrationApiLogRepository: integrationApiLogRepo } = integrationModule;
 import notificationSendingService from './notification-sending.service';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
@@ -13,15 +11,18 @@ import errorMessageModule from '../../../shared/utils/error-message.util';
 const { errorMessage } = errorMessageModule;
 
 
-// El producto de integración bajo el que cada canal registra su envío en integration_api_logs.
-// SMS no está mapeado a propósito: no hay clasificación de hard bounce para SMS (SNS no expone un
-// código terminal equivalente), así que reintenta hasta agotar el tope como cualquier fallo temporal.
-const CHANNEL_PRODUCT: Record<string, 'ses' | 'sns' | undefined> = { email: 'ses', push: 'sns' };
+// Código del proveedor del último fallo de cada canal, guardado en la notificación al fallar el envío.
+// SMS no tiene a propósito: no hay clasificación de hard bounce para SMS (SNS no expone un código
+// terminal equivalente), así que reintenta hasta agotar el tope como cualquier fallo temporal.
+type ErrorCodes = Pick<Notification, 'notificationId' | 'emailErrorCode' | 'pushErrorCode'>;
+const LAST_ERROR_CODE: Record<string, ((n: ErrorCodes) => string | null) | undefined> = {
+  email: n => n.emailErrorCode,
+  push: n => n.pushErrorCode
+};
 
 class NotificationRetryService {
   notificationRepo: typeof notificationRepo;
   notificationTypeRepo: typeof notificationTypeRepo;
-  integrationApiLogRepo: typeof integrationApiLogRepo;
   notificationSendingService: typeof notificationSendingService;
 
   /**
@@ -33,31 +34,25 @@ class NotificationRetryService {
   constructor(deps: NotificationRetryService.Deps = {}) {
     this.notificationRepo = deps.notificationRepo ?? notificationRepo;
     this.notificationTypeRepo = deps.notificationTypeRepo ?? notificationTypeRepo;
-    this.integrationApiLogRepo = deps.integrationApiLogRepo ?? integrationApiLogRepo;
     this.notificationSendingService = deps.notificationSendingService ?? notificationSendingService;
   }
 
   /**
    * Decide si un canal fallido es un hard bounce (buzón/endpoint muerto) y, de serlo, lo cierra.
-   * Lee el error_code del ÚLTIMO intento de esa notificación en integration_api_logs (correlacionado
-   * por notification_id + product) y lo clasifica con isHardBounce(). Al cerrar deja *_error seteado
+   * Lee el código del proveedor del último fallo, guardado en la notificación (email_error_code /
+   * push_error_code), y lo clasifica con isHardBounce(). Al cerrar deja *_error seteado
    * y *_next_retry_at = null (señal canónica que hace que findPending*Retries deje de seleccionarlo y
    * que el reenvío manual del admin también lo rechace). Devuelve true si cerró el canal.
    * @private
    */
   // eslint-disable-next-line class-methods-use-this
-  async _esHardBounceYCerrar(notification: Pick<Notification, 'notificationId'>, channel: string) {
-    const product = CHANNEL_PRODUCT[channel];
-    if (!product) {
+  async _esHardBounceYCerrar(notification: ErrorCodes, channel: string) {
+    const errorCode = LAST_ERROR_CODE[channel]?.(notification) ?? null;
+    if (!errorCode || !isHardBounce(channel, errorCode)) {
       return false;
     }
 
-    const lastLog = await this.integrationApiLogRepo.findLatestByNotification(notification.notificationId, product);
-    if (!lastLog || !isHardBounce(channel, lastLog.errorCode)) {
-      return false;
-    }
-
-    const reason = `hard_bounce:${lastLog.errorCode}`;
+    const reason = `hard_bounce:${errorCode}`;
     if (channel === 'email') {
       await this.notificationRepo.markEmailPermanentFailure(notification.notificationId, reason);
     } else {
@@ -67,7 +62,7 @@ class NotificationRetryService {
     logger.info('Canal cerrado por hard bounce', {
       notificationId: notification.notificationId,
       channel,
-      errorCode: lastLog.errorCode
+      errorCode
     });
     return true;
   }
@@ -179,7 +174,6 @@ namespace NotificationRetryService {
   export interface Deps {
     notificationRepo?: typeof notificationRepo;
     notificationTypeRepo?: typeof notificationTypeRepo;
-    integrationApiLogRepo?: typeof integrationApiLogRepo;
     notificationSendingService?: typeof notificationSendingService;
   }
 }

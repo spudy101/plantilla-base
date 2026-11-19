@@ -1,6 +1,7 @@
 // config/swagger/modules/admin/kyc/iam/admin-user.paths.ts
 
 import commonResponses from '../../../config/swagger/responses/common.responses';
+import { InternalUserDeletedSchema, InternalUserSessionsClosedSchema } from '../responses/admin-user.response';
 import { jsonBody, toOpenApi, toParameters } from '../../../shared/validation/openapi';
 import {
   ChangeInternalRoleBody,
@@ -58,12 +59,14 @@ const schemas = {
   InternalUser: toOpenApi(InternalUserSchema, 'output'),
   InternalUserListItem: toOpenApi(InternalUserListItemSchema, 'output'),
   InternalUserCreated: toOpenApi(InternalUserCreatedSchema, 'output'),
-  InternalRoleOption: toOpenApi(RoleOptionSchema, 'output'),
+  RoleOption: toOpenApi(RoleOptionSchema, 'output'),
   CreateInternalUserRequest: toOpenApi(CreateInternalUserBody),
   UpdateInternalUserRequest: toOpenApi(UpdateInternalUserBody),
   ChangeInternalRoleRequest: toOpenApi(ChangeInternalRoleBody),
   ChangeInternalStatusRequest: toOpenApi(ChangeStatusBody),
-  DeleteInternalUserRequest: toOpenApi(DeleteInternalUserBody)
+  DeleteInternalUserRequest: toOpenApi(DeleteInternalUserBody),
+  InternalUserDeleted: toOpenApi(InternalUserDeletedSchema, 'output'),
+  InternalUserSessionsClosed: toOpenApi(InternalUserSessionsClosedSchema, 'output')
 };
 
 // ─── Parámetros comunes ────────────────────────────────────────
@@ -129,14 +132,14 @@ La contraseña temporal generada **solo se devuelve en esta respuesta** — no s
     get: {
       tags: ['Admin - Usuarios Internos'],
       summary: 'Catálogo de roles internos (para filtro del listado)',
-      operationId: 'adminListInternalRoleOptions',
+      operationId: 'adminListRoleOptions',
       description: `Devuelve los roles **internos** disponibles para poblar el filtro por rol del listado de
 usuarios internos. Excluye roles de cliente y roles de **superadministrador** — son los mismos roles que
 acepta el filtro \`roleId\` de \`GET /users\`. Pensado para el dropdown del front, no es la matriz RBAC completa.`,
       security: adminSecurity,
       responses: {
         200: commonResponses.ok(
-          { type: 'array', items: { $ref: '#/components/schemas/InternalRoleOption' } },
+          { type: 'array', items: { $ref: '#/components/schemas/RoleOption' } },
           'Roles internos obtenidos exitosamente'
         ),
         ...commonResponses.Unauthorized,
@@ -294,16 +297,7 @@ Un **superadministrador** (\`SUPERADMIN\`) no se puede eliminar (**403**). Una c
       parameters: toParameters(InternalUserIdParams, 'path'),
       requestBody: jsonBody('DeleteInternalUserRequest'),
       responses: {
-        200: commonResponses.ok(
-          {
-            type: 'object',
-            properties: {
-              userId: { type: 'string', format: 'uuid' },
-              deleted: { type: 'boolean', example: true }
-            }
-          },
-          'Usuario interno eliminado exitosamente'
-        ),
+        200: commonResponses.ok({ $ref: '#/components/schemas/InternalUserDeleted' }, 'Usuario interno eliminado exitosamente'),
         202: commonResponses.accepted(
           { $ref: '#/components/schemas/ApprovalRequest' },
           'Eliminación pendiente de segunda aprobación (doble aprobación global). La cuenta NO se elimina hasta que se resuelva.'
@@ -349,16 +343,7 @@ Un **superadministrador** (\`SUPERADMIN\`) no se puede eliminar (**403**). Una c
       security: adminSecurity,
       parameters: toParameters(InternalUserIdParams, 'path'),
       responses: {
-        200: commonResponses.ok(
-          {
-            type: 'object',
-            properties: {
-              userId: { type: 'string', format: 'uuid' },
-              closed: { type: 'boolean', example: true }
-            }
-          },
-          'Sesiones cerradas exitosamente'
-        ),
+        200: commonResponses.ok({ $ref: '#/components/schemas/InternalUserSessionsClosed' }, 'Sesiones cerradas exitosamente'),
         ...commonResponses.Unauthorized,
         ...commonResponses.Forbidden,
         ...commonResponses.NotFound,

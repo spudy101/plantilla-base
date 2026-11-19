@@ -12,7 +12,7 @@ const { requireAuthUser } = authUserUtil;
 import loggerUtilModule from '../observability/logger.util';
 const { logger } = loggerUtilModule;
 import constantsModule from '../constants';
-const { TTL } = constantsModule;
+const { TTL, HTTP_STATUS } = constantsModule;
 import errorMessageModule from '../utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
@@ -57,7 +57,7 @@ class RequestLockMiddleware {
             method: req.method,
             path: req.path
           });
-          return ApiResponse.conflict(res, 'Petición duplicada detectada. Espera un momento');
+          return RequestLockMiddleware._inProgress(res, 'Petición duplicada detectada. Espera un momento', lockTtl);
         }
 
         req.lockKey = lockKey;
@@ -91,7 +91,7 @@ class RequestLockMiddleware {
             method: req.method,
             path: req.path
           });
-          return ApiResponse.tooManyRequests(res, 'Petición duplicada. Espera unos segundos');
+          return RequestLockMiddleware._inProgress(res, 'Petición duplicada. Espera unos segundos', lockTtl);
         }
 
         req.lockKey = lockKey;
@@ -128,7 +128,7 @@ class RequestLockMiddleware {
 
         if (!acquired) {
           logger.info('RequestLock — duplicate refresh blocked', { method: req.method, path: req.path });
-          return ApiResponse.tooManyRequests(res, 'Renovación de sesión en curso. Espera unos segundos');
+          return RequestLockMiddleware._inProgress(res, 'Renovación de sesión en curso. Espera unos segundos', lockTtl);
         }
 
         req.lockKey = lockKey;
@@ -144,6 +144,17 @@ class RequestLockMiddleware {
   // ==============================================
   // PRIVATE HELPERS
   // ==============================================
+
+  /**
+   * La misma petición ya está en curso: 409 temporal (`retryable: true`) con Retry-After = lo que dura
+   * el lock. No es un 429: no se superó ningún límite, se está esperando a la petición gemela.
+   */
+  static _inProgress(res: Response, message: string, lockTtlSeconds: number) {
+    return ApiResponse.error(res, message, HTTP_STATUS.CONFLICT, 'REQUEST_IN_PROGRESS', null, {
+      retryable: true,
+      retryAfter: lockTtlSeconds
+    });
+  }
 
   /**
    * Lock key del refresh: sessionId del token (sin verificar firma — solo agrupa; el token se

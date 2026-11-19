@@ -20,11 +20,22 @@
 // Un `run()` dentro de otro se une a la unidad activa (no abre otra).
 // No hay `begin()` manual: con commit/rollback a mano el contexto no se propaga a quien llama, y
 // Prisma no tiene transacciones manuales.
+//
+// CONFLICTOS: si Postgres aborta la transacción por deadlock o serialización (otra transacción tocó lo
+// mismo), `run()` la repite COMPLETA, desde cero, hasta MAX_ATTEMPTS veces con un backoff corto y
+// aleatorio. Es seguro porque el rollback deshizo todo lo de la base, incluida la auditoría de éxito
+// (que se escribe en la misma transacción). Lo único que no se deshace es lo que salió afuera: si
+// `work` llamó a un proveedor externo (callProvider marca la unidad), NO se repite y el conflicto se
+// propaga (409 TRANSACTION_CONFLICT temporal: reintenta el cliente). Regla de siempre: lo externo va
+// después del commit, fuera de run().
 // ============================================================
 import { interopDefault } from '../utils/interop.util';
 import type { Prisma } from './generated/prisma/client';
 import txContext from './transaction-context';
 import type { ActiveUnit } from './transaction-context';
+import { isTransactionConflict } from './database-errors';
+import loggerUtilModule from '../observability/logger.util';
+const { logger } = loggerUtilModule;
 
 /** Lo que el Unit of Work necesita del cliente de Prisma (inyectable en tests). */
 interface PrismaTransactional {
@@ -37,6 +48,16 @@ interface PrismaTransactional {
 // Prisma corta una transacción interactiva a los 5 s por defecto; los flujos con bcrypt + varias
 // escrituras pueden acercarse. maxWait: cuánto esperar una conexión libre del pool.
 const PRISMA_TX_OPTIONS = { maxWait: 5_000, timeout: 15_000 };
+
+// Intentos ante un conflicto (deadlock / serialización), incluido el primero. Backoff: base·2^(n-1) más
+// un aleatorio, para que las dos transacciones que chocaron no vuelvan a chocar en el mismo instante.
+const MAX_ATTEMPTS = 3;
+const CONFLICT_BACKOFF_BASE_MS = 20;
+
+const sleep = (ms: number) =>
+  new Promise(resolve => {
+    setTimeout(resolve, ms);
+  });
 
 class PrismaUnitOfWork implements PrismaUnitOfWork.Port {
   private readonly _prisma: PrismaTransactional | null;
@@ -53,14 +74,33 @@ class PrismaUnitOfWork implements PrismaUnitOfWork.Port {
     return this._prisma ?? (interopDefault(require('./prisma') as typeof import('./prisma')) as unknown as PrismaTransactional);
   }
 
-  /** Ejecuta `work` dentro de una unidad de trabajo (commit/rollback automáticos). */
-  run<T>(work: () => PromiseLike<T>, options: PrismaUnitOfWork.Options = {}): Promise<T> {
+  /**
+   * Ejecuta `work` dentro de una unidad de trabajo (commit/rollback automáticos). Ante un deadlock o un
+   * error de serialización la repite completa (ver arriba), salvo que haya tenido efectos externos.
+   */
+  async run<T>(work: () => PromiseLike<T>, options: PrismaUnitOfWork.Options = {}): Promise<T> {
     if (txContext.activeUnit()) {
-      return Promise.resolve(work());
+      return work();
     }
+    for (let attempt = 1; ; attempt++) {
+      const unit: ActiveUnit = { prisma: () => Promise.reject(new Error('unidad sin abrir')) };
+      try {
+        return await this._attempt(unit, work, options);
+      } catch (error) {
+        if (!isTransactionConflict(error) || unit.externalEffects || attempt >= MAX_ATTEMPTS) {
+          throw error;
+        }
+        const delayMs = CONFLICT_BACKOFF_BASE_MS * 2 ** (attempt - 1) + Math.floor(Math.random() * CONFLICT_BACKOFF_BASE_MS);
+        logger.warn('[UnitOfWork] Conflicto de transacción: se repite completa', { attempt, maxAttempts: MAX_ATTEMPTS, delayMs });
+        await sleep(delayMs);
+      }
+    }
+  }
+
+  private _attempt<T>(unit: ActiveUnit, work: () => PromiseLike<T>, options: PrismaUnitOfWork.Options): Promise<T> {
     return this._client().$transaction(
       async tx => {
-        const unit: ActiveUnit = { prisma: () => Promise.resolve(tx) };
+        unit.prisma = () => Promise.resolve(tx);
         try {
           return await txContext.runInUnit(unit, work);
         } finally {

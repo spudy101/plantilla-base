@@ -10,7 +10,9 @@
  *   { success, statusCode, message, data, metadata, timestamp }
  *
  * Estructura error:
- *   { success, statusCode, message, errorCode?, errors?, timestamp }
+ *   { success, statusCode, message, errorCode?, errors?, details?, retryable, timestamp }
+ *   errors = array por campo (validación) · details = objeto de contexto · retryable = ¿es temporal?
+ *   Los errores temporales con espera conocida traen además el header Retry-After (segundos).
  *
  * Uso en paths:
  *   responses: {
@@ -22,6 +24,8 @@
  * IMPORTANTE: los errores exportan { [statusCode]: { description, content } }
  * para que el spread funcione correctamente en los paths.
  */
+
+import { isRetryableStatus } from '../../../shared/http/retryable';
 
 // ─── Helpers privados ─────────────────────────────────────────
 
@@ -39,16 +43,27 @@ const _errorBody = (statusCode: number, errorCode: string) => ({
       type: 'object',
       nullable: true,
       description: 'Contexto adicional del error. En los 401/403 de autenticación incluye `code` (ver descripción).',
-      properties: { code: { type: 'string' } }
+      properties: { code: { type: 'string' }, correlationId: { type: 'string' } }
+    },
+    retryable: {
+      type: 'boolean',
+      example: isRetryableStatus(statusCode),
+      description:
+        '`true`: temporal, reintentar la misma petición puede funcionar (esperar `Retry-After` si viene, si no backoff exponencial con jitter). `false`: permanente, repetirla da lo mismo.'
     },
     timestamp: { type: 'string', format: 'date-time' }
   }
 });
 
-const _errorResponse = (description: string, statusCode: number, errorCode: string) => ({
+const RETRY_AFTER_HEADER = {
+  'Retry-After': { description: 'Segundos a esperar antes de reintentar.', schema: { type: 'integer', example: 30 } }
+};
+
+const _errorResponse = (description: string, statusCode: number, errorCode: string, { retryAfter = false } = {}) => ({
   // La key numérica permite usar ...commonResponses.BadRequest directamente en responses
   [statusCode]: {
     description,
+    ...(retryAfter ? { headers: RETRY_AFTER_HEADER } : {}),
     content: {
       'application/json': {
         schema: _errorBody(statusCode, errorCode)
@@ -92,6 +107,14 @@ const NotFound = _errorResponse('El recurso solicitado no fue encontrado.', 404,
 /** 409 — AppError.conflict() */
 const Conflict = _errorResponse('Conflicto de estado. El recurso ya existe o viola una restricción.', 409, 'CONFLICT');
 
+/** 409 temporal — AppError.requestInProgress(): la misma petición todavía se está procesando. */
+const RequestInProgress = _errorResponse(
+  'La misma petición todavía se está procesando (petición duplicada o clave de idempotencia en curso). Temporal: `retryable: true`; reintentar después de `Retry-After`.',
+  409,
+  'REQUEST_IN_PROGRESS',
+  { retryAfter: true }
+);
+
 /**
  * 422 — ApiResponse.validationError() — incluye array de errores por campo.
  * [RF-LP-03][CA-05]: cada ítem incluye `hint` (sugerencia de corrección
@@ -134,17 +157,46 @@ const ValidationError = {
 };
 
 /** 429 — AppError.tooManyRequests() */
-const RateLimitExceeded = _errorResponse('Demasiadas peticiones. Rate limit excedido.', 429, 'RATE_LIMIT');
+const RateLimitExceeded = _errorResponse(
+  'Demasiadas peticiones. Rate limit excedido. Temporal: reintentar después de `Retry-After` (también vienen los headers `RateLimit-*`).',
+  429,
+  'RATE_LIMIT',
+  { retryAfter: true }
+);
 
 /** 500 — AppError.internal() */
 const InternalServerError = _errorResponse('Error interno del servidor.', 500, 'INTERNAL_ERROR');
 
 /** 503 — AppError.serviceUnavailable() */
 const ServiceUnavailable = _errorResponse(
-  'Servicio no disponible temporalmente (ej: configuración pendiente).',
+  'Algo de lo que dependemos no está disponible ahora. `errorCode`: `SERVICE_UNAVAILABLE`, `DATABASE_UNAVAILABLE` (base de datos) o `CIRCUIT_OPEN` (proveedor externo caído). Temporal: reintentar después de `Retry-After`.',
   503,
-  'SERVICE_UNAVAILABLE'
+  'SERVICE_UNAVAILABLE',
+  { retryAfter: true }
 );
+
+// ─── Idempotencia (shared/http/idempotency, docs/idempotency.md) ──
+
+/** Parámetro del header para las operaciones con `idempotent()`: `parameters: [commonResponses.IdempotencyKeyHeader]`. */
+const IdempotencyKeyHeader = {
+  name: 'Idempotency-Key',
+  in: 'header',
+  required: true,
+  description:
+    'Clave única de **esta** operación (se recomienda un UUID v4). Generala una vez y repetila tal cual en cada reintento de la misma operación; una operación distinta necesita otra clave. Se recuerda 24 h.',
+  schema: { type: 'string', maxLength: 255, example: '7f3c1a2e-9b4d-4c8e-a1f0-2d6b5e8c9a10' }
+};
+
+/** Párrafo para la descripción de una operación idempotente (las respuestas se documentan aparte). */
+const IDEMPOTENCY_DESCRIPTION = [
+  '**Idempotente** (header `Idempotency-Key`, obligatorio): si se cortó la respuesta, reintentá con **la misma clave** y el mismo body; la operación no se ejecuta dos veces.',
+  '- Primera vez: se ejecuta y se guarda la respuesta.',
+  '- Reintento cuando ya terminó: misma respuesta (status y body), con el header `Idempotent-Replayed: true`.',
+  '- Reintento mientras la primera sigue en curso: `409 REQUEST_IN_PROGRESS`, temporal; esperar `Retry-After`.',
+  '- Misma clave con otro body: `422 IDEMPOTENCY_KEY_REUSED` (permanente: usá otra clave).',
+  '- Sin la clave o con formato inválido: `400 IDEMPOTENCY_KEY_REQUIRED` / `IDEMPOTENCY_KEY_INVALID`.',
+  '- Un error temporal (`retryable: true`, p. ej. 503) no se guarda: el reintento con la misma clave se ejecuta de nuevo.'
+].join('\n');
 
 // ─── Helpers para respuestas de éxito ─────────────────────────
 
@@ -270,6 +322,9 @@ export default {
   Forbidden,
   NotFound,
   Conflict,
+  RequestInProgress,
+  IdempotencyKeyHeader,
+  IDEMPOTENCY_DESCRIPTION,
   ValidationError,
   RateLimitExceeded,
   InternalServerError,

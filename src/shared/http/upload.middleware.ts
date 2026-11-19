@@ -5,7 +5,8 @@ import loggerUtilModule from '../observability/logger.util';
 const { logger } = loggerUtilModule;
 import errorMessageModule from '../utils/error-message.util';
 
-const { errorMessage, isOperationalError } = errorMessageModule;
+const { errorMessage } = errorMessageModule;
+import { shouldPropagate } from './error-propagation';
 
 type UploadedFile = Express.Multer.File;
 type FileFilterCallback = multer.FileFilterCallback;
@@ -142,7 +143,7 @@ class UploadMiddleware {
       );
     }
 
-    if (isOperationalError(err)) {
+    if (shouldPropagate(err)) {
       return next(err);
     }
 

@@ -28,6 +28,27 @@ const ConsentTypeListDTO = (record: ConsentTypeRow) => ConsentTypeComponent.buil
 const ConsentTypeListDTO = (record: ConsentTypeRow) => ({ id: record.consentTypeId, name: record.name });
 ```
 
+## ¿Función DTO o solo esquema?
+
+> **Esquema siempre. Función DTO solo cuando mapeás una fila de la base o hay datos personales.**
+
+La función existe para elegir campo a campo qué sale de una fila (que no se filtren hashes ni columnas internas) y
+para enmascarar PII. Si el service devuelve una confirmación armada a mano (`{ sessionId, status }`,
+`{ closedCount }`, `{ userId, deleted: true }`), no hay nada que filtrar: una función `XxxDTO()` solo agregaría una
+vuelta. Ahí basta con el esquema en `responses/` y que el service lo use para tipar su resultado:
+
+```ts
+// responses/auth-login.response.ts
+export const SessionClosedSchema = z.object({ sessionId: z.uuid(), status: z.literal('closed') });
+export type SessionClosed = z.infer<typeof SessionClosedSchema>;
+
+// services/auth-login/session-control.service.ts
+return { sessionId, status: 'closed' } satisfies SessionClosed;
+```
+
+`satisfies` hace que TypeScript falle si el service se aparta del esquema, y la documentación sale del mismo
+esquema. Así el contrato existe una sola vez.
+
 ## Componentes
 
 ```ts

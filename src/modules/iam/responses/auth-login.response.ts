@@ -261,3 +261,11 @@ export const TrustedDeviceUpdateSchema = z.object({
   status: z.string().meta({ example: 'trusted' }),
   updatedAt: dateTime()
 });
+
+// Resultados armados en el service (sin función DTO)
+export const SessionClosedSchema = z.object({ sessionId: z.uuid(), status: z.literal('closed') });
+export type SessionClosed = z.infer<typeof SessionClosedSchema>;
+export const OtherSessionsClosedSchema = z.object({
+  closedCount: z.number().int().meta({ example: 2, description: 'Sesiones cerradas (todas menos la actual).' })
+});
+export type OtherSessionsClosed = z.infer<typeof OtherSessionsClosedSchema>;

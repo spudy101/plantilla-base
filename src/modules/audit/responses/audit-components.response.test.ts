@@ -114,18 +114,7 @@ describe('esquemas de salida de audit', () => {
       operationDto.OperationTimelineDTO({
         operation: operation as never,
         children: [operation as never],
-        auditEvents: [log as never],
-        externalCalls: [
-          {
-            apiLogId: ID,
-            product: 'ses',
-            endpoint: '/send',
-            result: 'success',
-            responseTimeMs: 40,
-            errorCode: null,
-            createdAt: at
-          } as never
-        ]
+        auditEvents: [log as never]
       })
     );
   });

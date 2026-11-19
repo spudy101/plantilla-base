@@ -61,9 +61,9 @@ class SmsLoginChallengeService {
     }
     const phonePrefixId = userWithPhone?.person?.contact?.phonePrimaryPrefixId ?? null;
 
-    const canRequest = await this.verificationCodeRepository.canRequestNewCode('phone', phone);
-    if (!canRequest) {
-      throw AppError.tooManyRequests('Debes esperar antes de solicitar un nuevo código SMS');
+    const waitSeconds = await this.verificationCodeRepository.secondsUntilNewCode('phone', phone);
+    if (waitSeconds > 0) {
+      throw AppError.tooManyRequests(`Debes esperar ${waitSeconds} segundos antes de solicitar un nuevo código SMS`, null, waitSeconds);
     }
 
     const code = this._generateSmsCode();

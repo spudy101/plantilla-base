@@ -257,7 +257,7 @@ generado (`import type { User } from '…/generated/prisma/client'`): son la for
 
 | Dónde | Por qué |
 |---|---|
-| `src/shared/observability/logger.util.ts`, `integration-api-logger.util.ts` | Escriben los logs a través de sus repositorios, cargados de forma diferida (todo el sistema depende del logger). |
+| `src/shared/observability/logger.util.ts` | Escribe los logs a través de su repositorio, cargado de forma diferida (todo el sistema depende del logger). |
 | `audit-archive.worker.ts` | Purga lotes de `audit_logs` con `auditLogRepository.purgeCreatedBefore` (mantenimiento, no lógica de negocio). |
 | `shared/base/*`, `servers/*`, `*.bootstrap.ts` | Arranque y composición. |
 

@@ -16,6 +16,7 @@ import AppError from '../../../shared/http/app-error.util';
 import domainEnumsModule from '../../../shared/constants/domain-enums';
 const { NOTIFICATION_PROCESSING_STATUS } = domainEnumsModule;
 import errorMessageModule from '../../../shared/utils/error-message.util';
+import type { NotificationCreated } from '../responses/notification.response';
 
 const { errorMessage } = errorMessageModule;
 
@@ -144,7 +145,7 @@ class NotificationCreationService {
         estadoSolicitud: 1,
         message: 'Notificación creada exitosamente.',
         ...result
-      };
+      } satisfies NotificationCreated;
     } catch (error) {
       logger.error('Error al crear notificación', { error: errorMessage(error), stack: error instanceof Error ? error.stack : undefined });
       throw error;

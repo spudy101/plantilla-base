@@ -160,10 +160,7 @@ const paths = {
       parameters: toParameters(CategoryCodeParams, 'path'),
       responses: {
         200: commonResponses.ok(
-          {
-            type: 'object',
-            properties: { notificationCategoryCode: { type: 'string', example: 'SECURITY' } }
-          },
+          { $ref: '#/components/schemas/PreferenceDeleted' },
           'Preferencia de categoría eliminada exitosamente.'
         ),
         ...commonResponses.Unauthorized,

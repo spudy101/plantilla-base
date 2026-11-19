@@ -9,6 +9,7 @@ import iamModule from '../../iam';
 const { AuthMiddleware, RbacMiddleware } = iamModule;
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
+import { idempotent } from '../../../shared/http/idempotency/idempotency.middleware';
 import rbacModule from '../../../shared/constants/rbac';
 const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
 
@@ -36,13 +37,15 @@ router.get(
  *
  * Body: { titulo, contenido, asunto }
  */
+// Envía a todos los clientes: idempotente para que un reintento (o un doble clic) no la mande dos veces.
+// idempotent() reemplaza al RequestLock: además de las simultáneas, cubre los reintentos posteriores.
 router.post(
   '/notification-types/global',
   AuthMiddleware.authenticate,
   RbacMiddleware.requirePermission(RBAC_MODULES.NOTIFICATION_MANAGEMENT, RBAC_ACTIONS.CREATE),
   RateLimitMiddleware.apiLimiter(),
-  RequestLockMiddleware.forAuthenticatedUsers(),
   validate({ body: GlobalNotificationBody }),
+  idempotent(),
   NotificationTypeController.createGlobalNotification
 );
 
@@ -59,8 +62,8 @@ router.post(
   AuthMiddleware.authenticate,
   RbacMiddleware.requirePermission(RBAC_MODULES.NOTIFICATION_MANAGEMENT, RBAC_ACTIONS.CREATE),
   RateLimitMiddleware.apiLimiter(),
-  RequestLockMiddleware.forAuthenticatedUsers(),
   validate({ body: DirectNotificationBody }),
+  idempotent(),
   NotificationTypeController.createDirectNotification
 );
 

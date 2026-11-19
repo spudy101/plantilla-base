@@ -4,12 +4,7 @@ import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 type SnsSender = Pick<InstanceType<typeof SNSClient>, 'send'>;
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
-import retryUtilModule from '../../../shared/infra/retry.util';
-const { withRetry } = retryUtilModule;
-import CircuitBreaker from '../../../shared/infra/circuit-breaker.util';
-import ProviderApiLogger from '../../../shared/observability/integration-api-logger.util';
-import awsProviderMetaUtilModule from '../../../shared/infra/aws-provider-meta.util';
-const { awsErrorCode } = awsProviderMetaUtilModule;
+import { callProvider, CircuitOpenError, AWS_CLIENT_OPTIONS } from '../../../shared/infra/provider-call.util';
 import EncryptionUtil from '../../../shared/security/encryption.util';
 import constantsModule from '../../../shared/constants';
 const { MOCKS, aws } = constantsModule;
@@ -24,14 +19,10 @@ const { errorMessage } = errorMessageModule;
 // === Envío de SMS vía AWS SNS ===
 // Canal de SMS transaccional / OTP. Proveedor: AWS SNS. AWS es infraestructura fail-open: no se
 // gatea por estado. El circuit breaker sobre el producto 'aws_sms' protege ante fallos de envío, y
-// cada intento queda en sms_delivery_attempts + integration_api_logs (dashboard de monitoreo).
+// cada intento queda en sms_delivery_attempts (y su llamada, en los logs/métricas de CloudWatch).
 
-const CB_PRODUCT = 'aws_sms';
-const PROVIDER = 'aws_sms';
+const PRODUCT = 'aws_sms';
 const ENDPOINT = 'SNS:PublishCommand:SMS';
-const SMS_TIMEOUT_MS = 30_000;
-const SMS_MAX_RETRIES = 3;
-const SMS_RETRY_BASE_MS = 1000;
 
 class SmsService {
   smsDeliveryAttemptRepository: typeof smsDeliveryAttemptRepository;
@@ -54,13 +45,12 @@ class SmsService {
   get snsClient(): SnsSender {
     if (!this._snsClient) {
       this._snsClient = new SNSClient({
+        ...AWS_CLIENT_OPTIONS,
         region: aws.region,
         credentials: {
           accessKeyId: aws.accessKeyId,
           secretAccessKey: aws.secretAccessKey
-        },
-        // El timeout va en el handler HTTP: como opción directa del cliente el SDK v3 lo ignoraba
-        requestHandler: { requestTimeout: SMS_TIMEOUT_MS }
+        }
       });
     }
     return this._snsClient;
@@ -92,7 +82,7 @@ class SmsService {
     const attempt = await this.smsDeliveryAttemptRepository.createAttempt({
       userId,
       phoneHash,
-      provider: PROVIDER,
+      provider: PRODUCT,
       purpose
     });
 
@@ -102,68 +92,28 @@ class SmsService {
       return this._mockEnvio(attempt);
     }
 
-    // Circuit breaker (protege ante fallos repetidos de envío SNS).
-    const allowed = await CircuitBreaker.canCall(CB_PRODUCT);
-    if (!allowed) {
-      await this.smsDeliveryAttemptRepository.markFailed(attempt.smsAttemptId, {
-        lastError: 'Circuit breaker abierto — SMS (AWS SNS) no disponible'
-      });
-      ProviderApiLogger.log({
-        product: CB_PRODUCT,
-        endpoint: ENDPOINT,
-        result: 'circuit_open',
-        requestPayload: { phoneHash, purpose, provider: PROVIDER }
-      });
-      return {
-        success: false,
-        attemptId: attempt.smsAttemptId,
-        error: 'Servicio SMS no disponible temporalmente',
-        circuitOpen: true
-      };
-    }
-
-    const startTime = Date.now();
-
     try {
-      const result = await withRetry(() => this._ejecutarEnvio({ phoneNumber, message }), {
-        maxRetries: SMS_MAX_RETRIES,
-        baseDelayMs: SMS_RETRY_BASE_MS,
-        label: `AWS-SMS[${CB_PRODUCT}]`
-      });
-
-      const responseTimeMs = Date.now() - startTime;
-      await CircuitBreaker.recordSuccess(CB_PRODUCT);
+      // El intento (teléfono hasheado, propósito, messageId) queda en sms_delivery_attempts.
+      const result = await callProvider({ product: PRODUCT, endpoint: ENDPOINT }, abortSignal =>
+        this._ejecutarEnvio({ phoneNumber, message }, abortSignal)
+      );
       await this.smsDeliveryAttemptRepository.markSent(attempt.smsAttemptId, {
         providerMessageId: result.messageId || null
       });
-      ProviderApiLogger.log({
-        product: CB_PRODUCT,
-        endpoint: ENDPOINT,
-        result: 'success',
-        responseTimeMs,
-        requestPayload: { phoneHash, purpose, provider: PROVIDER },
-        responsePayload: { messageId: result.messageId || null }
-      });
-
       return { success: true, attemptId: attempt.smsAttemptId };
     } catch (error) {
-      const responseTimeMs = Date.now() - startTime;
-      await CircuitBreaker.recordFailure(CB_PRODUCT);
-      await this.smsDeliveryAttemptRepository.markFailed(attempt.smsAttemptId, {
-        lastError: errorMessage(error),
-        retryCount: SMS_MAX_RETRIES
-      });
-      ProviderApiLogger.log({
-        product: CB_PRODUCT,
-        endpoint: ENDPOINT,
-        result: 'failed',
-        responseTimeMs,
-        errorCode: awsErrorCode(error),
-        errorMessage: errorMessage(error),
-        requestPayload: { phoneHash, purpose, provider: PROVIDER },
-        responsePayload: { message: errorMessage(error) }
-      });
-
+      if (error instanceof CircuitOpenError) {
+        await this.smsDeliveryAttemptRepository.markFailed(attempt.smsAttemptId, {
+          lastError: 'Circuit breaker abierto — SMS (AWS SNS) no disponible'
+        });
+        return {
+          success: false,
+          attemptId: attempt.smsAttemptId,
+          error: 'Servicio SMS no disponible temporalmente',
+          circuitOpen: true
+        };
+      }
+      await this.smsDeliveryAttemptRepository.markFailed(attempt.smsAttemptId, { lastError: errorMessage(error) });
       return {
         success: false,
         attemptId: attempt.smsAttemptId,
@@ -212,14 +162,6 @@ class SmsService {
       providerMessageId: `MOCK-${attempt.smsAttemptId}`
     });
 
-    ProviderApiLogger.log({
-      product: CB_PRODUCT,
-      endpoint: 'mock',
-      responsePayload: { providerMessageId: `MOCK-${attempt.smsAttemptId}` },
-      result: 'success',
-      responseTimeMs: 0
-    });
-
     return { success: true, attemptId: attempt.smsAttemptId, mock: true };
   }
 
@@ -228,7 +170,7 @@ class SmsService {
    * @returns {Promise<{ messageId: string }>}
    * @private
    */
-  async _ejecutarEnvio({ phoneNumber, message }: { phoneNumber: string; message: string }) {
+  async _ejecutarEnvio({ phoneNumber, message }: { phoneNumber: string; message: string }, abortSignal?: AbortSignal) {
     const response = await this.snsClient.send(
       new PublishCommand({
         Message: message,
@@ -236,7 +178,8 @@ class SmsService {
         MessageAttributes: {
           'AWS.SNS.SMS.SMSType': { DataType: 'String', StringValue: 'Transactional' }
         }
-      })
+      }),
+      { abortSignal }
     );
     return { messageId: response.MessageId || null };
   }
@@ -260,12 +203,6 @@ class SmsService {
     return prefix?.prefix ? `${prefix.prefix}${localNumber}` : localNumber;
   }
 
-  /**
-   * Timeout configurado para la llamada (ms).
-   */
-  get timeoutMs() {
-    return SMS_TIMEOUT_MS;
-  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-namespace

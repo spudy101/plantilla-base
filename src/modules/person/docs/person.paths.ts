@@ -144,17 +144,7 @@ todos los roles del sistema en un listado que solo contiene clientes.`,
       security: adminSecurity,
       responses: {
         200: commonResponses.ok(
-          {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                roleId: { type: 'string', format: 'uuid' },
-                name: { type: 'string', example: 'CLIENTE' },
-                description: { type: 'string', nullable: true }
-              }
-            }
-          },
+          { type: 'array', items: { $ref: '#/components/schemas/RoleOption' } },
           'Roles de cliente obtenidos exitosamente'
         ),
         ...commonResponses.Unauthorized,

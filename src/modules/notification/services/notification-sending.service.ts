@@ -18,8 +18,18 @@ const { NOTIFICATION_PROCESSING_STATUS } = domainEnumsModule;
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import errorMessageModule from '../../../shared/utils/error-message.util';
+import awsProviderMetaUtilModule from '../../../shared/infra/aws-provider-meta.util';
+const { awsErrorCode } = awsProviderMetaUtilModule;
+import awsErrorCodesModule from '../../../shared/constants/aws-error-codes';
+const { isHardBounce } = awsErrorCodesModule;
 
 const { errorMessage } = errorMessageModule;
+
+/** Código del proveedor de un error (`name` del SDK, p. ej. MessageRejected), como texto; null si no trae. */
+const providerErrorCode = (error: unknown) => {
+  const code = awsErrorCode(error);
+  return code === null || code === 'Error' ? null : String(code);
+};
 import auditModule from '../../audit';
 const { audit } = auditModule;
 
@@ -224,7 +234,7 @@ class NotificationSendingService {
             error: errorMessage(err),
             token: `${tokenData.token.slice(0, TOKEN_LOG_PREVIEW_LENGTH)}...`
           });
-          return { success: false, error: errorMessage(err) };
+          return { success: false, error: errorMessage(err), errorCode: providerErrorCode(err) };
         })
       );
 
@@ -241,7 +251,11 @@ class NotificationSendingService {
           totalTokens: tokens.length
         });
       } else {
-        await this.notificationRepo.recordPushError(notificationId, 'Todos los envíos fallaron');
+        // Rebote definitivo del canal solo si TODOS los dispositivos fallaron con un código definitivo
+        // (p. ej. todos EndpointDisabled). Si alguno falló por algo temporal, sin código: se reintenta.
+        const codes = results.map(r => (r.status === 'fulfilled' ? ((r.value as { errorCode?: string | null }).errorCode ?? null) : null));
+        const allHardBounce = codes.every(code => isHardBounce('push', code));
+        await this.notificationRepo.recordPushError(notificationId, 'Todos los envíos fallaron', null, allHardBounce ? codes[0] : null);
         await audit.record('PUSH_DELIVERY_FAILED', {
           actorId: null,
           details: { notificationId, userId, error: 'Todos los tokens fallaron' },
@@ -300,7 +314,7 @@ class NotificationSendingService {
       logger.info('Email individual enviado', { userId, email });
     } catch (error) {
       logger.warn('Error al enviar email individual', { error: errorMessage(error), userId });
-      await this.notificationRepo.recordEmailError(notificationId, errorMessage(error));
+      await this.notificationRepo.recordEmailError(notificationId, errorMessage(error), null, providerErrorCode(error));
       await audit.record('EMAIL_DELIVERY_FAILED', {
         actorId: null,
         details: { notificationId, userId, error: errorMessage(error) },

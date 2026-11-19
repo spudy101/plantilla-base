@@ -6,11 +6,8 @@ const { logger } = loggerUtilModule;
 import AppError from '../../../shared/http/app-error.util';
 import constantsModule from '../../../shared/constants';
 const { notifications, aws } = constantsModule;
-import retryUtilModule from '../../../shared/infra/retry.util';
-const { withRetry } = retryUtilModule;
-import ProviderApiLogger from '../../../shared/observability/integration-api-logger.util';
-import awsProviderMetaUtilModule from '../../../shared/infra/aws-provider-meta.util';
-const { resolveAwsGate, awsErrorCode } = awsProviderMetaUtilModule;
+import { callProvider, AWS_CLIENT_OPTIONS } from '../../../shared/infra/provider-call.util';
+import { providerFailure } from '../../../shared/infra/provider-errors';
 import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
@@ -32,13 +29,12 @@ class PushNotificationService {
   get snsClient(): SnsSender {
     if (!this._snsClient) {
       this._snsClient = new SNSClient({
+        ...AWS_CLIENT_OPTIONS,
         region: aws.region,
         credentials: {
           accessKeyId: aws.accessKeyId,
           secretAccessKey: aws.secretAccessKey
-        },
-        // El timeout va en el handler HTTP: como opción directa del cliente el SDK v3 lo ignoraba
-        requestHandler: { requestTimeout: 30_000 }
+        }
       });
     }
     return this._snsClient;
@@ -77,11 +73,7 @@ class PushNotificationService {
         CustomUserData: userId
       });
       // getter (no el campo): el campo es null hasta el primer uso y registrar fallaba siempre en frío
-      const response = await withRetry(() => this.snsClient.send(command), {
-        maxRetries: 3,
-        baseDelayMs: 1000,
-        label: 'SNS[registrarDispositivo]'
-      });
+      const response = await callProvider({ product: 'sns', endpoint: 'SNS:CreatePlatformEndpoint' }, abortSignal => this.snsClient.send(command, { abortSignal }));
 
       logger.info('Dispositivo registrado exitosamente', {
         userId,
@@ -91,8 +83,8 @@ class PushNotificationService {
 
       return response.EndpointArn;
     } catch (error) {
-      logger.warn('Error al registrar dispositivo (reintentos agotados)', { error: errorMessage(error), userId, platform });
-      throw AppError.internal('Error al registrar dispositivo para notificaciones');
+      logger.warn('Error al registrar dispositivo', { error: errorMessage(error), userId, platform });
+      throw providerFailure(error, 'Error al registrar dispositivo para notificaciones');
     }
   }
 
@@ -102,16 +94,14 @@ class PushNotificationService {
    */
   async eliminarDispositivo(endpointArn: string) {
     try {
-      await withRetry(() => this.snsClient.send(new DeleteEndpointCommand({ EndpointArn: endpointArn })), {
-        maxRetries: 3,
-        baseDelayMs: 1000,
-        label: 'SNS[eliminarDispositivo]'
-      });
+      await callProvider({ product: 'sns', endpoint: 'SNS:DeleteEndpoint' }, abortSignal =>
+        this.snsClient.send(new DeleteEndpointCommand({ EndpointArn: endpointArn }), { abortSignal })
+      );
       logger.info('Dispositivo eliminado exitosamente', { endpointArn });
       return true;
     } catch (error) {
-      logger.warn('Error al eliminar dispositivo (reintentos agotados)', { error: errorMessage(error), endpointArn });
-      throw AppError.internal('Error al eliminar dispositivo');
+      logger.warn('Error al eliminar dispositivo', { error: errorMessage(error), endpointArn });
+      throw providerFailure(error, 'Error al eliminar dispositivo');
     }
   }
 
@@ -121,7 +111,8 @@ class PushNotificationService {
    * @param {string} title       - Título de la notificación
    * @param {string} body        - Cuerpo de la notificación
    * @param {Object} data        - Datos adicionales (opcional)
-   * @param {string} [notificationId] - Para correlacionar el log de integración con la notificación
+   * @param {string} [notificationId] - Queda en la traza de la llamada, para buscarla por notificación
+   * Si falla, lanza el error del proveedor (su `name` es el código: EndpointDisabled, …).
    */
   async enviarPushIndividual(
     endpointArn: string,
@@ -130,47 +121,17 @@ class PushNotificationService {
     data: Record<string, unknown> = {},
     notificationId: string | null = null
   ) {
-    const { integrationId, unitCost } = await resolveAwsGate('aws_sns');
-    const startTime = Date.now();
     try {
       const message = this._construirMensajePush(title, body, data);
-
-      const response = await withRetry(
-        () =>
-          this.snsClient.send(
-            new PublishCommand({
-              TargetArn: endpointArn,
-              Message: JSON.stringify(message),
-              MessageStructure: 'json'
-            })
-          ),
-        { maxRetries: 3, baseDelayMs: 1000, label: 'SNS[enviarPushIndividual]' }
+      const command = new PublishCommand({ TargetArn: endpointArn, Message: JSON.stringify(message), MessageStructure: 'json' });
+      const response = await callProvider({ product: 'sns', endpoint: 'SNS:PublishCommand', notificationId }, abortSignal =>
+        this.snsClient.send(command, { abortSignal })
       );
-
-      ProviderApiLogger.log({
-        product: 'sns',
-        endpoint: 'SNS:PublishCommand',
-        result: 'success',
-        responseTimeMs: Date.now() - startTime,
-        integrationId,
-        unitCost,
-        notificationId
-      });
       logger.info('Push individual enviado exitosamente', { endpointArn, title });
       return response;
     } catch (error) {
-      ProviderApiLogger.log({
-        product: 'sns',
-        endpoint: 'SNS:PublishCommand',
-        result: 'failed',
-        responseTimeMs: Date.now() - startTime,
-        integrationId,
-        errorCode: awsErrorCode(error),
-        errorMessage: errorMessage(error),
-        notificationId
-      });
-      logger.warn('Error al enviar push individual (reintentos agotados)', { error: errorMessage(error), endpointArn });
-      return null;
+      logger.warn('Error al enviar push individual', { error: errorMessage(error), endpointArn });
+      throw error;
     }
   }
 

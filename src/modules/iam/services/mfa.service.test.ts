@@ -19,7 +19,7 @@ jest.mock('../repositories/user.repository', () => ({
 }));
 
 jest.mock('../../notification/repositories/verification-code.repository', () => ({
-  canRequestNewCode: jest.fn(),
+  secondsUntilNewCode: jest.fn(),
   create: jest.fn(),
   findActiveByContact: jest.fn(),
   incrementAttempts: jest.fn().mockResolvedValue(undefined),
@@ -276,15 +276,15 @@ describe('MFAService', () => {
     it('lanza tooManyRequests si aún no puede pedir un nuevo código', async () => {
       userRepo.findById.mockResolvedValue(userWithPhone());
       userRepo.verifyPassword.mockResolvedValue(true);
-      verificationCodeRepo.canRequestNewCode.mockResolvedValue(false);
-      await expect(mfa.requestSMSActivation('pw', USER_ID, 'juan')).rejects.toMatchObject({ statusCode: 429 });
+      verificationCodeRepo.secondsUntilNewCode.mockResolvedValue(42);
+      await expect(mfa.requestSMSActivation('pw', USER_ID, 'juan')).rejects.toMatchObject({ statusCode: 429, retryAfter: 42 });
     });
 
     it('crea el código, lo envía por SMS (setImmediate) y devuelve el truncado', async () => {
       constants.MOCKS.EXTERNAL_PROVIDERS = true; // OTP fijo 123456 → truncado ****56
       userRepo.findById.mockResolvedValue(userWithPhone());
       userRepo.verifyPassword.mockResolvedValue(true);
-      verificationCodeRepo.canRequestNewCode.mockResolvedValue(true);
+      verificationCodeRepo.secondsUntilNewCode.mockResolvedValue(0);
       verificationCodeRepo.create.mockResolvedValue({ verificationCodeId: 'vc-1' });
 
       const result = await mfa.requestSMSActivation('pw', USER_ID, 'juan');

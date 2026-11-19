@@ -13,6 +13,7 @@ import auditAlertRepository from '../repositories/audit-alert.repository';
 import adminAuditAlertDtoModule from '../responses/admin-audit-alert.response';
 const { AuditAlertListDTO } = adminAuditAlertDtoModule;
 import audit from '../audit.service';
+import type { AlertsAcknowledged } from '../responses/admin-audit-alert.response';
 
 class AdminAuditAlertService {
   notifier: typeof notifier;
@@ -117,7 +118,7 @@ class AdminAuditAlertService {
       }).catch(err => logger.warn('Error enviando AUDIT_ALERTS_BULK_ACKNOWLEDGED', { error: err.message }));
     });
 
-    return { acknowledged: count, requested: alertIds.length };
+    return { acknowledged: count, requested: alertIds.length } satisfies AlertsAcknowledged;
   }
 }
 

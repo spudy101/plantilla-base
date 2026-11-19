@@ -1,4 +1,5 @@
 import commonResponses from '../../../config/swagger/responses/common.responses';
+import { OtherSessionsClosedSchema, SessionClosedSchema } from '../responses/auth-login.response';
 import { jsonBody, toOpenApi, toParameters } from '../../../shared/validation/openapi';
 import {
   ClientTypeHeaders,
@@ -30,7 +31,9 @@ const schemas = {
   TrustedDeviceUpdate: toOpenApi(TrustedDeviceUpdateSchema, 'output'),
   LoginRequest: toOpenApi(LoginBody),
   VerifyMfaRequest: toOpenApi(VerifyMfaBody),
-  RenameDeviceRequest: toOpenApi(RenameDeviceBody)
+  RenameDeviceRequest: toOpenApi(RenameDeviceBody),
+  SessionClosed: toOpenApi(SessionClosedSchema, 'output'),
+  OtherSessionsClosed: toOpenApi(OtherSessionsClosedSchema, 'output')
 };
 
 // ─── Parámetros reutilizables ─────────────────────────────────
@@ -110,13 +113,14 @@ Se requiere enviar **exactamente uno** de los dos campos (\`totpCode\` o \`smsCo
       description:
         'El refresh token se rota en cada uso: el JTI anterior se revoca y se emite uno nuevo. **El access token anterior también se invalida** (prevalece el nuevo par de tokens).\n\n' +
         '**Llamadas concurrentes.** Durante 60 s tras una rotación, cualquier llamada que llegue con el refresh token ya consumido recibe **el mismo par emitido** (200), no un error. Esto permite que un cliente web con varias pantallas montando a la vez dispare varios refresh sin romper la sesión. Pasada esa ventana, reusar un refresh token ya consumido se trata como reutilización maliciosa y **cierra todas las sesiones del usuario** (401 `SESSION_COMPROMISED`).\n\n' +
-        '**Límites.** 30 renovaciones por sesión cada 15 minutos, y una sola renovación en vuelo por sesión (las simultáneas reciben 429). Ambos se cuentan **por sesión**, no por IP.\n\n' +
-        '**Recomendación de integración:** mantener un único refresh en vuelo y encolar el resto de peticiones detrás de él; reintentar el 429 con backoff, nunca tratarlo como cierre de sesión.',
+        '**Límites.** 30 renovaciones por sesión cada 15 minutos (429), y una sola renovación en vuelo por sesión (las simultáneas reciben 409 `REQUEST_IN_PROGRESS`). Ambos se cuentan **por sesión**, no por IP, y los dos son temporales (`retryable: true`, con `Retry-After`).\n\n' +
+        '**Recomendación de integración:** mantener un único refresh en vuelo y encolar el resto de peticiones detrás de él; reintentar el 429 y el 409 después de `Retry-After`, nunca tratarlos como cierre de sesión.',
       parameters: toParameters(RefreshTokenHeaders, 'header'),
       responses: {
         200: commonResponses.ok({ $ref: '#/components/schemas/AuthTokens' }, 'Tokens renovados exitosamente.'),
         ...commonResponses.Unauthorized,
         ...commonResponses.RateLimitExceeded,
+        ...commonResponses.RequestInProgress,
         ...commonResponses.InternalServerError
       }
     }
@@ -164,16 +168,7 @@ Se requiere enviar **exactamente uno** de los dos campos (\`totpCode\` o \`smsCo
         'Cierra todas las sesiones activas del usuario **excepto la sesión actual**. Por cada sesión cerrada se revoca el refresh token y se **invalida su access token de inmediato** (vía umbral por sesión en Redis), por lo que dejan de funcionar al instante, sin esperar a su expiración natural.',
       responses: {
         200: commonResponses.ok(
-          {
-            type: 'object',
-            properties: {
-              closedCount: {
-                type: 'integer',
-                example: 3,
-                description: 'Número de sesiones cerradas.'
-              }
-            }
-          },
+          { $ref: '#/components/schemas/OtherSessionsClosed' },
           'Todas las demás sesiones han sido cerradas.'
         ),
         ...commonResponses.Unauthorized,
@@ -192,16 +187,7 @@ Se requiere enviar **exactamente uno** de los dos campos (\`totpCode\` o \`smsCo
         'Cierra una sesión activa específica del usuario **que no sea la sesión actual**. Revoca su refresh token e **invalida su access token de inmediato** (umbral por sesión en Redis), por lo que esa sesión deja de funcionar al instante. Para cerrar la sesión actual usa `/auth/logout`.',
       parameters: toParameters(SessionIdParams, 'path'),
       responses: {
-        200: commonResponses.ok(
-          {
-            type: 'object',
-            properties: {
-              sessionId: { type: 'string', format: 'uuid' },
-              status: { type: 'string', example: 'closed' }
-            }
-          },
-          'Sesión cerrada exitosamente.'
-        ),
+        200: commonResponses.ok({ $ref: '#/components/schemas/SessionClosed' }, 'Sesión cerrada exitosamente.'),
         ...commonResponses.BadRequest,
         ...commonResponses.NotFound,
         ...commonResponses.Unauthorized,

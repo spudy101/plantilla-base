@@ -30,7 +30,7 @@ jest.mock('../../audit/repositories/user-login-attempt.repository', () => ({
 }));
 
 jest.mock('../../notification/repositories/verification-code.repository', () => ({
-  canRequestNewCode: jest.fn(),
+  secondsUntilNewCode: jest.fn(),
   create: jest.fn(),
   findActiveByContact: jest.fn(),
   incrementAttempts: jest.fn().mockResolvedValue(undefined),
@@ -376,7 +376,7 @@ describe('AuthLoginService', () => {
       userRepository.findWithPrimaryPhone.mockResolvedValue({
         person: { contact: { phonePrimary: '911112222', phonePrimaryPrefixId: 'pref-1' } }
       });
-      verificationCodeRepository.canRequestNewCode.mockResolvedValue(true);
+      verificationCodeRepository.secondsUntilNewCode.mockResolvedValue(0);
       verificationCodeRepository.create.mockResolvedValue({ verificationCodeId: 'vc-1' });
 
       const result = await service.login({ nationalId: '111', password: 'pw' }, AUDIT);
@@ -394,10 +394,12 @@ describe('AuthLoginService', () => {
       userRepository.findWithPrimaryPhone.mockResolvedValue({
         person: { contact: { phonePrimary: '911112222', phonePrimaryPrefixId: 'pref-1' } }
       });
-      verificationCodeRepository.canRequestNewCode.mockResolvedValue(false);
+      verificationCodeRepository.secondsUntilNewCode.mockResolvedValue(42);
 
       await expect(service.login({ nationalId: '111', password: 'pw' }, AUDIT)).rejects.toMatchObject({
-        statusCode: 429
+        statusCode: 429,
+        retryable: true,
+        retryAfter: 42
       });
     });
 

@@ -40,9 +40,6 @@ function build() {
       findByCorrelationId: jest.fn().mockResolvedValue([
         { auditLogId: 'a1', action: 'PERSON_ROLE_CHANGED', description: 'x', outcome: 'success', risk: 'high', userId: null, entityType: 'User', entityId: 'u1', createdAt: new Date() }
       ])
-    },
-    integrationApiLogRepository: {
-      findByCorrelationId: jest.fn().mockResolvedValue([])
     }
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -62,12 +59,11 @@ describe('AdminOperationService', () => {
     expect(result.metadata.pagination).toMatchObject({ currentPage: 2, totalItems: 1 });
   });
 
-  it('timeline: une la operación con su auditoría y llamadas externas por correlationId', async () => {
+  it('timeline: une la operación con su auditoría por correlationId y trae la consulta de CloudWatch', async () => {
     const { deps, service } = build();
     const result = await service.timeline(OP_ID, 'admin-1');
 
     expect(deps.auditLogRepository.findByCorrelationId).toHaveBeenCalledWith(OP_ID);
-    expect(deps.integrationApiLogRepository.findByCorrelationId).toHaveBeenCalledWith(OP_ID);
     expect(result.operation.operationId).toBe(OP_ID);
     expect(result.auditEvents[0]).toMatchObject({ action: 'PERSON_ROLE_CHANGED' });
     expect(result.logsQuery).toContain(OP_ID);

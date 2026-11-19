@@ -1,10 +1,10 @@
 // tests/unit/modules/schemas/notification/services/sms.service.test.ts
 //
 // SmsService — canal de SMS (OTP/transaccional) vía AWS SNS. Probamos las cuatro ramas de envío sin
-// tocar AWS: (1) modo mock → marca enviado y no toca el circuit breaker; (2) circuito abierto →
-// marca fallido y responde circuitOpen; (3) camino feliz → recordSuccess + markSent; (4) fallo tras
-// reintentos → recordFailure + markFailed. Además enviarSms delega en enviarSmsOtp y resolveE164
-// arma E.164. `withRetry` se mockea para no invocar el cliente SNS real.
+// tocar AWS: (1) modo mock → marca enviado y no llama al proveedor; (2) circuito abierto →
+// marca fallido y responde circuitOpen; (3) camino feliz → markSent; (4) fallo → markFailed. Además
+// enviarSms delega en enviarSmsOtp y resolveE164 arma E.164. `callProvider` (breaker, reintentos,
+// timeout y log) se mockea: se prueba en provider-call.util.test.
 
 jest.mock('@aws-sdk/client-sns', () => ({ SNSClient: class {}, PublishCommand: class {} }));
 
@@ -18,15 +18,10 @@ jest.mock('../../catalogs/repositories/phone-prefix.repository', () => ({
   findById: jest.fn()
 }));
 
-jest.mock('../../../shared/infra/circuit-breaker.util', () => ({
-  canCall: jest.fn().mockResolvedValue(true),
-  recordSuccess: jest.fn().mockResolvedValue(undefined),
-  recordFailure: jest.fn().mockResolvedValue(undefined)
+jest.mock('../../../shared/infra/provider-call.util', () => ({
+  callProvider: jest.fn(),
+  CircuitOpenError: class CircuitOpenError extends Error {}
 }));
-
-jest.mock('../../../shared/observability/integration-api-logger.util', () => ({ log: jest.fn() }));
-jest.mock('../../../shared/infra/retry.util', () => ({ withRetry: jest.fn() }));
-jest.mock('../../../shared/infra/aws-provider-meta.util', () => ({ awsErrorCode: jest.fn().mockReturnValue('SNS_ERR') }));
 jest.mock('../../../shared/security/encryption.util', () => ({ generateHash: jest.fn().mockReturnValue('phone-hash') }));
 
 jest.mock('../../../shared/observability/logger.util', () => ({
@@ -44,12 +39,9 @@ import attemptRepoModule from '../repositories/sms-delivery-attempt.repository';
 const attemptRepo = mocked(attemptRepoModule);
 import phonePrefixRepoModule from '../../catalogs/repositories/phone-prefix.repository';
 const phonePrefixRepo = mocked(phonePrefixRepoModule);
-import CircuitBreakerModule from '../../../shared/infra/circuit-breaker.util';
-const CircuitBreaker = mocked(CircuitBreakerModule);
-import ProviderApiLoggerModule from '../../../shared/observability/integration-api-logger.util';
-const ProviderApiLogger = mocked(ProviderApiLoggerModule);
-import retryUtilModule from '../../../shared/infra/retry.util';
-const { withRetry } = mocked(retryUtilModule);
+import * as providerCallModule from '../../../shared/infra/provider-call.util';
+const callProvider = mocked(providerCallModule.callProvider);
+const { CircuitOpenError } = providerCallModule;
 import constantsModule from '../../../shared/constants';
 const constants = mocked(constantsModule);
 import sms from './sms.service';
@@ -61,60 +53,53 @@ describe('SmsService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     constants.MOCKS.EXTERNAL_PROVIDERS = false;
-    CircuitBreaker.canCall.mockResolvedValue(true);
     attemptRepo.createAttempt.mockResolvedValue({ smsAttemptId: ATTEMPT_ID, purpose: 'mfa_login' });
   });
 
   describe('enviarSmsOtp — modo mock', () => {
-    it('marca enviado con id MOCK-*, no toca el circuit breaker y responde mock:true', async () => {
+    it('marca enviado con id MOCK-*, no llama al proveedor y responde mock:true', async () => {
       constants.MOCKS.EXTERNAL_PROVIDERS = true;
 
       const result = await sms.enviarSmsOtp(okParams);
 
-      expect(CircuitBreaker.canCall).not.toHaveBeenCalled();
-      expect(withRetry).not.toHaveBeenCalled();
+      expect(callProvider).not.toHaveBeenCalled();
       expect(attemptRepo.markSent).toHaveBeenCalledWith(ATTEMPT_ID, { providerMessageId: `MOCK-${ATTEMPT_ID}` });
       expect(result).toEqual({ success: true, attemptId: ATTEMPT_ID, mock: true });
     });
   });
 
   describe('enviarSmsOtp — circuito abierto', () => {
-    it('marca fallido, registra circuit_open y responde circuitOpen sin enviar', async () => {
-      CircuitBreaker.canCall.mockResolvedValue(false);
+    it('marca fallido y responde circuitOpen', async () => {
+      callProvider.mockRejectedValue(new CircuitOpenError('aws_sms', 5000));
 
       const result = await sms.enviarSmsOtp(okParams);
 
-      expect(withRetry).not.toHaveBeenCalled();
       expect(attemptRepo.markFailed).toHaveBeenCalledWith(ATTEMPT_ID, expect.objectContaining({ lastError: expect.stringMatching(/Circuit breaker/i) }));
-      expect(ProviderApiLogger.log).toHaveBeenCalledWith(expect.objectContaining({ result: 'circuit_open' }));
       expect(result).toMatchObject({ success: false, attemptId: ATTEMPT_ID, circuitOpen: true });
     });
   });
 
   describe('enviarSmsOtp — camino feliz', () => {
-    it('registra éxito en circuito y tabla de intentos y responde success', async () => {
-      withRetry.mockResolvedValue({ messageId: 'msg-99' });
+    it('envía por callProvider (aws_sms) y marca enviado', async () => {
+      callProvider.mockResolvedValue({ messageId: 'msg-99' });
 
       const result = await sms.enviarSmsOtp(okParams);
 
-      expect(CircuitBreaker.recordSuccess).toHaveBeenCalledWith('aws_sms');
-      expect(CircuitBreaker.recordFailure).not.toHaveBeenCalled();
+      expect(callProvider).toHaveBeenCalledWith({ product: 'aws_sms', endpoint: 'SNS:PublishCommand:SMS' }, expect.any(Function));
+      // el teléfono va hasheado a la tabla de intentos, nunca al log
+      expect(attemptRepo.createAttempt).toHaveBeenCalledWith(expect.objectContaining({ phoneHash: 'phone-hash', purpose: 'mfa_login' }));
       expect(attemptRepo.markSent).toHaveBeenCalledWith(ATTEMPT_ID, { providerMessageId: 'msg-99' });
-      expect(ProviderApiLogger.log).toHaveBeenCalledWith(expect.objectContaining({ result: 'success' }));
       expect(result).toEqual({ success: true, attemptId: ATTEMPT_ID });
     });
   });
 
-  describe('enviarSmsOtp — fallo tras reintentos', () => {
-    it('registra el fallo en circuito y tabla y responde serviceUnavailable', async () => {
-      withRetry.mockRejectedValue(new Error('SNS timeout'));
+  describe('enviarSmsOtp — fallo del proveedor', () => {
+    it('marca fallido y responde serviceUnavailable', async () => {
+      callProvider.mockRejectedValue(new Error('SNS timeout'));
 
       const result = await sms.enviarSmsOtp(okParams);
 
-      expect(CircuitBreaker.recordFailure).toHaveBeenCalledWith('aws_sms');
-      expect(CircuitBreaker.recordSuccess).not.toHaveBeenCalled();
-      expect(attemptRepo.markFailed).toHaveBeenCalledWith(ATTEMPT_ID, expect.objectContaining({ lastError: 'SNS timeout' }));
-      expect(ProviderApiLogger.log).toHaveBeenCalledWith(expect.objectContaining({ result: 'failed', errorCode: 'SNS_ERR' }));
+      expect(attemptRepo.markFailed).toHaveBeenCalledWith(ATTEMPT_ID, { lastError: 'SNS timeout' });
       expect(result).toMatchObject({ success: false, attemptId: ATTEMPT_ID, error: 'SNS timeout', serviceUnavailable: true });
     });
   });

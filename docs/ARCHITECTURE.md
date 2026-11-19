@@ -36,7 +36,7 @@ src/
     database/          cliente Prisma, unit of work, extensiones
     http/              AppError, respuestas, paginación, middlewares técnicos
     security/          jwt, hash, cifrado, hmac, totp, firmas
-    infra/             redis, s3, circuit breaker, retry
+    infra/             redis, s3, callProvider (circuit breaker, reintentos, timeout)
     observability/     logger, contexto de la operación (AsyncLocalStorage), traza de operaciones
     constants/         constantes técnicas y configuración de entorno
     types/             tipos globales (augmentations de Express, etc.)
@@ -156,6 +156,7 @@ No lo importa: publica un punto de registro y `src/app.ts` le conecta el módulo
 | Auditar un evento de infraestructura (worker caído, Redis, 401/403) | `registerAuditSink` | `modules/audit` |
 | Persistir una llamada a un proveedor externo | `registerIntegrationLogWriter` | `modules/integration` |
 | Leer la configuración de resiliencia | `registerResilienceSource` | `modules/settings` |
+| Avisar que un circuito se abrió o se cerró (ventana de fallback + auditoría) | `CircuitBreaker.registerCallbacks` | `modules/integration` |
 
 ## ¿Dónde va esto?
 
@@ -169,8 +170,46 @@ No lo importa: publica un punto de registro y `src/app.ts` le conecta el módulo
 | Registrar un hecho de negocio | `audit.record(acción, { actorId, … })` del index de `modules/audit` |
 | Un job periódico | `modules/<dominio>/workers/` |
 | Integrar un proveedor externo | `modules/<dominio>/providers/` |
+| Llamar a un proveedor externo (SES, S3, SNS…) | `callProvider` de `shared/infra/provider-call.util` (nunca `client.send` suelto) |
+| Una operación que no se debe ejecutar dos veces aunque el cliente reintente (crear, enviar, cobrar) | `idempotent()` de `shared/http/idempotency` en la ruta (ver docs/idempotency.md) |
+| Un error temporal (reintentar puede funcionar) | `retryable` + `retryAfter` en el `AppError` (ver docs/errors-and-retries.md) |
 | Algo técnico sin negocio (cifrado, Redis, paginación) | `shared/<área>/` |
 | Un dominio nuevo | copiar el molde de un módulo existente |
+
+## Llamadas a proveedores externos
+
+Toda llamada de red a un proveedor pasa por `callProvider`, que aplica, en este orden: **circuit breaker** del
+producto → **reintentos** con backoff → **timeout** por intento → **una línea de log** por llamada.
+
+```ts
+const res = await callProvider({ product: 'ses', endpoint: 'SES:SendEmailCommand', notificationId }, abortSignal =>
+  sesClient.send(command, { abortSignal })
+);
+```
+
+- Timeout, intentos y umbrales del breaker salen de settings (`integrationResilience`), no del código.
+- **Métricas y traza en CloudWatch, no en la base.** La línea `[Provider] <producto> <endpoint> → <resultado>`
+  lleva producto, endpoint, resultado, duración, código de error y `correlationId` (Logs Insights la encuentra con
+  el resto de la operación). En producción trae además un bloque EMF y CloudWatch la convierte en métricas
+  (namespace `ProviderCalls`, dimensión `Product`: `Calls`, `Failures`, `Rejected`, `Latency`), sin SDK ni
+  llamadas extra. Sirve igual para un proveedor que no sea de AWS. Las **alarmas** (p. ej. `Failures`/`Calls`
+  de SES > 5% en 5 min, `Rejected` > 0) y la retención del log group se configuran en AWS.
+- Si el negocio necesita un dato de la llamada, se guarda **en la entidad del negocio**: p. ej. el código de
+  error de un envío va a `notifications.email_error_code` / `push_error_code`, que lee el worker de reintentos.
+- Los clientes del SDK (SES, SNS, S3) se crean con `...AWS_CLIENT_OPTIONS` (`maxAttempts: 1`): reintenta solo
+  `callProvider`, no también el SDK. Lo verifica `tests/unit/guards/provider-calls.test.ts`.
+- Solo los errores **transitorios** (5xx, 408/429, throttling, timeout, red) se reintentan y cuentan para el
+  circuito. Un 4xx (dirección inválida, acceso denegado) muestra que el proveedor responde: se propaga al primer intento.
+- Con el circuito abierto se lanza `CircuitOpenError` (503) sin llamar al proveedor. Pasado `recoveryTimeMs`,
+  **una sola** llamada de prueba (entre todas las instancias) decide si se cierra o sigue abierto.
+- El estado vive en Redis (memoria si no hay Redis) y no vence solo: cada apertura tiene su cierre. Al abrirse y
+  al cerrarse, `modules/integration` registra la ventana en `provider_fallback_events` y lo audita.
+
+> **Alternativa conocida (no adoptada):** las librerías habituales en Node son [opossum](https://github.com/nodeshift/opossum)
+> (circuit breaker) y [cockatiel](https://github.com/connor4312/cockatiel) (reintento + breaker + timeout combinados).
+> Guardan el estado en memoria de cada proceso: con varias instancias, cada una abre su propio circuito y avisa su
+> propia ventana de fallback. Se eligió el estado compartido en Redis para tener una sola ventana por caída. Si eso
+> deja de importar, cambiar `circuit-breaker.util` por una de ellas no toca a los que usan `callProvider`.
 
 ## Auditoría, operaciones y logs
 
@@ -185,6 +224,17 @@ Son tres cosas distintas y cada una tiene su lugar:
 
 Todo comparte el mismo `correlationId`, que identifica una operación (petición HTTP, webhook, ciclo
 de worker o tarea de sistema) de principio a fin.
+
+## Errores, reintentos e idempotencia
+
+Toda respuesta de error dice si es **temporal** (`retryable: true`, y `Retry-After` si se sabe cuánto
+esperar) o **permanente**. El servidor repite por su cuenta las transacciones que chocan por deadlock o
+serialización (si no tuvieron efectos externos) y responde 503, no 500, cuando la base no está. El
+contrato completo, para quien consume la API: docs/errors-and-retries.md.
+
+Las operaciones que no se deben ejecutar dos veces (hoy: crear y enviar notificaciones) exigen el header
+`Idempotency-Key`: un reintento con la misma clave recibe la respuesta guardada. Cómo funciona, cuándo
+usarlo y sus límites: docs/idempotency.md.
 
 ## Servidor
 
