@@ -27,6 +27,11 @@ function sslConfig() {
     : { rejectUnauthorized: false };
 }
 
+// Cuánto espera una consulta por una conexión libre del pool. Sin esto `pg` espera para siempre (0): con
+// el pool agotado o la base caída la petición quedaba colgada. Al vencer, el error se responde 503
+// DATABASE_UNAVAILABLE (shared/database/database-errors.ts) y el cliente reintenta.
+const POOL_CONNECTION_TIMEOUT_MS = 5_000;
+
 const adapter = new PrismaPg(
   {
     host: database.host,
@@ -34,7 +39,8 @@ const adapter = new PrismaPg(
     database: database.name,
     user: database.user,
     password: database.password,
-    ssl: sslConfig()
+    ssl: sslConfig(),
+    connectionTimeoutMillis: POOL_CONNECTION_TIMEOUT_MS
   },
   { schema: database.schema || 'public' }
 );

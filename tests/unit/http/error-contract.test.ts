@@ -105,7 +105,9 @@ describe('RequestLockMiddleware: la petición gemela recibe 409 temporal con Ret
 
     const first = request(app).post('/p').send({ a: 1 });
     const firstPending = first.then(r => r);
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(resolve => {
+      setTimeout(resolve, 50);
+    });
     const second = await request(app).post('/p').send({ a: 1 });
     release();
     await firstPending;
