@@ -29,7 +29,6 @@ export function clientKycTypes(): NotificationTypeSeed[] {
       code: 'BIENVENIDA',
       name: 'Bienvenida',
       description: 'Email de bienvenida cuando un usuario se registra exitosamente',
-      priority: 'high',
       titleTemplate: '¡Bienvenido a Base Project!',
       bodyTemplate: 'Hola {{nombre}}, te has registrado exitosamente. Completa tu perfil para comenzar a usar la plataforma.',
       emailSubjectTemplate: '¡Bienvenido a Base Project!',
@@ -55,7 +54,6 @@ export function clientKycTypes(): NotificationTypeSeed[] {
       code: 'SOLICITUD_RESET_PASSWORD',
       name: 'Solicitud de Restablecimiento de Contraseña',
       description: 'Email con enlace de reset cuando el usuario solicita recuperar su contraseña',
-      priority: 'urgent',
       titleTemplate: 'Solicitud de restablecimiento de contraseña',
       bodyTemplate:
         'Hola {{nombre}}, recibimos una solicitud para restablecer tu contraseña. Si no fuiste tú, ignora este mensaje.',
@@ -85,7 +83,6 @@ export function clientKycTypes(): NotificationTypeSeed[] {
       code: 'SOLICITUD_RESET_MFA',
       name: 'Solicitud de Restablecimiento de MFA',
       description: 'Email con enlace de reset cuando el usuario solicita recuperar su doble factor',
-      priority: 'urgent',
       titleTemplate: 'Solicitud de restablecimiento de doble factor',
       bodyTemplate:
         'Hola {{nombre}}, recibimos una solicitud para restablecer tu autenticador. Si no fuiste tú, ignora este mensaje.',
@@ -115,7 +112,6 @@ export function clientKycTypes(): NotificationTypeSeed[] {
       code: 'RESET_PASSWORD',
       name: 'Contraseña Restablecida',
       description: 'Confirmación por email de que la contraseña fue restablecida exitosamente',
-      priority: 'high',
       titleTemplate: 'Tu contraseña ha sido restablecida',
       bodyTemplate:
         'Hola {{nombre}}, tu contraseña fue restablecida exitosamente. Si no fuiste tú, contacta a soporte de inmediato.',
@@ -142,7 +138,6 @@ export function clientKycTypes(): NotificationTypeSeed[] {
       code: 'RESET_MFA',
       name: 'Autenticador Restablecido',
       description: 'Confirmación por email de que el doble factor fue restablecido exitosamente',
-      priority: 'high',
       titleTemplate: 'Tu autenticador ha sido restablecido',
       bodyTemplate:
         'Hola {{nombre}}, tu doble factor de autenticación fue restablecido exitosamente. Si no fuiste tú, contacta a soporte.',
@@ -173,7 +168,6 @@ export function clientKycTypes(): NotificationTypeSeed[] {
       code: 'BIOMETRIC_CREDENTIAL_REGISTERED',
       name: 'Credencial Biométrica Registrada',
       description: 'Alerta de seguridad cuando se registra una nueva credencial biométrica en la cuenta',
-      priority: 'high',
       titleTemplate: 'Nueva huella biométrica registrada',
       bodyTemplate:
         'Hola {{nombre}}, una nueva credencial biométrica fue registrada en tu cuenta. Si no fuiste tú, contacta a soporte.',
@@ -204,7 +198,6 @@ export function clientKycTypes(): NotificationTypeSeed[] {
       code: 'CODIGO_VERIFICACION',
       name: 'Código de Verificación',
       description: 'OTP enviado por email para verificar el contacto del usuario (crearNotificacionDirecta)',
-      priority: 'urgent',
       titleTemplate: 'Tu código de verificación',
       bodyTemplate: 'Tu código de verificación es {{codigo}}. Válido por {{minutos}} minutos.',
       emailSubjectTemplate: 'Tu código de verificación de Base Project',

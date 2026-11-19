@@ -4,8 +4,7 @@
 // lógica de orquestación, no el acceso a datos: (1) validaciones de entrada (tipo/email requeridos
 // y tipo inexistente → AppError 400/404); (2) el envío directo por email descifra el destino y
 // delega en el servicio de email; (3) el camino individual crea la fila in-app, resuelve las
-// preferencias del usuario por categoría y despacha el envío en background (scheduler de DND +
-// prioridad); (4) el camino global crea la fila global y despacha el procesamiento masivo; (5) la
+// preferencia del usuario y, en la misma transacción, las entregas por canal; envía tras confirmar; (4) el camino global crea la fila global y despacha el procesamiento masivo; (5) la
 // propagación de errores del repositorio. Repos, utils, servicios de envío/scheduler/batch, logger
 // y el modelo se mockean para aislar la lógica; AppError es el real para poder assertar statusCode.
 
@@ -22,8 +21,7 @@ jest.mock('../repositories/notification-type.repository', () => ({
 }));
 
 jest.mock('../repositories/user-notification-preference.repository', () => ({
-  findByUserAndCategory: jest.fn(),
-  findGlobalByUser: jest.fn()
+  findByUser: jest.fn()
 }));
 
 jest.mock('../utils/notification-count.util', () => ({
@@ -32,16 +30,21 @@ jest.mock('../utils/notification-count.util', () => ({
 }));
 
 jest.mock('../utils/notification-content.util', () => ({
-  generarContenido: jest.fn().mockReturnValue({ title: 'Título generado', body: 'Cuerpo generado' }),
-  mapPriority: jest.fn().mockReturnValue('normal')
+  generarContenido: jest.fn().mockReturnValue({ title: 'Título generado', body: 'Cuerpo generado' })
 }));
 
-jest.mock('./notification-scheduler.service', () => ({
-  isInQuietHours: jest.fn().mockReturnValue(false)
+jest.mock('./notification-delivery.service', () => ({
+  schedule: jest.fn(),
+  sendInBackground: jest.fn()
 }));
 
-jest.mock('./notification-sending.service', () => ({
-  procesarEnviosIndividuales: jest.fn().mockResolvedValue(undefined)
+// La transacción se simula ejecutando el trabajo; activeUnit dice si quien llama ya está en una.
+jest.mock('../../../shared/database/unit-of-work', () => ({
+  run: jest.fn((work: () => unknown) => work())
+}));
+
+jest.mock('../../../shared/database/transaction-context', () => ({
+  activeUnit: jest.fn(() => null)
 }));
 
 // Servicios cargados de forma perezosa (require dentro del método) — igualmente interceptables.
@@ -61,8 +64,6 @@ jest.mock('../../../shared/observability/logger.util', () => ({
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn() }
 }));
 
-// El modelo solo aporta la constante de estado de procesamiento que usa el fuente.
-
 import { mocked, fixture } from 'tests/helpers/mock';
 import notificationRepoModule from '../repositories/notification.repository';
 const notificationRepo = mocked(notificationRepoModule);
@@ -76,10 +77,12 @@ import NotificationCountUtilModule from '../utils/notification-count.util';
 const NotificationCountUtil = mocked(NotificationCountUtilModule);
 import NotificationContentUtilModule from '../utils/notification-content.util';
 const NotificationContentUtil = mocked(NotificationContentUtilModule);
-import schedulerServiceModule from './notification-scheduler.service';
-const schedulerService = mocked(schedulerServiceModule);
-import sendingServiceModule from './notification-sending.service';
-const sendingService = mocked(sendingServiceModule);
+import deliveryServiceModule from './notification-delivery.service';
+const deliveryService = mocked(deliveryServiceModule);
+import unitOfWorkModule from '../../../shared/database/unit-of-work';
+const unitOfWork = mocked(unitOfWorkModule);
+import txContextModule from '../../../shared/database/transaction-context';
+const txContext = mocked(txContextModule);
 import emailServiceModule from './email-notification.service';
 const emailService = mocked(emailServiceModule);
 import batchServiceModule from './notification-batch.service';
@@ -89,13 +92,15 @@ const EncryptionUtil = mocked(EncryptionUtilModule);
 import creationService from './notification-creation.service';
 
 // Los envíos/side-effects se agendan con setImmediate; drenamos la cola para observarlos.
-const flush = () => new Promise(resolve => { setImmediate(resolve); });
+const flush = () =>
+  new Promise(resolve => {
+    setImmediate(resolve);
+  });
 
 function notificationType(overrides = {}) {
   return {
     notificationTypeId: 't-1',
     code: 'WELCOME',
-    priority: 'normal',
     category: null,
     ...overrides
   };
@@ -105,8 +110,6 @@ describe('NotificationCreationService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     NotificationContentUtil.generarContenido.mockReturnValue({ title: 'Título generado', body: 'Cuerpo generado' });
-    NotificationContentUtil.mapPriority.mockReturnValue('normal');
-    schedulerService.isInQuietHours.mockReturnValue(false);
     EncryptionUtil.safeDecrypt.mockImplementation(value => `dec(${value})`);
   });
 
@@ -125,9 +128,9 @@ describe('NotificationCreationService', () => {
 
     it('lanza notFound (404) si el tipo de notificación no existe', async () => {
       notificationTypeRepo.findByCode.mockResolvedValue(null);
-      await expect(
-        creationService.crearNotificacionDirecta({ tipoNotificacion: 'NOPE', email: 'a@b.cl' })
-      ).rejects.toMatchObject({ statusCode: 404 });
+      await expect(creationService.crearNotificacionDirecta({ tipoNotificacion: 'NOPE', email: 'a@b.cl' })).rejects.toMatchObject(
+        { statusCode: 404 }
+      );
     });
 
     it('descifra el email y delega en el servicio de email (camino feliz)', async () => {
@@ -149,9 +152,9 @@ describe('NotificationCreationService', () => {
       notificationTypeRepo.findByCode.mockResolvedValue(notificationType());
       emailService.enviarNotificacion.mockRejectedValueOnce(new Error('SES caído'));
 
-      await expect(
-        creationService.crearNotificacionDirecta({ tipoNotificacion: 'WELCOME', email: 'a@b.cl' })
-      ).rejects.toThrow('SES caído');
+      await expect(creationService.crearNotificacionDirecta({ tipoNotificacion: 'WELCOME', email: 'a@b.cl' })).rejects.toThrow(
+        'SES caído'
+      );
     });
   });
 
@@ -162,16 +165,21 @@ describe('NotificationCreationService', () => {
 
     it('lanza notFound (404) si el tipo de notificación no existe', async () => {
       notificationTypeRepo.findByCode.mockResolvedValue(null);
-      await expect(
-        creationService.crearNotificacion({ tipoNotificacion: 'NOPE', userId: 'u-1' })
-      ).rejects.toMatchObject({ statusCode: 404 });
+      await expect(creationService.crearNotificacion({ tipoNotificacion: 'NOPE', userId: 'u-1' })).rejects.toMatchObject({
+        statusCode: 404
+      });
     });
 
     describe('individual (userId presente)', () => {
-      it('crea la notificación in-app, despacha el envío y devuelve notificationId', async () => {
-        notificationTypeRepo.findByCode.mockResolvedValue(notificationType());
+      beforeEach(() => {
+        deliveryService.schedule.mockResolvedValue({ deliveries: [{ notificationDeliveryId: 'd-1' }], sendNow: true });
+      });
+
+      it('crea la notificación in-app y sus entregas en una transacción, envía tras confirmar y devuelve notificationId', async () => {
+        const type = notificationType();
+        notificationTypeRepo.findByCode.mockResolvedValue(type);
         notificationRepo.create.mockResolvedValue({ notificationId: 'n-1' });
-        userPreferenceRepo.findGlobalByUser.mockResolvedValue({ userId: 'u-1' });
+        userPreferenceRepo.findByUser.mockResolvedValue({ allowPush: false });
 
         const result = await creationService.crearNotificacion({
           tipoNotificacion: 'WELCOME',
@@ -179,75 +187,52 @@ describe('NotificationCreationService', () => {
           metadata: { foo: 'bar' }
         });
 
-        // Sin categoría → preferencia global.
-        expect(userPreferenceRepo.findGlobalByUser).toHaveBeenCalledWith('u-1');
-        expect(userPreferenceRepo.findByUserAndCategory).not.toHaveBeenCalled();
+        expect(unitOfWork.run).toHaveBeenCalledTimes(1);
         expect(notificationRepo.create).toHaveBeenCalledWith(
-          expect.objectContaining({
-            userId: 'u-1',
-            notificationTypeId: 't-1',
-            processingStatus: 'pending'
-          })
+          expect.objectContaining({ userId: 'u-1', notificationTypeId: 't-1', metadata: { foo: 'bar' } })
+        );
+        expect(deliveryService.schedule).toHaveBeenCalledWith('n-1', type, { allowPush: false }, { canSendNow: true });
+        expect(deliveryService.sendInBackground).toHaveBeenCalledWith(
+          [{ notificationDeliveryId: 'd-1' }],
+          expect.objectContaining({ notificationId: 'n-1', notificationType: type })
         );
         expect(result).toMatchObject({ estadoSolicitud: 1, notificationId: 'n-1' });
 
-        // El envío en background y el refresco del contador se agendan con setImmediate.
         await flush();
-        expect(sendingService.procesarEnviosIndividuales).toHaveBeenCalledTimes(1);
         expect(NotificationCountUtil.emitCountUpdate).toHaveBeenCalledWith('u-1');
       });
 
-      it('resuelve la preferencia por categoría cuando el tipo tiene categoría', async () => {
-        const type = notificationType({ category: { code: 'SECURITY', allowDnd: true, isCritical: false } });
-        notificationTypeRepo.findByCode.mockResolvedValue(type);
+      it('no envía desde aquí si las entregas quedaron para después (horario de silencio)', async () => {
+        notificationTypeRepo.findByCode.mockResolvedValue(notificationType());
         notificationRepo.create.mockResolvedValue({ notificationId: 'n-2' });
-        userPreferenceRepo.findByUserAndCategory.mockResolvedValue({ userId: 'u-1' });
-
-        await creationService.crearNotificacion({ tipoNotificacion: 'LOGIN', userId: 'u-1' });
-        await flush(); // drena el envío en background para no filtrarlo al siguiente test
-
-        expect(userPreferenceRepo.findByUserAndCategory).toHaveBeenCalledWith('u-1', 'SECURITY');
-        expect(userPreferenceRepo.findGlobalByUser).not.toHaveBeenCalled();
-      });
-
-      it('aplica quiet hours (DND) cuando la categoría lo permite y no es crítica', async () => {
-        const type = notificationType({ category: { code: 'MARKETING', allowDnd: true, isCritical: false } });
-        notificationTypeRepo.findByCode.mockResolvedValue(type);
-        notificationRepo.create.mockResolvedValue({ notificationId: 'n-3' });
-        userPreferenceRepo.findByUserAndCategory.mockResolvedValue({ userId: 'u-1', dnd: true });
-        schedulerService.isInQuietHours.mockReturnValue(true);
+        userPreferenceRepo.findByUser.mockResolvedValue(null);
+        deliveryService.schedule.mockResolvedValue({ deliveries: [{ notificationDeliveryId: 'd-2' }], sendNow: false });
 
         await creationService.crearNotificacion({ tipoNotificacion: 'PROMO', userId: 'u-1' });
-        await flush();
 
-        // isQuietHours (arg #8) debe ir en true, isHighPriority (arg #9) en false.
-        const call = sendingService.procesarEnviosIndividuales.mock.calls[0];
-        expect(call[7]).toBe(true);
-        expect(call[8]).toBe(false);
+        expect(deliveryService.sendInBackground).not.toHaveBeenCalled();
       });
 
-      it('una categoría crítica ignora el quiet hours y marca alta prioridad', async () => {
-        const type = notificationType({ category: { code: 'SECURITY', allowDnd: true, isCritical: true } });
-        notificationTypeRepo.findByCode.mockResolvedValue(type);
-        notificationRepo.create.mockResolvedValue({ notificationId: 'n-4' });
-        userPreferenceRepo.findByUserAndCategory.mockResolvedValue({ userId: 'u-1' });
-        schedulerService.isInQuietHours.mockReturnValue(true);
+      it('dentro de la unidad de trabajo de quien llama no envía ya: lo hará el despachador tras el commit', async () => {
+        notificationTypeRepo.findByCode.mockResolvedValue(notificationType());
+        notificationRepo.create.mockResolvedValue({ notificationId: 'n-3' });
+        userPreferenceRepo.findByUser.mockResolvedValue(null);
+        txContext.activeUnit.mockReturnValueOnce({} as never);
 
-        await creationService.crearNotificacion({ tipoNotificacion: 'ALERT', userId: 'u-1' });
-        await flush();
+        await creationService.crearNotificacion({ tipoNotificacion: 'WELCOME', userId: 'u-1' });
 
-        const call = sendingService.procesarEnviosIndividuales.mock.calls[0];
-        expect(call[7]).toBe(false); // crítica → nunca en quiet hours
-        expect(call[8]).toBe(true); // crítica → alta prioridad
+        expect(deliveryService.schedule).toHaveBeenCalledWith('n-3', expect.anything(), null, { canSendNow: false });
       });
 
-      it('propaga el error si el repositorio de notificaciones falla', async () => {
+      it('propaga el error si el repositorio de notificaciones falla (y no crea entregas)', async () => {
         notificationTypeRepo.findByCode.mockResolvedValue(notificationType());
         notificationRepo.create.mockRejectedValue(new Error('db down'));
 
-        await expect(
-          creationService.crearNotificacion({ tipoNotificacion: 'WELCOME', userId: 'u-1' })
-        ).rejects.toThrow('db down');
+        await expect(creationService.crearNotificacion({ tipoNotificacion: 'WELCOME', userId: 'u-1' })).rejects.toThrow(
+          'db down'
+        );
+        expect(deliveryService.schedule).not.toHaveBeenCalled();
+        expect(deliveryService.sendInBackground).not.toHaveBeenCalled();
       });
     });
 

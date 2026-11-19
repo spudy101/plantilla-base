@@ -25,7 +25,7 @@
   - **Clientes:** `clientsList`, `policyAcceptance`.
   - **Integraciones:** `providers` (salud de proveedores e historial de caídas; las métricas por llamada están en CloudWatch).
   - **Auditoría:** `globalLogs`, `auditActionCatalog`, `systemAlerts`, `userChanges`, `activeSessions`.
-  - **Notificaciones:** `notificationResend`, `notificationManagement`.
+  - **Notificaciones:** `notificationDeliveries`, `notificationManagement`.
   - **Consentimientos:** `consentTypes`, `privacyPolicies`.
 - **Acciones** (`RBAC_ACTIONS`): `create | read | update | delete` (`ALL_ACTIONS` = las 4).
 - **Wildcard** (`RBAC_WILDCARD = '*'`): como valor de rol → acceso total; como módulo (`{ '*': ['read'] }`)

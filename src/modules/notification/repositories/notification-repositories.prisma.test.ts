@@ -8,10 +8,12 @@
 const mockDb = {
   $transaction: jest.fn(),
   userPushToken: { findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
-  notification: { updateMany: jest.fn(), updateManyAndReturn: jest.fn() },
+  $queryRaw: jest.fn(),
+  notification: { updateMany: jest.fn() },
+  notificationDelivery: { createManyAndReturn: jest.fn(), updateManyAndReturn: jest.fn() },
   smsDeliveryAttempt: { count: jest.fn() },
   verificationCode: { updateMany: jest.fn() },
-  userNotificationPreference: { findFirst: jest.fn(), update: jest.fn(), create: jest.fn(), findMany: jest.fn() },
+  userNotificationPreference: { findUnique: jest.fn(), upsert: jest.fn() },
   emailBounceSuppression: { upsert: jest.fn(), update: jest.fn() }
 };
 
@@ -19,6 +21,7 @@ jest.mock('../../../shared/database/prisma', () => mockDb);
 
 import userPushTokenRepository from './user-push-token.repository';
 import notificationRepository from './notification.repository';
+import notificationDeliveryRepository from './notification-delivery.repository';
 import smsDeliveryAttemptRepository from './sms-delivery-attempt.repository';
 import verificationCodeRepository from './verification-code.repository';
 import userNotificationPreferenceRepository from './user-notification-preference.repository';
@@ -71,32 +74,77 @@ describe('NotificationRepository', () => {
       data: { isRead: true, readAt: expect.any(Date) }
     });
   });
+});
 
-  it('recordPushError incrementa el contador en la base (sin leer antes)', async () => {
-    mockDb.notification.updateManyAndReturn.mockResolvedValue([{ notificationId: 'n-1' }]);
+describe('NotificationDeliveryRepository', () => {
+  it('createForNotification crea una entrega pendiente por canal con el mismo primer intento', async () => {
+    const at = new Date('2026-01-01T10:00:00Z');
+    mockDb.notificationDelivery.createManyAndReturn.mockResolvedValue([{ notificationDeliveryId: 'd-1' }]);
 
-    await notificationRepository.recordPushError('n-1', 'boom');
+    await notificationDeliveryRepository.createForNotification('n-1', ['push', 'email'], at);
 
-    expect(mockDb.notification.updateManyAndReturn).toHaveBeenCalledWith({
-      where: { notificationId: 'n-1' },
-      data: { pushError: 'boom', pushErrorCode: null, pushRetryCount: { increment: 1 }, pushNextRetryAt: expect.any(Date) }
+    expect(mockDb.notificationDelivery.createManyAndReturn).toHaveBeenCalledWith({
+      data: [
+        { notificationId: 'n-1', channel: 'push', nextAttemptAt: at },
+        { notificationId: 'n-1', channel: 'email', nextAttemptAt: at }
+      ]
     });
   });
 
-  it('recordEmailError guarda el código del proveedor junto al mensaje', async () => {
-    mockDb.notification.updateManyAndReturn.mockResolvedValue([{ notificationId: 'n-1' }]);
+  it('createForNotification sin canales no toca la base', async () => {
+    await expect(notificationDeliveryRepository.createForNotification('n-1', [], new Date())).resolves.toEqual([]);
+    expect(mockDb.notificationDelivery.createManyAndReturn).not.toHaveBeenCalled();
+  });
 
-    await notificationRepository.recordEmailError('n-1', 'rechazado', null, 'MessageRejected');
+  it('claimDue toma con SKIP LOCKED y devuelve las filas en camelCase', async () => {
+    mockDb.$queryRaw.mockResolvedValue([
+      { notification_delivery_id: 'd-1', notification_id: 'n-1', channel: 'email', attempts: 2 }
+    ]);
 
-    expect(mockDb.notification.updateManyAndReturn).toHaveBeenCalledWith({
-      where: { notificationId: 'n-1' },
-      data: expect.objectContaining({ emailError: 'rechazado', emailErrorCode: 'MessageRejected' })
+    await expect(notificationDeliveryRepository.claimDue(50, 300000)).resolves.toEqual([
+      { notificationDeliveryId: 'd-1', notificationId: 'n-1', channel: 'email', attempts: 2 }
+    ]);
+    const sql = (mockDb.$queryRaw.mock.calls[0]![0] as string[]).join('?');
+    expect(sql).toMatch(/FOR UPDATE SKIP LOCKED/);
+    // Las fechas van como parámetros (ver claimDue), no como now()
+    expect(sql).toMatch(/status = 'pending' AND next_attempt_at <= \?/);
+  });
+
+  it('recordFailure con próximo intento queda pendiente; sin él, fallida', async () => {
+    mockDb.notificationDelivery.updateManyAndReturn.mockResolvedValue([{}]);
+    const next = new Date();
+
+    await notificationDeliveryRepository.recordFailure('d-1', { error: 'boom', errorCode: 'Throttling', nextAttemptAt: next });
+    expect(mockDb.notificationDelivery.updateManyAndReturn).toHaveBeenLastCalledWith({
+      where: { notificationDeliveryId: 'd-1' },
+      data: { status: 'pending', attempts: { increment: 1 }, nextAttemptAt: next, lastError: 'boom', lastErrorCode: 'Throttling' }
+    });
+
+    await notificationDeliveryRepository.recordFailure('d-1', {
+      error: 'rebote',
+      errorCode: 'MessageRejected',
+      nextAttemptAt: null
+    });
+    expect(mockDb.notificationDelivery.updateManyAndReturn).toHaveBeenLastCalledWith({
+      where: { notificationDeliveryId: 'd-1' },
+      data: expect.objectContaining({ status: 'failed', nextAttemptAt: null })
     });
   });
 
-  it('update devuelve null si la fila ya no existe', async () => {
-    mockDb.notification.updateManyAndReturn.mockResolvedValue([]);
-    await expect(notificationRepository.updateProcessingStatus('n-x', 'failed')).resolves.toBeNull();
+  it('markSent y markSkipped cierran la entrega (sin próximo intento)', async () => {
+    mockDb.notificationDelivery.updateManyAndReturn.mockResolvedValue([]);
+
+    await expect(notificationDeliveryRepository.markSent('d-1')).resolves.toBeNull();
+    expect(mockDb.notificationDelivery.updateManyAndReturn).toHaveBeenLastCalledWith({
+      where: { notificationDeliveryId: 'd-1' },
+      data: expect.objectContaining({ status: 'sent', sentAt: expect.any(Date), nextAttemptAt: null, attempts: { increment: 1 } })
+    });
+
+    await notificationDeliveryRepository.markSkipped('d-2', 'Usuario sin email');
+    expect(mockDb.notificationDelivery.updateManyAndReturn).toHaveBeenLastCalledWith({
+      where: { notificationDeliveryId: 'd-2' },
+      data: { status: 'skipped', lastError: 'Usuario sin email', nextAttemptAt: null }
+    });
   });
 });
 
@@ -107,7 +155,9 @@ describe('SmsDeliveryAttemptRepository.countFailedBetween', () => {
     mockDb.smsDeliveryAttempt.count.mockResolvedValue(2);
 
     await expect(smsDeliveryAttemptRepository.countFailedBetween(from, to)).resolves.toBe(2);
-    expect(mockDb.smsDeliveryAttempt.count).toHaveBeenLastCalledWith({ where: { status: 'failed', createdAt: { gte: from, lte: to } } });
+    expect(mockDb.smsDeliveryAttempt.count).toHaveBeenLastCalledWith({
+      where: { status: 'failed', createdAt: { gte: from, lte: to } }
+    });
 
     await smsDeliveryAttemptRepository.countFailedBetween(null, to);
     expect(mockDb.smsDeliveryAttempt.count).toHaveBeenLastCalledWith({ where: { status: 'failed', createdAt: { lte: to } } });
@@ -127,47 +177,40 @@ describe('VerificationCodeRepository.incrementAttempts', () => {
   });
 });
 
-describe('UserNotificationPreferenceRepository (horario de no molestar como texto)', () => {
-  it('devuelve las horas TIME como "HH:MM:SS"', async () => {
-    mockDb.userNotificationPreference.findFirst.mockResolvedValue({
+describe('UserNotificationPreferenceRepository (una por usuario, horario como texto)', () => {
+  it('findByUser devuelve las horas TIME como "HH:MM:SS"', async () => {
+    mockDb.userNotificationPreference.findUnique.mockResolvedValue({
       userNotificationPreferenceId: 'p-1',
       quietHoursStart: toTime('22:00'),
       quietHoursEnd: toTime('07:30:00')
     });
 
-    const pref = await userNotificationPreferenceRepository.findGlobalByUser('u-1');
+    const pref = await userNotificationPreferenceRepository.findByUser('u-1');
 
     expect(pref).toMatchObject({ quietHoursStart: '22:00:00', quietHoursEnd: '07:30:00' });
-    expect(mockDb.userNotificationPreference.findFirst).toHaveBeenCalledWith({ where: { userId: 'u-1', notificationCategoryCode: null } });
+    expect(mockDb.userNotificationPreference.findUnique).toHaveBeenCalledWith({ where: { userId: 'u-1' } });
   });
 
-  it('findByUserAndCategory cae a la global si la categoría no tiene override', async () => {
-    mockDb.userNotificationPreference.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ userNotificationPreferenceId: 'g' });
+  it('findByUser devuelve null si el usuario nunca la configuró', async () => {
+    mockDb.userNotificationPreference.findUnique.mockResolvedValue(null);
+    await expect(userNotificationPreferenceRepository.findByUser('u-1')).resolves.toBeNull();
+  });
 
-    await expect(userNotificationPreferenceRepository.findByUserAndCategory('u-1', 'SECURITY')).resolves.toMatchObject({
-      userNotificationPreferenceId: 'g'
+  it('upsert convierte las horas y solo toca lo que vino', async () => {
+    mockDb.userNotificationPreference.upsert.mockResolvedValue({
+      userNotificationPreferenceId: 'p-9',
+      quietHoursStart: null,
+      quietHoursEnd: null
     });
-    expect(mockDb.userNotificationPreference.findFirst).toHaveBeenLastCalledWith({ where: { userId: 'u-1', notificationCategoryCode: null } });
-  });
 
-  it('upsertGlobalPreference crea la global si no existe y convierte las horas', async () => {
-    mockDb.userNotificationPreference.findFirst.mockResolvedValue(null);
-    mockDb.userNotificationPreference.create.mockResolvedValue({ userNotificationPreferenceId: 'p-9', quietHoursStart: null, quietHoursEnd: null });
+    await userNotificationPreferenceRepository.upsert('u-1', { allowSms: false, quietHoursStart: '23:15' });
 
-    await userNotificationPreferenceRepository.upsertGlobalPreference('u-1', { allowSms: false, quietHoursStart: '23:15' });
-
-    expect(mockDb.userNotificationPreference.create).toHaveBeenCalledWith({
-      data: { userId: 'u-1', notificationCategoryCode: null, allowSms: false, quietHoursStart: toTime('23:15') }
+    const data = { allowSms: false, quietHoursStart: toTime('23:15') };
+    expect(mockDb.userNotificationPreference.upsert).toHaveBeenCalledWith({
+      where: { userId: 'u-1' },
+      update: data,
+      create: { userId: 'u-1', ...data }
     });
-  });
-
-  it('upsertCategoryPreference actualiza el override existente sin tocar lo que no vino', async () => {
-    mockDb.userNotificationPreference.findFirst.mockResolvedValue({ userNotificationPreferenceId: 'p-2' });
-    mockDb.userNotificationPreference.update.mockResolvedValue({ userNotificationPreferenceId: 'p-2', quietHoursStart: null, quietHoursEnd: null });
-
-    await userNotificationPreferenceRepository.upsertCategoryPreference('u-1', 'MARKETING', { allowPush: false });
-
-    expect(mockDb.userNotificationPreference.update).toHaveBeenCalledWith({ where: { userNotificationPreferenceId: 'p-2' }, data: { allowPush: false } });
   });
 });
 
@@ -189,13 +232,25 @@ describe('EmailBounceSuppressionRepository.registerHardBounce', () => {
       .mockResolvedValueOnce({ bounceCount: 3, status: 'active', userId: null, suppressedAt: null })
       .mockResolvedValueOnce({});
 
-    const result = await emailBounceSuppressionRepository.registerHardBounce('h-1', { userId: 'u-1', errorCode: 'Bounce', threshold: 3 });
+    const result = await emailBounceSuppressionRepository.registerHardBounce('h-1', {
+      userId: 'u-1',
+      errorCode: 'Bounce',
+      threshold: 3
+    });
 
     expect(result).toEqual({ bounceCount: 3, suppressed: true, alreadySuppressed: false });
-    expect(mockDb.emailBounceSuppression.update).toHaveBeenNthCalledWith(1, { where: { emailHash: 'h-1' }, data: { bounceCount: { increment: 1 } } });
+    expect(mockDb.emailBounceSuppression.update).toHaveBeenNthCalledWith(1, {
+      where: { emailHash: 'h-1' },
+      data: { bounceCount: { increment: 1 } }
+    });
     expect(mockDb.emailBounceSuppression.update).toHaveBeenLastCalledWith({
       where: { emailHash: 'h-1' },
-      data: expect.objectContaining({ userId: 'u-1', status: 'suppressed', suppressedAt: expect.any(Date), lastErrorCode: 'Bounce' })
+      data: expect.objectContaining({
+        userId: 'u-1',
+        status: 'suppressed',
+        suppressedAt: expect.any(Date),
+        lastErrorCode: 'Bounce'
+      })
     });
   });
 });

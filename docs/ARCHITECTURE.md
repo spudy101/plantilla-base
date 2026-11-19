@@ -195,7 +195,7 @@ const res = await callProvider({ product: 'ses', endpoint: 'SES:SendEmailCommand
   llamadas extra. Sirve igual para un proveedor que no sea de AWS. Las **alarmas** (p. ej. `Failures`/`Calls`
   de SES > 5% en 5 min, `Rejected` > 0) y la retención del log group se configuran en AWS.
 - Si el negocio necesita un dato de la llamada, se guarda **en la entidad del negocio**: p. ej. el código de
-  error de un envío va a `notifications.email_error_code` / `push_error_code`, que lee el worker de reintentos.
+  error de un envío va a `notification_deliveries.last_error_code`, que decide si es un rebote definitivo.
 - Los clientes del SDK (SES, SNS, S3) se crean con `...AWS_CLIENT_OPTIONS` (`maxAttempts: 1`): reintenta solo
   `callProvider`, no también el SDK. Lo verifica `tests/unit/guards/provider-calls.test.ts`.
 - Solo los errores **transitorios** (5xx, 408/429, throttling, timeout, red) se reintentan y cuentan para el

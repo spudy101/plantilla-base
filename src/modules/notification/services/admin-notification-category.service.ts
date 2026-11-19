@@ -21,13 +21,8 @@ const EDITABLE = [
   'supportsPush',
   'supportsEmail',
   'supportsSms',
-  'allowDnd',
   'isCritical',
-  'defaultQuietHoursStart',
-  'defaultQuietHoursEnd',
-  'priority',
   'emailLayoutTemplate',
-  'sortOrder',
   'isActive'
 ] as const;
 

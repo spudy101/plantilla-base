@@ -100,19 +100,17 @@ class NotificationBatchService {
 
       await this._initBatchState(cache, globalNotificationId, totalUsers);
 
-      // Los canales soportados los define la categoría del tipo. El filtrado de preferencias del
-      // usuario también es por categoría (o global).
-      const categoryCode = notificationType.category?.code ?? null;
+      // Los canales soportados los define la categoría del tipo; cada usuario filtra con su preferencia.
 
       if (notificationType.category?.supportsPush ?? true) {
         await this.globalNotificationRepo.updatePushProcessingStatus(globalNotificationId, 'processing');
-        await this.enviarPushGlobalPorLotes(globalNotificationId, allUsers, title, body, metadata, categoryCode, cache);
+        await this.enviarPushGlobalPorLotes(globalNotificationId, allUsers, title, body, metadata, cache);
         await this.globalNotificationRepo.updatePushProcessingStatus(globalNotificationId, 'completed');
       }
 
       if (notificationType.category?.supportsEmail ?? true) {
         await this.globalNotificationRepo.updateEmailProcessingStatus(globalNotificationId, 'processing');
-        await this.enviarEmailGlobalPorLotes(globalNotificationId, allUsers, notificationType, metadata, categoryCode, cache);
+        await this.enviarEmailGlobalPorLotes(globalNotificationId, allUsers, notificationType, metadata, cache);
         await this.globalNotificationRepo.updateEmailProcessingStatus(globalNotificationId, 'completed');
       }
 
@@ -138,11 +136,10 @@ class NotificationBatchService {
     title: string,
     body: string,
     metadata: Record<string, unknown>,
-    notificationTypeCode: string | null,
     cache: KeyValueCache
   ) {
     try {
-      const usersAllowingPush = await this._filtrarUsuariosPush(users, notificationTypeCode);
+      const usersAllowingPush = await this._filtrarUsuariosPush(users);
 
       logger.info('Usuarios que permiten push', {
         total: users.length,
@@ -251,11 +248,10 @@ class NotificationBatchService {
     users: UserProfileRow[],
     notificationType: NotificationTypeWithCategory,
     metadata: Record<string, unknown>,
-    notificationTypeCode: string | null,
     cache: KeyValueCache
   ) {
     try {
-      const usersAllowingEmail = await this._filtrarUsuariosEmail(users, notificationTypeCode);
+      const usersAllowingEmail = await this._filtrarUsuariosEmail(users);
 
       logger.info('Usuarios que permiten email', {
         total: users.length,
@@ -318,10 +314,10 @@ class NotificationBatchService {
   }
 
   /** @private */
-  async _filtrarUsuariosPush(users: UserProfileRow[], notificationTypeCode: string | null) {
+  async _filtrarUsuariosPush(users: UserProfileRow[]) {
     const allowed: UserProfileRow[] = [];
     for (const user of users) {
-      const allowsPush = await this.userNotificationPreferenceRepo.userAllowsPush(user.userId, notificationTypeCode);
+      const allowsPush = (await this.userNotificationPreferenceRepo.findByUser(user.userId))?.allowPush ?? true;
       if (allowsPush) {
         allowed.push(user);
       }
@@ -330,10 +326,10 @@ class NotificationBatchService {
   }
 
   /** @private */
-  async _filtrarUsuariosEmail(users: UserProfileRow[], notificationTypeCode: string | null) {
+  async _filtrarUsuariosEmail(users: UserProfileRow[]) {
     const allowed: UserProfileRow[] = [];
     for (const user of users) {
-      const allowsEmail = await this.userNotificationPreferenceRepo.userAllowsEmail(user.userId, notificationTypeCode);
+      const allowsEmail = (await this.userNotificationPreferenceRepo.findByUser(user.userId))?.allowEmail ?? true;
       if (allowsEmail && user.person?.contact?.email) {
         allowed.push(user);
       }

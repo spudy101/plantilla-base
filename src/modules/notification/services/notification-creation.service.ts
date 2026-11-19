@@ -6,15 +6,14 @@ import globalNotificationRepo from '../repositories/global-notification.reposito
 import notificationTypeRepo from '../repositories/notification-type.repository';
 import userNotificationPreferenceRepo from '../repositories/user-notification-preference.repository';
 import NotificationCountUtil from '../utils/notification-count.util';
-import notificationSchedulerService from './notification-scheduler.service';
-import notificationSendingService from './notification-sending.service';
+import notificationDeliveryService from './notification-delivery.service';
+import unitOfWork from '../../../shared/database/unit-of-work';
+import txContext from '../../../shared/database/transaction-context';
 import NotificationContentUtil from '../utils/notification-content.util';
 import EncryptionUtil from '../../../shared/security/encryption.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import AppError from '../../../shared/http/app-error.util';
-import domainEnumsModule from '../../../shared/constants/domain-enums';
-const { NOTIFICATION_PROCESSING_STATUS } = domainEnumsModule;
 import errorMessageModule from '../../../shared/utils/error-message.util';
 import type { NotificationCreated } from '../responses/notification.response';
 
@@ -26,8 +25,7 @@ class NotificationCreationService {
   globalNotificationRepo: typeof globalNotificationRepo;
   notificationTypeRepo: typeof notificationTypeRepo;
   userNotificationPreferenceRepo: typeof userNotificationPreferenceRepo;
-  notificationSchedulerService: typeof notificationSchedulerService;
-  notificationSendingService: typeof notificationSendingService;
+  notificationDeliveryService: typeof notificationDeliveryService;
 
   /**
    * Dependencias inyectables (SOLID: D). Por defecto se usan las implementaciones
@@ -40,8 +38,7 @@ class NotificationCreationService {
     this.globalNotificationRepo = deps.globalNotificationRepo ?? globalNotificationRepo;
     this.notificationTypeRepo = deps.notificationTypeRepo ?? notificationTypeRepo;
     this.userNotificationPreferenceRepo = deps.userNotificationPreferenceRepo ?? userNotificationPreferenceRepo;
-    this.notificationSchedulerService = deps.notificationSchedulerService ?? notificationSchedulerService;
-    this.notificationSendingService = deps.notificationSendingService ?? notificationSendingService;
+    this.notificationDeliveryService = deps.notificationDeliveryService ?? notificationDeliveryService;
   }
 
   /**
@@ -165,56 +162,35 @@ class NotificationCreationService {
     relatedEntity: NotificationCreationService.RelatedEntity | null | undefined,
     metadata: Record<string, unknown>
   ) {
-    // 1. Crear notificación in-app
-    const notification = await this.notificationRepo.create({
-      userId,
-      notificationTypeId: notificationType.notificationTypeId,
-      title,
-      body,
-      relatedEntityType: relatedEntity?.type || null,
-      relatedEntityId: relatedEntity?.id || null,
-      metadata: metadata as Prisma.InputJsonValue,
-      processingStatus: NOTIFICATION_PROCESSING_STATUS.PENDING,
-      priority: NotificationContentUtil.mapPriority(notificationType.priority)
+    // 1. Notificación in-app (siempre) y 2. sus entregas por canal externo, en la misma transacción:
+    //    si el proceso muere antes de enviar, el despachador las encuentra y las envía igual.
+    // Si quien llama ya está en una unidad de trabajo, su commit llega después: no se envía desde aquí y
+    // las entregas las toma el despachador en su próximo ciclo.
+    const canSendNow = txContext.activeUnit() === null;
+    const userPreference = await this.userNotificationPreferenceRepo.findByUser(userId);
+    const { notification, deliveries, sendNow } = await unitOfWork.run(async () => {
+      const created = await this.notificationRepo.create({
+        userId,
+        notificationTypeId: notificationType.notificationTypeId,
+        title,
+        body,
+        relatedEntityType: relatedEntity?.type || null,
+        relatedEntityId: relatedEntity?.id || null,
+        metadata: metadata as Prisma.InputJsonValue
+      });
+      const scheduled = await this.notificationDeliveryService.schedule(
+        created.notificationId,
+        notificationType,
+        userPreference,
+        { canSendNow }
+      );
+      return { notification: { ...created, notificationType }, ...scheduled };
     });
+    if (sendNow) {
+      this.notificationDeliveryService.sendInBackground(deliveries, notification);
+    }
 
-    // 2. Preferencias del usuario — atadas a la CATEGORÍA del tipo (o global si no tiene categoría)
-    const category = notificationType.category || null;
-    const categoryCode = category?.code ?? null;
-    const userPreference = categoryCode
-      ? await this.userNotificationPreferenceRepo.findByUserAndCategory(userId, categoryCode)
-      : await this.userNotificationPreferenceRepo.findGlobalByUser(userId);
-
-    // 3. Quiet hours y prioridad — la categoría manda. Una categoría crítica o no silenciable
-    //    ignora el quiet hours del usuario.
-    const isCritical = category?.isCritical === true;
-    const allowDnd = category?.allowDnd !== false;
-    const isQuietHours = allowDnd && !isCritical && this.notificationSchedulerService.isInQuietHours(userPreference);
-    const isHighPriority = isCritical || category?.priority === 'urgent' || notificationType.priority === 'high';
-
-    // 4. Programar envíos en background
-    setImmediate(() => {
-      this.notificationSendingService
-        .procesarEnviosIndividuales(
-          notification.notificationId,
-          userId,
-          notificationType,
-          title,
-          body,
-          metadata,
-          userPreference,
-          isQuietHours,
-          isHighPriority
-        )
-        .catch(err => {
-          logger.error('Error procesando envíos individuales', {
-            error: err.message,
-            notificationId: notification.notificationId
-          });
-        });
-    });
-
-    // 5. Refrescar el contador SSE del destinatario (side-effect de fondo, nunca en el flujo principal)
+    // 3. Refrescar el contador SSE del destinatario (side-effect de fondo, nunca en el flujo principal)
     setImmediate(() => NotificationCountUtil.emitCountUpdate(userId));
 
     return { notificationId: notification.notificationId };
@@ -293,8 +269,7 @@ namespace NotificationCreationService {
     globalNotificationRepo?: typeof globalNotificationRepo;
     notificationTypeRepo?: typeof notificationTypeRepo;
     userNotificationPreferenceRepo?: typeof userNotificationPreferenceRepo;
-    notificationSchedulerService?: typeof notificationSchedulerService;
-    notificationSendingService?: typeof notificationSendingService;
+    notificationDeliveryService?: typeof notificationDeliveryService;
   }
 }
 

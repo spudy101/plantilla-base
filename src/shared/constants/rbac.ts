@@ -67,7 +67,7 @@ const RBAC_MODULES = {
   ACTIVE_SESSIONS: 'activeSessions',
 
   // ── Notificaciones ──────────────────────────────────────────────────────
-  NOTIFICATION_RESEND: 'notificationResend',
+  NOTIFICATION_DELIVERIES: 'notificationDeliveries',
   NOTIFICATION_MANAGEMENT: 'notificationManagement',
 
   // ── Consentimientos ─────────────────────────────────────────────────────
@@ -185,9 +185,9 @@ const RBAC_MODULE_GROUPS = [
     description: 'Notificaciones a clientes (email, push y SMS).',
     modules: [
       {
-        id: RBAC_MODULES.NOTIFICATION_RESEND,
-        label: 'Reenvío de Notificaciones',
-        description: 'Reenvío de notificaciones fallidas.'
+        id: RBAC_MODULES.NOTIFICATION_DELIVERIES,
+        label: 'Entregas de Notificaciones',
+        description: 'Consulta de entregas por canal (push, email, SMS).'
       },
       {
         id: RBAC_MODULES.NOTIFICATION_MANAGEMENT,

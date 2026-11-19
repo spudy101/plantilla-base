@@ -45,16 +45,14 @@ Detalle: `docs/auth-sessions.md`.
 | Capacidad                                    | Cliente | Admin | Dónde |
 | -------------------------------------------- | :-----: | :---: | ----- |
 | Bandeja in-app + conteo no leídas (SSE)      | ✅ | — | `src/modules/notification` |
-| Preferencias por **categoría** y global (push/email/**sms** + quiet hours) | ✅ | ✅ | `src/modules/person/.../notification-preference` |
+| Preferencia del usuario (push/email/**sms** + horario de silencio; las categorías críticas la ignoran) | ✅ | — | `src/modules/person/.../notification-preference` |
 | Ver entregas + estado por canal              | ❌ | ✅ | `src/modules/notification/.../admin-notification-delivery` |
-| **Reintentar** entrega fallida (email/push/sms) | ❌ | ✅ | idem |
-| **Métricas de % de éxito** por canal/categoría/fecha | ❌ | ✅ | idem (`GET .../notification-delivery/metrics`) |
-| CRUD de **categorías** (canales, criticidad, DND, layout email) | ❌ | ✅ | `.../admin-notification-category` |
-| Editar tipos de notificación (nombre, priority, categoría, templates) | ❌ | ✅ | `.../admin-notification-type` |
+| CRUD de **categorías** (canales, criticidad, layout email) | ❌ | ✅ | `.../admin-notification-category` |
+| Editar tipos de notificación (nombre, descripción, categoría) | ❌ | ✅ | `.../admin-notification-type` |
 | Enviar notificación global / directa         | ❌ | ✅ | idem |
 
-Canales reales: email (SES), push (SNS), SMS (SNS), in-app. Reintentos automáticos por worker
-(push/email/**sms**) + detección de hard-bounce. Detalle: `docs/notifications.md`.
+Canales reales: email (SES), push (SNS), SMS (SNS), in-app. Reintentos automáticos (un despachador cada
+minuto, espera creciente) + detección de hard-bounce; sin reenvío manual. Detalle: `docs/notifications.md`.
 
 ---
 

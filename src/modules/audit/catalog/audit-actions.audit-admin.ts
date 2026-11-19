@@ -150,28 +150,18 @@ export default {
     category: AUDIT_CATEGORIES.NOTIFICATIONS,
     risk: AUDIT_RISKS.LOW
   },
-  NOTIFICATION_DELIVERY_METRICS_VIEWED: {
-    description: 'Métricas agregadas de entrega de notificaciones (% éxito por canal/categoría) consultadas por administrador',
-    category: AUDIT_CATEGORIES.NOTIFICATIONS,
-    risk: AUDIT_RISKS.LOW
-  },
   NOTIFICATION_DELIVERY_VIEWED: {
     description: 'Detalle de entrega de notificación consultado por administrador',
     category: AUDIT_CATEGORIES.NOTIFICATIONS,
     risk: AUDIT_RISKS.LOW
   },
-  NOTIFICATION_DELIVERY_RETRY_REQUESTED: {
-    description: 'Reintento de entrega de notificación solicitado por administrador',
-    category: AUDIT_CATEGORIES.NOTIFICATIONS,
-    risk: AUDIT_RISKS.MEDIUM
-  },
   EMAIL_DELIVERY_FAILED: {
-    description: 'Entrega de email fallida tras agotar reintentos (SES)',
+    description: 'Entrega de email fallida: rebote definitivo o reintentos agotados (SES)',
     category: AUDIT_CATEGORIES.NOTIFICATIONS,
     risk: AUDIT_RISKS.MEDIUM
   },
   PUSH_DELIVERY_FAILED: {
-    description: 'Entrega de push fallida tras agotar reintentos (SNS)',
+    description: 'Entrega de push fallida: rebote definitivo o reintentos agotados (SNS)',
     category: AUDIT_CATEGORIES.NOTIFICATIONS,
     risk: AUDIT_RISKS.LOW
   },

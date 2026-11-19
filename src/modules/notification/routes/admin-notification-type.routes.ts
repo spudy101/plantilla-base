@@ -17,7 +17,7 @@ const { RBAC_MODULES, RBAC_ACTIONS } = rbacModule;
  * GET /admin/api/kyc/notification-types
  * Lista paginada de tipos de notificación con templates completos
  * (titleTemplate, bodyTemplate, emailSubjectTemplate, emailBodyTemplate).
- * Filtros: isActive, notificationCategoryId, priority.
+ * Filtros: isActive, notificationCategoryId.
  */
 router.get(
   '/notification-types',
@@ -70,7 +70,7 @@ router.post(
 /**
  * PATCH /admin/api/kyc/notification-types/:notificationTypeId
  * Actualiza los templates de un tipo de notificación existente.
- * Campos editables: name, description, priority, notificationCategoryId,
+ * Campos editables: name, description, notificationCategoryId,
  * title_template, body_template, email_subject_template, email_body_template.
  * (Los canales — push/email/sms — y la criticidad viven en la categoría, no en el tipo.)
  *
