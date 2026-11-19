@@ -88,24 +88,6 @@ export default {
   },
 
   // ── INTEGRACIONES / PROVEEDORES ───────────────────────────────
-  INTEGRATION_DASHBOARD_VIEWED: {
-    description: 'Tablero de integraciones externas consultado por administrador',
-    category: AUDIT_CATEGORIES.INTEGRATIONS,
-    module: AUDIT_MODULES.ADMIN,
-    risk: AUDIT_RISKS.LOW
-  },
-  INTEGRATION_LOGS_VIEWED: {
-    description: 'Llamadas a integraciones externas consultadas por administrador',
-    category: AUDIT_CATEGORIES.INTEGRATIONS,
-    module: AUDIT_MODULES.ADMIN,
-    risk: AUDIT_RISKS.LOW
-  },
-  INTEGRATION_LOG_DETAIL_VIEWED: {
-    description: 'Detalle de una llamada a integración externa consultado por administrador',
-    category: AUDIT_CATEGORIES.INTEGRATIONS,
-    module: AUDIT_MODULES.ADMIN,
-    risk: AUDIT_RISKS.MEDIUM
-  },
   PROVIDER_HEALTH_DASHBOARD_VIEWED: {
     description: 'Salud de proveedores externos consultada por administrador',
     category: AUDIT_CATEGORIES.PROVIDER_HEALTH,

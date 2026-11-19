@@ -177,7 +177,7 @@ No lo importa: publica un punto de registro y `src/app.ts` le conecta el módulo
 ## Llamadas a proveedores externos
 
 Toda llamada de red a un proveedor pasa por `callProvider`, que aplica, en este orden: **circuit breaker** del
-producto → **reintentos** con backoff → **timeout** por intento → **log** en `integration_api_logs`.
+producto → **reintentos** con backoff → **timeout** por intento → **una línea de log** por llamada.
 
 ```ts
 const res = await callProvider({ product: 'ses', endpoint: 'SES:SendEmailCommand', notificationId }, abortSignal =>
@@ -186,6 +186,14 @@ const res = await callProvider({ product: 'ses', endpoint: 'SES:SendEmailCommand
 ```
 
 - Timeout, intentos y umbrales del breaker salen de settings (`integrationResilience`), no del código.
+- **Métricas y traza en CloudWatch, no en la base.** La línea `[Provider] <producto> <endpoint> → <resultado>`
+  lleva producto, endpoint, resultado, duración, código de error y `correlationId` (Logs Insights la encuentra con
+  el resto de la operación). En producción trae además un bloque EMF y CloudWatch la convierte en métricas
+  (namespace `ProviderCalls`, dimensión `Product`: `Calls`, `Failures`, `Rejected`, `Latency`), sin SDK ni
+  llamadas extra. Sirve igual para un proveedor que no sea de AWS. Las **alarmas** (p. ej. `Failures`/`Calls`
+  de SES > 5% en 5 min, `Rejected` > 0) y la retención del log group se configuran en AWS.
+- Si el negocio necesita un dato de la llamada, se guarda **en la entidad del negocio**: p. ej. el código de
+  error de un envío va a `notifications.email_error_code` / `push_error_code`, que lee el worker de reintentos.
 - Los clientes del SDK (SES, SNS, S3) se crean con `...AWS_CLIENT_OPTIONS` (`maxAttempts: 1`): reintenta solo
   `callProvider`, no también el SDK. Lo verifica `tests/unit/guards/provider-calls.test.ts`.
 - Solo los errores **transitorios** (5xx, 408/429, throttling, timeout, red) se reintentan y cuentan para el

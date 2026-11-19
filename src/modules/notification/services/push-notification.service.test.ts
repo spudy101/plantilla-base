@@ -116,12 +116,10 @@ describe('PushNotificationService', () => {
       expect(logger.info).toHaveBeenCalledWith('Push individual enviado exitosamente', expect.any(Object));
     });
 
-    it('fallo: devuelve null (no lanza) y registra warning', async () => {
-      callProvider.mockRejectedValue(new Error('SNS timeout'));
+    it('fallo: propaga el error del proveedor (su name es el código) y registra warning', async () => {
+      callProvider.mockRejectedValue(Object.assign(new Error('disabled'), { name: 'EndpointDisabled' }));
 
-      const result = await push.enviarPushIndividual(ENDPOINT_ARN, 'Titulo', 'Cuerpo', {}, 'notif-2');
-
-      expect(result).toBeNull();
+      await expect(push.enviarPushIndividual(ENDPOINT_ARN, 'Titulo', 'Cuerpo', {}, 'notif-2')).rejects.toMatchObject({ name: 'EndpointDisabled' });
       expect(logger.warn).toHaveBeenCalled();
     });
   });
@@ -136,15 +134,13 @@ describe('PushNotificationService', () => {
       expect(logger.info).toHaveBeenCalledWith('Push masivo completado', expect.objectContaining({ total: 3 }));
     });
 
-    it('cuando los envíos individuales fallan, siguen contando como success (ver BUG reportado)', async () => {
-      // enviarPushIndividual devuelve null en vez de lanzar/rechazar cuando el push falla, así que el
-      // `.then(() => ({ success: true }))` de enviarPushMasivo nunca observa el fallo. Este test fija el
-      // comportamiento ACTUAL (buggy) para que un futuro fix salte a la vista.
+    it('cuando los envíos individuales fallan, cuentan como failed', async () => {
+      // Antes enviarPushIndividual devolvía null al fallar y estos fallos contaban como success.
       callProvider.mockRejectedValue(new Error('todos fallan'));
 
       const stats = await push.enviarPushMasivo(['arn-a', 'arn-b'], 'T', 'B');
 
-      expect(stats).toEqual({ success: 2, failed: 0 });
+      expect(stats).toEqual({ success: 0, failed: 2 });
     });
   });
 });

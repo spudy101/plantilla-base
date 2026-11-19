@@ -19,10 +19,6 @@ jest.mock('../repositories/notification-type.repository', () => ({
   findById: jest.fn()
 }));
 
-jest.mock('../../integration/repositories/integration-api-log.repository', () => ({
-  findLatestByNotification: jest.fn()
-}));
-
 jest.mock('./notification-sending.service', () => ({
   enviarPushIndividual: jest.fn().mockResolvedValue(undefined),
   enviarEmailIndividual: jest.fn().mockResolvedValue(undefined),
@@ -42,8 +38,6 @@ import notificationRepoModule from '../repositories/notification.repository';
 const notificationRepo = mocked(notificationRepoModule);
 import notificationTypeRepoModule from '../repositories/notification-type.repository';
 const notificationTypeRepo = mocked(notificationTypeRepoModule);
-import integrationApiLogRepoModule from '../../integration/repositories/integration-api-log.repository';
-const integrationApiLogRepo = mocked(integrationApiLogRepoModule);
 import sendingModule from './notification-sending.service';
 const sending = mocked(sendingModule);
 import awsErrorCodesModule from '../../../shared/constants/aws-error-codes';
@@ -58,6 +52,8 @@ function notif(overrides = {}) {
     title: 'Título',
     body: 'Cuerpo',
     metadata: { foo: 'bar' },
+    emailErrorCode: null as string | null,
+    pushErrorCode: null as string | null,
     ...overrides
   };
 }
@@ -80,22 +76,21 @@ describe('NotificationRetryService', () => {
     });
 
     it('cierra el canal por hard bounce (no reenvía) y lo cuenta como cerrada', async () => {
-      notificationRepo.findPendingPushRetries.mockResolvedValue([notif({ notificationId: 'n-1' })]);
-      integrationApiLogRepo.findLatestByNotification.mockResolvedValue({ errorCode: 'EndpointDisabled' });
+      notificationRepo.findPendingPushRetries.mockResolvedValue([notif({ notificationId: 'n-1', pushErrorCode: 'EndpointDisabled' })]);
       isHardBounce.mockReturnValue(true);
 
       const result = await retry.reintentarEnviosPush();
 
-      // Correlaciona por notification_id + product 'sns'.
-      expect(integrationApiLogRepo.findLatestByNotification).toHaveBeenCalledWith('n-1', 'sns');
+      // El código lo guardó el envío en la propia notificación.
+      expect(isHardBounce).toHaveBeenCalledWith('push', 'EndpointDisabled');
       expect(notificationRepo.markPushPermanentFailure).toHaveBeenCalledWith('n-1', 'hard_bounce:EndpointDisabled');
       expect(sending.enviarPushIndividual).not.toHaveBeenCalled();
       expect(result).toEqual({ reintentadas: 0, cerradas: 1 });
     });
 
-    it('sin último log no clasifica como hard bounce y reintenta', async () => {
+    it('sin código guardado no clasifica como hard bounce y reintenta', async () => {
       notificationRepo.findPendingPushRetries.mockResolvedValue([notif()]);
-      integrationApiLogRepo.findLatestByNotification.mockResolvedValue(null);
+      isHardBounce.mockReturnValue(true);
 
       const result = await retry.reintentarEnviosPush();
 
@@ -132,13 +127,12 @@ describe('NotificationRetryService', () => {
     });
 
     it('cierra el canal email por hard bounce', async () => {
-      notificationRepo.findPendingEmailRetries.mockResolvedValue([notif({ notificationId: 'n-9' })]);
-      integrationApiLogRepo.findLatestByNotification.mockResolvedValue({ errorCode: 'Bounce' });
+      notificationRepo.findPendingEmailRetries.mockResolvedValue([notif({ notificationId: 'n-9', emailErrorCode: 'Bounce' })]);
       isHardBounce.mockReturnValue(true);
 
       const result = await retry.reintentarEnviosEmail();
 
-      expect(integrationApiLogRepo.findLatestByNotification).toHaveBeenCalledWith('n-9', 'ses');
+      expect(isHardBounce).toHaveBeenCalledWith('email', 'Bounce');
       expect(notificationRepo.markEmailPermanentFailure).toHaveBeenCalledWith('n-9', 'hard_bounce:Bounce');
       expect(sending.enviarEmailIndividual).not.toHaveBeenCalled();
       expect(result).toEqual({ reintentadas: 0, cerradas: 1 });
@@ -148,12 +142,12 @@ describe('NotificationRetryService', () => {
   describe('reintentarEnviosSms', () => {
     it('SMS no tiene clasificación de hard bounce: siempre reintenta (nunca cierra)', async () => {
       notificationRepo.findPendingSmsRetries.mockResolvedValue([notif()]);
-      // Aunque hubiese un log clasificable, SMS no está mapeado a un producto → no se consulta.
+      // Aunque el clasificador dijera que sí, SMS no guarda código → nunca se clasifica.
       isHardBounce.mockReturnValue(true);
 
       const result = await retry.reintentarEnviosSms();
 
-      expect(integrationApiLogRepo.findLatestByNotification).not.toHaveBeenCalled();
+      expect(isHardBounce).not.toHaveBeenCalled();
       expect(sending.enviarSmsIndividual).toHaveBeenCalledTimes(1);
       expect(result).toEqual({ reintentadas: 1, cerradas: 0 });
     });

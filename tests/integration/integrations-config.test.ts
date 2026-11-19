@@ -1,8 +1,8 @@
 // tests/integration/integrations-config.test.ts
 //
-// Grupo 4 de la fase 5 (docs/prisma-migration.md) contra Postgres real: configuración global, bitácora de
-// integraciones, ventanas de fallback y doble aprobación sobre Prisma. Cubre lo que un mock no prueba: el
-// groupBy de estadísticas, el include doble de usuarios (requester/secondApprover, que en Sequelize daba
+// Grupo 4 de la fase 5 (docs/prisma-migration.md) contra Postgres real: configuración global, ventanas de
+// fallback y doble aprobación sobre Prisma. Cubre lo que un mock no prueba: el
+// include doble de usuarios (requester/secondApprover, que en Sequelize daba
 // SQL inválido), la UNIQUE parcial de pendientes y su traducción a 409 en el middleware de errores.
 
 import { randomUUID } from 'node:crypto';
@@ -10,7 +10,6 @@ import prisma from '../../src/shared/database/prisma';
 import ErrorMiddleware from '../../src/shared/http/error.middleware';
 import systemGlobalConfigRepository from '../../src/modules/settings/repositories/system-global-config.repository';
 import approvalRequestRepository from '../../src/modules/approvals/repositories/approval-request.repository';
-import integrationApiLogRepository from '../../src/modules/integration/repositories/integration-api-log.repository';
 import providerFallbackEventRepository from '../../src/modules/integration/repositories/provider-fallback-event.repository';
 
 const TAG = `g4-it-${randomUUID().slice(0, 8)}`;
@@ -33,7 +32,6 @@ describe('Integraciones y config · Prisma contra Postgres', () => {
 
   afterAll(async () => {
     await prisma.approvalRequest.deleteMany({ where: { operationKey: TAG } });
-    await prisma.integrationApiLog.deleteMany({ where: { endpoint: TAG } });
     await prisma.providerFallbackEvent.deleteMany({ where: { provider: TAG } });
     await prisma.user.deleteMany({ where: { userId: { in: userIds } } });
     await prisma.person.deleteMany({ where: { personId: { in: personIds } } });
@@ -109,24 +107,6 @@ describe('Integraciones y config · Prisma contra Postgres', () => {
     const res = { status: jest.fn().mockReturnThis(), json: jest.fn().mockReturnThis(), set: jest.fn() };
     ErrorMiddleware._handleKnownErrors(error as never, res as never, { correlationId: 'c' } as never);
     expect(res.status).toHaveBeenCalledWith(409);
-  });
-
-  it('bitácora: estadísticas por producto con groupBy y el usuario de origen adjunto', async () => {
-    const caller = await newUser('caller');
-    await integrationApiLogRepository.create({ product: 'ses', endpoint: TAG, result: 'success', responseTimeMs: 100, userId: caller, isSystemError: false });
-    await integrationApiLogRepository.create({ product: 'ses', endpoint: TAG, result: 'failed', responseTimeMs: 300, errorCode: 'Throttling', isSystemError: false });
-    await integrationApiLogRepository.create({ product: 'ses', endpoint: TAG, result: 'failed', isSystemError: true });
-
-    const since = new Date(Date.now() - 60_000);
-    const before = await prisma.integrationApiLog.count({ where: { product: 'ses', createdAt: { gte: since }, endpoint: { not: TAG } } });
-    const { byProduct } = await integrationApiLogRepository.getStats({ from: since });
-    expect(byProduct.ses.total - before).toBeGreaterThanOrEqual(3);
-    expect(byProduct.ses.systemError).toBeGreaterThanOrEqual(1);
-    expect(byProduct.sns.product).toBe('sns');
-
-    const { rows } = await integrationApiLogRepository.findAllPaginated({ userId: caller }, { limit: 5, offset: 0 });
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.user).toEqual({ userId: caller, username: `${TAG}-caller` });
   });
 
   it('fallback: abrir y cerrar la ventana del proveedor', async () => {

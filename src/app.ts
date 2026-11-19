@@ -14,11 +14,10 @@ import { registerAuditSink } from './shared/observability/audit-hook';
 import auditModule from './modules/audit';
 const { audit, adminChangeLogRoutes, adminAuditLogRoutes, adminAuditAlertRoutes, adminAuditActionCatalogRoutes, adminSessionTraceRoutes, adminOperationRoutes, userActivityRoutes } = auditModule;
 import type { AuditActionKey } from './modules/audit';
-import { registerIntegrationLogWriter } from './shared/observability/integration-api-logger.util';
 import { registerResilienceSource } from './shared/infra/resilience-config.util';
 import CircuitBreaker from './shared/infra/circuit-breaker.util';
 import integrationModule from './modules/integration';
-const { integrationApiLogRepository, providerFallback, adminIntegrationMonitoringRoutes } = integrationModule;
+const { providerFallback, adminIntegrationMonitoringRoutes } = integrationModule;
 import settingsModule from './modules/settings';
 const { systemGlobalConfigRepository, adminSystemGlobalConfigRoutes } = settingsModule;
 import redisClient from './shared/infra/redis.util';
@@ -150,11 +149,9 @@ async function health(req: Request, res: Response) {
 function createApp() {
   // shared/ no conoce los módulos: lo que necesita de ellos se conecta acá, una sola vez.
   //  - eventos de infraestructura que se auditan (worker caído, Redis, 401/403) → módulo audit
-  //  - persistencia de las llamadas a proveedores externos → módulo integration
   //  - configuración de resiliencia (timeouts, circuit breaker) → módulo settings
   //  - qué hacer cuando un circuito se abre o se cierra (ventana de fallback + auditoría) → módulo integration
   registerAuditSink(({ action, ...input }) => audit.record(action as AuditActionKey, { actorId: input.actorId ?? null, ...input }));
-  registerIntegrationLogWriter(data => integrationApiLogRepository.create(data));
   registerResilienceSource(async () => (await systemGlobalConfigRepository.findActiveResilience())?.integrationResilience);
   CircuitBreaker.registerCallbacks(providerFallback);
 

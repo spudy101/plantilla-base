@@ -1,5 +1,5 @@
-// callProvider: breaker + reintentos (solo transitorios) + timeout por intento + log de la llamada.
-// El breaker es el real en memoria; logger, config y el writer del log van con dobles.
+// callProvider: breaker + reintentos (solo transitorios) + timeout por intento + una línea de log por
+// llamada (con métricas EMF en producción). El breaker es el real en memoria; logger y config, dobles.
 
 jest.mock('./redis.util', () => ({ getClient: jest.fn(() => null), isAvailable: jest.fn(() => false) }));
 jest.mock('./resilience-config.util', () => ({
@@ -9,13 +9,12 @@ jest.mock('./resilience-config.util', () => ({
 jest.mock('../observability/logger.util', () => ({
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
-jest.mock('../observability/integration-api-logger.util', () => ({ log: jest.fn() }));
 
 import { mocked } from 'tests/helpers/mock';
 import ResilienceConfigModule from './resilience-config.util';
 const ResilienceConfig = mocked(ResilienceConfigModule);
-import ProviderApiLoggerModule from '../observability/integration-api-logger.util';
-const ProviderApiLogger = mocked(ProviderApiLoggerModule);
+import loggerUtilModule from '../observability/logger.util';
+const { logger } = mocked(loggerUtilModule);
 import CircuitBreaker from './circuit-breaker.util';
 import { callProvider, isTransientError, CircuitOpenError } from './provider-call.util';
 
@@ -56,20 +55,21 @@ describe('callProvider', () => {
 
   afterEach(() => jest.useRealTimers());
 
-  it('éxito: devuelve el resultado y lo registra', async () => {
-    const result = await callProvider({ ...call, responsePayload: (r: { id: string }) => ({ id: r.id }) }, () =>
-      Promise.resolve({ id: 'm-1' })
-    );
+  it('éxito: devuelve el resultado y deja una línea de log con producto, resultado y duración', async () => {
+    const result = await callProvider(call, () => Promise.resolve({ id: 'm-1' }));
     expect(result).toEqual({ id: 'm-1' });
-    expect(ProviderApiLogger.log).toHaveBeenCalledWith(
+    expect(logger.info).toHaveBeenCalledWith(
+      '[Provider] ses SES:SendEmailCommand → success',
       expect.objectContaining({
         product: 'ses',
         endpoint: 'SES:SendEmailCommand',
         result: 'success',
         notificationId: 'n-1',
-        responsePayload: { id: 'm-1' }
+        durationMs: expect.any(Number)
       })
     );
+    // fuera de producción no hay bloque EMF
+    expect(logger.info.mock.calls[0]![1]).not.toHaveProperty('_aws');
   });
 
   it('pasa a cada intento una señal con el timeout de settings', async () => {
@@ -89,7 +89,8 @@ describe('callProvider', () => {
     expect(await pending).toMatchObject({ name: 'ServiceUnavailable' });
     expect(fn).toHaveBeenCalledTimes(3);
     expect((await CircuitBreaker.getStatus('ses')).failures).toBe(1);
-    expect(ProviderApiLogger.log).toHaveBeenCalledWith(
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[Provider] ses SES:SendEmailCommand → failed',
       expect.objectContaining({ result: 'failed', errorCode: 'ServiceUnavailable' })
     );
   });
@@ -110,8 +111,39 @@ describe('callProvider', () => {
     const fn = jest.fn(() => Promise.resolve('ok'));
     await expect(callProvider(call, fn)).rejects.toBeInstanceOf(CircuitOpenError);
     expect(fn).not.toHaveBeenCalled();
-    expect(ProviderApiLogger.log).toHaveBeenLastCalledWith(
-      expect.objectContaining({ result: 'circuit_open', responseTimeMs: null })
+    expect(logger.warn).toHaveBeenLastCalledWith(
+      '[Provider] ses SES:SendEmailCommand → circuit_open',
+      expect.objectContaining({ result: 'circuit_open', durationMs: null })
     );
+  });
+});
+
+describe('callProvider en producción: métricas EMF', () => {
+  it('la línea de log trae el bloque _aws con Calls/Failures/Rejected/Latency por Product', async () => {
+    jest.resetModules();
+    jest.doMock('../constants', () => ({ __esModule: true, default: { server: { nodeEnv: 'production' } } }));
+    const { callProvider: prodCall } = await import('./provider-call.util');
+    const { logger: prodLogger } = (await import('../observability/logger.util')).default;
+    const prodConfig = (await import('./resilience-config.util')).default as unknown as { get: jest.Mock };
+    prodConfig.get.mockResolvedValue({
+      timeoutMs: 5000,
+      maxRetries: 1,
+      circuitBreaker: { failureThreshold: 5, recoveryTimeMs: 60000, failuresTtlS: 300 }
+    });
+
+    await prodCall({ product: 'ses', endpoint: 'SES:SendEmailCommand' }, () => Promise.resolve('ok'));
+
+    const fields = (prodLogger.info as jest.Mock).mock.calls[0]![1];
+    expect(fields).toMatchObject({ Product: 'ses', Calls: 1, Failures: 0, Rejected: 0, Latency: expect.any(Number) });
+    expect(fields._aws.CloudWatchMetrics[0]).toEqual({
+      Namespace: 'ProviderCalls',
+      Dimensions: [['Product']],
+      Metrics: [
+        { Name: 'Calls', Unit: 'Count' },
+        { Name: 'Failures', Unit: 'Count' },
+        { Name: 'Rejected', Unit: 'Count' },
+        { Name: 'Latency', Unit: 'Milliseconds' }
+      ]
+    });
   });
 });

@@ -116,7 +116,8 @@ class PushNotificationService {
    * @param {string} title       - Título de la notificación
    * @param {string} body        - Cuerpo de la notificación
    * @param {Object} data        - Datos adicionales (opcional)
-   * @param {string} [notificationId] - Para correlacionar el log de integración con la notificación
+   * @param {string} [notificationId] - Queda en la traza de la llamada, para buscarla por notificación
+   * Si falla, lanza el error del proveedor (su `name` es el código: EndpointDisabled, …).
    */
   async enviarPushIndividual(
     endpointArn: string,
@@ -135,7 +136,7 @@ class PushNotificationService {
       return response;
     } catch (error) {
       logger.warn('Error al enviar push individual', { error: errorMessage(error), endpointArn });
-      return null;
+      throw error;
     }
   }
 

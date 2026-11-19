@@ -3,7 +3,7 @@
 import PaginationHelper from '../../../shared/http/pagination.util';
 import { z } from '../../../shared/validation/z';
 import { dateTime } from '../../../shared/validation/output';
-import type { AuditLog, IntegrationApiLog, Operation } from '../../../shared/database/generated/prisma/client';
+import type { AuditLog, Operation } from '../../../shared/database/generated/prisma/client';
 
 const operationItem = (o: Operation) => ({
   operationId: o.operationId,
@@ -36,13 +36,11 @@ function OperationListDTO(
 function OperationTimelineDTO({
   operation,
   children,
-  auditEvents,
-  externalCalls
+  auditEvents
 }: {
   operation: Operation;
   children: Operation[];
   auditEvents: AuditLog[];
-  externalCalls: IntegrationApiLog[];
 }) {
   return {
     operation: operationItem(operation),
@@ -58,16 +56,8 @@ function OperationTimelineDTO({
       entityId: a.entityId,
       at: a.createdAt
     })),
-    externalCalls: externalCalls.map(c => ({
-      apiLogId: c.apiLogId,
-      product: c.product,
-      endpoint: c.endpoint,
-      result: c.result,
-      responseTimeMs: c.responseTimeMs,
-      errorCode: c.errorCode,
-      at: c.createdAt
-    })),
-    // Los logs paso a paso viven en CloudWatch: esta consulta de Logs Insights los trae en orden
+    // Los logs paso a paso viven en CloudWatch (incluidas las llamadas a proveedores, una línea
+    // `[Provider]` por llamada): esta consulta de Logs Insights los trae en orden
     logsQuery: `fields @timestamp, level, message | filter correlationId = "${operation.operationId}" | sort @timestamp asc`
   };
 }
@@ -111,18 +101,7 @@ export const OperationTimelineSchema = z.object({
       })
     )
     .meta({ description: 'Hechos de negocio (audit_logs) de la operación, en orden.' }),
-  externalCalls: z
-    .array(
-      z.object({
-        apiLogId: z.uuid(),
-        product: z.string(),
-        endpoint: z.string(),
-        result: z.string(),
-        responseTimeMs: z.number().int().nullable(),
-        errorCode: z.string().nullable(),
-        at: dateTime()
-      })
-    )
-    .meta({ description: 'Llamadas a proveedores externos (integration_api_logs) dentro de la operación.' }),
-  logsQuery: z.string().meta({ description: 'Consulta de CloudWatch Logs Insights con los logs paso a paso.' })
+  logsQuery: z
+    .string()
+    .meta({ description: 'Consulta de CloudWatch Logs Insights con los logs paso a paso, incluidas las llamadas a proveedores externos.' })
 });

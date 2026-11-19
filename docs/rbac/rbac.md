@@ -23,7 +23,7 @@
   en inglés). Agrupados para el front en `RBAC_MODULE_GROUPS`. Los 19:
   - **Administración:** `rolesPermissions`, `internalUsers`, `dualApproval`, `systemConfig`, `promotionalContent`.
   - **Clientes:** `clientsList`, `policyAcceptance`.
-  - **Integraciones:** `integrationDashboard`, `apiLogs`, `providers`.
+  - **Integraciones:** `providers` (salud de proveedores e historial de caídas; las métricas por llamada están en CloudWatch).
   - **Auditoría:** `globalLogs`, `auditActionCatalog`, `systemAlerts`, `userChanges`, `activeSessions`.
   - **Notificaciones:** `notificationResend`, `notificationManagement`.
   - **Consentimientos:** `consentTypes`, `privacyPolicies`.

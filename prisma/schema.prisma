@@ -312,34 +312,6 @@ model GlobalNotification {
   @@map("global_notifications")
 }
 
-model IntegrationApiLog {
-  apiLogId        String                   @id(map: "pk_integration_api_logs") @default(uuid()) @map("api_log_id") @db.Uuid
-  product         IntegrationApiLogProduct
-  endpoint        String                   @db.VarChar(500)
-  userId          String?                  @map("user_id") @db.Uuid
-  sessionId       String?                  @map("session_id") @db.Uuid
-  result          IntegrationApiLogResult
-  responseTimeMs  Int?                     @map("response_time_ms")
-  errorCode       String?                  @map("error_code") @db.VarChar(50)
-  errorMessage    String?                  @map("error_message")
-  requestPayload  Json?                    @map("request_payload")
-  responsePayload Json?                    @map("response_payload")
-  isSystemError   Boolean                  @default(false) @map("is_system_error")
-  notificationId  String?                  @map("notification_id") @db.Uuid
-  correlationId   String?                  @map("correlation_id") @db.VarChar(100)
-  createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  @@index([correlationId], map: "idx_integration_api_logs_correlation_id")
-  @@index([createdAt], map: "idx_integration_api_logs_created_at")
-  @@index([notificationId], map: "idx_integration_api_logs_notification_id")
-  @@index([product], map: "idx_integration_api_logs_product")
-  @@index([product, result, createdAt], map: "idx_integration_api_logs_product_result_created_at")
-  @@index([result], map: "idx_integration_api_logs_result")
-  @@index([sessionId], map: "idx_integration_api_logs_session_id")
-  @@index([userId], map: "idx_integration_api_logs_user_id")
-  @@map("integration_api_logs")
-}
-
 model NotificationCategory {
   notificationCategoryId String                       @id(map: "pk_notification_categories") @default(uuid()) @map("notification_category_id") @db.Uuid
   code                   String                       @unique(map: "uq_notification_categories_code") @db.VarChar(100)
@@ -403,11 +375,15 @@ model Notification {
   pushSent           Boolean?                      @default(false) @map("push_sent")
   pushSentAt         DateTime?                     @map("push_sent_at") @db.Timestamptz(6)
   pushError          String?                       @map("push_error")
+  /// Código del proveedor del último fallo (p. ej. EndpointDisabled): decide si es un rebote definitivo.
+  pushErrorCode      String?                       @map("push_error_code") @db.VarChar(100)
   pushRetryCount     Int?                          @default(0) @map("push_retry_count")
   pushNextRetryAt    DateTime?                     @map("push_next_retry_at") @db.Timestamptz(6)
   emailSent          Boolean?                      @default(false) @map("email_sent")
   emailSentAt        DateTime?                     @map("email_sent_at") @db.Timestamptz(6)
   emailError         String?                       @map("email_error")
+  /// Código del proveedor del último fallo (p. ej. MessageRejected): decide si es un rebote definitivo.
+  emailErrorCode     String?                       @map("email_error_code") @db.VarChar(100)
   emailRetryCount    Int?                          @default(0) @map("email_retry_count")
   emailNextRetryAt   DateTime?                     @map("email_next_retry_at") @db.Timestamptz(6)
   scheduledFor       DateTime?                     @map("scheduled_for") @db.Timestamptz(6)
@@ -1044,23 +1020,6 @@ enum EmailBounceSuppressionStatus {
   suppressed
 
   @@map("enum_email_bounce_suppressions_status")
-}
-
-enum IntegrationApiLogProduct {
-  ses
-  s3
-  sns
-  aws_sms
-
-  @@map("enum_integration_api_logs_product")
-}
-
-enum IntegrationApiLogResult {
-  success
-  failed
-  circuit_open
-
-  @@map("enum_integration_api_logs_result")
 }
 
 /// Estado de procesamiento de notificaciones y notificaciones globales (antes varchar).
