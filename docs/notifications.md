@@ -216,7 +216,8 @@ de `notification_deliveries`:
   del despachador (≤ 1 min).
 - **Despachador** (`notification-worker.ts`, cada minuto): toma hasta 50 entregas `pending` con
   `next_attempt_at` vencido (`FOR UPDATE SKIP LOCKED`, y las reserva), así que **varias instancias no envían
-  la misma**. Un ciclo sin trabajo no escribe nada en `operations`.
+  la misma**. Un ciclo sin trabajo no escribe nada en `operations`. La tabla funciona como cola. Cuándo
+  conviene pasar a SQS, RabbitMQ o Kafka, y cómo hacerlo: docs/ARCHITECTURE.md, «Trabajo asíncrono».
 - **Resultado de un intento:**
   - enviado → `sent`;
   - sin destinatario → `skipped` (no se reintenta);

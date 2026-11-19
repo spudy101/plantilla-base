@@ -236,6 +236,35 @@ Las operaciones que no se deben ejecutar dos veces (hoy: crear y enviar notifica
 `Idempotency-Key`: un reintento con la misma clave recibe la respuesta guardada. Cómo funciona, cuándo
 usarlo y sus límites: docs/idempotency.md.
 
+## Trabajo asíncrono: la cola es Postgres (y cuándo dejar de serlo)
+
+Hoy el trabajo en segundo plano usa **tablas de Postgres como cola**, sin un broker de mensajes. Por
+ejemplo, `notification_deliveries` y el envío masivo de globales (docs/notifications.md) se procesan así:
+un worker toma lo que vence con `FOR UPDATE SKIP LOCKED` y lo reserva con un lease. Hay reintentos con
+backoff, y si una instancia se cae, otra retoma su trabajo. Con esto se tiene lo esencial de una cola
+(trabajo persistido, varios consumidores sin pisarse, reintentos, recuperación) sin agregar infraestructura.
+Además, el trabajo se encola **en la misma transacción** que el dato que lo origina: o se guardan los dos
+o ninguno, cosa que un broker externo no da sin un patrón *outbox*.
+
+**Cuando el sistema crezca**, conviene pasar a un servicio de colas o de mensajería. Señales concretas:
+
+| Señal | Qué usar |
+|---|---|
+| La cola carga la base (cientos de miles de trabajos por hora, el despachador compitiendo con las consultas de la app) o hay que absorber picos grandes | **SQS** para los procesos asíncronos (con DLQ para los que agotan reintentos) |
+| El trabajo pasa a otro servicio o despliegue (p. ej. un servicio de envíos aparte) | **SQS**, o **RabbitMQ** si se necesita ruteo entre colas (prioridades, colas por tipo de trabajo) |
+| Una misma acción tiene que avisar a varios sistemas independientes (registro de usuario → facturación, CRM, analítica) | Eventos con **SNS/EventBridge** o **RabbitMQ** (exchanges) |
+| Flujo masivo de eventos (miles por segundo) con varios consumidores que leen a su ritmo y necesitan **releer el historial** | **Kafka** (MSK) |
+
+Cómo migrar sin rehacer el diseño:
+- Mantener la tabla como *outbox*: se escribe en la transacción, como hoy, y un publicador la pasa al
+  broker. Así no se pierde la atomicidad.
+- Cambiar solo el consumidor. El `dispatchDue` del worker pasa a ser un consumidor de la cola; el resto
+  (cómo se agenda un trabajo, cómo se registra su estado, los reintentos y la idempotencia) no cambia.
+- La entrega sigue siendo *at-least-once*: el consumidor tiene que tolerar un mensaje repetido, igual que hoy.
+
+Mientras ninguna de esas señales aparezca, no se agrega un broker (KISS/YAGNI): sería más
+infraestructura que operar, pagar y simular en los tests sin resolver un problema que exista.
+
 ## Servidor
 
 Hay un único servidor. Los prefijos `/admin` y `/client` separan las audiencias a nivel de rutas
