@@ -15,6 +15,11 @@ export interface ActiveUnit {
    * una transacción que ya se cerró, así que deja de ser activa.
    */
   closed?: boolean;
+  /**
+   * true si dentro de la unidad se llamó a un proveedor externo (email, SMS, S3…). Eso no se revierte con
+   * el rollback: el Unit of Work no repite una unidad así ante un conflicto (duplicaría el envío).
+   */
+  externalEffects?: boolean;
 }
 
 const storage = new AsyncLocalStorage<ActiveUnit>();
@@ -25,9 +30,17 @@ export function activeUnit(): ActiveUnit | null {
   return unit && !unit.closed ? unit : null;
 }
 
+/** Marca la unidad activa (si hay) como con efectos externos. Lo llama callProvider. */
+export function markExternalEffect(): void {
+  const unit = activeUnit();
+  if (unit) {
+    unit.externalEffects = true;
+  }
+}
+
 /** Ejecuta `fn` con `unit` como unidad activa (solo lo usa el Unit of Work). */
 export function runInUnit<T>(unit: ActiveUnit, fn: () => T): T {
   return storage.run(unit, fn);
 }
 
-export default { activeUnit, runInUnit };
+export default { activeUnit, runInUnit, markExternalEffect };

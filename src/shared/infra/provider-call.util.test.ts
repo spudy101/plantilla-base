@@ -16,6 +16,7 @@ const ResilienceConfig = mocked(ResilienceConfigModule);
 import loggerUtilModule from '../observability/logger.util';
 const { logger } = mocked(loggerUtilModule);
 import CircuitBreaker from './circuit-breaker.util';
+import txContext from '../database/transaction-context';
 import { callProvider, isTransientError, CircuitOpenError } from './provider-call.util';
 
 const awsError = (name: string, httpStatusCode: number, extra: object = {}) =>
@@ -115,6 +116,16 @@ describe('callProvider', () => {
       '[Provider] ses SES:SendEmailCommand → circuit_open',
       expect.objectContaining({ result: 'circuit_open', durationMs: null })
     );
+  });
+});
+
+describe('callProvider dentro de una transacción', () => {
+  it('marca la unidad con efectos externos: el Unit of Work ya no la repetirá ante un conflicto', async () => {
+    CircuitBreaker._resetMemory();
+    ResilienceConfig.get.mockResolvedValue({ timeoutMs: 5000, maxRetries: 1, circuitBreaker: { failureThreshold: 5, recoveryTimeMs: 60000, failuresTtlS: 300 } } as never);
+    const unit = { prisma: jest.fn() } as { prisma: jest.Mock; externalEffects?: boolean };
+    await txContext.runInUnit(unit as never, () => callProvider({ product: 'ses', endpoint: 'SES:SendEmailCommand' }, () => Promise.resolve('ok')));
+    expect(unit.externalEffects).toBe(true);
   });
 });
 

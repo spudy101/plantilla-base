@@ -104,3 +104,74 @@ describe('PrismaUnitOfWork', () => {
     await expect(late).resolves.toBeNull();
   });
 });
+
+describe('PrismaUnitOfWork — conflictos de transacción (deadlock / serialización)', () => {
+  const conflict = () => Object.assign(new Error('deadlock'), { name: 'PrismaClientKnownRequestError', code: 'P2034' });
+
+  it('repite la transacción completa y devuelve el resultado del intento que confirma', async () => {
+    const events: string[] = [];
+    const { client } = fakePrisma(events);
+    const uow = new PrismaUnitOfWork(fixture({ prisma: client }));
+    let calls = 0;
+
+    const result = await uow.run(async () => {
+      calls += 1;
+      if (calls === 1) {
+        throw conflict();
+      }
+      return 'ok';
+    });
+
+    expect(result).toBe('ok');
+    expect(calls).toBe(2);
+    expect(events).toEqual(['prisma:open', 'prisma:rollback', 'prisma:open', 'prisma:commit']);
+  });
+
+  it('se rinde después de MAX_ATTEMPTS (3) y propaga el conflicto', async () => {
+    const { client } = fakePrisma();
+    const uow = new PrismaUnitOfWork(fixture({ prisma: client }));
+    const work = jest.fn(() => Promise.reject(conflict()));
+
+    await expect(uow.run(work)).rejects.toMatchObject({ code: 'P2034' });
+    expect(work).toHaveBeenCalledTimes(3);
+  });
+
+  it('NO repite si la unidad llamó a un proveedor externo (duplicaría el envío)', async () => {
+    const { client } = fakePrisma();
+    const uow = new PrismaUnitOfWork(fixture({ prisma: client }));
+    const work = jest.fn(async () => {
+      txContext.markExternalEffect(); // lo que hace callProvider
+      throw conflict();
+    });
+
+    await expect(uow.run(work)).rejects.toMatchObject({ code: 'P2034' });
+    expect(work).toHaveBeenCalledTimes(1);
+  });
+
+  it('un error que no es de conflicto no se repite', async () => {
+    const { client } = fakePrisma();
+    const uow = new PrismaUnitOfWork(fixture({ prisma: client }));
+    const work = jest.fn(() => Promise.reject(Object.assign(new Error('dup'), { code: 'P2002' })));
+
+    await expect(uow.run(work)).rejects.toMatchObject({ code: 'P2002' });
+    expect(work).toHaveBeenCalledTimes(1);
+  });
+
+  it('un run() anidado no repite por su cuenta: lo decide la unidad de afuera', async () => {
+    const { client } = fakePrisma();
+    const uow = new PrismaUnitOfWork(fixture({ prisma: client }));
+    let inner = 0;
+
+    await uow.run(async () => {
+      await uow.run(async () => {
+        inner += 1;
+        if (inner === 1) {
+          throw conflict();
+        }
+      });
+    });
+
+    expect(inner).toBe(2); // la de afuera se repitió una vez, y con ella la de adentro
+    expect(client.$transaction).toHaveBeenCalledTimes(2);
+  });
+});

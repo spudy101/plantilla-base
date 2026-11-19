@@ -21,6 +21,7 @@ import loggerUtilModule from '../observability/logger.util';
 const { logger } = loggerUtilModule;
 import errorMessageModule from '../utils/error-message.util';
 import constantsModule from '../constants';
+import { markExternalEffect } from '../database/transaction-context';
 
 const { errorMessage } = errorMessageModule;
 
@@ -139,6 +140,8 @@ interface ProviderCall {
 
 async function callProvider<T>(call: ProviderCall, fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
   const { product, endpoint, notificationId = null } = call;
+  // Una llamada externa no se revierte con la transacción: si hay una abierta, ya no se puede repetir
+  markExternalEffect();
   const { timeoutMs, maxRetries } = await ResilienceConfig.get();
   const startTime = Date.now();
 
