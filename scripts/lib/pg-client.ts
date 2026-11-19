@@ -25,7 +25,9 @@ export async function connectPg(): Promise<Client> {
       ? undefined
       : ca
         ? { rejectUnauthorized: true, ca: fs.readFileSync(ca, 'utf8') }
-        : { rejectUnauthorized: false }
+        : { rejectUnauthorized: false },
+    // misma sesión en UTC que la app (shared/database/prisma.ts): now() en las migraciones da instantes UTC
+    options: '-c TimeZone=UTC'
   });
   await client.connect();
   return client;
