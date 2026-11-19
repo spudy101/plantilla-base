@@ -23,7 +23,7 @@ function walk(dir: string): string[] {
 
 const rel = (file: string) => path.relative(ROOT, file).split(path.sep).join('/');
 const read = (file: string) => fs.readFileSync(file, 'utf8');
-const sourceFiles = [...walk(path.join(ROOT, 'modules')), ...walk(path.join(ROOT, 'shared'))];
+const sourceFiles = walk(path.join(ROOT, 'src')).filter(f => !f.endsWith('.test.ts'));
 const isService = (f: string) => f.endsWith('.service.ts');
 const isRepository = (f: string) => f.endsWith('.repository.ts');
 
@@ -43,16 +43,45 @@ const PRISMA_ENUMS_REQUIRE = valueImport('generated/prisma/enums');
 const REPOSITORY_REQUIRE = /(?:require\(|from\s+)\s*['"][^'"]*\.repository['"]/;
 const CONSTRUCTOR_DEPS = /constructor\(deps(?::\s*[^=)]+)?\s*=\s*\{\}\)/;
 
+describe('Arquitectura — fronteras (docs/ARCHITECTURE.md)', () => {
+  it('shared/ no importa nada de modules/ (lo que necesita se le registra desde src/app.ts)', () => {
+    const anyImport = /(?:from\s+|require\(\s*|import\(\s*)['"][^'"]*\/modules\//;
+    const offenders = sourceFiles.filter(f => rel(f).startsWith('src/shared/') && anyImport.test(read(f))).map(rel);
+    expect(offenders).toEqual([]);
+  });
+
+  it('entre módulos solo se usa el index.ts del otro (su API pública), nunca un archivo interno', () => {
+    const MODULES = path.join(ROOT, 'src', 'modules');
+    const moduleOf = (abs: string) => {
+      const r = path.relative(MODULES, abs);
+      return r.startsWith('..') ? null : r.split(path.sep)[0];
+    };
+    const offenders: string[] = [];
+    // src/config/swagger.*.ts compone la documentación de todos los módulos (sus docs/*.paths.ts): es la
+    // única excepción, hasta que la documentación salga de los esquemas de validación.
+    for (const file of sourceFiles.filter(f => !rel(f).startsWith('src/config/'))) {
+      const own = moduleOf(file);
+      for (const [, spec] of read(file).matchAll(/(?:from\s+|require\(\s*|import\(\s*)['"](\.[^'"]+)['"]/g)) {
+        const target = path.resolve(path.dirname(file), spec!);
+        const mod = moduleOf(target);
+        const isIndex = target === path.join(MODULES, mod ?? '') || target === path.join(MODULES, mod ?? '', 'index');
+        if (mod && mod !== own && !isIndex) {
+          offenders.push(`${rel(file)} → ${spec}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe('SOLID — guardas de arquitectura', () => {
   const applicationFiles = sourceFiles.filter(f => APPLICATION_LAYER.test(f));
   const projectFiles = [
     ...sourceFiles,
-    ...walk(path.join(ROOT, 'servers')),
-    ...walk(path.join(ROOT, 'config')),
     ...walk(path.join(ROOT, 'prisma'))
   ];
   const ormLayer = (f: string) =>
-    isRepository(f) || rel(f).startsWith('shared/database/') || rel(f).startsWith('shared/repositories/');
+    isRepository(f) || rel(f).startsWith('src/shared/database/');
 
   it('nadie importa sequelize (el ORM es Prisma)', () => {
     const offenders = projectFiles.filter(f => SEQUELIZE_REQUIRE.test(read(f))).map(rel);
@@ -68,7 +97,7 @@ describe('SOLID — guardas de arquitectura', () => {
 
   it('los enums generados se leen desde shared/constants/domain-enums (única puerta, con chequeo de exhaustividad)', () => {
     const offenders = sourceFiles
-      .filter(f => !ormLayer(f) && rel(f) !== 'shared/constants/domain-enums.ts' && PRISMA_ENUMS_REQUIRE.test(read(f)))
+      .filter(f => !ormLayer(f) && rel(f) !== 'src/shared/constants/domain-enums.ts' && PRISMA_ENUMS_REQUIRE.test(read(f)))
       .map(rel);
     expect(offenders).toEqual([]);
   });
@@ -93,7 +122,7 @@ describe('SOLID — guardas de arquitectura', () => {
 
   it('todo repositorio extiende PrismaRepository (L)', () => {
     const offenders = sourceFiles
-      .filter(f => isRepository(f) && !rel(f).startsWith('shared/repositories/'))
+      .filter(f => isRepository(f) && !rel(f).startsWith('src/shared/database/'))
       .filter(f => !/extends\s+PrismaRepository\b/.test(read(f)))
       .map(rel);
     expect(offenders).toEqual([]);

@@ -1,7 +1,7 @@
 # Sistema de Notificaciones — guía de onboarding
 
 > El detalle vive aquí.
-> Punto de entrada único: **`NotificationCreationService`** (`modules/schemas/notification/services/notification-creation.service.ts`).
+> Punto de entrada único: **`NotificationCreationService`** (`src/modules/notification/services/notification-creation.service.ts`).
 
 ## Idea general
 
@@ -29,7 +29,7 @@ Workers (cron) ──> procesar diferidas (quiet hours) · retry push · retry e
 
 ## ¿Cuándo disparar una notificación? (criterio)
 
-A diferencia de `logAudit` (mecánico: **todo** punto de entrada audita), una notificación se crea **solo cuando el evento le importa a una persona como hecho que querría conocer**. Reads, listados y consultas NO notifican; transiciones de estado, decisiones y acciones sobre la cuenta/expediente del usuario SÍ.
+A diferencia de `audit.record` (mecánico: **todo** punto de entrada audita), una notificación se crea **solo cuando el evento le importa a una persona como hecho que querría conocer**. Reads, listados y consultas NO notifican; transiciones de estado, decisiones y acciones sobre la cuenta/expediente del usuario SÍ.
 
 ### El canal interno es el piso; correo/push se deciden por sensibilidad
 
@@ -88,7 +88,7 @@ Eventos de tiempo/lote emitidos por un worker con `userId:'system'`: el destinat
 ## Arquitectura de archivos
 
 ```
-modules/schemas/notification/
+src/modules/notification/
   models/        notification-category / notification-type / notification / global-notification
                  global-notification-read / user-push-token / verification-code / sms-delivery-attempt
   services/      notification-creation*  ← ENTRADA
@@ -99,8 +99,8 @@ modules/schemas/notification/
   utils/         notification-content.util.ts (render {{var}}) / notification-emitter.util.ts (SSE)
   repositories/  notification-category / notification-type / notification / global-notification / user-push-token
 
-modules/admin/notification/          CRUD admin de categorías y tipos + panel de entregas/reintentos
-modules/shared-endpoints/kyc/person/ endpoints de preferencias del usuario (global + por categoría)
+src/modules/notification/          CRUD admin de categorías y tipos + panel de entregas/reintentos
+src/modules/person/ endpoints de preferencias del usuario (global + por categoría)
 ```
 
 Preferencias por usuario: tabla `user_notification_preferences` (modelo en `schemas/kyc/`), atadas a la
@@ -214,7 +214,7 @@ El retry de SMS corre en un cron aparte con offset `:05/:20/:35/:50` para no col
 - **Quiet hours:** si el usuario configuró `quiet_hours_start`/`quiet_hours_end` (TIME), la notificación se difiere hasta el fin de la ventana. Soporta rangos que cruzan medianoche (`start > end` → `now >= start || now < end`). Si ambos son null → se envía de inmediato. **Una categoría crítica (`is_critical`) o no-silenciable (`allow_dnd=false`) ignora el quiet hours del usuario.**
 - **Preferencias:** `user_notification_preferences` atadas a `notification_category_code` (o `null` = **preferencia global** que aplica a todas las categorías sin override) con `allow_push` / `allow_email` / `allow_sms` + quiet hours. Resolución en envío: override de la categoría → preferencia global → default. El usuario las gestiona vía `GET/PUT /person/notifications/preferences[/global|/category/:code]` y `GET /person/notifications/preferences/categories` (categorías activas con la preferencia efectiva ya resuelta).
 - **Rate limiting:** SNS ~300/min, SES ~200/min (clave Redis por minuto; espera graceful al límite).
-- **SSE (contador de no leídas):** `notification-emitter.util.ts` transporta `count-updated` (Redis Pub/Sub, fallback EventEmitter local; se inicializa en `BaseServer.afterInfraReady()`); el stream es `GET /notification/notifications/count/stream` (`notification.controller.ts`). El punto único de refresco es `notification-count.util.ts` (`emitCountUpdate(userId)`), invocado vía `setImmediate` en cada flujo que altera el contador: crear notificación individual (`notification-creation.service.ts`), marcar leídas al listar personal/global/mixto (`notification.service.ts`), además del emit propio de `getUnreadCount`. La **notificación global** (1 fila para todos) no hace fan-out por usuario: publica un broadcast `{ global: true }` y cada conexión SSE abierta recalcula su propio count (`computeUnreadCount`, sin re-emitir ni auditar). **Auth por cookie** (`access_token`, canal web): el front abre el stream con `fetch` + `credentials:'include'` (no `EventSource` nativo, que no puede mandar la cookie cross-site). **Heartbeat:** el stream emite un comentario SSE `: ping` cada 25 s (`SSE_HEARTBEAT_MS`) para que el idle timeout del reverse proxy (ALB/nginx, ~60 s) no cierre la conexión en periodos sin eventos y congele el contador; se limpia en `req.on('close')` junto con el listener.
+- **SSE (contador de no leídas):** `notification-emitter.util.ts` transporta `count-updated` (Redis Pub/Sub, fallback EventEmitter local; se inicializa en `src/server.ts`); el stream es `GET /notification/notifications/count/stream` (`notification.controller.ts`). El punto único de refresco es `notification-count.util.ts` (`emitCountUpdate(userId)`), invocado vía `setImmediate` en cada flujo que altera el contador: crear notificación individual (`notification-creation.service.ts`), marcar leídas al listar personal/global/mixto (`notification.service.ts`), además del emit propio de `getUnreadCount`. La **notificación global** (1 fila para todos) no hace fan-out por usuario: publica un broadcast `{ global: true }` y cada conexión SSE abierta recalcula su propio count (`computeUnreadCount`, sin re-emitir ni auditar). **Auth por cookie** (`access_token`, canal web): el front abre el stream con `fetch` + `credentials:'include'` (no `EventSource` nativo, que no puede mandar la cookie cross-site). **Heartbeat:** el stream emite un comentario SSE `: ping` cada 25 s (`SSE_HEARTBEAT_MS`) para que el idle timeout del reverse proxy (ALB/nginx, ~60 s) no cierre la conexión en periodos sin eventos y congele el contador; se limpia en `req.on('close')` junto con el listener.
 
 ## Entrega crítica (`is_critical`) y reenvío manual del admin
 
@@ -226,7 +226,7 @@ El retry de SMS corre en un cron aparte con offset `:05/:20/:35/:50` para no col
 
 ### Reenvío manual (`AdminNotificationDeliveryService.retry`)
 
-`modules/admin/notification/services/admin-notification-delivery.service.ts`:
+`src/modules/notification/services/admin-notification-delivery.service.ts`:
 
 - Rechaza reintentar si la notificación ya está `COMPLETED` (entregada en todos los canales) o si no hay canal con error **reintentable** pendiente.
 - `_resolverCanal()` decide qué canal reintentar según lo que **realmente falló y sigue siendo reintentable** (ver _Reintentable vs no reintentable_ abajo); pedir `'all'` solo reintenta los canales reintentables que fallaron.
@@ -262,7 +262,7 @@ Sólo las notificaciones **por canal externo** (email/push) pueden fallar: el ca
 | **Hard bounce** (buzón/endpoint muerto)           | seteado   | **`null`**        | ❌ **no**                                |
 | Nunca intentado / reseteado                       | `null`    | `null`            | n/a                                      |
 
-- **Cómo se detecta el hard bounce.** Un fallo es _hard bounce_ cuando AWS devuelve un `error_code` terminal (email: `MessageRejected`/`InvalidParameterValue`/`AccountSendingPausedException`; push: `EndpointDisabled`/`InvalidParameter` — catálogo en `shared/constants/aws-error-codes.ts`, `isHardBounce(channel, code)`). El worker de reintentos (`notification-retry.service`) lo lee del **último log de integración** de esa notificación, correlacionado por `integration_api_logs.notification_id` (que las utils SES/SNS rellenan en la fila `product='ses'`/`'sns'`). Al detectarlo, **cierra el canal** con `markEmail/PushPermanentFailure`, que deja `*_error` seteado y **`*_next_retry_at = null`**.
+- **Cómo se detecta el hard bounce.** Un fallo es _hard bounce_ cuando AWS devuelve un `error_code` terminal (email: `MessageRejected`/`InvalidParameterValue`/`AccountSendingPausedException`; push: `EndpointDisabled`/`InvalidParameter` — catálogo en `src/shared/constants/aws-error-codes.ts`, `isHardBounce(channel, code)`). El worker de reintentos (`notification-retry.service`) lo lee del **último log de integración** de esa notificación, correlacionado por `integration_api_logs.notification_id` (que las utils SES/SNS rellenan en la fila `product='ses'`/`'sns'`). Al detectarlo, **cierra el canal** con `markEmail/PushPermanentFailure`, que deja `*_error` seteado y **`*_next_retry_at = null`**.
 - **Señal canónica del cierre.** `*_error != null && *_next_retry_at === null` ⇒ hard bounce, no reintentable. Es inequívoco porque `resetForRetry` y el estado inicial dejan `*_error = null`; un temporal agotado conserva **fecha** en `*_next_retry_at`, por eso **sí** se puede reenviar manualmente.
 - **Ambos caminos respetan la misma señal.** El worker automático deja de seleccionar el canal cerrado (`findPending*Retries` filtra `*_next_retry_at <= now`; `null` no matchea). El reenvío manual del admin aplica la misma regla en `_resolverCanal()`: si los canales con error son hard bounce, devuelve `null` y `retry()` responde `400 'No hay canales con error pendiente de reintento…'`. Así el admin **no** puede reintentar en loop un buzón/endpoint muerto, pero **sí** puede reenviar fallos temporales agotados.
 

@@ -1,6 +1,6 @@
 generator client {
   provider        = "prisma-client"
-  output          = "../shared/database/generated/prisma"
+  output          = "../src/shared/database/generated/prisma"
   previewFeatures = ["partialIndexes"]
   moduleFormat    = "cjs"
 }
@@ -69,16 +69,11 @@ model AuditLog {
   category      String?         @db.VarChar(50)
   risk          AuditLogRisk    @default(unknown)
   outcome       AuditLogOutcome @default(success)
-  httpStatus    Int?            @map("http_status") @db.SmallInt
-  errorCode     String?         @map("error_code") @db.VarChar(100)
-  errorMessage  String?         @map("error_message")
   userId        String?         @map("user_id") @db.Uuid
   correlationId String?         @map("correlation_id") @db.VarChar(100)
   ip            String?         @db.VarChar(45)
   userAgent     String?         @map("user_agent")
   fingerprint   String?         @db.VarChar(64)
-  method        String?         @db.VarChar(10)
-  path          String?
   details       Json?
   source        String          @default("http") @db.VarChar(50)
   entityId      String?         @map("entity_id") @db.VarChar(255)
@@ -90,21 +85,12 @@ model AuditLog {
   updatedAt     DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([action], map: "idx_audit_logs_action")
-  @@index([category], map: "idx_audit_logs_category")
   @@index([correlationId], map: "idx_audit_logs_correlation_id")
   @@index([createdAt], map: "idx_audit_logs_created_at")
-  @@index([ip], map: "idx_audit_logs_ip")
-  @@index([risk], map: "idx_audit_logs_risk")
-  @@index([source], map: "idx_audit_logs_source")
-  @@index([userId], map: "idx_audit_logs_user_id")
   @@index([category, risk, createdAt], map: "idx_audit_logs_category_risk_date")
   @@index([entityId], map: "idx_audit_logs_entity_id")
-  @@index([entityTable], map: "idx_audit_logs_entity_table")
-  @@index([module], map: "idx_audit_logs_module")
-  @@index([outcome], map: "idx_audit_logs_outcome")
   @@index([outcome, createdAt], map: "idx_audit_logs_outcome_date")
   @@index([sessionId, createdAt], map: "idx_audit_logs_session_date")
-  @@index([sessionId], map: "idx_audit_logs_session_id")
   @@index([userId, createdAt], map: "idx_audit_logs_user_date")
   @@map("audit_logs")
 }
@@ -340,8 +326,10 @@ model IntegrationApiLog {
   responsePayload Json?                    @map("response_payload")
   isSystemError   Boolean                  @default(false) @map("is_system_error")
   notificationId  String?                  @map("notification_id") @db.Uuid
+  correlationId   String?                  @map("correlation_id") @db.VarChar(100)
   createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  @@index([correlationId], map: "idx_integration_api_logs_correlation_id")
   @@index([createdAt], map: "idx_integration_api_logs_created_at")
   @@index([notificationId], map: "idx_integration_api_logs_notification_id")
   @@index([product], map: "idx_integration_api_logs_product")
@@ -444,6 +432,34 @@ model Notification {
   @@index([userId, createdAt], map: "idx_notifications_user_id_created_at")
   @@index([userId, isRead, createdAt], map: "idx_notifications_user_id_is_read_created_at")
   @@map("notifications")
+}
+
+/// Una fila por operación (petición HTTP, webhook, ciclo de worker o tarea de sistema): se inserta al
+/// empezar (running) y se actualiza al terminar. operation_id = correlationId de logs, auditoría y llamadas
+/// externas. Ver docs/ARCHITECTURE.md (Auditoría, operaciones y logs).
+model Operation {
+  operationId     String          @id(map: "pk_operations") @map("operation_id") @db.VarChar(100)
+  parentId        String?         @map("parent_id") @db.VarChar(100)
+  clientRequestId String?         @map("client_request_id") @db.VarChar(128)
+  source          OperationSource
+  name            String          @db.VarChar(255)
+  userId          String?         @map("user_id") @db.Uuid
+  sessionId       String?         @map("session_id") @db.Uuid
+  ip              String?         @db.VarChar(45)
+  status          OperationStatus @default(running)
+  httpStatus      Int?            @map("http_status") @db.SmallInt
+  errorCode       String?         @map("error_code") @db.VarChar(100)
+  errorMessage    String?         @map("error_message")
+  startedAt       DateTime        @default(now()) @map("started_at") @db.Timestamptz(6)
+  endedAt         DateTime?       @map("ended_at") @db.Timestamptz(6)
+  durationMs      Int?            @map("duration_ms")
+
+  @@index([startedAt], map: "idx_operations_started_at")
+  @@index([status, startedAt], map: "idx_operations_status_started_at")
+  @@index([userId, startedAt], map: "idx_operations_user_started_at")
+  @@index([source, startedAt], map: "idx_operations_source_started_at")
+  @@index([parentId], map: "idx_operations_parent_id")
+  @@map("operations")
 }
 
 model PersonContact {
@@ -727,31 +743,6 @@ model UserBiometricCredential {
   @@map("user_biometric_credentials")
 }
 
-model UserChangeLog {
-  logId               String                     @id(map: "pk_user_change_logs") @default(uuid()) @map("log_id") @db.Uuid
-  userId              String                     @map("user_id") @db.Uuid
-  changedByUserId     String?                    @map("changed_by_user_id") @db.Uuid
-  changedByRole       UserChangeLogChangedByRole @map("changed_by_role")
-  changeType          UserChangeLogChangeType    @map("change_type")
-  previousValue       String?                    @map("previous_value")
-  newValue            String?                    @map("new_value")
-  changeReason        String?                    @map("change_reason") @db.VarChar(255)
-  ipAddress           String?                    @map("ip_address") @db.VarChar(45)
-  userAgent           String?                    @map("user_agent")
-  originSessionId     String?                    @map("origin_session_id") @db.Uuid
-  originCorrelationId String?                    @map("origin_correlation_id") @db.VarChar(128)
-  createdAt           DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
-  changedBy           User?                      @relation("UserChangeLog_changedBy", fields: [changedByUserId], references: [userId], map: "fk_user_change_logs_changed_by_user_id")
-  user                User                       @relation("UserChangeLog_user", fields: [userId], references: [userId], onDelete: Cascade, map: "fk_user_change_logs_user_id")
-
-  @@index([changeType], map: "idx_user_change_logs_change_type")
-  @@index([changedByUserId], map: "idx_user_change_logs_changed_by")
-  @@index([createdAt], map: "idx_user_change_logs_created_at")
-  @@index([originSessionId], map: "idx_user_change_logs_origin_session_id")
-  @@index([userId], map: "idx_user_change_logs_user_id")
-  @@map("user_change_logs")
-}
-
 model UserConsent {
   userConsentId       String         @id(map: "pk_user_consents") @default(uuid()) @map("user_consent_id") @db.Uuid
   userId              String         @map("user_id") @db.Uuid
@@ -954,8 +945,6 @@ model User {
   rolePermissionOverrides          RolePermissionOverride[]
   smsDeliveryAttempts              SmsDeliveryAttempt[]
   userBiometricCredentials         UserBiometricCredential[]
-  userChangeLogsByChangedByUser    UserChangeLog[]              @relation("UserChangeLog_changedBy")
-  userChangeLogsByUser             UserChangeLog[]              @relation("UserChangeLog_user")
   userConsents                     UserConsent[]
   loginAttempts                    UserLoginAttempt[]
   notificationPreference           UserNotificationPreference[]
@@ -993,6 +982,23 @@ model VerificationCode {
   @@index([type], map: "idx_verification_codes_type")
   @@index([verifiedAt], map: "idx_verification_codes_verified_at")
   @@map("verification_codes")
+}
+
+enum OperationSource {
+  http
+  webhook
+  worker
+  system
+
+  @@map("enum_operations_source")
+}
+
+enum OperationStatus {
+  running
+  success
+  failure
+
+  @@map("enum_operations_status")
 }
 
 enum ApprovalRequestStatus {
@@ -1088,33 +1094,6 @@ enum SmsDeliveryAttemptStatus {
   failed
 
   @@map("enum_sms_delivery_attempts_status")
-}
-
-enum UserChangeLogChangeType {
-  email
-  password
-  mfa_status
-  account_status
-  role
-  national_id
-  name
-  gender
-  location
-  phone
-  birth_date
-  funds_origin
-  sms_mfa_status
-  preferred_mfa_method
-
-  @@map("enum_user_change_logs_change_type")
-}
-
-enum UserChangeLogChangedByRole {
-  admin
-  user
-  system
-
-  @@map("enum_user_change_logs_changed_by_role")
 }
 
 enum UserSessionStatus {

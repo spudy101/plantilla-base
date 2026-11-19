@@ -7,4 +7,4 @@
 import loadabilityModule from 'tests/helpers/loadability';
 const { describeLoadability } = loadabilityModule;
 
-describeLoadability('shared');
+describeLoadability('src/shared');

@@ -10,10 +10,10 @@ config/
   swagger.admin.ts     ← ensambla el spec del servidor ADMIN (requiere + spread de paths/schemas)
   swagger.client.ts    ← idem para CLIENT
   swagger/
-    schemas/           ← schemas globales compartidos (index.ts los re-exporta). Ej: core.schema.ts
+    schemas/           ← schemas globales compartidos, GENERADOS desde los módulos (nada a mano)
     responses/common.responses.ts  ← helpers de respuestas estándar (ok, paginated, created, accepted, errores)
-    modules/{admin|client|shared-endpoints}/{dominio}/{subdominio}/{recurso}.paths.js
-                       ← paths + schemas por módulo (93 archivos; `core` y `notification` van sin subdominio)
+src/modules/<dominio>/docs/<recurso>.paths.ts
+                       ← paths + schemas de cada recurso, junto a su módulo
 ```
 
 Cada `*.paths.ts` exporta `{ paths, schemas, tags? }`. `swagger.admin.ts`/`swagger.client.ts` hacen
@@ -40,40 +40,42 @@ responses: {
 
 ## Anatomía de un `*.paths.ts`
 
+Los schemas, parámetros y bodies **no se escriben a mano**: salen de los esquemas Zod de `requests/` (entrada)
+y `responses/` (salida) del módulo, con los helpers de `shared/validation/openapi.ts`:
+
+- `toOpenApi(Schema)` → schema de un request; `toOpenApi(Schema, 'output')` → schema de una respuesta.
+- `toParameters(Schema, 'query' | 'path' | 'header')` → la lista de `parameters` de la operación.
+- `jsonBody('NombreDelSchema')` → `requestBody` JSON que apunta a `#/components/schemas/NombreDelSchema`.
+- `multipartBody(CamposSchema, { archivo: 'descripción' })` → `requestBody` multipart con archivos.
+
 ```ts
-import commonResponses from '../../../responses/common.responses';
-const adminSecurity = [{ bearerAuth: [], idTokenAuth: [] }]; // security schemes definidos en el ensamblador
+import commonResponses from '../../../config/swagger/responses/common.responses';
+import { jsonBody, toOpenApi, toParameters } from '../../../shared/validation/openapi';
+import { MiRecursoIdParams, MiRecursoListQuery, UpdateMiRecursoBody } from '../requests/mi-recurso.request';
+import { MiRecursoSchema } from '../responses/mi-recurso.response';
 
 const schemas = {
-  MiRecursoListItem: {
-    type: 'object',
-    properties: {
-      /* camelCase, igual que el DTO */
-    }
-  },
-  MiRecursoCreateRequest: {
-    type: 'object',
-    required: ['x'],
-    properties: {
-      /* igual que el validator */
-    }
-  }
+  MiRecurso: toOpenApi(MiRecursoSchema, 'output'),
+  MiRecursoUpdateRequest: toOpenApi(UpdateMiRecursoBody)
 };
 
 const paths = {
-  '/admin/api/v1/{dominio}/{subdominio}/mi-recurso': {
+  '/admin/api/v1/{dominio}/mi-recurso': {
     get: {
-      tags: ['Admin — Mi Recurso'],
+      tags: ['Admin - Mi Recurso'],
       summary: '...',
-      description: '...',
-      security: adminSecurity,
-      parameters: [
-        /* page, limit, filtros */
-      ],
-      responses: {
-        200: commonResponses.paginated({ $ref: '#/components/schemas/MiRecursoListItem' }),
-        ...commonResponses.Unauthorized
-      }
+      security: [{ bearerAuth: [], idTokenAuth: [] }],
+      parameters: toParameters(MiRecursoListQuery, 'query'),
+      responses: { 200: commonResponses.paginated({ $ref: '#/components/schemas/MiRecurso' }), ...commonResponses.Unauthorized }
+    }
+  },
+  '/admin/api/v1/{dominio}/mi-recurso/{miRecursoId}': {
+    patch: {
+      tags: ['Admin - Mi Recurso'],
+      summary: '...',
+      parameters: toParameters(MiRecursoIdParams, 'path'),
+      requestBody: jsonBody('MiRecursoUpdateRequest'),
+      responses: { 200: commonResponses.ok({ $ref: '#/components/schemas/MiRecurso' }), ...commonResponses.ValidationError }
     }
   }
 };
@@ -81,45 +83,46 @@ const paths = {
 export default { schemas, paths };
 ```
 
+Lo que sí se escribe a mano: `summary`, `description`, `tags`, `security` y qué `responses` aplican. Las
+descripciones y ejemplos de cada campo van en el esquema Zod con `.meta({ description, example })`, y la pista
+de validación (`withHint`) sale como `x-hint`.
+
 ## Registrar un módulo nuevo en el ensamblador
 
-En `config/swagger.admin.ts` (o `.client.js`):
+En `src/config/swagger.admin.ts` (o `swagger.client.ts`):
 
-1. `import miRecursoPaths from './swagger/modules/admin/{dominio}/mi-recurso.paths';`
+1. `import miRecursoPaths from '../modules/{dominio}/docs/mi-recurso.paths';`
 2. Agregar `...miRecursoPaths.paths` al objeto `allPaths`.
 3. Agregar `...miRecursoPaths.schemas` al objeto `allModuleSchemas`.
 
 - Los `tags` se agrupan solos en Swagger UI por el `tags: [...]` de cada operación (no hay merge global de tags).
-- Si un schema debe estar disponible en admin **y** client, definirlo en `swagger/schemas/core.schema.ts`
-  (lo carga `getAllSchemas`, presente en ambos specs). Definirlo solo en un `*.paths.ts` admin y referenciarlo
-  desde un path client deja el `$ref` colgando.
+- Si un schema debe estar disponible en admin **y** client, generarlo en `swagger/schemas/` (por ejemplo
+  `core.schema.ts`: `PendingApproval: toOpenApi(PendingApprovalSchema, 'output')`), que cargan ambos specs.
+  Definirlo solo en un `*.paths.ts` admin y referenciarlo desde un path client deja el `$ref` colgando.
 
 ## Convención de rutas
 
 Los paths se escriben con la ruta completa tal como queda montada en el monolito:
 `/{server}/api/v1/{dominio}/{subdominio}/{recurso}` (ej. `/admin/api/v1/kyc/person`),
-donde `{server}` ∈ `admin | client` (las specs de endpoints compartidos viven en la carpeta `shared-endpoints/`)
+donde `{server}` ∈ `admin | client` (las rutas compartidas se documentan en ambos specs)
 y `{dominio}` ∈ `kyc | records | notification | core | integration | auth`.
 Excepción: `core`, `notification`, `integration` y `auth` no llevan `{subdominio}` (ej. `/admin/api/v1/core/approval-requests`).
 Al agregar uno nuevo, seguir el patrón del módulo hermano más cercano.
 
 ## Checklist de revisión
 
-1. **Request body**: cada campo del validator está en el schema (tipo, formato, min/max, nullable, enum).
-2. **Response body**: cada campo del DTO está en el schema, con el tipo correcto.
+1. **Request**: `parameters` y `requestBody` salen de los esquemas que usa `validate(...)` en la ruta, no de
+   una copia.
+2. **Response**: el `$ref` apunta a un schema generado desde el esquema de `responses/`, y ese esquema tiene su
+   prueba de conformidad (`*.response.test.ts`).
 3. **Todas las keys camelCase** (excepto valores de enum de BD).
-4. **Status codes**: documentar 200/201/202, 400, 401, 403, 404, 409, 422, 500 cuando apliquen.
-5. **Opcionales explícitos**: `nullable: true` donde el DTO puede devolver `null`.
-6. **Enums del modelo**: reflejar todos los valores de `Model.STATUS` en el `enum: [...]`.
-7. **AppError / ApiResponse**: mensajes de error y estructura de respuesta fieles a lo real (usar `common.responses`).
-8. **PII enmascarada**: en los campos de **respuesta** con documento, correo, teléfono, TIN o cuenta, poner la
-   `description` de `config/swagger/schemas/pii-masking.doc.ts` y un `example` enmascarado (`******4050`,
-   `****n@example.com`, `****7890`). ⚠️ **Los `requestBody` y `parameters` NUNCA**: la entrada va completa. Si
-   un mismo `const` sirve a request y response, pártelo en dos. Ver `docs/pii-masking.md`.
+4. **Status codes**: documentar 200/201/202, 400, 401, 403, 404, 409, 422, 500 cuando apliquen, con el código
+   que de verdad devuelve el service (`AppError.badRequest` es 400, no 409).
+5. **PII enmascarada**: en el esquema de **salida**, los campos con documento, correo, teléfono, TIN o cuenta llevan
+   la `description` de `shared/validation/pii-masking.doc.ts` y un `example` enmascarado. ⚠️ **Nunca en los
+   requests**: la entrada va completa. Ver `docs/pii-masking.md`.
 
 ## Validar el spec sin levantar el server
 
-El ensamblador expone el JSON en `GET /docs.json`. Para chequear `$ref` colgantes en un script: capturar el
-spec (override de `swaggerUi.generateHTML` o invocar el handler de `/docs.json` con un `res` falso),
-juntar `Object.keys(components.schemas)` y cruzarlo con todos los `#/components/schemas/X` que aparezcan en
-`JSON.stringify(spec)`. Útil tras agregar/renombrar schemas.
+`tests/unit/guards/swagger-spec.test.ts` arma los dos specs y falla si algún `$ref` apunta a un schema que no
+existe. Corre con `npm test`; no hace falta levantar el servidor.

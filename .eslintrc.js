@@ -481,7 +481,7 @@ module.exports = {
     // -------------------------------------------------------------------------
     {
       // prisma.config.ts y database-url.ts: el CLI de Prisma lee DB_* sin pasar por la validación completa
-      files: ['**/shared/constants/**/*.{js,ts}', '**/shared/constants.js', '**/tests/**/*.{js,ts}', '**/shared/utils/hash.util.{js,ts}', 'prisma.config.ts', '**/shared/database/database-url.ts'],
+      files: ['**/shared/constants/**/*.{js,ts}', '**/shared/constants.js', '**/tests/**/*.{js,ts}', '**/shared/security/hash.util.{js,ts}', '**/*.test.ts', 'prisma.config.ts', '**/shared/database/database-url.ts'],
       rules: {
         'no-process-env': 'off',
         'no-magic-numbers': 'off'
@@ -494,7 +494,7 @@ module.exports = {
     // largos. No tiene sentido aplicarles límites de líneas ni longitud.
     // -------------------------------------------------------------------------
     {
-      files: ['**/swagger/**/*.{js,ts}', '**/swagger.admin.{js,ts}', '**/swagger.client.{js,ts}'],
+      files: ['**/swagger/**/*.{js,ts}', '**/docs/*.paths.ts', '**/swagger.admin.{js,ts}', '**/swagger.client.{js,ts}'],
       rules: {
         'max-lines-per-function': 'off',
         'max-len': 'off',
@@ -596,6 +596,15 @@ module.exports = {
         '@typescript-eslint/no-explicit-any': 'off',
         // mockImplementation(async () => valor): la forma natural de un doble que devuelve una promesa
         'require-await': 'off'
+      }
+    },
+    {
+      // Esquemas de entrada (Zod): los límites (longitudes, rangos) son la especificación del campo, como en
+      // la documentación OpenAPI; nombrar cada uno como constante no aporta.
+      files: ['**/requests/*.ts', '**/shared/validation/*.ts'],
+      rules: {
+        'no-magic-numbers': 'off',
+        '@typescript-eslint/no-magic-numbers': 'off'
       }
     }
   ]

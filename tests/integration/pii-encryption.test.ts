@@ -6,12 +6,12 @@
 // legado guardado en claro se sigue leyendo.
 
 import { randomUUID } from 'node:crypto';
-import prisma from '../../shared/database/prisma';
-import { hashValue, sealValue } from '../../shared/database/pii-fields';
-import requestContext from '../../shared/utils/request-context.util';
-import constants from '../../shared/constants';
-import unitOfWork from '../../shared/database/unit-of-work';
-import txContext from '../../shared/database/transaction-context';
+import prisma from '../../src/shared/database/prisma';
+import { hashValue, sealValue } from '../../src/shared/database/pii-fields';
+import requestContext from '../../src/shared/observability/request-context.util';
+import constants from '../../src/shared/constants';
+import unitOfWork from '../../src/shared/database/unit-of-work';
+import txContext from '../../src/shared/database/transaction-context';
 
 const SCHEMA = constants.database.schema;
 
@@ -90,6 +90,7 @@ describe('PII · cifrado de la extensión de Prisma contra Postgres', () => {
     const person = await requestContext.run(
       {
         correlationId: 'corr-pii-test',
+        name: 'test',
         ip: null,
         userAgent: null,
         fingerprintHash: null,

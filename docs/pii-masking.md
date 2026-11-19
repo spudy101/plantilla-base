@@ -2,8 +2,8 @@
 
 > **Complementa** a [`encryption-pii.md`](./encryption-pii.md): ahí se explica cómo se guarda la PII
 > (cifrada at-rest); aquí, cómo **sale** por la API.
-> Piezas: `shared/constants/pii-fields.ts` · `shared/utils/masking.util.ts` ·
-> `shared/middlewares/pii-masking.middleware.ts`.
+> Piezas: `src/shared/constants/pii-fields.ts` · `src/shared/security/masking.util.ts` ·
+> `src/shared/security/pii-masking.middleware.ts`.
 
 ## Idea general
 
@@ -35,7 +35,7 @@ tener dos capas encima sin degradar el valor.
 
 ## 2. Las tres capas
 
-### Capa A — catálogo único: `shared/constants/pii-fields.ts`
+### Capa A — catálogo único: `src/shared/constants/pii-fields.ts`
 
 Un solo mapa `key normalizada → tipo de máscara`. La normalización quita separadores y baja a minúsculas,
 así que `national_id`, `nationalId` y `NationalID` colapsan en `nationalid`.
@@ -44,10 +44,10 @@ así que `national_id`, `nationalId` y `NationalID` colapsan en `nationalid`.
 `emailVerifiedAt` e `isEmailVerified` no se tocan.
 
 Hay un tipo especial `AUTO` para columnas polimórficas (`contactValue` de un OTP, `previousValue`/`newValue`
-del diff de `user_change_logs`): decide por la **forma** del valor y deja intacto lo que no parece PII
+del diff de la bitácora de cambios (`USER_FIELD_CHANGED`)): decide por la **forma** del valor y deja intacto lo que no parece PII
 (`activo`, `inactivo`). Las **fechas ISO** (`1995-03-12`) se reconocen ANTES que la forma de
 teléfono/documento y pasan intactas (`ISO_DATE_SHAPE`, `masking.util.ts`) — coherente con la política de no
-enmascarar fechas: `birth_date` sale legible en el diff de `user_change_logs`.
+enmascarar fechas: `birth_date` sale legible en el diff de la bitácora de cambios.
 
 `PII_RAW_PAYLOAD_KEYS` lista los subárboles que **no se recorren** (`rawData`, `rawRequest`, `rawResponse`,
 `rawPayload`, `failureRequest`, `failureResponse`, `requestPayload`, `responsePayload`): las respuestas
@@ -79,10 +79,10 @@ para no romper su serialización).
 
 ### Capa C — red de seguridad en `ApiResponse.success()`
 
-`shared/utils/app-response.util.ts` es el embudo único de toda respuesta exitosa. Ahí se pasa `data` y
+`src/shared/http/app-response.util.ts` es el embudo único de toda respuesta exitosa. Ahí se pasa `data` y
 `metadata` por `PiiMaskingMiddleware.apply()`, que aplica `redactPayload` salvo que la ruta esté exenta.
 
-Se enganchó ahí y **no en `BaseApp`** para no tocar `shared/base/` (restricción del proyecto) y porque
+Se enganchó ahí y **no como middleware global de `src/app.ts`** porque
 cubre también cualquier DTO futuro que se olvide de enmascarar.
 
 > La capa C es una **red**, no la solución. Si un DTO nuevo filtra PII, el bug está en el DTO: arréglalo ahí.
@@ -114,7 +114,7 @@ depurar una falla real.
 
 ## 5. Swagger
 
-- Los textos compartidos viven en `config/swagger/schemas/pii-masking.doc.ts`:
+- Los textos compartidos viven en `src/shared/validation/pii-masking.doc.ts`:
   `MASKED_DOCUMENT_DESC`, `MASKED_PHONE_DESC`, `MASKED_EMAIL_DESC`, `MASKED_ACCOUNT_DESC`,
   `REDACTED_PAYLOAD_DESC`, `UNMASKED_ROUTE_DESC`.
 - ⚠️ **Los `requestBody` y `parameters` NUNCA se documentan como enmascarados**: la entrada va siempre

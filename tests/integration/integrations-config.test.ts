@@ -6,12 +6,12 @@
 // SQL inválido), la UNIQUE parcial de pendientes y su traducción a 409 en el middleware de errores.
 
 import { randomUUID } from 'node:crypto';
-import prisma from '../../shared/database/prisma';
-import ErrorMiddleware from '../../shared/middlewares/error.middleware';
-import systemGlobalConfigRepository from '../../modules/schemas/core/repositories/system-global-config.repository';
-import approvalRequestRepository from '../../modules/schemas/core/repositories/approval-request.repository';
-import integrationApiLogRepository from '../../modules/schemas/integration/repositories/integration-api-log.repository';
-import providerFallbackEventRepository from '../../modules/schemas/integration/repositories/provider-fallback-event.repository';
+import prisma from '../../src/shared/database/prisma';
+import ErrorMiddleware from '../../src/shared/http/error.middleware';
+import systemGlobalConfigRepository from '../../src/modules/settings/repositories/system-global-config.repository';
+import approvalRequestRepository from '../../src/modules/approvals/repositories/approval-request.repository';
+import integrationApiLogRepository from '../../src/modules/integration/repositories/integration-api-log.repository';
+import providerFallbackEventRepository from '../../src/modules/integration/repositories/provider-fallback-event.repository';
 
 const TAG = `g4-it-${randomUUID().slice(0, 8)}`;
 let roleId: string;

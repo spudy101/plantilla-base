@@ -2,7 +2,7 @@
 
 > Cómo cada fila de dominio queda atada a la sesión de usuario que la creó, y qué hacer **cada vez que
 > agregás una tabla nueva**. La superficie forense que consume esto (timeline de una sesión, entidades
-> tocadas) está en `docs/audit-and-alerts.md`; acá está la mecánica de escritura y la convención.
+> tocadas) está en `docs/audit-and-observability.md`; acá está la mecánica de escritura y la convención.
 
 ---
 
@@ -25,12 +25,12 @@ reclamación, la fila apunta a su sesión, y la sesión a su dispositivo, IP y v
 
 ## Cómo se rellena (la extensión de Prisma)
 
-`piiExtension` (`shared/database/prisma-extensions.ts`), aplicada al cliente único, completa
+`piiExtension` (`src/src/shared/database/prisma-extensions.ts`), aplicada al cliente único, completa
 `originSessionId` y `originCorrelationId` al **crear** una fila de un modelo que los declara, desde
 `requestContext.originFromContext()` (que lee el `sessionId`/`correlationId` del `AsyncLocalStorage`). El
 `sessionId` lo inyecta al store `auth.middleware` tras autenticar, así que cualquier `create()` río abajo
 lo hereda **sin pasar nada por parámetro**. Qué modelos los declaran sale de los metadatos que genera
-`npm run prisma:generate` (`shared/database/generated/prisma-metadata.ts`).
+`npm run prisma:generate` (`src/shared/database/generated/prisma-metadata.ts`).
 
 Reglas:
 - **Solo al CREAR, nunca al actualizar.** Un retry de admin o de worker corre en otro contexto y no debe
@@ -59,7 +59,7 @@ Reglas:
 Infra/sistema, catálogos y la sesión misma no la llevan: `audit_logs` (usa `session_id`), `audit_alerts`,
 `user_sessions`, `integration_api_logs`, `sms_delivery_attempts`, `email_bounce_suppressions`, maintainers
 (país/ciudad/…), `notification_categories`/`notification_types`, `roles`, `consent_types`, `privacy_policies`.
-**`users` tampoco**: sus cambios se trazan vía `user_change_logs` (que sí lleva `origin_session_id`);
+**`users` tampoco**: sus cambios se trazan en la bitácora de cambios (`USER_FIELD_CHANGED` en `audit_logs`, que lleva `session_id`);
 duplicarlo en `users` sería redundante.
 
 ---
@@ -68,16 +68,16 @@ duplicarlo en `users` sería redundante.
 
 El timeline forense (`GET /records/audit/sessions/:id`) sale de `audit_logs`. Para **hidratar** el detalle
 de las filas referenciadas (`GET /records/audit/sessions/:id/entities`), el service
-`modules/admin/records/audit/services/admin-session-trace.service.ts` tiene un `ENTITY_REGISTRY` que mapea
+`src/modules/audit/services/admin-session-trace.service.ts` tiene un `ENTITY_REGISTRY` que mapea
 `entity_table → { repository, pk, entityType, dto }`. Las tablas no registradas caen en `skipped`.
 
 Hoy registra: `user_consents`, `user_notification_preferences`, `user_trusted_devices`.
 
 **Para hidratar una tabla más:**
-1. Asegurate de que sus `logAudit`/`AuditAction.declare` sellen **`entityId`** + **`entityTable`** (sin
+1. Asegurate de que sus `audit.record` sellen **`entityId`** + **`entityTable`** (sin
    `entityId` no hidrata).
 2. Escribí un component DTO que **enmascare/omita PII** (esta vista NO es self-view). Los componentes viven
-   en `shared/dtos/audit/components-audit.dto.ts` (ej. `NotificationPreferenceComponent`).
+   en `src/modules/audit/responses/audit-components.response.ts` (ej. `NotificationPreferenceComponent`).
 3. Sumá la entrada al `ENTITY_REGISTRY`:
    ```js
    mi_tabla: { repository: miRepo, pk: 'mi_tabla_id', entityType: 'MiEntidad', dto: r => MiComponent.build(r) }
@@ -95,4 +95,4 @@ Hoy registra: `user_consents`, `user_notification_preferences`, `user_trusted_de
 SELECT table_name FROM information_schema.columns
 WHERE table_schema = 'plantilla' AND column_name = 'origin_session_id' ORDER BY table_name;
 ```
-Relacionados: `docs/auth-sessions.md` (control de sesiones), `docs/audit-and-alerts.md` (superficie forense).
+Relacionados: `docs/auth-sessions.md` (control de sesiones), `docs/audit-and-observability.md` (superficie forense).
