@@ -52,20 +52,31 @@ describe('Errores de la base · Postgres real', () => {
   });
 
   it('pool agotado: vence connectionTimeoutMillis → no disponible', async () => {
-    const client = clientWith({ max: 1, connectionTimeoutMillis: 300 });
+    // connectionTimeoutMillis cubre también ABRIR la conexión: bajo carga (suites en paralelo) abrir la
+    // primera puede tardar varios cientos de ms, así que el margen no puede ser mínimo.
+    const client = clientWith({ max: 1, connectionTimeoutMillis: 2_000 });
     let release!: () => void;
     const held = new Promise<void>(resolve => {
       release = resolve;
     });
+    let signalAcquired!: () => void;
+    const acquired = new Promise<void>(resolve => {
+      signalAcquired = resolve;
+    });
     try {
-      // Una transacción toma la única conexión y la retiene
-      const holder = client.$transaction(async tx => {
-        await tx.$queryRaw`SELECT 1`;
-        await held;
-      });
-      await new Promise(resolve => {
-        setTimeout(resolve, 100);
-      });
+      // Una transacción toma la única conexión y la retiene. Se espera a que la tenga de verdad (con un
+      // tiempo fijo, bajo carga la segunda consulta podía ganar la conexión y el test fallaba a veces).
+      const holder = client
+        .$transaction(
+          async tx => {
+            await tx.$queryRaw`SELECT 1`;
+            signalAcquired();
+            await held;
+          },
+          { timeout: 15_000 }
+        )
+        .finally(signalAcquired); // si no pudo tomar la conexión, que el test falle sin colgarse
+      await acquired;
       const err = await errorOf(client.$queryRaw`SELECT 1`);
       release();
       await holder;
@@ -75,7 +86,7 @@ describe('Errores de la base · Postgres real', () => {
       release();
       await client.$disconnect();
     }
-  });
+  }, 20_000);
 
   describe('deadlock', () => {
     const roleIds: string[] = [];

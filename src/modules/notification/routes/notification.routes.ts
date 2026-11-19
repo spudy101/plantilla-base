@@ -7,6 +7,7 @@ import iamModule from '../../iam';
 const { AuthMiddleware } = iamModule;
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
 import RequestLockMiddleware from '../../../shared/http/request-lock.middleware';
+import { idempotent } from '../../../shared/http/idempotency/idempotency.middleware';
 
 /**
  * GET /count/stream debe ir ANTES de GET /count para que Express no lo confunda.
@@ -18,11 +19,15 @@ router.get('/count/stream', AuthMiddleware.authenticate, NotificationController.
 /** GET /count — conteo puntual de no leídas */
 router.get('/count', AuthMiddleware.authenticate, RateLimitMiddleware.apiLimiter(), NotificationController.getUnreadCount);
 
-/** POST / — creación externa vía X-API-Key */
+/**
+ * POST / — creación externa vía X-API-Key. Idempotente (Idempotency-Key obligatorio): la llama otro
+ * sistema, que reintenta si se corta la respuesta; sin la clave, cada reintento enviaría de nuevo.
+ */
 router.post(
   '/notifications',
   AuthMiddleware.externalAuthenticate,
   validate({ body: CreateNotificationBody }),
+  idempotent(),
   NotificationController.createNotification
 );
 

@@ -175,6 +175,29 @@ const ServiceUnavailable = _errorResponse(
   { retryAfter: true }
 );
 
+// ─── Idempotencia (shared/http/idempotency, docs/idempotency.md) ──
+
+/** Parámetro del header para las operaciones con `idempotent()`: `parameters: [commonResponses.IdempotencyKeyHeader]`. */
+const IdempotencyKeyHeader = {
+  name: 'Idempotency-Key',
+  in: 'header',
+  required: true,
+  description:
+    'Clave única de **esta** operación (se recomienda un UUID v4). Generala una vez y repetila tal cual en cada reintento de la misma operación; una operación distinta necesita otra clave. Se recuerda 24 h.',
+  schema: { type: 'string', maxLength: 255, example: '7f3c1a2e-9b4d-4c8e-a1f0-2d6b5e8c9a10' }
+};
+
+/** Párrafo para la descripción de una operación idempotente (las respuestas se documentan aparte). */
+const IDEMPOTENCY_DESCRIPTION = [
+  '**Idempotente** (header `Idempotency-Key`, obligatorio): si se cortó la respuesta, reintentá con **la misma clave** y el mismo body; la operación no se ejecuta dos veces.',
+  '- Primera vez: se ejecuta y se guarda la respuesta.',
+  '- Reintento cuando ya terminó: misma respuesta (status y body), con el header `Idempotent-Replayed: true`.',
+  '- Reintento mientras la primera sigue en curso: `409 REQUEST_IN_PROGRESS`, temporal; esperar `Retry-After`.',
+  '- Misma clave con otro body: `422 IDEMPOTENCY_KEY_REUSED` (permanente: usá otra clave).',
+  '- Sin la clave o con formato inválido: `400 IDEMPOTENCY_KEY_REQUIRED` / `IDEMPOTENCY_KEY_INVALID`.',
+  '- Un error temporal (`retryable: true`, p. ej. 503) no se guarda: el reintento con la misma clave se ejecuta de nuevo.'
+].join('\n');
+
 // ─── Helpers para respuestas de éxito ─────────────────────────
 
 /**
@@ -300,6 +323,8 @@ export default {
   NotFound,
   Conflict,
   RequestInProgress,
+  IdempotencyKeyHeader,
+  IDEMPOTENCY_DESCRIPTION,
   ValidationError,
   RateLimitExceeded,
   InternalServerError,

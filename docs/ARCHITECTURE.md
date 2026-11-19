@@ -171,6 +171,8 @@ No lo importa: publica un punto de registro y `src/app.ts` le conecta el módulo
 | Un job periódico | `modules/<dominio>/workers/` |
 | Integrar un proveedor externo | `modules/<dominio>/providers/` |
 | Llamar a un proveedor externo (SES, S3, SNS…) | `callProvider` de `shared/infra/provider-call.util` (nunca `client.send` suelto) |
+| Una operación que no se debe ejecutar dos veces aunque el cliente reintente (crear, enviar, cobrar) | `idempotent()` de `shared/http/idempotency` en la ruta (ver docs/idempotency.md) |
+| Un error temporal (reintentar puede funcionar) | `retryable` + `retryAfter` en el `AppError` (ver docs/errors-and-retries.md) |
 | Algo técnico sin negocio (cifrado, Redis, paginación) | `shared/<área>/` |
 | Un dominio nuevo | copiar el molde de un módulo existente |
 
@@ -222,6 +224,17 @@ Son tres cosas distintas y cada una tiene su lugar:
 
 Todo comparte el mismo `correlationId`, que identifica una operación (petición HTTP, webhook, ciclo
 de worker o tarea de sistema) de principio a fin.
+
+## Errores, reintentos e idempotencia
+
+Toda respuesta de error dice si es **temporal** (`retryable: true`, y `Retry-After` si se sabe cuánto
+esperar) o **permanente**. El servidor repite por su cuenta las transacciones que chocan por deadlock o
+serialización (si no tuvieron efectos externos) y responde 503, no 500, cuando la base no está. El
+contrato completo, para quien consume la API: docs/errors-and-retries.md.
+
+Las operaciones que no se deben ejecutar dos veces (hoy: crear y enviar notificaciones) exigen el header
+`Idempotency-Key`: un reintento con la misma clave recibe la respuesta guardada. Cómo funciona, cuándo
+usarlo y sus límites: docs/idempotency.md.
 
 ## Servidor
 

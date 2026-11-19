@@ -4,6 +4,7 @@ const { logger } = loggerUtilModule;
 import { runOperation } from '../../../shared/observability/operation';
 import auditLogRepository from '../repositories/audit-log.repository';
 import operationRepository from '../../../shared/observability/operation.repository';
+import idempotencyRepository from '../../../shared/http/idempotency/idempotency.repository';
 import constantsModule from '../../../shared/constants';
 const { logging } = constantsModule;
 import settingsModule from '../../settings';
@@ -106,7 +107,8 @@ async function _purgeExpiredFromDb(hotYears: number) {
   });
 }
 
-// Diario a las 03:30: la traza de operaciones es de alto volumen y corta retención (no es auditoría).
+// Diario a las 03:30: retención de datos técnicos de alto volumen y vida corta (no son auditoría): la
+// traza de operaciones y las claves de idempotencia vencidas.
 const OPERATIONS_RETENTION_CRON = '30 3 * * *';
 const MS_PER_DAY = 86_400_000;
 
@@ -140,6 +142,22 @@ async function purgeOperations(): Promise<number> {
   return purged;
 }
 
+/** Borra las claves de idempotencia vencidas (se recuerdan 24 h; ver docs/idempotency.md). */
+async function purgeIdempotencyKeys(): Promise<number> {
+  const purged = await idempotencyRepository.purgeExpired();
+  logger.info('audit-archive.worker — claves de idempotencia vencidas purgadas', { purged });
+  return purged;
+}
+
+/** Retención técnica diaria. Cada purga es independiente: si una falla, la otra corre igual. */
+async function purgeTechnicalData(): Promise<void> {
+  const results = await Promise.allSettled([purgeOperations(), purgeIdempotencyKeys()]);
+  const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+  if (failed.length > 0) {
+    throw failed[0]!.reason;
+  }
+}
+
 /**
  * Registra el cron mensual de retención de auditoría (RF-ADM-03 CA-3).
  * La purga del caliente la gobierna el Superadministrador vía la config global
@@ -159,9 +177,9 @@ function iniciar() {
     runOperation({ source: 'worker', name: 'audit-archive.export' }, () => exportDay(new Date(Date.now() - MS_PER_DAY)))
   );
   cron.schedule(OPERATIONS_RETENTION_CRON, () =>
-    runOperation({ source: 'worker', name: 'operations.retention' }, purgeOperations)
+    runOperation({ source: 'worker', name: 'technical-data.retention' }, purgeTechnicalData)
   );
   logger.info('Worker de retención de auditoría iniciado exitosamente');
 }
 
-export default { run, exportDay, purgeOperations, iniciar };
+export default { run, exportDay, purgeOperations, purgeIdempotencyKeys, purgeTechnicalData, iniciar };
