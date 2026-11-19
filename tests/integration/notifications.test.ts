@@ -1,13 +1,14 @@
 // tests/integration/notifications.test.ts
 //
 // Grupo 3 de la fase 5 (docs/prisma-migration.md) contra Postgres real: notificaciones sobre Prisma.
-// Cubre lo que un mock no prueba: el SQL crudo de métricas (tablas calificadas con el esquema), las
-// columnas TIME del horario de no molestar, los upserts sin UNIQUE útil (NULL ≠ NULL), las lecturas de
-// globales con skipDuplicates y los contadores que se incrementan en la base.
+// Cubre lo que un mock no prueba: el SQL crudo del despachador (tabla calificada con el esquema, SKIP
+// LOCKED, reserva), las columnas TIME del horario de silencio, la preferencia única por usuario, las
+// lecturas de globales con skipDuplicates y los contadores que se incrementan en la base.
 
 import { randomUUID } from 'node:crypto';
 import prisma from '../../src/shared/database/prisma';
 import notificationRepository from '../../src/modules/notification/repositories/notification.repository';
+import deliveryRepository from '../../src/modules/notification/repositories/notification-delivery.repository';
 import notificationTypeRepository from '../../src/modules/notification/repositories/notification-type.repository';
 import notificationCategoryRepository from '../../src/modules/notification/repositories/notification-category.repository';
 import globalNotificationRepository from '../../src/modules/notification/repositories/global-notification.repository';
@@ -29,12 +30,17 @@ describe('Notificaciones · Prisma contra Postgres', () => {
     roleId = (await prisma.role.create({ data: { name: TAG } })).roleId;
     personId = (await prisma.person.create({ data: { firstName: 'Ada', lastName: TAG } })).personId;
     userId = (await prisma.user.create({ data: { username: TAG, personId, roleId } })).userId;
-    categoryId = (
-      await notificationCategoryRepository.create({ code: CODE, name: TAG, defaultQuietHoursStart: '22:00', defaultQuietHoursEnd: '07:00' })
-    ).notificationCategoryId;
+    categoryId = (await notificationCategoryRepository.create({ code: CODE, name: TAG })).notificationCategoryId;
     typeId = (
       await prisma.notificationType.create({
-        data: { code: CODE, name: TAG, titleTemplate: 'Hola {{x}}', bodyTemplate: 'B', notificationCategoryId: categoryId, isActive: true }
+        data: {
+          code: CODE,
+          name: TAG,
+          titleTemplate: 'Hola {{x}}',
+          bodyTemplate: 'B',
+          notificationCategoryId: categoryId,
+          isActive: true
+        }
       })
     ).notificationTypeId;
   });
@@ -53,71 +59,116 @@ describe('Notificaciones · Prisma contra Postgres', () => {
     await prisma.$disconnect();
   });
 
-  it('categoría y tipo: el horario TIME entra y sale como "HH:MM:SS" y el tipo trae su categoría', async () => {
-    const category = await notificationCategoryRepository.findByCode(CODE);
-    expect(category).toMatchObject({ defaultQuietHoursStart: '22:00:00', defaultQuietHoursEnd: '07:00:00' });
+  it('categoría y tipo: el tipo trae su categoría', async () => {
+    expect(await notificationCategoryRepository.findByCode(CODE)).toMatchObject({ code: CODE, isCritical: false });
 
     const type = await notificationTypeRepository.findByCode(CODE);
-    expect(type?.category).toMatchObject({ code: CODE, defaultQuietHoursStart: '22:00:00' });
+    expect(type?.category).toMatchObject({ code: CODE });
     expect(await notificationTypeRepository.countByCategory(categoryId)).toBe(1);
   });
 
-  it('preferencia global: el upsert no duplica (NULL ≠ NULL en la UNIQUE) y conserva lo que no vino', async () => {
-    await preferenceRepository.upsertGlobalPreference(userId, { allowPush: true, quietHoursStart: '23:30', quietHoursEnd: '06:00' });
-    await preferenceRepository.upsertGlobalPreference(userId, { allowPush: false });
+  it('preferencia: una por usuario; el upsert conserva lo que no vino y el horario sale como "HH:MM:SS"', async () => {
+    expect(await preferenceRepository.findByUser(userId)).toBeNull();
 
-    const all = await preferenceRepository.findAllByUser(userId);
-    expect(all).toHaveLength(1);
-    expect(all[0]).toMatchObject({ allowPush: false, quietHoursStart: '23:30:00', quietHoursEnd: '06:00:00', notificationCategory: null });
-    expect(await preferenceRepository.userAllowsPush(userId, CODE)).toBe(false);
+    await preferenceRepository.upsert(userId, { allowPush: true, quietHoursStart: '23:30', quietHoursEnd: '06:00' });
+    await preferenceRepository.upsert(userId, { allowPush: false });
 
-    await preferenceRepository.upsertCategoryPreference(userId, CODE, { allowPush: true });
-    expect(await preferenceRepository.userAllowsPush(userId, CODE)).toBe(true);
-    expect((await preferenceRepository.findAllByUser(userId)).map(p => p.notificationCategoryCode)).toEqual([CODE, null]);
-    expect(await preferenceRepository.deleteCategoryPreference(userId, CODE)).toBe(1);
+    expect(await prisma.userNotificationPreference.count({ where: { userId } })).toBe(1);
+    expect(await preferenceRepository.findByUser(userId)).toMatchObject({
+      allowPush: false,
+      quietHoursStart: '23:30:00',
+      quietHoursEnd: '06:00:00'
+    });
   });
 
-  it('notificación personal: errores por canal incrementan en la base y las métricas por categoría cuadran', async () => {
-    const n = await notificationRepository.create({ userId, notificationTypeId: typeId, title: 'T', body: 'B', processingStatus: 'pending' });
-    await notificationRepository.recordPushError(n.notificationId, 'boom', new Date(Date.now() - 1000));
-    await notificationRepository.recordPushError(n.notificationId, 'boom', new Date(Date.now() - 1000));
-    expect((await notificationRepository.findById(n.notificationId))?.pushRetryCount).toBe(2);
-    expect((await notificationRepository.findPendingPushRetries()).map(r => r.notificationId)).toContain(n.notificationId);
+  it('entregas: el despachador toma solo las vencidas, las reserva y dos ciclos a la vez no toman la misma', async () => {
+    const n = await notificationRepository.create({ userId, notificationTypeId: typeId, title: 'T', body: 'B' });
+    const past = new Date(Date.now() - 1000);
+    const [push, email] = await deliveryRepository.createForNotification(n.notificationId, ['push', 'email'], past);
+    // Una tercera, en el futuro (diferida por horario de silencio): no se toma
+    const n2 = await notificationRepository.create({ userId, notificationTypeId: typeId, title: 'T2', body: 'B' });
+    await deliveryRepository.createForNotification(n2.notificationId, ['email'], new Date(Date.now() + 3_600_000));
 
-    await notificationRepository.markEmailSent(n.notificationId);
-    const metrics = await notificationRepository.deliveryMetrics({ userId });
-    expect(metrics).toEqual([
-      expect.objectContaining({ category_code: CODE, total: 1, push_attempted: 1, push_failed: 1, email_sent: 1, status_pending: 1 })
+    const [a, b] = await Promise.all([deliveryRepository.claimDue(10, 60_000), deliveryRepository.claimDue(10, 60_000)]);
+    const mine = [...a, ...b].filter(d => d.notificationId === n.notificationId).map(d => d.notificationDeliveryId);
+    expect(mine.sort()).toEqual([push!.notificationDeliveryId, email!.notificationDeliveryId].sort());
+    expect([...a, ...b].some(d => d.notificationId === n2.notificationId)).toBe(false);
+
+    // Reservadas: hasta que venza la reserva no se vuelven a tomar
+    expect((await deliveryRepository.claimDue(10, 60_000)).some(d => d.notificationId === n.notificationId)).toBe(false);
+    expect(
+      (await prisma.notificationDelivery.findUnique({
+        where: { notificationDeliveryId: push!.notificationDeliveryId }
+      }))!.nextAttemptAt!.getTime()
+    ).toBeGreaterThan(Date.now());
+
+    // Resultados: fallo temporal → pendiente con un intento; enviado → sent
+    await deliveryRepository.recordFailure(push!.notificationDeliveryId, {
+      error: 'boom',
+      errorCode: 'Throttling',
+      nextAttemptAt: past
+    });
+    await deliveryRepository.markSent(email!.notificationDeliveryId);
+    const rows = await deliveryRepository.findByNotification(n.notificationId);
+    expect(rows.map(r => [r.channel, r.status, r.attempts])).toEqual([
+      ['push', 'pending', 1],
+      ['email', 'sent', 1]
     ]);
+    expect((await deliveryRepository.claimDue(10, 60_000)).map(d => d.notificationDeliveryId)).toContain(
+      push!.notificationDeliveryId
+    );
 
-    const admin = await notificationRepository.findAllForAdmin({ userId, channel: 'push', onlyCritical: false });
+    const admin = await deliveryRepository.findAllForAdmin({ userId, status: 'sent' });
     expect(admin.count).toBe(1);
-    expect(admin.rows[0]?.notificationType?.category).toMatchObject({ code: CODE });
+    expect(admin.rows[0]?.notification.notificationType?.category).toMatchObject({ code: CODE });
 
+    // Borrar la notificación borra sus entregas
+    await prisma.notification.delete({ where: { notificationId: n.notificationId } });
+    expect(await deliveryRepository.findByNotification(n.notificationId)).toEqual([]);
+  });
+
+  it('bandeja: marcar como leída una sola vez', async () => {
+    const n = await notificationRepository.create({ userId, notificationTypeId: typeId, title: 'T', body: 'B' });
     expect(await notificationRepository.markAsReadByIds([n.notificationId])).toBe(1);
     expect(await notificationRepository.markAsReadByIds([n.notificationId])).toBe(0);
-    expect(await notificationRepository.countUnreadByUser(userId)).toBe(0);
   });
 
   it('global: vigente por defecto (startsAt = ahora), leída una vez aunque se marque dos', async () => {
-    const g = await globalNotificationRepository.create({ notificationTypeId: typeId, title: 'G', body: 'B', sendInApp: true, isActive: true });
-    expect((await globalNotificationRepository.findUnreadByUser(userId)).map(r => r.globalNotificationId)).toContain(g.globalNotificationId);
+    const g = await globalNotificationRepository.create({
+      notificationTypeId: typeId,
+      title: 'G',
+      body: 'B',
+      sendInApp: true,
+      isActive: true
+    });
+    expect((await globalNotificationRepository.findUnreadByUser(userId)).map(r => r.globalNotificationId)).toContain(
+      g.globalNotificationId
+    );
 
     await globalNotificationReadRepository.bulkMarkAsRead([g.globalNotificationId], userId);
     await globalNotificationReadRepository.bulkMarkAsRead([g.globalNotificationId], userId);
 
     expect(await globalNotificationReadRepository.getReadIdsByUser(userId)).toEqual([g.globalNotificationId]);
-    expect((await globalNotificationRepository.findUnreadByUser(userId)).map(r => r.globalNotificationId)).not.toContain(g.globalNotificationId);
+    expect((await globalNotificationRepository.findUnreadByUser(userId)).map(r => r.globalNotificationId)).not.toContain(
+      g.globalNotificationId
+    );
 
     await globalNotificationRepository.incrementPushSentCount(g.globalNotificationId, 5);
     await globalNotificationRepository.incrementPushSentCount(g.globalNotificationId, 2);
-    expect((await prisma.globalNotification.findUnique({ where: { globalNotificationId: g.globalNotificationId } }))?.pushSentCount).toBe(7);
+    expect(
+      (await prisma.globalNotification.findUnique({ where: { globalNotificationId: g.globalNotificationId } }))?.pushSentCount
+    ).toBe(7);
   });
 
   it('código de verificación: rate limit, intentos y verificación', async () => {
     const contact = `${TAG}@test.local`;
     expect(await verificationCodeRepository.secondsUntilNewCode('email', contact)).toBe(0);
-    const vc = await verificationCodeRepository.create({ type: 'email', contactValue: contact, code: '123456', expiresAt: new Date(Date.now() + 60_000) });
+    const vc = await verificationCodeRepository.create({
+      type: 'email',
+      contactValue: contact,
+      code: '123456',
+      expiresAt: new Date(Date.now() + 60_000)
+    });
     const wait = await verificationCodeRepository.secondsUntilNewCode('email', contact);
     expect(wait).toBeGreaterThan(0);
     expect(wait).toBeLessThanOrEqual(60);
@@ -128,14 +179,23 @@ describe('Notificaciones · Prisma contra Postgres', () => {
     await verificationCodeRepository.markAsVerified(vc.verificationCodeId);
     expect(await verificationCodeRepository.findActiveByContact('email', contact)).toBeNull();
     expect(await verificationCodeRepository.incrementAttempts(vc.verificationCodeId)).toBe(0);
-    expect((await verificationCodeRepository.findVerifiedByContact('email', contact))?.verificationCodeId).toBe(vc.verificationCodeId);
+    expect((await verificationCodeRepository.findVerifiedByContact('email', contact))?.verificationCodeId).toBe(
+      vc.verificationCodeId
+    );
   });
 
   it('suppression list: al tercer rebote duro la dirección queda suprimida; lift la libera', async () => {
     const opts = { errorCode: 'Bounce', threshold: 3 };
-    expect(await emailBounceSuppressionRepository.registerHardBounce(TAG, opts)).toMatchObject({ bounceCount: 1, suppressed: false });
+    expect(await emailBounceSuppressionRepository.registerHardBounce(TAG, opts)).toMatchObject({
+      bounceCount: 1,
+      suppressed: false
+    });
     await emailBounceSuppressionRepository.registerHardBounce(TAG, opts);
-    expect(await emailBounceSuppressionRepository.registerHardBounce(TAG, opts)).toEqual({ bounceCount: 3, suppressed: true, alreadySuppressed: false });
+    expect(await emailBounceSuppressionRepository.registerHardBounce(TAG, opts)).toEqual({
+      bounceCount: 3,
+      suppressed: true,
+      alreadySuppressed: false
+    });
     expect(await emailBounceSuppressionRepository.isSuppressed(TAG)).toBe(true);
 
     await emailBounceSuppressionRepository.lift(TAG);

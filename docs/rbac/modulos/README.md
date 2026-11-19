@@ -35,7 +35,7 @@ Por cada ítem del menú, su `rbacModule` se contrasta contra `/rbac/me`: si el 
 | 🧑 Personas / Clientes | `clients` | clientsList, policyAcceptance | [01-personas-clientes.md](01-personas-clientes.md) |
 | 🔌 Integraciones | `integrations` | integrationDashboard, apiLogs, providers | _sin doc dedicado — ver `rbac.js` + `docs/*` de integración_ |
 | 📜 Auditoría | `audit` | globalLogs, auditActionCatalog, systemAlerts, userChanges, activeSessions | [06-auditoria.md](06-auditoria.md) |
-| 🔔 Notificaciones | `notifications` | notificationResend, notificationManagement | [07-notificaciones.md](07-notificaciones.md) |
+| 🔔 Notificaciones | `notifications` | notificationDeliveries, notificationManagement | [07-notificaciones.md](07-notificaciones.md) |
 | 🛡️ Consentimientos | `consents` | consentTypes, privacyPolicies | [08-consentimientos.md](08-consentimientos.md) |
 | ⚙️ Administración del Sistema | `administration` (contenedor) → `rolesPermissions` · `internalUsers` · `dualApproval` · `systemConfig` · `promotionalContent` | 5 módulos de gobierno | [09-administracion-sistema.md](09-administracion-sistema.md) |
 

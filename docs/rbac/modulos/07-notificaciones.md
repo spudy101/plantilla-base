@@ -6,13 +6,13 @@
 ## La idea
 
 Antes era un ítem suelto (`notificationManagement`) + una pieza mal ubicada dentro de Auditoría (el
-reenvío). Se consolidan en un **grupo propio** con 2 partes: gestión de tipos + envíos/reenvíos.
+reenvío). Se consolidan en un **grupo propio** con 2 partes: gestión de tipos + consulta de entregas.
 
 **Estructura:**
 ```
 🔔 Notificaciones  (grupo)
 ├─ Tipos / Gestión           → notificationManagement
-└─ Envíos y Reenvíos         → notificationResend     (⬅️ SALE de Auditoría)
+└─ Entregas (consulta)       → notificationDeliveries (⬅️ SALE de Auditoría)
 ```
 
 ---
@@ -24,15 +24,14 @@ POST   /notification/notification-types/global · /direct   (create)
 PATCH  /notification/notification-types/:notificationTypeId (update)
 ```
 
-## Envíos y Reenvíos — `RBAC: notificationResend`  *(era "Notificaciones SMS" dentro de Auditoría)*
+## Entregas — `RBAC: notificationDeliveries`  *(era "Notificaciones SMS" dentro de Auditoría)*
 ```
-GET    /notification/notification-delivery[/:id]
-POST   /notification/notification-delivery/:id/retry       (update — reenviar)
+GET    /notification/notification-delivery[/:id]           (read — solo consulta)
 ```
 
-*Quién:* notificationManagement → admins; notificationResend → ATENCION_CLIENTE
-(`read`/`create`/**`update`**; el `update` es el que habilita el retry — se agregó el 2026-07-22, antes el
-endpoint devolvía 403 para todo rol no-wildcard).
+*Quién:* notificationManagement → admins; notificationDeliveries → soporte (`read`).
+No hay reenvío manual (2026-11-19): los reintentos son automáticos (docs/notifications.md). El módulo se
+llamaba `notificationResend`; la migración `20261119140000_notification_deliveries` renombró los permisos.
 
 ---
 
@@ -40,5 +39,5 @@ endpoint devolvía 403 para todo rol no-wildcard).
 
 | # | Acción | Detalle | Estado |
 |---|--------|---------|--------|
-| 1 | notificationResend sale de Auditoría | Se une a Notificaciones (mismo grupo RBAC `notifications`). | ✅ |
-| 2 | Notificaciones = grupo | Deja de ser ítem suelto; 2 partes: Gestión + Envíos/Reenvíos. | ✅ |
+| 1 | notificationResend (hoy notificationDeliveries) sale de Auditoría | Se une a Notificaciones (mismo grupo RBAC `notifications`). | ✅ |
+| 2 | Notificaciones = grupo | Deja de ser ítem suelto; 2 partes: Gestión + Entregas. | ✅ |

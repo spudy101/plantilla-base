@@ -38,7 +38,7 @@ class NotificationTypeService {
 
   async list(query: Record<string, unknown>, adminUserId: string) {
     const paginationParams = PaginationHelper.getPaginationParams(query);
-    const filters = PaginationHelper.buildFilters(query, ['isActive', 'priority', 'notificationCategoryId']);
+    const filters = PaginationHelper.buildFilters(query, ['isActive', 'notificationCategoryId']);
     const searchTerm = PaginationHelper.stringParam(query, 'search');
 
     const { rows, count } = await this.notificationTypeRepository.findAllPaginated(filters, paginationParams, searchTerm);
@@ -80,8 +80,8 @@ class NotificationTypeService {
       }
     }
 
-    // Los templates no se incluyen: son read-only vía API. Los canales/DND viven en la categoría.
-    const EDITABLE = ['name', 'description', 'priority', 'notificationCategoryId'] as const;
+    // Los templates no se incluyen: son read-only vía API. Canales y criticidad viven en la categoría.
+    const EDITABLE = ['name', 'description', 'notificationCategoryId'] as const;
     const updateData: Record<string, unknown> = {};
     for (const key of EDITABLE) {
       if (data[key] !== undefined) {

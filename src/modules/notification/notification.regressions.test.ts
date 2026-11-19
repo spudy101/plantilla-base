@@ -9,6 +9,7 @@ jest.mock('../../shared/observability/logger.util', () => ({
 }));
 jest.mock('../audit/audit.service', () => ({ record: jest.fn() }));
 jest.mock('./utils/notification-count.util', () => ({ emitCountUpdate: jest.fn() }));
+jest.mock('../../shared/database/unit-of-work', () => ({ run: jest.fn((work: () => unknown) => work()) }));
 
 const mockSend = jest.fn();
 jest.mock('@aws-sdk/client-sns', () => {
@@ -67,11 +68,10 @@ describe('NotificationCreationService: entidad relacionada', () => {
     const notificationRepo = { create: jest.fn().mockResolvedValue({ notificationId: 'n-1' }) };
     const service = new NotificationCreationService(fixture({
       notificationRepo,
-      userNotificationPreferenceRepo: { findGlobalByUser: jest.fn().mockResolvedValue(null) },
-      notificationSchedulerService: { isInQuietHours: jest.fn(() => false) },
-      notificationSendingService: { procesarEnviosIndividuales: jest.fn().mockResolvedValue(undefined) }
+      userNotificationPreferenceRepo: { findByUser: jest.fn().mockResolvedValue(null) },
+      notificationDeliveryService: { schedule: jest.fn().mockResolvedValue({ deliveries: [], sendNow: false }), sendInBackground: jest.fn() }
     }));
-    const notificationType = { notificationTypeId: 'nt-1', priority: 'normal', category: null };
+    const notificationType = { notificationTypeId: 'nt-1', category: null };
 
     await service._crearNotificacionIndividual('u-1', fixture(notificationType), 'T', 'B', { type: 'ApprovalRequest', id: 'ar-1' }, {});
 

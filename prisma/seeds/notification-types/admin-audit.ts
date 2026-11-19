@@ -86,7 +86,6 @@ export function adminAuditTypes(): NotificationTypeSeed[] {
       code: 'AUDIT_ALERT_ACKNOWLEDGED',
       name: 'Alerta de auditoría reconocida — confirmación al admin',
       description: 'Push al admin que marcó una alerta de auditoría como reconocida.',
-      priority: 'low',
       titleTemplate: 'Alerta reconocida',
       bodyTemplate: 'Has reconocido la alerta de auditoría {{alertId}}.',
       emailSubjectTemplate: null,
@@ -96,7 +95,6 @@ export function adminAuditTypes(): NotificationTypeSeed[] {
       code: 'AUDIT_ALERTS_BULK_ACKNOWLEDGED',
       name: 'Alertas de auditoría reconocidas en bloque — confirmación al admin',
       description: 'Push al admin que reconoció varias alertas de auditoría en una sola operación.',
-      priority: 'low',
       titleTemplate: 'Alertas reconocidas',
       bodyTemplate: 'Has reconocido {{acknowledged}} de {{total}} alertas de auditoría.',
       emailSubjectTemplate: null,
@@ -109,7 +107,6 @@ export function adminAuditTypes(): NotificationTypeSeed[] {
       code: 'AUTH_SESSION_REVOKED_INTERNAL',
       name: 'Sesión revocada por admin — confirmación al admin',
       description: 'Push + email urgente al admin que revocó una sesión activa. Evento de seguridad que requiere trazabilidad.',
-      priority: 'urgent',
       titleTemplate: 'Sesión revocada: {{targetUserId}}',
       bodyTemplate: 'Has revocado la sesión {{sessionId}} del usuario {{targetUserId}}. El acceso fue invalidado de inmediato.',
       emailSubjectTemplate: 'Confirmación: sesión de usuario revocada en Base Project',
@@ -119,25 +116,11 @@ export function adminAuditTypes(): NotificationTypeSeed[] {
       code: 'AUTH_SESSION_REVOKED_CLIENT',
       name: 'Sesión revocada por admin — aviso al cliente',
       description: 'Push + email urgente al usuario cuya sesión activa fue cerrada por un administrador.',
-      priority: 'urgent',
       titleTemplate: 'Tu sesión fue cerrada por un administrador',
       bodyTemplate:
         'Un administrador ha cerrado tu sesión activa en Base Project. Si no reconoces esta acción, contacta a soporte de inmediato.',
       emailSubjectTemplate: 'Aviso de seguridad: tu sesión en Base Project fue cerrada por un administrador',
       emailBodyTemplate: SESSION_REVOKED_CLIENT_EMAIL
-    },
-
-    // ── NOTIFICATION RETRY — interno ───────────────────────────────────────
-
-    {
-      code: 'NOTIFICATION_RETRY_REQUESTED',
-      name: 'Reintento de notificación solicitado — confirmación al admin',
-      description: 'Push al admin que solicitó el reintento de entrega de una notificación fallida.',
-      priority: 'low',
-      titleTemplate: 'Reintento iniciado',
-      bodyTemplate: 'Has solicitado el reintento de la notificación {{notificationId}} por canal {{canal}}.',
-      emailSubjectTemplate: null,
-      emailBodyTemplate: null
     }
   ];
 }

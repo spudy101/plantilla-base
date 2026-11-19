@@ -19,8 +19,7 @@ jest.mock('../repositories/global-notification.repository', () => ({
 }));
 
 jest.mock('../repositories/user-notification-preference.repository', () => ({
-  userAllowsPush: jest.fn().mockResolvedValue(true),
-  userAllowsEmail: jest.fn().mockResolvedValue(true)
+  findByUser: jest.fn().mockResolvedValue(null)
 }));
 
 jest.mock('../repositories/user-push-token.repository', () => ({
@@ -102,8 +101,7 @@ describe('NotificationBatchService', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     jest.clearAllMocks();
-    preferenceRepo.userAllowsPush.mockResolvedValue(true);
-    preferenceRepo.userAllowsEmail.mockResolvedValue(true);
+    preferenceRepo.findByUser.mockResolvedValue(null);
     pushTokenRepo.findActiveByUsers.mockResolvedValue([]);
     pushService.enviarPushMasivo.mockResolvedValue({ success: 0, failed: 0 });
     EncryptionUtil.decrypt.mockImplementation(value => `dec(${value})`);
@@ -178,7 +176,7 @@ describe('NotificationBatchService', () => {
     it('corta y avisa cuando no hay tokens activos', async () => {
       pushTokenRepo.findActiveByUsers.mockResolvedValue([]);
 
-      await service.enviarPushGlobalPorLotes(GID, fixture([{ userId: 'u-1' }]), 'T', 'B', {}, 'CAT', localCache);
+      await service.enviarPushGlobalPorLotes(GID, fixture([{ userId: 'u-1' }]), 'T', 'B', {}, localCache);
 
       expect(logger.warn).toHaveBeenCalledWith('No hay tokens activos para push global');
       expect(pushService.enviarPushMasivo).not.toHaveBeenCalled();
@@ -186,19 +184,13 @@ describe('NotificationBatchService', () => {
 
     it('filtra por preferencia y envía el lote a los tokens de los usuarios permitidos', async () => {
       // u-2 no permite push → se descarta antes de resolver tokens.
-      preferenceRepo.userAllowsPush.mockImplementation(userId => Promise.resolve(userId === 'u-1'));
+      preferenceRepo.findByUser.mockImplementation((userId: string) =>
+        Promise.resolve(userId === 'u-1' ? null : { allowPush: false })
+      );
       pushTokenRepo.findActiveByUsers.mockResolvedValue([{ token: 'arn-1' }]);
       pushService.enviarPushMasivo.mockResolvedValue({ success: 1, failed: 0 });
 
-      await service.enviarPushGlobalPorLotes(
-        GID,
-        fixture([{ userId: 'u-1' }, { userId: 'u-2' }]),
-        'T',
-        'B',
-        {},
-        'CAT',
-        localCache
-      );
+      await service.enviarPushGlobalPorLotes(GID, fixture([{ userId: 'u-1' }, { userId: 'u-2' }]), 'T', 'B', {}, localCache);
 
       expect(pushTokenRepo.findActiveByUsers).toHaveBeenCalledWith(['u-1']);
       expect(rateLimitService.checkSNSRateLimit).toHaveBeenCalledWith(localCache);
@@ -214,7 +206,7 @@ describe('NotificationBatchService', () => {
         { userId: 'u-2', person: { contact: { email: 'plano@b.cl' } } }
       ];
 
-      await service.enviarEmailGlobalPorLotes(GID, fixture(users), fixture({ code: 'WELCOME' }), { m: 1 }, 'CAT', localCache);
+      await service.enviarEmailGlobalPorLotes(GID, fixture(users), fixture({ code: 'WELCOME' }), { m: 1 }, localCache);
 
       expect(EncryptionUtil.decrypt).toHaveBeenCalledWith('iv:tag:cipher');
       expect(emailService.enviarNotificacion).toHaveBeenCalledWith('dec(iv:tag:cipher)', { code: 'WELCOME' }, { m: 1 });
@@ -231,7 +223,6 @@ describe('NotificationBatchService', () => {
         fixture([{ userId: 'u-1', person: { contact: { email: 'a@b.cl' } } }]),
         fixture({ code: 'WELCOME' }),
         {},
-        'CAT',
         localCache
       );
 
@@ -240,14 +231,13 @@ describe('NotificationBatchService', () => {
     });
 
     it('corta y avisa cuando no hay usuarios con email habilitado', async () => {
-      preferenceRepo.userAllowsEmail.mockResolvedValue(false);
+      preferenceRepo.findByUser.mockResolvedValue({ allowEmail: false });
 
       await service.enviarEmailGlobalPorLotes(
         GID,
         fixture([{ userId: 'u-1', person: { contact: { email: 'a@b.cl' } } }]),
         fixture({ code: 'WELCOME' }),
         {},
-        'CAT',
         localCache
       );
 

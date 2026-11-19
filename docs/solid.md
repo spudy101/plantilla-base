@@ -105,6 +105,9 @@ También se eliminó lógica **duplicada** entre los tres flujos de autenticaci�
 
 ## O — Open/Closed
 
+> Nota (2026-11-19): el envío se simplificó a `notification-delivery.service.ts` (una fila por canal en
+> `notification_deliveries`, docs/notifications.md); el ejemplo queda como ilustración del principio.
+
 **Antes:** `notification-sending.service.ts` repetía en tres lugares:
 
 ```js
@@ -212,7 +215,7 @@ const service = new PersonReferenceService({ personReferenceRepository: { findAl
 ```
 
 Ejemplos reales: `consent-recorder.service.test.ts`, `unit-of-work.test.ts` y el bloque
-"canales extensibles" de `notification-sending.service.test.ts`.
+`notification-delivery.service.test.ts`.
 
 > Nota: los utils puros o transversales (`AppError`, `logger`, `PaginationHelper`, DTOs) se siguen
 > importando directo. DIP apunta a las dependencias que **cambian o tocan infraestructura**.
@@ -302,8 +305,7 @@ arregla relajando la guarda.
 
 Lo que la guarda **no** puede medir (y queda a criterio de revisión): si un service mezcla
 responsabilidades. Como referencia, ninguno pasa de ~600 líneas y los que superan 400
-(`auth-login`, `auth-biometric`, `dual-approval`, `profile`, `auth-register`, `person-credentials`,
-`notification-sending`) tienen una sola razón de cambio.
+(`auth-login`, `auth-biometric`, `dual-approval`, `profile`, `auth-register`, `person-credentials`) tienen una sola razón de cambio.
 
 ---
 

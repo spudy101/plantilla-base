@@ -3,21 +3,19 @@ import components, {
   GlobalNotificationSchema,
   NotificationCategorySchema,
   NotificationSchema,
-  NotificationTypeSchema,
-  UserNotificationPreferenceSchema
+  NotificationTypeSchema
 } from './notification-components.response';
 import categoryDto, { NotificationCategoryAdminSchema } from './admin-notification-category.response';
 import deliveryDto, {
   NotificationDeliveryDetailSchema,
-  NotificationDeliveryItemSchema,
-  NotificationDeliveryMetricsSchema
+  NotificationDeliveryItemSchema
 } from './admin-notification-delivery.response';
 import typeDto, {
   DirectNotificationQueuedSchema,
   GlobalNotificationQueuedSchema,
   NotificationTypeAdminSchema
 } from './admin-notification-type.response';
-import preferenceDto, { CategoryPreferenceViewSchema } from './notification-preference.response';
+import preferenceDto, { NotificationPreferenceSchema } from './notification-preference.response';
 import feedDto, { NotificationMixedItemSchema, UnreadCountSchema } from './notification.response';
 import verificationDto, { SendVerificationSchema, VerifyCodeSchema } from './send-verification.response';
 
@@ -31,12 +29,7 @@ const category = {
   supportsPush: true,
   supportsEmail: true,
   supportsSms: false,
-  allowDnd: true,
   isCritical: false,
-  defaultQuietHoursStart: '22:00:00',
-  defaultQuietHoursEnd: null,
-  priority: 'normal',
-  sortOrder: 1,
   isActive: true,
   emailLayoutTemplate: '<p>{{content}}</p>',
   updatedAt: at
@@ -47,7 +40,6 @@ const type = {
   name: 'Operación aprobada',
   description: null,
   notificationCategoryId: ID,
-  priority: 'high',
   isActive: true,
   category,
   titleTemplate: 'Hola {{nombre}}',
@@ -67,28 +59,9 @@ const notification = {
   metadata: { email: 'ana@correo.co' },
   isRead: false,
   readAt: null,
-  processingStatus: 'completed',
-  scheduledFor: null,
-  priority: 5,
   createdAt: at,
   updatedAt: at,
-  notificationType: type,
-  emailSent: true,
-  emailSentAt: at,
-  emailError: null,
-  emailRetryCount: 0,
-  emailNextRetryAt: null,
-  pushSent: false,
-  pushSentAt: null,
-  pushError: 'sin token',
-  pushRetryCount: 1,
-  pushNextRetryAt: at,
-  smsSent: false,
-  smsSentAt: null,
-  smsError: null,
-  smsRetryCount: 0,
-  smsNextRetryAt: null,
-  retryCount: 1
+  notificationType: type
 };
 const globalNotification = {
   globalNotificationId: ID,
@@ -111,29 +84,13 @@ const ok = (schema: { safeParse(v: unknown): { error?: { issues: unknown[] } } }
   expect(schema.safeParse(value).error?.issues ?? []).toEqual([]);
 
 describe('esquemas de salida de notificaciones', () => {
-  it('componentes: categoría, tipo, notificación, global y preferencia', () => {
+  it('componentes: categoría, tipo, notificación y global', () => {
     ok(NotificationCategorySchema, components.NotificationCategoryComponent.build(category));
     ok(NotificationTypeSchema, components.NotificationTypeComponent.build(type));
     ok(NotificationSchema, components.NotificationComponent.build(notification, { includeType: true }));
     ok(
       GlobalNotificationSchema,
       components.GlobalNotificationComponent.build(globalNotification, { includeType: true, isRead: true })
-    );
-    ok(
-      UserNotificationPreferenceSchema,
-      components.UserNotificationPreferenceComponent.build({
-        userNotificationPreferenceId: ID,
-        userId: ID,
-        notificationCategoryCode: null,
-        allowPush: true,
-        allowEmail: true,
-        allowSms: false,
-        quietHoursStart: '22:00:00',
-        quietHoursEnd: '07:00:00',
-        notificationCategory: category,
-        createdAt: at,
-        updatedAt: at
-      })
     );
   });
 
@@ -150,29 +107,32 @@ describe('esquemas de salida de notificaciones', () => {
     );
   });
 
-  it('admin: entregas (ítem, detalle y métricas)', () => {
-    ok(NotificationDeliveryItemSchema, deliveryDto.NotificationDeliveryListDTO(notification as never));
+  it('admin: entregas (ítem y detalle)', () => {
+    const deliveryRow = {
+      notificationDeliveryId: ID,
+      notificationId: ID,
+      channel: 'email',
+      status: 'failed',
+      attempts: 6,
+      nextAttemptAt: null,
+      sentAt: null,
+      lastError: 'Throttling',
+      lastErrorCode: 'Throttling',
+      createdAt: at,
+      updatedAt: at,
+      notification: { ...notification, notificationType: { code: type.code, name: type.name, category } }
+    };
+    ok(NotificationDeliveryItemSchema, deliveryDto.NotificationDeliveryListDTO(deliveryRow as never));
     ok(
       NotificationDeliveryDetailSchema,
-      deliveryDto.NotificationDeliveryDetailDTO({ ...notification, notificationType: null } as never)
-    );
-    const row = {
-      category_code: 'SECURITY',
-      category_name: 'Seguridad',
-      total: 4,
-      status_completed: 3,
-      status_failed: 1,
-      email_attempted: 4,
-      email_sent: 3,
-      email_failed: 1
-    };
-    ok(
-      NotificationDeliveryMetricsSchema,
-      deliveryDto.NotificationDeliveryMetricsDTO([row as never], { from: '2026-01-01', to: null })
+      deliveryDto.NotificationDeliveryDetailDTO({
+        ...deliveryRow,
+        notification: { ...deliveryRow.notification, notificationType: null }
+      } as never)
     );
   });
 
-  it('cliente: bandeja, conteo, preferencias por categoría y verificación', () => {
+  it('cliente: bandeja, conteo, preferencia y verificación', () => {
     const feed = feedDto.NotificationsListResponseDTO({
       mixed: [
         { __type: 'personal', __instance: notification },
@@ -184,9 +144,17 @@ describe('esquemas de salida de notificaciones', () => {
     } as never);
     feed.data.forEach(item => ok(NotificationMixedItemSchema, item));
     ok(UnreadCountSchema, feedDto.UnreadCountResponseDTO(3));
+    ok(NotificationPreferenceSchema, preferenceDto.NotificationPreferenceDTO(null));
     ok(
-      CategoryPreferenceViewSchema,
-      preferenceDto.CategoryPreferencesViewDTO.build(category as never, null, { allowPush: false } as never)
+      NotificationPreferenceSchema,
+      preferenceDto.NotificationPreferenceDTO({
+        allowPush: false,
+        allowEmail: true,
+        allowSms: null,
+        quietHoursStart: '22:00:00',
+        quietHoursEnd: '07:00:00',
+        updatedAt: at
+      } as never)
     );
     ok(
       SendVerificationSchema,

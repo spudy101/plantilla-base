@@ -39,7 +39,7 @@ jest.mock('../repositories/reset-credentials.repository', () => ({
   markAsUsed: jest.fn()
 }));
 jest.mock('../../notification/repositories/user-notification-preference.repository', () => ({
-  createGlobal: jest.fn()
+  upsert: jest.fn()
 }));
 jest.mock('../../catalogs/repositories/country.repository', () => ({
   findByCode: jest.fn()
@@ -192,7 +192,7 @@ function armHappyRegister() {
   personRepository.create.mockResolvedValue({ personId: 'p-1' });
   personContactRepository.create.mockResolvedValue({ personContactId: 'pc-1' });
   userRepository.createWithPassword.mockResolvedValue({ userId: 'u-1' });
-  userNotificationPreferenceRepository.createGlobal.mockResolvedValue({});
+  userNotificationPreferenceRepository.upsert.mockResolvedValue({});
   consentTypeRepository.findByCode.mockResolvedValue({ consentTypeId: 'ct-1' });
   userConsentRepository.grant.mockResolvedValue({ userConsentId: 'uc-1' });
 
@@ -260,14 +260,14 @@ describe('AuthRegisterService', () => {
 
       await service.register(VALID_USER_DATA, {});
 
-      expect(userNotificationPreferenceRepository.createGlobal).toHaveBeenCalledWith('u-1', {
+      expect(userNotificationPreferenceRepository.upsert).toHaveBeenCalledWith('u-1', {
         allowPush: true,
         allowEmail: true,
         allowSms: true,
         quietHoursStart: null,
         quietHoursEnd: null
       });
-      expect(userNotificationPreferenceRepository.createGlobal.mock.invocationCallOrder[0]).toBeLessThan(
+      expect(userNotificationPreferenceRepository.upsert.mock.invocationCallOrder[0]).toBeLessThan(
         tx.commit.mock.invocationCallOrder[0]!
       );
     });
@@ -276,7 +276,7 @@ describe('AuthRegisterService', () => {
       armHappyRegister();
       const tx = { commit: jest.fn().mockResolvedValue(undefined), rollback: jest.fn() };
       prisma.$transaction.mockImplementation(managedTransaction(tx));
-      userNotificationPreferenceRepository.createGlobal.mockRejectedValue(new Error('db down'));
+      userNotificationPreferenceRepository.upsert.mockRejectedValue(new Error('db down'));
 
       await expect(service.register(VALID_USER_DATA, {})).rejects.toMatchObject({ statusCode: 500 });
       expect(tx.commit).not.toHaveBeenCalled();

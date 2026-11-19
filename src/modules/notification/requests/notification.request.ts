@@ -11,15 +11,9 @@ import {
   searchQuery,
   uuid
 } from '../../../shared/validation/fields';
-import DomainEnums from '../../../shared/constants/domain-enums';
 
-const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 const TIME_REGEX = /^\d{2}:\d{2}(:\d{2})?$/;
 
-const priority = optionalInList(PRIORITIES, {
-  message: 'priority debe ser "low", "normal", "high" o "urgent"',
-  hint: 'Indicá uno de: low, normal, high, urgent'
-});
 const time = (field: string) =>
   withHint(
     z
@@ -64,15 +58,6 @@ export const UpdatePreferenceBody = input({
   quietHoursEnd: time('quietHoursEnd')
 }).refine(v => EDITABLE_FIELDS.some(f => (v as Record<string, unknown>)[f] !== undefined), {
   error: 'Debe enviar al menos un campo para actualizar las preferencias'
-});
-export const CategoryCodeParams = input({
-  categoryCode: withHint(
-    z
-      .string({ error: 'categoryCode es requerido' })
-      .min(1, { error: 'categoryCode es requerido' })
-      .regex(/^[A-Z0-9_]{2,100}$/, { error: 'categoryCode inválido' }),
-    { hint: 'Ej: SECURITY, ACCOUNT' }
-  )
 });
 
 // ── Verificación de email / teléfono ──────────────────────────
@@ -141,8 +126,7 @@ export const CategoryListQuery = input({
   ...paginationQuery,
   ...searchQuery,
   isActive: optionalBool('El estado'),
-  isCritical: optionalBool('La criticidad'),
-  priority
+  isCritical: optionalBool('La criticidad')
 });
 export const CategoryIdParams = input({ notificationCategoryId: uuid('La categoría de notificación') });
 
@@ -151,13 +135,8 @@ const editableCategory = {
   supportsPush: bodyBool('supportsPush'),
   supportsEmail: bodyBool('supportsEmail'),
   supportsSms: bodyBool('supportsSms'),
-  allowDnd: bodyBool('allowDnd'),
   isCritical: bodyBool('isCritical'),
-  defaultQuietHoursStart: time('defaultQuietHoursStart'),
-  defaultQuietHoursEnd: time('defaultQuietHoursEnd'),
-  priority,
   emailLayoutTemplate: z.string().max(20000).nullish(),
-  sortOrder: z.coerce.number().int().min(0).optional(),
   isActive: bodyBool('isActive')
 };
 export const CreateCategoryBody = input({
@@ -191,14 +170,12 @@ export const TypeListQuery = input({
   ...paginationQuery,
   ...searchQuery,
   isActive: optionalBool('El estado'),
-  notificationCategoryId: optionalUuid('notificationCategoryId'),
-  priority
+  notificationCategoryId: optionalUuid('notificationCategoryId')
 });
 export const TypeIdParams = input({ notificationTypeId: uuid('El tipo de notificación') });
 export const UpdateTypeBody = input({
   name: z.string().trim().min(2).max(100).optional(),
   description: z.string().trim().max(500).optional(),
-  priority,
   notificationCategoryId: withHint(z.uuid({ error: 'notificationCategoryId debe ser un UUID válido' }).nullish(), {
     hint: 'Usá el identificador de la categoría (formato UUID)'
   })
@@ -234,22 +211,21 @@ export const DirectNotificationBody = input({
   ...globalNotification
 });
 
-// ── Entregas (admin) ──────────────────────────────────────────
-const VALID_STATUSES: string[] = Object.values(DomainEnums.NOTIFICATION_PROCESSING_STATUS);
-const VALID_CHANNELS = ['email', 'push', 'sms', 'all'];
-const deliveryRange = { userId: optionalUuid('El ID de usuario'), from: optionalIsoDate('from'), to: optionalIsoDate('to') };
+// ── Entregas (admin, solo consulta) ───────────────────────────
+const DELIVERY_STATUSES = ['pending', 'sent', 'failed', 'skipped'];
+const DELIVERY_CHANNELS = ['push', 'email', 'sms'];
 export const DeliveryListQuery = input({
   ...paginationQuery,
-  processingStatus: optionalInList(VALID_STATUSES, {
-    message: `processingStatus debe ser: ${VALID_STATUSES.join(', ')}`,
-    hint: `Indicá uno de los valores: ${VALID_STATUSES.join(', ')}`
+  status: optionalInList(DELIVERY_STATUSES, {
+    message: `status debe ser: ${DELIVERY_STATUSES.join(', ')}`,
+    hint: `Indicá uno de los valores: ${DELIVERY_STATUSES.join(', ')}`
   }),
-  channel: optionalInList(VALID_CHANNELS, {
-    message: `channel debe ser: ${VALID_CHANNELS.join(', ')}`,
-    hint: `Indicá uno de los valores: ${VALID_CHANNELS.join(', ')}`
+  channel: optionalInList(DELIVERY_CHANNELS, {
+    message: `channel debe ser: ${DELIVERY_CHANNELS.join(', ')}`,
+    hint: `Indicá uno de los valores: ${DELIVERY_CHANNELS.join(', ')}`
   }),
-  ...deliveryRange,
-  onlyCritical: withHint(optionalBool('onlyCritical'), { hint: 'Enviá true para listar solo notificaciones críticas' })
+  userId: optionalUuid('El ID de usuario'),
+  from: optionalIsoDate('from'),
+  to: optionalIsoDate('to')
 });
-export const DeliveryMetricsQuery = input(deliveryRange);
-export const DeliveryIdParams = input({ id: uuid('La notificación') });
+export const DeliveryIdParams = input({ id: uuid('La entrega') });

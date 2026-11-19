@@ -375,12 +375,12 @@ class AuthRegisterService {
   }
 
   /**
-   * Preferencia global de notificaciones del usuario nuevo: todos los canales, sin horario de no
+   * Preferencia de notificaciones del usuario nuevo: todos los canales, sin horario de no
    * molestar. Dentro de la transacción del alta.
    * @private
    */
   async _createDefaultNotificationPreference(userId: string) {
-    await this.userNotificationPreferenceRepository.createGlobal(userId, {
+    await this.userNotificationPreferenceRepository.upsert(userId, {
       allowPush: true,
       allowEmail: true,
       allowSms: true,

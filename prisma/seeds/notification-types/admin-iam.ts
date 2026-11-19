@@ -215,7 +215,6 @@ export function adminIamTypes(): NotificationTypeSeed[] {
       code: 'IAM_INTERNAL_USER_CREATED',
       name: 'Cuenta interna creada — bienvenida al empleado',
       description: 'Email al nuevo empleado con sus credenciales temporales cuando un admin crea su cuenta interna.',
-      priority: 'high',
       titleTemplate: '¡Bienvenido al equipo, {{nombre}}!',
       bodyTemplate:
         'Un administrador ha creado tu cuenta interna en Base Project. Revisa tu correo para obtener tus credenciales de acceso.',
@@ -226,7 +225,6 @@ export function adminIamTypes(): NotificationTypeSeed[] {
       code: 'IAM_INTERNAL_USER_ROLE_CHANGED',
       name: 'Rol de empleado actualizado — aviso al empleado',
       description: 'Push + email al empleado cuando un admin modifica su rol. Su acceso al sistema cambia de inmediato.',
-      priority: 'high',
       titleTemplate: 'Tu rol fue actualizado a {{nuevoRol}}',
       bodyTemplate:
         'Tu rol en Base Project cambió de {{rolAnterior}} a {{nuevoRol}}. Tu sesión fue cerrada para aplicar el cambio.',
@@ -237,7 +235,6 @@ export function adminIamTypes(): NotificationTypeSeed[] {
       code: 'IAM_INTERNAL_USER_ACTIVATED',
       name: 'Cuenta interna activada — aviso al empleado',
       description: 'Push + email al empleado cuando un admin activa su cuenta.',
-      priority: 'high',
       titleTemplate: 'Tu cuenta fue activada',
       bodyTemplate: 'Tu cuenta en el panel interno de Base Project ha sido activada. Ya puedes iniciar sesión.',
       emailSubjectTemplate: 'Tu cuenta de Base Project fue activada',
@@ -247,7 +244,6 @@ export function adminIamTypes(): NotificationTypeSeed[] {
       code: 'IAM_INTERNAL_USER_DEACTIVATED',
       name: 'Cuenta interna desactivada — aviso al empleado',
       description: 'Push + email al empleado cuando un admin desactiva su cuenta. Sus sesiones son cerradas automáticamente.',
-      priority: 'urgent',
       titleTemplate: 'Tu cuenta fue desactivada',
       bodyTemplate:
         'Tu cuenta en el panel interno de Base Project ha sido desactivada. Contacta a soporte si crees que es un error.',
@@ -258,7 +254,6 @@ export function adminIamTypes(): NotificationTypeSeed[] {
       code: 'IAM_INTERNAL_USER_SESSIONS_CLOSED',
       name: 'Sesiones cerradas por admin — aviso al empleado',
       description: 'Push al empleado cuando un admin cierra todas sus sesiones activas.',
-      priority: 'high',
       titleTemplate: 'Tus sesiones fueron cerradas',
       bodyTemplate:
         'Un administrador ha cerrado todas tus sesiones activas en Base Project. Vuelve a iniciar sesión cuando lo necesites.',
@@ -272,7 +267,6 @@ export function adminIamTypes(): NotificationTypeSeed[] {
       code: 'IAM_ADMIN_USER_CREATED',
       name: 'Usuario interno creado — confirmación al admin',
       description: 'Push + email urgente al admin que creó un nuevo usuario interno.',
-      priority: 'urgent',
       titleTemplate: 'Usuario interno creado: {{nombreUsuario}}',
       bodyTemplate:
         'Has creado el usuario interno {{nombreUsuario}} ({{email}}) exitosamente. Recuerda asignarle su rol definitivo.',
@@ -283,7 +277,6 @@ export function adminIamTypes(): NotificationTypeSeed[] {
       code: 'IAM_ADMIN_ROLE_CHANGED',
       name: 'Rol de usuario modificado — confirmación al admin',
       description: 'Push + email urgente al admin que modificó el rol de un usuario interno.',
-      priority: 'urgent',
       titleTemplate: 'Rol actualizado: {{nombreUsuario}} → {{nuevoRol}}',
       bodyTemplate:
         'Has actualizado el rol de {{nombreUsuario}} de {{rolAnterior}} a {{nuevoRol}}. Sus sesiones fueron cerradas.',
@@ -294,7 +287,6 @@ export function adminIamTypes(): NotificationTypeSeed[] {
       code: 'IAM_ADMIN_STATUS_CHANGED',
       name: 'Estado de usuario modificado — confirmación al admin',
       description: 'Push + email urgente al admin que activó o desactivó un usuario interno.',
-      priority: 'urgent',
       titleTemplate: 'Usuario {{accion}}: {{nombreUsuario}}',
       bodyTemplate: 'Has {{accion}} la cuenta del usuario {{nombreUsuario}} exitosamente.',
       emailSubjectTemplate: 'Confirmación: estado de usuario interno modificado',
@@ -304,7 +296,6 @@ export function adminIamTypes(): NotificationTypeSeed[] {
       code: 'IAM_RBAC_PERMISSION_GRANTED',
       name: 'Permiso RBAC otorgado — confirmación al admin',
       description: 'Push + email urgente al admin que otorgó un permiso adicional en la matriz RBAC.',
-      priority: 'urgent',
       titleTemplate: 'Permiso otorgado: {{roleName}} → {{moduleName}}:{{action}}',
       bodyTemplate:
         'Has otorgado el permiso {{action}} sobre {{moduleName}} al rol {{roleName}}. El cambio está activo de inmediato.',
@@ -315,7 +306,6 @@ export function adminIamTypes(): NotificationTypeSeed[] {
       code: 'IAM_RBAC_PERMISSION_REVOKED',
       name: 'Permiso RBAC revocado — confirmación al admin',
       description: 'Push + email urgente al admin que revocó un permiso de la matriz RBAC.',
-      priority: 'urgent',
       titleTemplate: 'Permiso revocado: {{roleName}} → {{moduleName}}:{{action}}',
       bodyTemplate:
         'Has revocado el permiso {{action}} sobre {{moduleName}} del rol {{roleName}}. El cambio está activo de inmediato.',

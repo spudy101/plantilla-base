@@ -64,7 +64,6 @@ interface AuditAlertRow {
 interface NotificationPreferenceRow {
   userNotificationPreferenceId: string;
   userId: string;
-  notificationCategoryCode?: Maybe<string>;
   allowPush?: Maybe<boolean>;
   allowEmail?: Maybe<boolean>;
   allowSms?: Maybe<boolean>;
@@ -192,8 +191,6 @@ class NotificationPreferenceComponent {
     return {
       userNotificationPreferenceId: record.userNotificationPreferenceId,
       userId: record.userId,
-      // null = preferencia global; con valor = override de esa categoría.
-      notificationCategoryCode: record.notificationCategoryCode ?? null,
       allowPush: record.allowPush,
       allowEmail: record.allowEmail,
       allowSms: record.allowSms,

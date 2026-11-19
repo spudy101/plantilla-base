@@ -5,14 +5,12 @@ import {
   GlobalNotificationSchema,
   NotificationCategorySchema,
   NotificationSchema,
-  NotificationTypeSchema,
-  UserNotificationPreferenceSchema
+  NotificationTypeSchema
 } from '../../../modules/notification/responses/notification-components.response';
 
 export default {
   NotificationCategory: toOpenApi(NotificationCategorySchema, 'output'),
   NotificationType: toOpenApi(NotificationTypeSchema, 'output'),
   Notification: toOpenApi(NotificationSchema, 'output'),
-  GlobalNotification: toOpenApi(GlobalNotificationSchema, 'output'),
-  UserNotificationPreference: toOpenApi(UserNotificationPreferenceSchema, 'output')
+  GlobalNotification: toOpenApi(GlobalNotificationSchema, 'output')
 };

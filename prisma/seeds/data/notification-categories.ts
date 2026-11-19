@@ -1,7 +1,7 @@
 // prisma/seeds/data/notification-categories.ts
 //
 // Categorías (grupos) de notificación del template. La categoría es la fuente de verdad de canales
-// (email/sms/push), DND y layout base del email.
+// (email/sms/push), de la criticidad (crítica = llega siempre, sin mirar preferencias) y del layout base del email.
 //
 // El emailLayoutTemplate es el "cascarón" HTML+CSS compartido: contiene {{content}}, donde el
 // email-notification.service inyecta el emailBodyTemplate (fragmento) de cada tipo. Así todos los
@@ -14,12 +14,9 @@ export interface NotificationCategorySeed {
   supportsPush: boolean;
   supportsEmail: boolean;
   supportsSms: boolean;
-  allowDnd: boolean;
   isCritical: boolean;
-  priority: string;
   /** Color de la barra superior del layout */
   accent: string;
-  sortOrder: number;
 }
 
 // Layout base compartido. accent = color de la barra superior por categoría.
@@ -57,11 +54,8 @@ export const NOTIFICATION_CATEGORIES: NotificationCategorySeed[] = [
     supportsPush: true,
     supportsEmail: true,
     supportsSms: true,
-    allowDnd: false,
     isCritical: true,
-    priority: 'urgent',
-    accent: '#c0392b',
-    sortOrder: 1
+    accent: '#c0392b'
   },
   {
     code: 'EMERGENCY',
@@ -70,11 +64,8 @@ export const NOTIFICATION_CATEGORIES: NotificationCategorySeed[] = [
     supportsPush: true,
     supportsEmail: true,
     supportsSms: true,
-    allowDnd: false,
     isCritical: true,
-    priority: 'urgent',
-    accent: '#e74c3c',
-    sortOrder: 2
+    accent: '#e74c3c'
   },
   {
     code: 'TRANSACTIONAL',
@@ -83,11 +74,8 @@ export const NOTIFICATION_CATEGORIES: NotificationCategorySeed[] = [
     supportsPush: true,
     supportsEmail: true,
     supportsSms: false,
-    allowDnd: true,
     isCritical: false,
-    priority: 'high',
-    accent: '#2d6cdf',
-    sortOrder: 3
+    accent: '#2d6cdf'
   },
   {
     code: 'ACCOUNT',
@@ -96,11 +84,8 @@ export const NOTIFICATION_CATEGORIES: NotificationCategorySeed[] = [
     supportsPush: true,
     supportsEmail: true,
     supportsSms: false,
-    allowDnd: true,
     isCritical: false,
-    priority: 'normal',
-    accent: '#16a085',
-    sortOrder: 4
+    accent: '#16a085'
   },
   {
     code: 'COMMERCIAL',
@@ -109,11 +94,8 @@ export const NOTIFICATION_CATEGORIES: NotificationCategorySeed[] = [
     supportsPush: true,
     supportsEmail: true,
     supportsSms: false,
-    allowDnd: true,
     isCritical: false,
-    priority: 'low',
-    accent: '#8e44ad',
-    sortOrder: 5
+    accent: '#8e44ad'
   },
   {
     code: 'SYSTEM_ADMIN',
@@ -122,10 +104,7 @@ export const NOTIFICATION_CATEGORIES: NotificationCategorySeed[] = [
     supportsPush: false,
     supportsEmail: true,
     supportsSms: false,
-    allowDnd: true,
     isCritical: false,
-    priority: 'high',
-    accent: '#34495e',
-    sortOrder: 6
+    accent: '#34495e'
   }
 ];

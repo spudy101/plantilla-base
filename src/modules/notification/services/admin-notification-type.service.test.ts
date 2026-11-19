@@ -115,9 +115,9 @@ describe('NotificationTypeService', () => {
 
       const result = await service.update('t-1', { name: 'Nuevo', priority: 5, notificationCategoryId: 'c-1' }, ADMIN);
 
-      expect(typeRepo.update).toHaveBeenCalledWith('t-1', { name: 'Nuevo', priority: 5, notificationCategoryId: 'c-1' });
+      expect(typeRepo.update).toHaveBeenCalledWith('t-1', { name: 'Nuevo', notificationCategoryId: 'c-1' });
       expect(result).toMatchObject({ dto: 'type' });
-      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_TYPE_UPDATED', expect.objectContaining({ actorId: ADMIN, details: expect.objectContaining({ updatedFields: ['name', 'priority', 'notificationCategoryId'] }), entityId: 't-1' })
+      expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_TYPE_UPDATED', expect.objectContaining({ actorId: ADMIN, details: expect.objectContaining({ updatedFields: ['name', 'notificationCategoryId'] }), entityId: 't-1' })
       );
     });
 
