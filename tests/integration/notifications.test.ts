@@ -116,9 +116,11 @@ describe('Notificaciones · Prisma contra Postgres', () => {
 
   it('código de verificación: rate limit, intentos y verificación', async () => {
     const contact = `${TAG}@test.local`;
-    expect(await verificationCodeRepository.canRequestNewCode('email', contact)).toBe(true);
+    expect(await verificationCodeRepository.secondsUntilNewCode('email', contact)).toBe(0);
     const vc = await verificationCodeRepository.create({ type: 'email', contactValue: contact, code: '123456', expiresAt: new Date(Date.now() + 60_000) });
-    expect(await verificationCodeRepository.canRequestNewCode('email', contact)).toBe(false);
+    const wait = await verificationCodeRepository.secondsUntilNewCode('email', contact);
+    expect(wait).toBeGreaterThan(0);
+    expect(wait).toBeLessThanOrEqual(60);
 
     expect(await verificationCodeRepository.incrementAttempts(vc.verificationCodeId)).toBe(1);
     expect((await verificationCodeRepository.findActiveByContact('email', contact))?.attempts).toBe(1);

@@ -61,9 +61,12 @@ class HCaptchaUtil {
     // [RF-LP-04] | CA-04 | Fail-closed: sin clave configurada se lanza 503, no se permite el envío
     if (!secretKey) {
       logger.warn('[HCaptcha] HCAPTCHA_SECRET_KEY no configurada — no se puede verificar el CAPTCHA');
-      throw AppError.serviceUnavailable(
+      const err = AppError.serviceUnavailable(
         'Verificación CAPTCHA no disponible: falta configuración del servidor (HCAPTCHA_SECRET_KEY)'
       );
+      // Reintentar no lo arregla hasta que se configure la clave: no es temporal para el cliente
+      err.retryable = false;
+      throw err;
     }
 
     if (!token) {

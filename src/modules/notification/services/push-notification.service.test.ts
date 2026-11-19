@@ -79,7 +79,7 @@ describe('PushNotificationService', () => {
 
   describe('registrarDispositivo — circuito abierto', () => {
     it('propaga el 503 del circuito en vez de convertirlo en 500', async () => {
-      callProvider.mockRejectedValue(new CircuitOpenError('sns'));
+      callProvider.mockRejectedValue(new CircuitOpenError('sns', 5000));
       await expect(push.registrarDispositivo('tok', 'ios', 'u-1')).rejects.toMatchObject({ statusCode: 503 });
     });
   });

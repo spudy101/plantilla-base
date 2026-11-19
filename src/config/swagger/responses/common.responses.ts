@@ -10,7 +10,9 @@
  *   { success, statusCode, message, data, metadata, timestamp }
  *
  * Estructura error:
- *   { success, statusCode, message, errorCode?, errors?, timestamp }
+ *   { success, statusCode, message, errorCode?, errors?, details?, retryable, timestamp }
+ *   errors = array por campo (validación) · details = objeto de contexto · retryable = ¿es temporal?
+ *   Los errores temporales con espera conocida traen además el header Retry-After (segundos).
  *
  * Uso en paths:
  *   responses: {
@@ -22,6 +24,8 @@
  * IMPORTANTE: los errores exportan { [statusCode]: { description, content } }
  * para que el spread funcione correctamente en los paths.
  */
+
+import { isRetryableStatus } from '../../../shared/http/retryable';
 
 // ─── Helpers privados ─────────────────────────────────────────
 
@@ -39,16 +43,27 @@ const _errorBody = (statusCode: number, errorCode: string) => ({
       type: 'object',
       nullable: true,
       description: 'Contexto adicional del error. En los 401/403 de autenticación incluye `code` (ver descripción).',
-      properties: { code: { type: 'string' } }
+      properties: { code: { type: 'string' }, correlationId: { type: 'string' } }
+    },
+    retryable: {
+      type: 'boolean',
+      example: isRetryableStatus(statusCode),
+      description:
+        '`true`: temporal, reintentar la misma petición puede funcionar (esperar `Retry-After` si viene, si no backoff exponencial con jitter). `false`: permanente, repetirla da lo mismo.'
     },
     timestamp: { type: 'string', format: 'date-time' }
   }
 });
 
-const _errorResponse = (description: string, statusCode: number, errorCode: string) => ({
+const RETRY_AFTER_HEADER = {
+  'Retry-After': { description: 'Segundos a esperar antes de reintentar.', schema: { type: 'integer', example: 30 } }
+};
+
+const _errorResponse = (description: string, statusCode: number, errorCode: string, { retryAfter = false } = {}) => ({
   // La key numérica permite usar ...commonResponses.BadRequest directamente en responses
   [statusCode]: {
     description,
+    ...(retryAfter ? { headers: RETRY_AFTER_HEADER } : {}),
     content: {
       'application/json': {
         schema: _errorBody(statusCode, errorCode)
@@ -92,6 +107,14 @@ const NotFound = _errorResponse('El recurso solicitado no fue encontrado.', 404,
 /** 409 — AppError.conflict() */
 const Conflict = _errorResponse('Conflicto de estado. El recurso ya existe o viola una restricción.', 409, 'CONFLICT');
 
+/** 409 temporal — AppError.requestInProgress(): la misma petición todavía se está procesando. */
+const RequestInProgress = _errorResponse(
+  'La misma petición todavía se está procesando (petición duplicada o clave de idempotencia en curso). Temporal: `retryable: true`; reintentar después de `Retry-After`.',
+  409,
+  'REQUEST_IN_PROGRESS',
+  { retryAfter: true }
+);
+
 /**
  * 422 — ApiResponse.validationError() — incluye array de errores por campo.
  * [RF-LP-03][CA-05]: cada ítem incluye `hint` (sugerencia de corrección
@@ -134,16 +157,22 @@ const ValidationError = {
 };
 
 /** 429 — AppError.tooManyRequests() */
-const RateLimitExceeded = _errorResponse('Demasiadas peticiones. Rate limit excedido.', 429, 'RATE_LIMIT');
+const RateLimitExceeded = _errorResponse(
+  'Demasiadas peticiones. Rate limit excedido. Temporal: reintentar después de `Retry-After` (también vienen los headers `RateLimit-*`).',
+  429,
+  'RATE_LIMIT',
+  { retryAfter: true }
+);
 
 /** 500 — AppError.internal() */
 const InternalServerError = _errorResponse('Error interno del servidor.', 500, 'INTERNAL_ERROR');
 
 /** 503 — AppError.serviceUnavailable() */
 const ServiceUnavailable = _errorResponse(
-  'Servicio no disponible temporalmente (ej: configuración pendiente).',
+  'Algo de lo que dependemos no está disponible ahora. `errorCode`: `SERVICE_UNAVAILABLE`, `DATABASE_UNAVAILABLE` (base de datos) o `CIRCUIT_OPEN` (proveedor externo caído). Temporal: reintentar después de `Retry-After`.',
   503,
-  'SERVICE_UNAVAILABLE'
+  'SERVICE_UNAVAILABLE',
+  { retryAfter: true }
 );
 
 // ─── Helpers para respuestas de éxito ─────────────────────────
@@ -270,6 +299,7 @@ export default {
   Forbidden,
   NotFound,
   Conflict,
+  RequestInProgress,
   ValidationError,
   RateLimitExceeded,
   InternalServerError,

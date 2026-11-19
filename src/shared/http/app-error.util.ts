@@ -1,4 +1,5 @@
-// shared/utils/app-error.util.ts
+// shared/http/app-error.util.ts
+import { isRetryableStatus } from './retryable';
 
 /**
  * Clase centralizada para manejo de errores operacionales.
@@ -6,12 +7,16 @@
  *
  * isOperational = true  → error grave/inesperado → logger.error (5xx)
  * isOperational = false → error de negocio esperado → logger.warn (4xx)
+ *
+ * retryable  → ¿reintentar la misma petición puede funcionar? (por defecto, según el status: ver retryable.ts)
+ * retryAfter → segundos a esperar antes de reintentar; sale en el header Retry-After
  */
 class AppError extends Error {
   readonly statusCode: number;
   readonly code: string | null;
   readonly details: AppError.Details;
   readonly isOperational: boolean;
+  retryable: boolean;
   retryAfter: number | null;
 
   // === RF-LP-03: Accesibilidad — Factory de errores ===
@@ -28,6 +33,7 @@ class AppError extends Error {
     this.code = code;
     this.details = details;
     this.isOperational = isOperational;
+    this.retryable = isRetryableStatus(statusCode);
     this.retryAfter = null;
 
     Error.captureStackTrace(this, this.constructor);
@@ -68,6 +74,17 @@ class AppError extends Error {
     return new AppError(message, 409, 'CONFLICT', details, false);
   }
 
+  /**
+   * 409 temporal — la misma petición todavía se está procesando (lock de petición duplicada, clave de
+   * idempotencia en curso). A diferencia de `conflict`, reintentar en `retryAfter` segundos sí funciona.
+   */
+  static requestInProgress(message: string, retryAfter: number): AppError {
+    const err = new AppError(message, 409, 'REQUEST_IN_PROGRESS', null, false);
+    err.retryable = true;
+    err.retryAfter = retryAfter;
+    return err;
+  }
+
   // [RF-LP-03] | CA-05 | Único factory que propaga details[]
   // con desglose por campo. Camino correcto para errores
   // de validación accesibles.
@@ -92,9 +109,19 @@ class AppError extends Error {
     return new AppError(message, 500, 'INTERNAL_ERROR', details, true);
   }
 
-  /** 503 — Servicio no disponible temporalmente (ej: configuración pendiente) */
-  static serviceUnavailable(message = 'Servicio no disponible temporalmente', details: AppError.Details = null): AppError {
-    return new AppError(message, 503, 'SERVICE_UNAVAILABLE', details, false);
+  /**
+   * 503 — Algo de lo que dependemos no está disponible ahora (proveedor externo, base de datos). Temporal:
+   * reintentar después de `retryAfter` segundos (si se sabe). Una configuración que falta NO es esto: es un 500.
+   */
+  static serviceUnavailable(
+    message = 'Servicio no disponible temporalmente',
+    details: AppError.Details = null,
+    retryAfter: number | null = null,
+    code = 'SERVICE_UNAVAILABLE'
+  ): AppError {
+    const err = new AppError(message, 503, code, details, false);
+    err.retryAfter = retryAfter;
+    return err;
   }
 }
 

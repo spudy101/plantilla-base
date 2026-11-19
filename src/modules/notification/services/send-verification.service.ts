@@ -47,9 +47,9 @@ class SendVerificationService {
   async sendVerificationCode(data: { type: SendVerificationService.ContactType; contact: string; phonePrefixId?: string | null }) {
     const { type, contact, phonePrefixId } = data;
 
-    const canRequest = await this.verificationCodeRepository.canRequestNewCode(type, contact);
-    if (!canRequest) {
-      throw AppError.tooManyRequests('Debes esperar 60 segundos antes de solicitar un nuevo código');
+    const waitSeconds = await this.verificationCodeRepository.secondsUntilNewCode(type, contact);
+    if (waitSeconds > 0) {
+      throw AppError.tooManyRequests(`Debes esperar ${waitSeconds} segundos antes de solicitar un nuevo código`, null, waitSeconds);
     }
 
     const code = this._generateCode();
