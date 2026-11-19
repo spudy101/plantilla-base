@@ -711,7 +711,7 @@ model SystemGlobalConfig {
   auditRetentionHotYears  Int      @default(5) @map("audit_retention_hot_years")
   auditRetentionColdYears Int      @default(10) @map("audit_retention_cold_years")
   auditHotPurgeEnabled    Boolean  @default(false) @map("audit_hot_purge_enabled")
-  integrationResilience   Json     @default("{\"timeout_ms\": 30000, \"max_retries\": 3, \"circuit_breaker\": {\"failures_ttl_s\": 300, \"recovery_time_ms\": 60000, \"failure_threshold\": 5}, \"manual_review_timeout_ms\": 10000}") @map("integration_resilience")
+  integrationResilience   Json     @default("{\"timeout_ms\": 30000, \"max_retries\": 3, \"circuit_breaker\": {\"failures_ttl_s\": 300, \"recovery_time_ms\": 60000, \"failure_threshold\": 5}}") @map("integration_resilience")
   promotionalBanners      Json     @default("[]") @map("promotional_banners")
   originSessionId         String?  @map("origin_session_id") @db.Uuid
   originCorrelationId     String?  @map("origin_correlation_id") @db.VarChar(128)

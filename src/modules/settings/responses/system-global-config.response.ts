@@ -5,7 +5,6 @@ import { z } from '../../../shared/validation/z';
 /** JSONB system_global_config.integration_resilience (snake_case). */
 interface StoredResilience {
   timeout_ms?: number;
-  manual_review_timeout_ms?: number;
   max_retries?: number;
   circuit_breaker?: { failure_threshold?: number; recovery_time_ms?: number; failures_ttl_s?: number };
 }
@@ -25,9 +24,8 @@ const int = (description: string, example: number) => z.number().int().nullable(
 
 export const IntegrationResilience = z
   .object({
-    timeoutMs: int('Timeout normal de cada llamada saliente (ms). Rango: 1000-120000.', 30000),
-    manualReviewTimeoutMs: int('Timeout fast-fail para operaciones síncronas de revisión/validación manual (ms). Rango: 1000-120000.', 10000),
-    maxRetries: int('Reintentos de withRetry. Rango: 0-10.', 3),
+    timeoutMs: int('Timeout de cada intento de una llamada a un proveedor externo (ms). Rango: 1000-120000.', 30000),
+    maxRetries: int('Intentos por llamada a un proveedor externo (solo ante errores transitorios). Rango: 0-10.', 3),
     circuitBreaker: z.object({
       failureThreshold: int('Fallos para abrir el breaker. Rango: 1-100.', 5),
       recoveryTimeMs: int('Tiempo antes de intentar recuperar tras abrir (ms). Rango: 1000-600000.', 60000),
@@ -69,7 +67,6 @@ function buildIntegrationResilience(raw: unknown): IntegrationResilience {
   const cb = resilience.circuit_breaker ?? {};
   return {
     timeoutMs: resilience.timeout_ms ?? null,
-    manualReviewTimeoutMs: resilience.manual_review_timeout_ms ?? null,
     maxRetries: resilience.max_retries ?? null,
     circuitBreaker: {
       failureThreshold: cb.failure_threshold ?? null,

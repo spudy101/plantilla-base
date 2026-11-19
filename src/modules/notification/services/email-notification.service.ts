@@ -3,12 +3,7 @@ import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import constantsModule from '../../../shared/constants';
 const { notifications, aws } = constantsModule;
-import retryUtilModule from '../../../shared/infra/retry.util';
-const { withRetry } = retryUtilModule;
-import CircuitBreaker from '../../../shared/infra/circuit-breaker.util';
-import ProviderApiLogger from '../../../shared/observability/integration-api-logger.util';
-import awsProviderMetaUtilModule from '../../../shared/infra/aws-provider-meta.util';
-const { resolveAwsGate, awsErrorCode } = awsProviderMetaUtilModule;
+import { callProvider } from '../../../shared/infra/provider-call.util';
 import MaskingUtil from '../../../shared/security/masking.util';
 import emailSuppressionService from './email-suppression.service';
 import NotificationContentUtil from '../utils/notification-content.util';
@@ -47,9 +42,8 @@ class EmailNotificationService {
         credentials: {
           accessKeyId: aws.accessKeyId,
           secretAccessKey: aws.secretAccessKey
-        },
-        // El timeout va en el handler HTTP: como opción directa del cliente el SDK v3 lo ignoraba
-        requestHandler: { requestTimeout: 30_000 }
+        }
+        // Sin timeout acá: lo pone callProvider en cada intento (settings → integrationResilience.timeoutMs)
       });
     }
     return this._sesClient;
@@ -133,13 +127,6 @@ class EmailNotificationService {
       return null;
     }
 
-    const allowed = await CircuitBreaker.canCall('ses');
-    if (!allowed) {
-      throw new Error('Servicio de email no disponible temporalmente (circuit breaker abierto)');
-    }
-
-    const { integrationId, unitCost } = await resolveAwsGate('aws_ses');
-    const startTime = Date.now();
     try {
       const params = {
         Source: notifications.ses.fromEmail,
@@ -156,37 +143,13 @@ class EmailNotificationService {
       };
 
       const command = new SendEmailCommand(params);
-      const response = await withRetry(() => this.sesClient.send(command), {
-        maxRetries: 3,
-        baseDelayMs: 1000,
-        label: 'SES[enviarEmail]'
-      });
-
-      await CircuitBreaker.recordSuccess('ses');
-      ProviderApiLogger.log({
-        product: 'ses',
-        endpoint: 'SES:SendEmailCommand',
-        result: 'success',
-        responseTimeMs: Date.now() - startTime,
-        integrationId,
-        unitCost,
-        notificationId
-      });
+      const response = await callProvider({ product: 'ses', endpoint: 'SES:SendEmailCommand', notificationId }, abortSignal =>
+        this.sesClient.send(command, { abortSignal })
+      );
       logger.info('Email enviado exitosamente', { destinatario, messageId: response.MessageId });
       return response;
     } catch (error) {
-      await CircuitBreaker.recordFailure('ses');
-      ProviderApiLogger.log({
-        product: 'ses',
-        endpoint: 'SES:SendEmailCommand',
-        result: 'failed',
-        responseTimeMs: Date.now() - startTime,
-        integrationId,
-        errorCode: awsErrorCode(error),
-        errorMessage: errorMessage(error),
-        notificationId
-      });
-      logger.warn('Error al enviar email (reintentos agotados)', { error: errorMessage(error), destinatario, asunto });
+      logger.warn('Error al enviar email', { error: errorMessage(error), destinatario, asunto });
       throw error;
     }
   }
@@ -222,35 +185,16 @@ class EmailNotificationService {
       return null;
     }
 
-    const allowed = await CircuitBreaker.canCall('ses');
-    if (!allowed) {
-      throw new Error('Servicio de email no disponible temporalmente (circuit breaker abierto)');
-    }
-
     const rawEmail = this._construirMimeConAdjuntos(destinatario, asunto, cuerpoHtml, adjuntos);
     if (Buffer.byteLength(rawEmail) > SES_RAW_MAX_BYTES) {
       throw new Error('El email con adjuntos supera el límite de 10 MB de SES');
     }
 
     const command = new SendRawEmailCommand({ RawMessage: { Data: Buffer.from(rawEmail) } });
-    const { integrationId, unitCost } = await resolveAwsGate('aws_ses');
-    const startTime = Date.now();
     try {
-      const response = await withRetry(() => this.sesClient.send(command), {
-        maxRetries: 3,
-        baseDelayMs: 1000,
-        label: 'SES[enviarEmailConAdjuntos]'
-      });
-      await CircuitBreaker.recordSuccess('ses');
-      ProviderApiLogger.log({
-        product: 'ses',
-        endpoint: 'SES:SendRawEmailCommand',
-        result: 'success',
-        responseTimeMs: Date.now() - startTime,
-        integrationId,
-        unitCost,
-        notificationId
-      });
+      const response = await callProvider({ product: 'ses', endpoint: 'SES:SendRawEmailCommand', notificationId }, abortSignal =>
+        this.sesClient.send(command, { abortSignal })
+      );
       logger.info('Email con adjuntos enviado exitosamente', {
         destinatario,
         adjuntos: adjuntos.length,
@@ -258,18 +202,7 @@ class EmailNotificationService {
       });
       return response;
     } catch (error) {
-      await CircuitBreaker.recordFailure('ses');
-      ProviderApiLogger.log({
-        product: 'ses',
-        endpoint: 'SES:SendRawEmailCommand',
-        result: 'failed',
-        responseTimeMs: Date.now() - startTime,
-        integrationId,
-        errorCode: awsErrorCode(error),
-        errorMessage: errorMessage(error),
-        notificationId
-      });
-      logger.warn('Error al enviar email con adjuntos (reintentos agotados)', { error: errorMessage(error), destinatario });
+      logger.warn('Error al enviar email con adjuntos', { error: errorMessage(error), destinatario });
       throw error;
     }
   }

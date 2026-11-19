@@ -35,7 +35,6 @@ export async function seedSettings(db: SeedClient): Promise<void> {
         // Resiliencia homologada de todas las integraciones salientes. Un solo valor para todos.
         integrationResilience: {
           timeout_ms: 30000,
-          manual_review_timeout_ms: 10000,
           max_retries: 3,
           circuit_breaker: { failure_threshold: 5, recovery_time_ms: 60000, failures_ttl_s: 300 }
         },

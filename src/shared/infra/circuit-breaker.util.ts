@@ -1,290 +1,309 @@
-/**
- * IntegrationCircuitBreaker — RF-INT-03 / RF-INT-01 Criterio 6 / RF-USR-07
- *
- * Implementa el patrón Circuit Breaker para las llamadas a integraciones externas
- * (AWS y futuros proveedores externos). Keyeado por "producto"/code de integración.
- * El estado se persiste en Redis para funcionar en modo multi-instancia.
- * Si Redis no está disponible, usa un mapa en memoria (por instancia) como degradación.
- *
- * Umbrales (según RF-INT-01):
- *   - Timeout por llamada:     30 000 ms  (pasarlo al axios.timeout)
- *   - Fallos consecutivos:     5
- *   - Tiempo de recuperación:  60 s (espera en OPEN antes de intentar HALF_OPEN)
- *
- * Estados:
- *   CLOSED    → operación normal, las llamadas pasan
- *   OPEN      → circuito abierto, las llamadas se bloquean (fallback RF-USR-07)
- *   HALF_OPEN → prueba de recuperación: deja pasar 1 llamada
- *
- * RF-USR-07: se expone registerCallbacks({ onOpen, onClose }) para que
- *   el ScreeningWorkerHelper registre las acciones de fallback sin acoplamiento circular.
- */
+// Circuit breaker de las llamadas a proveedores externos (SES, S3, SNS…), uno por producto.
+//
+//   CLOSED     las llamadas pasan. Cada fallo suma; un éxito pone el contador en cero.
+//   OPEN       al llegar a `failureThreshold` fallos dentro de `failuresTtlS`: se rechaza todo
+//              (CircuitOpenError, 503) durante `recoveryTimeMs`.
+//   HALF_OPEN  pasado ese tiempo, UNA sola llamada (la que gana el permiso de prueba) llega al
+//              proveedor. Si sale bien se cierra; si falla vuelve a OPEN por otro `recoveryTimeMs`.
+//
+// Solo cuentan como fallo los errores que dicen que el proveedor está mal (ver `isFailure`); un
+// "dirección inválida" o un "acceso denegado" muestran que el proveedor responde.
+//
+// El estado vive en Redis (compartido entre instancias, con operaciones atómicas: SET NX) y cae a
+// memoria de la instancia si Redis no está. El estado OPEN no vence solo: el circuito se cierra
+// únicamente con una prueba exitosa, así cada apertura tiene su cierre (onOpen → onClose).
+//
+// Umbrales: settings → ResilienceConfig (caché 60s, con defaults si no hay configuración).
+// Aperturas y cierres se avisan con registerCallbacks; el módulo integration los registra y audita.
 
 import loggerUtilModule from '../observability/logger.util';
 const { logger } = loggerUtilModule;
+import AppError from '../http/app-error.util';
 import redisClient from './redis.util';
 import ResilienceConfig from './resilience-config.util';
 import errorMessageModule from '../utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 
+type BreakerStatus = 'CLOSED' | 'OPEN' | 'HALF_OPEN';
 
-const STATE_OPEN = 'OPEN';
-const STATE_HALF_OPEN = 'HALF_OPEN';
-
-type BreakerStatus = 'CLOSED' | typeof STATE_OPEN | typeof STATE_HALF_OPEN;
-interface BreakerState {
-  status: BreakerStatus;
-  openedAt: number | null;
-}
-/** Callback de apertura/cierre (RF-USR-07: notificar el fallback). */
-type BreakerCallback = (product: string, openedAt: number | null) => unknown;
-
-// Los umbrales (failureThreshold / recoveryTimeMs / failuresTtlS) ya NO se hardcodean: se leen de
-// SystemGlobalConfig.integration_resilience.circuit_breaker vía ResilienceConfig (caché 60s, fallback
-// duro a 5 / 60000ms / 300s). RF-INT-01 CA-6.
-
-// Defaults duros del breaker (fallback si aún no se resolvió la global). Atajo para no repetir la ruta larga.
-const CB_DEFAULTS = ResilienceConfig.HARD_DEFAULTS.circuitBreaker;
-
-// Fallback en memoria si Redis no está disponible
-const _inMemory = new Map<string, BreakerState | number>();
-
-function _memKey(product: string) {
-  return `tu:cb:${product}`;
+/** Lo que se guarda mientras el circuito está abierto. */
+interface OpenState {
+  /** Cuándo se abrió (inicio de la ventana de fallback; no cambia al reabrir tras una prueba fallida). */
+  openedAt: number;
+  /** Desde cuándo se permite la próxima llamada de prueba. */
+  probeAt: number;
 }
 
-class IntegrationCircuitBreaker {
-  private _onOpenCallback: BreakerCallback | null = null;
-  private _onCloseCallback: BreakerCallback | null = null;
+type BreakerCallback = (product: string, openedAt: number) => unknown;
 
-  /**
-   * Registra callbacks externos para RF-USR-07.
-   * Se llama desde el ScreeningWorkerHelper al iniciarse el worker.
-   * No lanza si los callbacks están vacíos — es opcional.
-   *
-   * @param {Object}   opts
-   * @param {Function} opts.onOpen  - (product: string, openedAt: number) => void
-   * @param {Function} opts.onClose - (product: string, openedAt: number) => void
-   */
-  registerCallbacks({ onOpen = null, onClose = null }: { onOpen?: BreakerCallback | null; onClose?: BreakerCallback | null } = {}): void {
-    this._onOpenCallback = onOpen;
-    this._onCloseCallback = onClose;
+/** Llamada rechazada sin intentar: el circuito del producto está abierto. */
+class CircuitOpenError extends AppError {
+  readonly product: string;
+  constructor(product: string) {
+    super(`Servicio externo no disponible temporalmente (${product})`, 503, 'CIRCUIT_OPEN', null, true);
+    this.product = product;
   }
+}
 
-  /**
-   * Consulta si se puede realizar una llamada a la integración externa.
-   * Retorna true si el circuito está CLOSED o HALF_OPEN (prueba).
-   * Retorna false si el circuito está OPEN.
-   *
-   * @param {string} product - identificador de la integración externa (ej: 'identity', 'document', 'biometric')
-   * @returns {Promise<boolean>}
-   */
-  async canCall(product: string) {
-    const state = await this._getState(product);
+// ── Almacén: Redis con caída a memoria ────────────────────────────────────────
 
-    if (!state || state.status === 'CLOSED') {
-      return true;
+const memory = new Map<string, { value: string; expiresAt: number | null }>();
+
+function memGet(key: string): string | null {
+  const entry = memory.get(key);
+  if (!entry) {
+    return null;
+  }
+  if (entry.expiresAt !== null && entry.expiresAt <= Date.now()) {
+    memory.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function memSet(key: string, value: string, ttlMs: number | null): void {
+  memory.set(key, { value, expiresAt: ttlMs === null ? null : Date.now() + ttlMs });
+}
+
+/** Corre la operación en Redis; si no está o falla, en memoria. */
+async function withStore<T>(
+  op: string,
+  onRedis: (redis: NonNullable<ReturnType<typeof redisClient.getClient>>) => Promise<T>,
+  onMemory: () => T
+): Promise<T> {
+  const redis = redisClient.isAvailable() ? redisClient.getClient() : null;
+  if (redis) {
+    try {
+      return await onRedis(redis);
+    } catch (error) {
+      logger.warn(`[CircuitBreaker] Redis ${op} falló, usando memoria`, { error: errorMessage(error) });
     }
+  }
+  return onMemory();
+}
 
-    const { recoveryTimeMs } = (await ResilienceConfig.get()).circuitBreaker;
+const store = {
+  get: (key: string) =>
+    withStore(
+      'get',
+      r => r.get(key),
+      () => memGet(key)
+    ),
 
-    if (state.status === STATE_OPEN) {
-      const elapsed = Date.now() - (state.openedAt || 0);
-      if (elapsed >= recoveryTimeMs) {
-        // Transición a HALF_OPEN — dejamos pasar 1 llamada de prueba
-        await this._setState(product, STATE_HALF_OPEN, state.openedAt, recoveryTimeMs);
-        logger.info(`[CircuitBreaker] ${product} → HALF_OPEN (probando recuperación)`, { elapsed });
+  /** Guarda el valor; con `nx` solo si la clave no existe. Devuelve si lo guardó. */
+  set: (key: string, value: string, { nx = false, ttlMs = null }: { nx?: boolean; ttlMs?: number | null } = {}) =>
+    withStore(
+      'set',
+      async r => {
+        let res: string | null;
+        if (ttlMs === null) {
+          res = nx ? await r.set(key, value, 'NX') : await r.set(key, value);
+        } else {
+          res = nx ? await r.set(key, value, 'PX', ttlMs, 'NX') : await r.set(key, value, 'PX', ttlMs);
+        }
+        return res === 'OK';
+      },
+      () => {
+        if (nx && memGet(key) !== null) {
+          return false;
+        }
+        memSet(key, value, ttlMs);
         return true;
       }
+    ),
 
-      // Circuito todavía abierto → bloquear
-      logger.warn(`[CircuitBreaker] ${product} → OPEN — llamada bloqueada`, {
-        openedAt: new Date(state.openedAt ?? 0).toISOString(),
-        remainingMs: recoveryTimeMs - elapsed
-      });
-
-      // TODO [RF-USR-07 — Julio 2026]: this._onCircuitOpen(product);
-      return false;
-    }
-
-    // HALF_OPEN → dejar pasar la prueba
-    return true;
-  }
-
-  /**
-   * Registra un resultado exitoso. Resetea el contador de fallos.
-   * Si el circuito estaba HALF_OPEN lo cierra definitivamente.
-   *
-   * @param {string} product
-   */
-  async recordSuccess(product: string) {
-    const state = await this._getState(product);
-
-    if (state?.status === STATE_HALF_OPEN) {
-      logger.info(`[CircuitBreaker] ${product} → CLOSED (recuperado exitosamente)`);
-
-      // RF-USR-07: notificar cierre del fallback
-      const onClose = this._onCloseCallback;
-      if (onClose) {
-        const { openedAt } = state;
-        setImmediate(() => onClose(product, openedAt));
+  /** Borra las claves. Devuelve cuántas existían. */
+  del: (...names: string[]) =>
+    withStore(
+      'del',
+      r => r.del(...names),
+      () => {
+        const existing = names.filter(k => memGet(k) !== null);
+        existing.forEach(k => memory.delete(k));
+        return existing.length;
       }
-    }
+    ),
 
-    await this._resetFailures(product);
-  }
-
-  /**
-   * Registra un fallo. Si se alcanzan 5 consecutivos abre el circuito.
-   *
-   * @param {string} product
-   */
-  async recordFailure(product: string) {
-    const { failureThreshold, recoveryTimeMs, failuresTtlS } = (await ResilienceConfig.get()).circuitBreaker;
-    const failures = await this._incrementFailures(product, failuresTtlS);
-
-    logger.warn(`[CircuitBreaker] ${product} — fallo consecutivo ${failures}/${failureThreshold}`);
-
-    if (failures >= failureThreshold) {
-      const currentState = await this._getState(product);
-
-      if (!currentState || currentState.status !== STATE_OPEN) {
-        const openedAt = Date.now();
-        await this._setState(product, STATE_OPEN, openedAt, recoveryTimeMs);
-        logger.warn(`[CircuitBreaker] ${product} → OPEN — umbral de ${failureThreshold} fallos alcanzado`);
-
-        // RF-USR-07: notificar apertura del fallback
-        const onOpen = this._onOpenCallback;
-        if (onOpen) {
-          setImmediate(() => onOpen(product, openedAt));
+  /** Suma 1; la clave vence `ttlS` segundos después del primer incremento. */
+  incr: (key: string, ttlS: number) =>
+    withStore(
+      'incr',
+      async r => {
+        const count = await r.incr(key);
+        if (count === 1) {
+          await r.expire(key, ttlS);
         }
+        return count;
+      },
+      () => {
+        const current = Number(memGet(key) ?? 0) + 1;
+        const entry = memory.get(key);
+        memory.set(key, { value: String(current), expiresAt: entry?.expiresAt ?? Date.now() + ttlS * 1000 });
+        return current;
       }
-    }
+    )
+};
+
+const keys = (product: string) => ({
+  state: `cb:${product}:state`,
+  failures: `cb:${product}:failures`,
+  probe: `cb:${product}:probe`
+});
+
+// ── Breaker ───────────────────────────────────────────────────────────────────
+
+class CircuitBreaker {
+  private onOpen: BreakerCallback | null = null;
+  private onClose: BreakerCallback | null = null;
+
+  /** Qué hacer al abrirse y al cerrarse un circuito. Lo conecta src/app.ts (módulo integration). */
+  registerCallbacks({
+    onOpen = null,
+    onClose = null
+  }: { onOpen?: BreakerCallback | null; onClose?: BreakerCallback | null } = {}): void {
+    this.onOpen = onOpen;
+    this.onClose = onClose;
   }
 
   /**
-   * Retorna el estado actual del circuito para un producto.
-   * Útil para endpoints de monitoreo / health.
-   *
-   * @param {string} product
-   * @returns {Promise<{status: string, failures: number, openedAt: number|null}>}
+   * Ejecuta `fn` protegida por el circuito de `product`.
+   * - Circuito abierto → CircuitOpenError sin llamar a `fn`.
+   * - `fn` lanza y `isFailure(error)` → cuenta como fallo del proveedor. Si no, el proveedor respondió:
+   *   cuenta como éxito para el circuito, y el error se propaga igual.
    */
-  async getStatus(product: string) {
-    const [state, failures] = await Promise.all([this._getState(product), this._getFailures(product)]);
+  async execute<T>(
+    product: string,
+    fn: () => Promise<T>,
+    { isFailure = () => true }: { isFailure?: (error: unknown) => boolean } = {}
+  ): Promise<T> {
+    const ticket = await this.acquire(product);
+    if (ticket === 'rejected') {
+      throw new CircuitOpenError(product);
+    }
+    const probe = ticket === 'probe';
+    let result: T;
+    try {
+      result = await fn();
+    } catch (error) {
+      await (isFailure(error) ? this.recordFailure(product, probe) : this.recordSuccess(product));
+      throw error;
+    }
+    await this.recordSuccess(product);
+    return result;
+  }
 
+  /** Estado actual (para el dashboard de integraciones). */
+  async getStatus(product: string) {
+    const k = keys(product);
+    const [state, failures] = await Promise.all([this.readState(product), store.get(k.failures)]);
+    let status: BreakerStatus = 'CLOSED';
+    if (state) {
+      status = Date.now() < state.probeAt ? 'OPEN' : 'HALF_OPEN';
+    }
     return {
       product,
-      status: state?.status || 'CLOSED',
-      failures,
-      openedAt: state?.openedAt || null,
-      openedAtISO: state?.openedAt ? new Date(state.openedAt).toISOString() : null
+      status,
+      failures: failures ? Number.parseInt(failures, 10) : 0,
+      openedAt: state?.openedAt ?? null,
+      openedAtISO: state ? new Date(state.openedAt).toISOString() : null
     };
   }
 
-  // ══════════════════════════════════════════════════════════════
-  // Implementación interna — Redis con fallback en memoria
-  // ══════════════════════════════════════════════════════════════
+  // ── Transiciones ──
 
-  async _getState(product: string): Promise<BreakerState | null> {
-    const key = `${_memKey(product)}:state`;
-
-    const redis = redisClient.getClient?.() ?? null;
-    if (redis) {
-      try {
-        const raw = await redis.get(key);
-        return raw ? (JSON.parse(raw) as BreakerState) : null;
-      } catch (error) {
-        logger.warn('[CircuitBreaker] Redis getState failed, usando memoria', { product, error: errorMessage(error) });
-      }
+  private async acquire(product: string): Promise<'closed' | 'probe' | 'rejected'> {
+    const state = await this.readState(product);
+    if (!state) {
+      return 'closed';
     }
-
-    const value = _inMemory.get(key);
-    return typeof value === 'object' ? value : null;
+    if (Date.now() < state.probeAt) {
+      return 'rejected';
+    }
+    // HALF_OPEN: una sola llamada de prueba entre todas las instancias. El permiso vence por si la
+    // prueba nunca termina (proceso caído), para que otra pueda intentarlo.
+    const { recoveryTimeMs } = (await ResilienceConfig.get()).circuitBreaker;
+    const won = await store.set(keys(product).probe, '1', { nx: true, ttlMs: recoveryTimeMs });
+    if (won) {
+      logger.info(`[CircuitBreaker] ${product} → HALF_OPEN (llamada de prueba)`);
+    }
+    return won ? 'probe' : 'rejected';
   }
 
-  async _setState(
-    product: string,
-    status: BreakerStatus,
-    openedAt: number | null = null,
-    recoveryTimeMs: number = CB_DEFAULTS.recoveryTimeMs
-  ): Promise<void> {
-    const value: BreakerState = { status, openedAt };
-    const key = `${_memKey(product)}:state`;
-    const serialized = JSON.stringify(value);
-    const MS_PER_S = 1000;
-    const TTL_FACTOR = 2;
-
-    const redis = redisClient.getClient?.() ?? null;
-    if (redis) {
-      try {
-        await redis.set(key, serialized, 'EX', Math.ceil(recoveryTimeMs / MS_PER_S) * TTL_FACTOR);
-        return;
-      } catch (error) {
-        logger.warn('[CircuitBreaker] Redis setState failed, usando memoria', { product, error: errorMessage(error) });
-      }
+  private async recordSuccess(product: string): Promise<void> {
+    const k = keys(product);
+    const state = await this.readState(product);
+    await store.del(k.failures);
+    if (!state) {
+      return;
     }
-
-    _inMemory.set(key, value);
+    // Solo quien borra el estado avisa el cierre (varias instancias pueden ver el éxito a la vez).
+    const deleted = await store.del(k.state, k.probe);
+    if (deleted > 0) {
+      logger.info(`[CircuitBreaker] ${product} → CLOSED (recuperado)`);
+      this.emit(this.onClose, product, state.openedAt);
+    }
   }
 
-  async _resetFailures(product: string) {
-    const key = `${_memKey(product)}:failures`;
-    const stateKey = `${_memKey(product)}:state`;
+  private async recordFailure(product: string, probe: boolean): Promise<void> {
+    const k = keys(product);
+    const { failureThreshold, recoveryTimeMs, failuresTtlS } = (await ResilienceConfig.get()).circuitBreaker;
 
-    const redis = redisClient.getClient?.() ?? null;
-    if (redis) {
-      try {
-        await redis.del(key, stateKey);
-        return;
-      } catch (error) {
-        logger.warn('[CircuitBreaker] Redis resetFailures failed, usando memoria', { product, error: errorMessage(error) });
+    if (probe) {
+      // La prueba falló: vuelve a OPEN, misma ventana de fallback (no se avisa otra apertura).
+      const state = await this.readState(product);
+      if (state) {
+        await store.set(
+          k.state,
+          JSON.stringify({ openedAt: state.openedAt, probeAt: Date.now() + recoveryTimeMs } satisfies OpenState)
+        );
+        logger.warn(`[CircuitBreaker] ${product} → OPEN (la prueba falló)`);
       }
+      await store.del(k.probe);
+      return;
     }
 
-    _inMemory.delete(key);
-    _inMemory.delete(stateKey);
+    const failures = await store.incr(k.failures, failuresTtlS);
+    logger.warn(`[CircuitBreaker] ${product} — fallo ${failures}/${failureThreshold}`);
+    if (failures < failureThreshold) {
+      return;
+    }
+    const openedAt = Date.now();
+    const opened = await store.set(
+      k.state,
+      JSON.stringify({ openedAt, probeAt: openedAt + recoveryTimeMs } satisfies OpenState),
+      { nx: true }
+    );
+    if (opened) {
+      logger.warn(`[CircuitBreaker] ${product} → OPEN (${failureThreshold} fallos)`);
+      this.emit(this.onOpen, product, openedAt);
+    }
   }
 
-  async _incrementFailures(product: string, failuresTtlS: number = CB_DEFAULTS.failuresTtlS): Promise<number> {
-    const key = `${_memKey(product)}:failures`;
-
-    const redis = redisClient.getClient?.() ?? null;
-    if (redis) {
-      try {
-        const count = await redis.incr(key);
-        if (count === 1) {
-          await redis.expire(key, failuresTtlS);
-        }
-        return count;
-      } catch (error) {
-        logger.warn('[CircuitBreaker] Redis incrementFailures failed, usando memoria', { product, error: errorMessage(error) });
-      }
-    }
-
-    const stored = _inMemory.get(key);
-    const current = (typeof stored === 'number' ? stored : 0) + 1;
-    _inMemory.set(key, current);
-    return current;
+  private async readState(product: string): Promise<OpenState | null> {
+    const raw = await store.get(keys(product).state);
+    return raw ? (JSON.parse(raw) as OpenState) : null;
   }
 
-  async _getFailures(product: string): Promise<number> {
-    const key = `${_memKey(product)}:failures`;
-
-    const redis = redisClient.getClient?.() ?? null;
-    if (redis) {
-      try {
-        const raw = await redis.get(key);
-        return raw ? Number.parseInt(raw, 10) : 0;
-      } catch (error) {
-        logger.warn('[CircuitBreaker] Redis getFailures failed, usando memoria', { product, error: errorMessage(error) });
-      }
+  /** Avisa fuera del flujo de la llamada: un callback lento o que falla no la afecta. */
+  private emit(callback: BreakerCallback | null, product: string, openedAt: number): void {
+    if (!callback) {
+      return;
     }
+    setImmediate(() => {
+      Promise.resolve()
+        .then(() => callback(product, openedAt))
+        .catch((error: unknown) =>
+          logger.error('[CircuitBreaker] Falló el aviso de cambio de estado', { product, error: errorMessage(error) })
+        );
+    });
+  }
 
-    // _inMemory guarda estados y contadores en el mismo Map: aquí solo vale un número
-    const mem = _inMemory.get(key);
-    return typeof mem === 'number' ? mem : 0;
+  /** Solo para tests: vacía el estado en memoria. */
+  _resetMemory(): void {
+    memory.clear();
   }
 }
 
-export default new IntegrationCircuitBreaker();
+export { CircuitOpenError };
+export default new CircuitBreaker();

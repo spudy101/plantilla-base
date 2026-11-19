@@ -125,7 +125,6 @@ function _buildUpdatePayload(data: SystemGlobalConfigService.UpdateInput, curren
 /** integration_resilience tal como se guarda (JSONB, snake_case). */
 interface StoredResilience {
   timeout_ms?: number;
-  manual_review_timeout_ms?: number;
   max_retries?: number;
   circuit_breaker?: { failure_threshold?: number; recovery_time_ms?: number; failures_ttl_s?: number };
 }
@@ -136,9 +135,6 @@ function _mergeResilience(current: StoredResilience | null | undefined, incoming
 
   if (incoming.timeoutMs !== undefined) {
     merged.timeout_ms = incoming.timeoutMs;
-  }
-  if (incoming.manualReviewTimeoutMs !== undefined) {
-    merged.manual_review_timeout_ms = incoming.manualReviewTimeoutMs;
   }
   if (incoming.maxRetries !== undefined) {
     merged.max_retries = incoming.maxRetries;
@@ -167,7 +163,6 @@ namespace SystemGlobalConfigService {
   /** integration_resilience tal como lo manda el panel (camelCase, todo opcional: merge parcial). */
   export interface ResilienceInput {
     timeoutMs?: number;
-    manualReviewTimeoutMs?: number;
     maxRetries?: number;
     circuitBreaker?: { failureThreshold?: number; recoveryTimeMs?: number; failuresTtlS?: number };
   }

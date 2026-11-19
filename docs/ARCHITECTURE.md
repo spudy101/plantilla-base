@@ -36,7 +36,7 @@ src/
     database/          cliente Prisma, unit of work, extensiones
     http/              AppError, respuestas, paginación, middlewares técnicos
     security/          jwt, hash, cifrado, hmac, totp, firmas
-    infra/             redis, s3, circuit breaker, retry
+    infra/             redis, s3, callProvider (circuit breaker, reintentos, timeout)
     observability/     logger, contexto de la operación (AsyncLocalStorage), traza de operaciones
     constants/         constantes técnicas y configuración de entorno
     types/             tipos globales (augmentations de Express, etc.)
@@ -156,6 +156,7 @@ No lo importa: publica un punto de registro y `src/app.ts` le conecta el módulo
 | Auditar un evento de infraestructura (worker caído, Redis, 401/403) | `registerAuditSink` | `modules/audit` |
 | Persistir una llamada a un proveedor externo | `registerIntegrationLogWriter` | `modules/integration` |
 | Leer la configuración de resiliencia | `registerResilienceSource` | `modules/settings` |
+| Avisar que un circuito se abrió o se cerró (ventana de fallback + auditoría) | `CircuitBreaker.registerCallbacks` | `modules/integration` |
 
 ## ¿Dónde va esto?
 
@@ -169,8 +170,28 @@ No lo importa: publica un punto de registro y `src/app.ts` le conecta el módulo
 | Registrar un hecho de negocio | `audit.record(acción, { actorId, … })` del index de `modules/audit` |
 | Un job periódico | `modules/<dominio>/workers/` |
 | Integrar un proveedor externo | `modules/<dominio>/providers/` |
+| Llamar a un proveedor externo (SES, S3, SNS…) | `callProvider` de `shared/infra/provider-call.util` (nunca `client.send` suelto) |
 | Algo técnico sin negocio (cifrado, Redis, paginación) | `shared/<área>/` |
 | Un dominio nuevo | copiar el molde de un módulo existente |
+
+## Llamadas a proveedores externos
+
+Toda llamada de red a un proveedor pasa por `callProvider`, que aplica, en este orden: **circuit breaker** del
+producto → **reintentos** con backoff → **timeout** por intento → **log** en `integration_api_logs`.
+
+```ts
+const res = await callProvider({ product: 'ses', endpoint: 'SES:SendEmailCommand', notificationId }, abortSignal =>
+  sesClient.send(command, { abortSignal })
+);
+```
+
+- Timeout, intentos y umbrales del breaker salen de settings (`integrationResilience`), no del código.
+- Solo los errores **transitorios** (5xx, 408/429, throttling, timeout, red) se reintentan y cuentan para el
+  circuito. Un 4xx (dirección inválida, acceso denegado) muestra que el proveedor responde: se propaga al primer intento.
+- Con el circuito abierto se lanza `CircuitOpenError` (503) sin llamar al proveedor. Pasado `recoveryTimeMs`,
+  **una sola** llamada de prueba (entre todas las instancias) decide si se cierra o sigue abierto.
+- El estado vive en Redis (memoria si no hay Redis) y no vence solo: cada apertura tiene su cierre. Al abrirse y
+  al cerrarse, `modules/integration` registra la ventana en `provider_fallback_events` y lo audita.
 
 ## Auditoría, operaciones y logs
 

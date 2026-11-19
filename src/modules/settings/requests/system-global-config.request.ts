@@ -33,12 +33,6 @@ const IntegrationResilience = withHint(
   z.looseObject(
     {
       timeoutMs: intBetween('integrationResilience.timeoutMs', MIN_TIMEOUT_MS, MAX_TIMEOUT_MS, `Ingresá el timeout en ms, entre ${MIN_TIMEOUT_MS} y ${MAX_TIMEOUT_MS}`),
-      manualReviewTimeoutMs: intBetween(
-        'integrationResilience.manualReviewTimeoutMs',
-        MIN_TIMEOUT_MS,
-        MAX_TIMEOUT_MS,
-        `Ingresá el timeout fast-fail en ms, entre ${MIN_TIMEOUT_MS} y ${MAX_TIMEOUT_MS}`
-      ),
       maxRetries: intBetween('integrationResilience.maxRetries', MIN_MAX_RETRIES, MAX_MAX_RETRIES, `Ingresá el número de reintentos, entre ${MIN_MAX_RETRIES} y ${MAX_MAX_RETRIES}`),
       circuitBreaker: withHint(
         z.looseObject(
