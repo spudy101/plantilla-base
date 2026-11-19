@@ -70,7 +70,7 @@ describe('SmsService', () => {
 
   describe('enviarSmsOtp — circuito abierto', () => {
     it('marca fallido y responde circuitOpen', async () => {
-      callProvider.mockRejectedValue(new CircuitOpenError('aws_sms'));
+      callProvider.mockRejectedValue(new CircuitOpenError('aws_sms', 5000));
 
       const result = await sms.enviarSmsOtp(okParams);
 

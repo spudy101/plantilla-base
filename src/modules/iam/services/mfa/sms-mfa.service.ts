@@ -62,9 +62,9 @@ class SmsMfaService {
 
     const phone = this._requirePhone(user);
 
-    const canRequest = await this.verificationCodeRepository.canRequestNewCode('phone', phone);
-    if (!canRequest) {
-      throw AppError.tooManyRequests('Debes esperar 60 segundos antes de solicitar un nuevo código');
+    const waitSeconds = await this.verificationCodeRepository.secondsUntilNewCode('phone', phone);
+    if (waitSeconds > 0) {
+      throw AppError.tooManyRequests(`Debes esperar ${waitSeconds} segundos antes de solicitar un nuevo código`, null, waitSeconds);
     }
 
     const code = this._generateOtpCode();

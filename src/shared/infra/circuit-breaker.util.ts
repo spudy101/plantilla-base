@@ -19,6 +19,7 @@
 import loggerUtilModule from '../observability/logger.util';
 const { logger } = loggerUtilModule;
 import AppError from '../http/app-error.util';
+import { retryAfterSeconds } from '../http/retryable';
 import redisClient from './redis.util';
 import ResilienceConfig from './resilience-config.util';
 import errorMessageModule from '../utils/error-message.util';
@@ -37,14 +38,21 @@ interface OpenState {
 
 type BreakerCallback = (product: string, openedAt: number) => unknown;
 
-/** Llamada rechazada sin intentar: el circuito del producto está abierto. */
+/**
+ * Llamada rechazada sin intentar: el circuito del producto está abierto. 503 temporal, con
+ * Retry-After = cuánto falta para la próxima llamada de prueba.
+ */
 class CircuitOpenError extends AppError {
   readonly product: string;
-  constructor(product: string) {
+  constructor(product: string, retryInMs: number) {
     super(`Servicio externo no disponible temporalmente (${product})`, 503, 'CIRCUIT_OPEN', null, true);
     this.product = product;
+    this.retryAfter = retryAfterSeconds(retryInMs);
   }
 }
+
+// Si se perdió la carrera por la llamada de prueba, su resultado llega enseguida.
+const PROBE_IN_FLIGHT_RETRY_MS = 1000;
 
 // ── Almacén: Redis con caída a memoria ────────────────────────────────────────
 
@@ -177,9 +185,9 @@ class CircuitBreaker {
     fn: () => Promise<T>,
     { isFailure = () => true }: { isFailure?: (error: unknown) => boolean } = {}
   ): Promise<T> {
-    const ticket = await this.acquire(product);
+    const { ticket, retryInMs } = await this.acquire(product);
     if (ticket === 'rejected') {
-      throw new CircuitOpenError(product);
+      throw new CircuitOpenError(product, retryInMs);
     }
     const probe = ticket === 'probe';
     let result: T;
@@ -212,13 +220,14 @@ class CircuitBreaker {
 
   // ── Transiciones ──
 
-  private async acquire(product: string): Promise<'closed' | 'probe' | 'rejected'> {
+  private async acquire(product: string): Promise<{ ticket: 'closed' | 'probe' | 'rejected'; retryInMs: number }> {
     const state = await this.readState(product);
     if (!state) {
-      return 'closed';
+      return { ticket: 'closed', retryInMs: 0 };
     }
-    if (Date.now() < state.probeAt) {
-      return 'rejected';
+    const untilProbe = state.probeAt - Date.now();
+    if (untilProbe > 0) {
+      return { ticket: 'rejected', retryInMs: untilProbe };
     }
     // HALF_OPEN: una sola llamada de prueba entre todas las instancias. El permiso vence por si la
     // prueba nunca termina (proceso caído), para que otra pueda intentarlo.
@@ -227,7 +236,7 @@ class CircuitBreaker {
     if (won) {
       logger.info(`[CircuitBreaker] ${product} → HALF_OPEN (llamada de prueba)`);
     }
-    return won ? 'probe' : 'rejected';
+    return won ? { ticket: 'probe', retryInMs: 0 } : { ticket: 'rejected', retryInMs: PROBE_IN_FLIGHT_RETRY_MS };
   }
 
   private async recordSuccess(product: string): Promise<void> {

@@ -13,7 +13,7 @@
 jest.mock('../../../shared/database/prisma', () => ({ __esModule: true, default: { $transaction: jest.fn() } }));
 
 jest.mock('../repositories/verification-code.repository', () => ({
-  canRequestNewCode: jest.fn(),
+  secondsUntilNewCode: jest.fn(),
   create: jest.fn(),
   findActiveByContact: jest.fn(),
   incrementAttempts: jest.fn().mockResolvedValue(undefined),
@@ -91,16 +91,17 @@ describe('SendVerificationService', () => {
 
   describe('sendVerificationCode', () => {
     it('lanza 429 si aún no se puede pedir un nuevo código', async () => {
-      verificationCodeRepo.canRequestNewCode.mockResolvedValue(false);
+      verificationCodeRepo.secondsUntilNewCode.mockResolvedValue(42);
 
       await expect(service.sendVerificationCode({ type: 'email', contact: 'a@b.cl' })).rejects.toMatchObject({
-        statusCode: 429
+        statusCode: 429,
+        retryAfter: 42
       });
       expect(verificationCodeRepo.create).not.toHaveBeenCalled();
     });
 
     it('email — crea el código, audita y despacha el email en background', async () => {
-      verificationCodeRepo.canRequestNewCode.mockResolvedValue(true);
+      verificationCodeRepo.secondsUntilNewCode.mockResolvedValue(0);
       verificationCodeRepo.create.mockResolvedValue({ verificationCodeId: 'vc-1' });
 
       const result = await service.sendVerificationCode({ type: 'email', contact: 'a@b.cl' });
@@ -124,7 +125,7 @@ describe('SendVerificationService', () => {
 
     it('phone — enmascara el código y despacha por SMS en background', async () => {
       constants.MOCKS.EXTERNAL_PROVIDERS = true; // código determinista '123456'
-      verificationCodeRepo.canRequestNewCode.mockResolvedValue(true);
+      verificationCodeRepo.secondsUntilNewCode.mockResolvedValue(0);
       verificationCodeRepo.create.mockResolvedValue({ verificationCodeId: 'vc-2' });
 
       await service.sendVerificationCode({ type: 'phone', contact: '911112222', phonePrefixId: 'pref-1' });
@@ -141,7 +142,7 @@ describe('SendVerificationService', () => {
 
     it('phone — si el SMS falla en background, solo loguea warn (no rompe la respuesta)', async () => {
       constants.MOCKS.EXTERNAL_PROVIDERS = true;
-      verificationCodeRepo.canRequestNewCode.mockResolvedValue(true);
+      verificationCodeRepo.secondsUntilNewCode.mockResolvedValue(0);
       verificationCodeRepo.create.mockResolvedValue({ verificationCodeId: 'vc-3' });
       SmsService.enviarSmsOtp.mockResolvedValue({ success: false, error: 'SNS caído' });
 
@@ -155,7 +156,7 @@ describe('SendVerificationService', () => {
     });
 
     it('propaga si falla la creación del código', async () => {
-      verificationCodeRepo.canRequestNewCode.mockResolvedValue(true);
+      verificationCodeRepo.secondsUntilNewCode.mockResolvedValue(0);
       verificationCodeRepo.create.mockRejectedValue(new Error('db down'));
 
       await expect(service.sendVerificationCode({ type: 'email', contact: 'a@b.cl' })).rejects.toThrow('db down');

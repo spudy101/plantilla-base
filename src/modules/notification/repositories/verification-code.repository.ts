@@ -58,13 +58,21 @@ class VerificationCodeRepository extends PrismaRepository {
     return row ?? null;
   }
 
-  /** Rate limiting: false si el contacto pidió un código sin verificar en el último minuto. */
-  async canRequestNewCode(type: VerificationCodeType, contactValue: string): Promise<boolean> {
+  /**
+   * Rate limiting: segundos que faltan para poder pedir otro código (0 = ya se puede). Cuenta desde el
+   * último código sin verificar del contacto; el que llama lo devuelve como Retry-After.
+   */
+  async secondsUntilNewCode(type: VerificationCodeType, contactValue: string): Promise<number> {
     const threshold = new Date(Date.now() - RATE_LIMIT_SECONDS * 1000);
-    const recent = await (await this.db()).verificationCode.count({
-      where: { type, contactValue, createdAt: { gte: threshold }, verifiedAt: null }
+    const last = await (await this.db()).verificationCode.findFirst({
+      where: { type, contactValue, createdAt: { gte: threshold }, verifiedAt: null },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true }
     });
-    return recent === 0;
+    if (!last) {
+      return 0;
+    }
+    return Math.max(1, Math.ceil((last.createdAt.getTime() + RATE_LIMIT_SECONDS * 1000 - Date.now()) / 1000));
   }
 
   /** Suma un intento si el código sigue vigente y sin verificar; devuelve las filas afectadas (0 o 1). */

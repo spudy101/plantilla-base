@@ -75,14 +75,14 @@ class ErrorMiddleware {
       return ApiResponse.validationError(res, err.details);
     }
 
-    if (err.retryAfter) {
-      res.set('Retry-After', String(err.retryAfter));
-    }
-
-    return ApiResponse.error(res, err.message, err.statusCode, err.code, {
-      ...(err.details && typeof err.details === 'object' ? err.details : {}),
-      correlationId: req.correlationId
-    });
+    return ApiResponse.error(
+      res,
+      err.message,
+      err.statusCode,
+      err.code,
+      { ...(err.details && typeof err.details === 'object' ? err.details : {}), correlationId: req.correlationId },
+      { retryable: err.retryable, retryAfter: err.retryAfter }
+    );
   }
 
   // [RF-LP-03] | CA-05 | JWT, RateLimit, Multer con mensajes
@@ -101,7 +101,7 @@ class ErrorMiddleware {
       return ApiResponse.unauthorized(res, ERROR_MESSAGES.TOKEN_EXPIRED);
     }
     if (err.statusCode === 429 || err.name === 'RateLimitError') {
-      return ApiResponse.tooManyRequests(res, err.message || ERROR_MESSAGES.RATE_LIMIT_EXCEEDED);
+      return ApiResponse.tooManyRequests(res, err.message || ERROR_MESSAGES.RATE_LIMIT_EXCEEDED, err.retryAfter ?? null);
     }
     if (err.name === 'MulterError') {
       return ApiResponse.badRequest(res, `Error de carga: ${err.message}`);
