@@ -2,14 +2,18 @@
 //
 // PushNotificationService — canal de push (iOS/Android) vía AWS SNS Platform Endpoints. Probamos las
 // ramas de valor sin tocar AWS: (1) registrarDispositivo → validación de plataforma (400 antes del
-// try/catch), camino feliz, fallo (500) y circuito abierto (503); (2) eliminarDispositivo → OK y fallo
+// try/catch), camino feliz, rehabilitación del endpoint (y reutilizar el de otro usuario), fallo (500) y circuito abierto (503); (2) eliminarDispositivo → OK y fallo
 // (500); (3) enviarPushIndividual → éxito vs fallo (devuelve null, NO lanza); (4) enviarPushMasivo →
-// agregación de estadísticas. `callProvider` (breaker, reintentos, timeout y log) se mockea.
+// agregación de estadísticas y endpoints dados de baja (EndpointDisabled). `callProvider` (breaker, reintentos, timeout y log) se mockea.
 
 jest.mock('@aws-sdk/client-sns', () => ({
   SNSClient: class {},
   CreatePlatformEndpointCommand: class {},
   DeleteEndpointCommand: class {},
+  GetEndpointAttributesCommand: class {},
+  SetEndpointAttributesCommand: class {
+    constructor(readonly input: unknown) {}
+  },
   PublishCommand: class {}
 }));
 
@@ -58,17 +62,61 @@ describe('PushNotificationService', () => {
       expect(callProvider).not.toHaveBeenCalled();
     });
 
-    it('camino feliz: registra el endpoint y devuelve el EndpointArn', async () => {
-      callProvider.mockResolvedValue({ EndpointArn: ENDPOINT_ARN });
+    /** Responde por operación SNS; attrs = lo que devuelve GetEndpointAttributes. */
+    const sns = (attrs: Record<string, string>, create: () => unknown = () => ({ EndpointArn: ENDPOINT_ARN })) =>
+      callProvider.mockImplementation(async ({ endpoint }: { endpoint: string }) => {
+        if (endpoint === 'SNS:CreatePlatformEndpoint') return create();
+        if (endpoint === 'SNS:GetEndpointAttributes') return { Attributes: attrs };
+        return {};
+      });
+    const setCall = () => {
+      const call = callProvider.mock.calls.find(([meta]) => meta.endpoint === 'SNS:SetEndpointAttributes');
+      return call && (call[1] as (s: AbortSignal) => unknown);
+    };
+
+    it('camino feliz: registra el endpoint y devuelve el EndpointArn (ya habilitado: no lo toca)', async () => {
+      sns({ Enabled: 'true', Token: 'tok', CustomUserData: 'u-1' });
 
       const result = await push.registrarDispositivo('tok', 'iOS', 'u-1');
 
-      expect(callProvider).toHaveBeenCalledTimes(1);
+      expect(callProvider).toHaveBeenCalledTimes(2);
+      expect(setCall()).toBeUndefined();
       expect(result).toBe(ENDPOINT_ARN);
       expect(logger.info).toHaveBeenCalledWith(
         'Dispositivo registrado exitosamente',
         expect.objectContaining({ userId: 'u-1', endpointArn: ENDPOINT_ARN })
       );
+    });
+
+    it('rehabilita un endpoint que SNS dejó deshabilitado (EndpointDisabled)', async () => {
+      const send = jest.fn().mockResolvedValue({});
+      push._snsClient = { send } as never;
+      sns({ Enabled: 'false', Token: 'tok', CustomUserData: 'u-1' });
+
+      await expect(push.registrarDispositivo('tok', 'android', 'u-1')).resolves.toBe(ENDPOINT_ARN);
+
+      await setCall()!(new AbortController().signal);
+      expect(send.mock.calls[0][0].input).toEqual({
+        EndpointArn: ENDPOINT_ARN,
+        Attributes: { Token: 'tok', CustomUserData: 'u-1', Enabled: 'true' }
+      });
+    });
+
+    it('el token ya tenía endpoint de otro usuario: lo reutiliza y lo pasa al usuario actual', async () => {
+      const send = jest.fn().mockResolvedValue({});
+      push._snsClient = { send } as never;
+      const otherArn = 'arn:aws:sns:us-east-1:1:endpoint/GCM/app/abc';
+      sns({ Enabled: 'true', Token: 'tok', CustomUserData: 'u-viejo' }, () => {
+        throw Object.assign(
+          new Error(`Invalid parameter: Token Reason: Endpoint ${otherArn} already exists with the same Token, but different attributes.`),
+          { name: 'InvalidParameter', $metadata: { httpStatusCode: 400 } }
+        );
+      });
+
+      await expect(push.registrarDispositivo('tok', 'android', 'u-1')).resolves.toBe(otherArn);
+
+      await setCall()!(new AbortController().signal);
+      expect(send.mock.calls[0][0].input).toMatchObject({ EndpointArn: otherArn, Attributes: { CustomUserData: 'u-1' } });
     });
 
     it('error que no viene del proveedor (bug nuestro): 500 permanente y registra warning', async () => {
@@ -151,7 +199,7 @@ describe('PushNotificationService', () => {
 
       const stats = await push.enviarPushMasivo(['arn-a', 'arn-b', 'arn-c'], 'T', 'B');
 
-      expect(stats).toEqual({ success: 3, failed: 0 });
+      expect(stats).toEqual({ success: 3, failed: 0, disabledEndpoints: [] });
       expect(logger.info).toHaveBeenCalledWith('Push masivo completado', expect.objectContaining({ total: 3 }));
     });
 
@@ -161,7 +209,17 @@ describe('PushNotificationService', () => {
 
       const stats = await push.enviarPushMasivo(['arn-a', 'arn-b'], 'T', 'B');
 
-      expect(stats).toEqual({ success: 0, failed: 2 });
+      expect(stats).toEqual({ success: 0, failed: 2, disabledEndpoints: [] });
+    });
+
+    it('informa los endpoints que SNS dio de baja (EndpointDisabled), no los que fallaron por otra cosa', async () => {
+      const disabled = Object.assign(new Error('Endpoint is disabled'), { name: 'EndpointDisabled', $metadata: {} });
+      const throttled = Object.assign(new Error('Rate exceeded'), { name: 'Throttling', $metadata: {} });
+      callProvider.mockResolvedValueOnce({ MessageId: 'm' }).mockRejectedValueOnce(disabled).mockRejectedValueOnce(throttled);
+
+      const stats = await push.enviarPushMasivo(['arn-a', 'arn-b', 'arn-c'], 'T', 'B');
+
+      expect(stats).toEqual({ success: 1, failed: 2, disabledEndpoints: ['arn-b'] });
     });
   });
 });

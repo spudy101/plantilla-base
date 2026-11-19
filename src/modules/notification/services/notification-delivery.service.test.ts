@@ -13,7 +13,7 @@ jest.mock('../repositories/notification-delivery.repository', () => ({
   recordFailure: jest.fn()
 }));
 jest.mock('../../iam/repositories/user.repository', () => ({ findByUserId: jest.fn() }));
-jest.mock('../repositories/user-push-token.repository', () => ({ findActiveByUser: jest.fn() }));
+jest.mock('../repositories/user-push-token.repository', () => ({ findActiveByUser: jest.fn(), deactivateTokens: jest.fn() }));
 jest.mock('./email-notification.service', () => ({ enviarNotificacion: jest.fn() }));
 jest.mock('./push-notification.service', () => ({ enviarPushIndividual: jest.fn() }));
 jest.mock('./sms.service', () => ({ resolveE164: jest.fn().mockResolvedValue('+56911112222'), enviarSms: jest.fn() }));
@@ -252,6 +252,26 @@ describe('sendPush', () => {
       .mockRejectedValueOnce(awsError('EndpointDisabled'))
       .mockRejectedValueOnce(awsError('Throttling'));
     await expect(delivery.sendPush(notification())).resolves.toMatchObject({ status: 'error', permanent: false });
+  });
+
+  it('desactiva el token de los dispositivos dados de baja (EndpointDisabled), aunque llegue a otro', async () => {
+    userPushTokenRepo.findActiveByUser.mockResolvedValue([{ token: 'a' }, { token: 'b' }, { token: 'c' }]);
+    pushService.enviarPushIndividual
+      .mockRejectedValueOnce(awsError('EndpointDisabled'))
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(awsError('InvalidParameter'));
+
+    await expect(delivery.sendPush(notification())).resolves.toEqual({ status: 'sent' });
+    // InvalidParameter puede ser el mensaje y no el dispositivo: ese token se conserva
+    expect(userPushTokenRepo.deactivateTokens).toHaveBeenCalledWith(['a']);
+  });
+
+  it('si desactivar el token falla, el resultado de la entrega no cambia', async () => {
+    userPushTokenRepo.findActiveByUser.mockResolvedValue([{ token: 'a' }]);
+    pushService.enviarPushIndividual.mockRejectedValue(awsError('EndpointDisabled'));
+    userPushTokenRepo.deactivateTokens.mockRejectedValueOnce(new Error('db down'));
+
+    await expect(delivery.sendPush(notification())).resolves.toMatchObject({ status: 'error', permanent: true });
   });
 });
 

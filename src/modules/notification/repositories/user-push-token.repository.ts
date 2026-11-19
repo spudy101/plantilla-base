@@ -29,6 +29,21 @@ class UserPushTokenRepository extends PrismaRepository {
     });
   }
 
+  /**
+   * Desactiva los tokens de dispositivos dados de baja por el proveedor (SNS EndpointDisabled): no se les
+   * vuelve a enviar. Si el usuario registra de nuevo el dispositivo, upsertToken lo reactiva. Devuelve cuántos.
+   */
+  async deactivateTokens(tokens: readonly string[]): Promise<number> {
+    if (tokens.length === 0) {
+      return 0;
+    }
+    const { count } = await (await this.db()).userPushToken.updateMany({
+      where: { token: { in: [...tokens] }, isActive: true },
+      data: { isActive: false }
+    });
+    return count;
+  }
+
   /** Elimina tokens inactivos sin cambios hace más de `daysOld` días; devuelve cuántos. */
   async deleteOldInactive(daysOld = 90): Promise<number> {
     const cutoff = new Date();

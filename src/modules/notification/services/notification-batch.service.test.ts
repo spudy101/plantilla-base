@@ -10,7 +10,7 @@ jest.mock('../repositories/global-notification.repository', () => ({
   finish: jest.fn()
 }));
 jest.mock('../repositories/user-notification-preference.repository', () => ({ findByUsers: jest.fn() }));
-jest.mock('../repositories/user-push-token.repository', () => ({ findActiveByUsers: jest.fn() }));
+jest.mock('../repositories/user-push-token.repository', () => ({ findActiveByUsers: jest.fn(), deactivateTokens: jest.fn() }));
 jest.mock('./email-notification.service', () => ({ enviarNotificacion: jest.fn() }));
 jest.mock('./push-notification.service', () => ({ enviarPushMasivo: jest.fn() }));
 jest.mock('./notification-rate-limit.service', () => ({
@@ -60,7 +60,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   prefRepo.findByUsers.mockResolvedValue(new Map());
   tokenRepo.findActiveByUsers.mockResolvedValue([]);
-  pushService.enviarPushMasivo.mockImplementation(async (arns: string[]) => ({ success: arns.length, failed: 0 }));
+  pushService.enviarPushMasivo.mockImplementation(async (arns: string[]) => ({ success: arns.length, failed: 0, disabledEndpoints: [] }));
   emailService.enviarNotificacion.mockResolvedValue({ MessageId: 'm' });
 });
 
@@ -143,6 +143,16 @@ describe('sendPage', () => {
     expect(result).toEqual({ pushSent: 2, emailSent: 1 });
     expect(rateLimit.checkSNSRateLimit).toHaveBeenCalledTimes(1);
     expect(rateLimit.checkSESRateLimit).toHaveBeenCalledTimes(1);
+  });
+
+  it('desactiva los tokens que SNS dio de baja', async () => {
+    tokenRepo.findActiveByUsers.mockResolvedValue([{ token: 'arn-1' }, { token: 'arn-2' }]);
+    pushService.enviarPushMasivo.mockResolvedValue({ success: 1, failed: 1, disabledEndpoints: ['arn-2'] });
+
+    const result = await batch.sendPage(global({ sendEmail: false }), [user('u-1')], cache);
+
+    expect(result.pushSent).toBe(1);
+    expect(tokenRepo.deactivateTokens).toHaveBeenCalledWith(['arn-2']);
   });
 
   it('una categoría crítica ignora la preferencia', async () => {

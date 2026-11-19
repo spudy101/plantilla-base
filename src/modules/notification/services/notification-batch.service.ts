@@ -131,6 +131,18 @@ class NotificationBatchService {
     logger.info('Notificación global enviada', { globalNotificationId: id });
   }
 
+  /** Desactiva tokens dados de baja (EndpointDisabled). Si falla, solo se registra: no frena el envío. */
+  async deactivateDisabledTokens(tokens: readonly string[]) {
+    if (tokens.length === 0) {
+      return;
+    }
+    try {
+      await this.userPushTokenRepo.deactivateTokens(tokens);
+    } catch (error) {
+      logger.warn('No se pudieron desactivar tokens push', { error: errorMessage(error) });
+    }
+  }
+
   /** Una página de usuarios: push y email a quienes los permiten. Devuelve cuántos se enviaron. */
   async sendPage(globalNotification: GlobalNotificationWithType, users: readonly PageUser[], cache: KeyValueCache) {
     const type = globalNotification.notificationType!;
@@ -154,6 +166,7 @@ class NotificationBatchService {
           metadata
         );
         pushSent += stats.success;
+        await this.deactivateDisabledTokens(stats.disabledEndpoints);
       }
     }
 

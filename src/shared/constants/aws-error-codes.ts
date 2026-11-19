@@ -28,9 +28,15 @@ function isHardBounce(channel: 'email' | 'push' | string, code: string | number 
   return list.includes(String(code));
 }
 
+// El dispositivo ya no existe para el proveedor (app desinstalada, token vencido): su token se desactiva.
+function isEndpointDisabled(code: string | number | null | undefined): boolean {
+  return code === 'EndpointDisabled';
+}
+
 export default {
   EMAIL_HARD_BOUNCE_CODES,
   PUSH_HARD_BOUNCE_CODES,
   TEMPORAL_CODES,
-  isHardBounce
+  isHardBounce,
+  isEndpointDisabled
 };

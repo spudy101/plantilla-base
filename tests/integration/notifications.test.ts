@@ -17,6 +17,7 @@ import preferenceRepository from '../../src/modules/notification/repositories/us
 import verificationCodeRepository from '../../src/modules/notification/repositories/verification-code.repository';
 import emailBounceSuppressionRepository from '../../src/modules/notification/repositories/email-bounce-suppression.repository';
 import userRepository from '../../src/modules/iam/repositories/user.repository';
+import userPushTokenRepository from '../../src/modules/notification/repositories/user-push-token.repository';
 
 const TAG = `notif-it-${randomUUID().slice(0, 8)}`;
 const CODE = TAG.toUpperCase().replace(/-/g, '_');
@@ -176,6 +177,18 @@ describe('Notificaciones · Prisma contra Postgres', () => {
     await globalNotificationRepository.finish(id, 'completed');
     await prisma.globalNotification.update({ where: { globalNotificationId: id }, data: { lockedUntil: new Date(Date.now() - 1000) } });
     expect((await globalNotificationRepository.claimDue(60_000)).some(x => x.globalNotificationId === id)).toBe(false);
+  });
+
+  it('token push dado de baja: se desactiva y volver a registrar el dispositivo lo reactiva', async () => {
+    const token = `arn:${TAG}`;
+    await userPushTokenRepository.upsertToken(userId, token, 'android', `dev-${TAG}`);
+    expect(await userPushTokenRepository.deactivateTokens([token, 'arn:otro'])).toBe(1);
+    expect(await userPushTokenRepository.findActiveByUser(userId)).toEqual([]);
+    // ya inactivo: no cuenta de nuevo
+    expect(await userPushTokenRepository.deactivateTokens([token])).toBe(0);
+
+    await userPushTokenRepository.upsertToken(userId, token, 'android', `dev-${TAG}`);
+    expect((await userPushTokenRepository.findActiveByUser(userId)).map(t => t.token)).toEqual([token]);
   });
 
   it('usuarios por páginas: orden por user_id y a partir del cursor', async () => {
