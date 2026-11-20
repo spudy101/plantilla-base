@@ -23,7 +23,7 @@ const SEED_BANNER = {
 };
 
 export async function seedSettings(db: SeedClient): Promise<void> {
-  const activeConfig = await db.systemGlobalConfig.findFirst({ where: { isActive: true }, select: { configId: true } });
+  const activeConfig = await db.systemGlobalConfig.findFirst({ where: { isActive: true }, select: { systemGlobalConfigId: true } });
   if (activeConfig) {
     report('Configuración global: ya existía');
   } else {

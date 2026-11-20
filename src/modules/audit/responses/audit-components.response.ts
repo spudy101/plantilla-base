@@ -42,7 +42,7 @@ interface AuditLogRow {
 }
 
 interface AuditAlertRow {
-  alertId: string;
+  auditAlertId: string;
   auditLogId?: Maybe<string>;
   action: string;
   category?: Maybe<string>;
@@ -151,7 +151,7 @@ class AuditAlertComponent {
       return null;
     }
     return {
-      alertId: record.alertId,
+      alertId: record.auditAlertId,
       auditLogId: record.auditLogId || null,
       action: record.action,
       category: record.category || null,

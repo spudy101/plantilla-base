@@ -94,7 +94,7 @@ const device = {
   sessions: [session]
 };
 const credential = {
-  biometricCredentialId: ID,
+  userBiometricCredentialId: ID,
   userTrustedDeviceId: ID,
   credentialId: 'cred',
   signCount: 3,
@@ -287,7 +287,7 @@ describe('esquemas de salida de iam', () => {
       .forEach(e => ok(RoleMatrixEntrySchema, e));
     ok(EffectivePermissionsSchema, rbacDto.EffectivePermissionsDTO('ADMIN', { kyc: ['READ'] }));
     const override = {
-      rolePermissionId: ID,
+      rolePermissionOverrideId: ID,
       roleName: 'ADMIN',
       moduleName: 'kyc',
       action: 'READ',

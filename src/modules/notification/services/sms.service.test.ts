@@ -53,7 +53,7 @@ describe('SmsService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     constants.MOCKS.EXTERNAL_PROVIDERS = false;
-    attemptRepo.createAttempt.mockResolvedValue({ smsAttemptId: ATTEMPT_ID, purpose: 'mfa_login' });
+    attemptRepo.createAttempt.mockResolvedValue({ smsDeliveryAttemptId: ATTEMPT_ID, purpose: 'mfa_login' });
   });
 
   describe('enviarSmsOtp — modo mock', () => {

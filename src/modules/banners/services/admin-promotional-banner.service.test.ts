@@ -57,7 +57,7 @@ describe('PromotionalBannerService', () => {
     });
 
     it('devuelve los banners de la config activa y audita', async () => {
-      systemGlobalConfigRepository.findActive.mockResolvedValue({ configId: 'cfg-1', promotionalBanners: [{ id: 'b1' }] });
+      systemGlobalConfigRepository.findActive.mockResolvedValue({ systemGlobalConfigId: 'cfg-1', promotionalBanners: [{ id: 'b1' }] });
 
       const result = await service.list(ADMIN_ID);
 
@@ -68,7 +68,7 @@ describe('PromotionalBannerService', () => {
     });
 
     it('usa arreglo vacío cuando promotional_banners es null', async () => {
-      systemGlobalConfigRepository.findActive.mockResolvedValue({ configId: 'cfg-1', promotionalBanners: null });
+      systemGlobalConfigRepository.findActive.mockResolvedValue({ systemGlobalConfigId: 'cfg-1', promotionalBanners: null });
 
       await service.list(ADMIN_ID);
 
@@ -80,7 +80,7 @@ describe('PromotionalBannerService', () => {
     it('normaliza a snake_case, genera ids faltantes, sube versión y audita', async () => {
       systemGlobalConfigRepository.update.mockImplementation(async (_id: string, p: Loose) => ({ promotionalBanners: p.promotionalBanners }));
       systemGlobalConfigRepository.findActive.mockResolvedValue({
-        configId: 'cfg-1',
+        systemGlobalConfigId: 'cfg-1',
         configVersion: 4,
         promotionalBanners: []
       });
@@ -112,7 +112,7 @@ describe('PromotionalBannerService', () => {
       const externalUrl = 'https://marca.externa.com/logo.png';
       systemGlobalConfigRepository.update.mockImplementation(async (_id: string, p: Loose) => ({ promotionalBanners: p.promotionalBanners }));
       systemGlobalConfigRepository.findActive.mockResolvedValue({
-        configId: 'cfg-1',
+        systemGlobalConfigId: 'cfg-1',
         configVersion: 1,
         promotionalBanners: [{ image_url: orphanManaged }, { image_url: externalUrl }]
       });
@@ -129,7 +129,7 @@ describe('PromotionalBannerService', () => {
     it('registra warn si algún borrado de imagen huérfana falla (best-effort)', async () => {
       systemGlobalConfigRepository.update.mockImplementation(async (_id: string, p: Loose) => ({ promotionalBanners: p.promotionalBanners }));
       systemGlobalConfigRepository.findActive.mockResolvedValue({
-        configId: 'cfg-1',
+        systemGlobalConfigId: 'cfg-1',
         configVersion: 1,
         promotionalBanners: [{ image_url: `https://cdn.test/${PREFIX}/a.png` }, { image_url: `https://cdn.test/${PREFIX}/b.png` }]
       });

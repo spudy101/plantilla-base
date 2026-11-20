@@ -83,7 +83,7 @@ type OverrideRow = Omit<RolePermissionOverrideWithGrantor, 'grantedBy'> & {
 function RolePermissionOverrideDTO(override: OverrideRow) {
   const gb = override.grantedBy ?? null;
   return {
-    rolePermissionId: override.rolePermissionId,
+    rolePermissionId: override.rolePermissionOverrideId,
     roleName: override.roleName,
     moduleName: override.moduleName,
     action: override.action,

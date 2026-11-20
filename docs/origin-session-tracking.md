@@ -84,7 +84,7 @@ Hoy registra: `user_consents`, `user_notification_preferences`, `user_trusted_de
    ```
 
 > PII: si la tabla tiene dirección, teléfono o tokens, **enmascará u omití** esos campos en el component.
-> Por eso `person_locations` y `reset_credentials` no están registradas todavía (dirección/token sensibles).
+> Por eso `person_locations` y `credential_resets` no están registradas todavía (dirección/token sensibles).
 
 ---
 

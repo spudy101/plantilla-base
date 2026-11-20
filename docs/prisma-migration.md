@@ -57,6 +57,8 @@ La plantilla sigue esta tabla; la migración a Prisma es el momento de dejarla c
 | Constantes globales | UPPER_SNAKE_CASE | `MAX_RETRY_COUNT` |
 | Archivos y carpetas | kebab-case | `user-service.ts`, `user-management/` |
 | Tablas, columnas, foreign keys | snake_case | `user_accounts`, `created_at`, `user_id` |
+| Clave primaria | `<tabla_en_singular>_id` | `audit_alert_id`, `credential_reset_id` |
+| Tipos ENUM | `enum_<tabla>_<columna>` (modelo PascalCase) | `enum_notification_deliveries_status` |
 | Índices | `idx_<tabla>_<columnas>` | `idx_users_email` |
 | Constraints | `pk_` / `uq_` / `fk_` / `ck_` + `<tabla>_<columnas>` | `uq_users_email` |
 
@@ -65,12 +67,13 @@ La plantilla sigue esta tabla; la migración a Prisma es el momento de dejarla c
 | Elemento | Cumple | Desvíos |
 |---|---|---|
 | Código TS (variables, clases, constantes) | sí | — |
-| Enums | sí | Los de dominio son `enum` de Prisma (tipos ENUM en la base, incluido `NotificationProcessingStatus`, antes varchar). `src/shared/constants/domain-enums.ts` los reexpone en UPPER_SNAKE_CASE tomando los valores del cliente generado, con chequeo de exhaustividad en el typecheck. |
+| Enums | sí | Los de dominio son `enum` de Prisma (tipos ENUM en la base, incluido el estado de `global_notifications`, antes varchar). `src/shared/constants/domain-enums.ts` los reexpone en UPPER_SNAKE_CASE tomando los valores del cliente generado, con chequeo de exhaustividad en el typecheck. |
 | Archivos y carpetas | sí | `src/modules/audit/catalog/` → `audit-actions/` (fase 6c). |
 | JSON de la API | sí | Las 88 claves de los 8 DTOs pasaron a camelCase con su repositorio (fase 5); la 6b cerró `sortBy` y las propiedades internas. Quedan en snake_case solo datos: valores de enum, JSONB guardado y variables de templates (ver [Fase 6b](#fase-6b-api-en-camelcase)). |
 | Tablas y columnas | sí | 43 tablas y 505 columnas en snake_case. Las `deletedAt` residuales de `users`, `persons` y `reset_credentials` se eliminaron (fase 6c); `SequelizeMeta`/`SequelizeData`, con el baseline (fase 6). |
 | Índices | sí | 245 de 245 con `idx_`/`uq_`/`pk_` (fase 6c); se eliminaron 16 redundantes. |
 | Constraints | sí | 41 `pk_`, 26 `uq_`, 47 `fk_`, 1 `ck_` (fase 6c). |
+| Claves primarias y ENUM | sí | Desvíos corregidos en `20261119200000_naming_fixes`: 7 PK que no seguían `<tabla_en_singular>_id` (`alert_id` → `audit_alert_id`, `config_id` → `system_global_config_id`, …), `reset_credentials` → `credential_resets` (modelo `CredentialReset`) y los ENUM de notificaciones (`enum_notification_deliveries_channel` / `_status`, `enum_global_notifications_status` sin el `partial_failure` que ya nadie usaba). Las claves de la API (`alertId`, `configId`, `rolePermissionId`…) no cambiaron: los DTOs mapean campo a campo. |
 
 En el schema de Prisma cada nombre de la base va explícito (`@@map`, `@map`, `@id(map: …)`,
 `@unique(map: …)`, `@@index(…, map: …)`, `@relation(…, map: …)`); si no, Prisma usa sus propios

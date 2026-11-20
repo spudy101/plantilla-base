@@ -18,7 +18,7 @@ class AuditAlertRepository extends PrismaRepository {
   }
 
   async findById(alertId: string): Promise<AuditAlertWithUsers | null> {
-    const row = await (await this.db()).auditAlert.findUnique({ where: { alertId } });
+    const row = await (await this.db()).auditAlert.findUnique({ where: { auditAlertId: alertId } });
     return row ? (await this.attachUsers([row]))[0]! : null;
   }
 
@@ -36,7 +36,7 @@ class AuditAlertRepository extends PrismaRepository {
     };
     const db = await this.db();
     const [rows, count] = await Promise.all([
-      db.auditAlert.findMany({ where, ...this.paginationArgs(page, 'alertId') }),
+      db.auditAlert.findMany({ where, ...this.paginationArgs(page, 'auditAlertId') }),
       db.auditAlert.count({ where })
     ]);
     return { rows: await this.attachUsers(rows), count };
@@ -50,7 +50,7 @@ class AuditAlertRepository extends PrismaRepository {
   /** Reconoce las alertas pendientes indicadas; devuelve cuántas cambió. */
   async acknowledgeBulk(alertIds: string[], acknowledgedBy: string): Promise<number> {
     const { count } = await (await this.db()).auditAlert.updateMany({
-      where: { alertId: { in: alertIds }, acknowledged: false },
+      where: { auditAlertId: { in: alertIds }, acknowledged: false },
       data: { acknowledged: true, acknowledgedBy, acknowledgedAt: new Date() }
     });
     return count;

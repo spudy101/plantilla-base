@@ -145,7 +145,7 @@ describe('AuditAlertRepository.acknowledge', () => {
     mockDb.auditAlert.updateMany.mockResolvedValue({ count: 0 });
     await expect(auditAlertRepository.acknowledge('al-1', 'admin-1')).resolves.toBe(0);
     expect(mockDb.auditAlert.updateMany).toHaveBeenCalledWith({
-      where: { alertId: { in: ['al-1'] }, acknowledged: false },
+      where: { auditAlertId: { in: ['al-1'] }, acknowledged: false },
       data: { acknowledged: true, acknowledgedBy: 'admin-1', acknowledgedAt: expect.any(Date) }
     });
   });

@@ -44,7 +44,7 @@ describe('Integraciones y config · Prisma contra Postgres', () => {
     const existing = await systemGlobalConfigRepository.findActive();
     const config = existing ?? (await systemGlobalConfigRepository.createActive());
     try {
-      const updated = await systemGlobalConfigRepository.update(config.configId, {
+      const updated = await systemGlobalConfigRepository.update(config.systemGlobalConfigId, {
         configVersion: { increment: 1 },
         integrationResilience: { timeout_ms: 1234, circuit_breaker: { failure_threshold: 9 } }
       });
@@ -55,11 +55,11 @@ describe('Integraciones y config · Prisma contra Postgres', () => {
       });
     } finally {
       await prisma.systemGlobalConfig.update({
-        where: { configId: config.configId },
+        where: { systemGlobalConfigId: config.systemGlobalConfigId },
         data: { configVersion: config.configVersion, integrationResilience: config.integrationResilience as object }
       });
       if (!existing) {
-        await prisma.systemGlobalConfig.delete({ where: { configId: config.configId } });
+        await prisma.systemGlobalConfig.delete({ where: { systemGlobalConfigId: config.systemGlobalConfigId } });
       }
     }
   });

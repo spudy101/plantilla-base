@@ -21,7 +21,7 @@ class BiometricCredentialRepository extends PrismaRepository {
 
   /** Credencial por id, solo si pertenece al usuario. */
   async findByIdAndUser(biometricCredentialId: string, userId: string): Promise<UserBiometricCredential | null> {
-    return (await this.db()).userBiometricCredential.findFirst({ where: { biometricCredentialId, userId } });
+    return (await this.db()).userBiometricCredential.findFirst({ where: { userBiometricCredentialId: biometricCredentialId, userId } });
   }
 
   /** Credencial activa del usuario en un dispositivo (para no registrar dos huellas en el mismo). */
@@ -72,7 +72,7 @@ class BiometricCredentialRepository extends PrismaRepository {
     const [row] = await (
       await this.db()
     ).userBiometricCredential.updateManyAndReturn({
-      where: { biometricCredentialId },
+      where: { userBiometricCredentialId: biometricCredentialId },
       data: { isActive: false }
     });
     if (!row) {
@@ -113,7 +113,7 @@ class BiometricChallengeRepository extends PrismaRepository {
    */
   async markAsUsed(challengeId: string): Promise<boolean> {
     return (
-      (await (await this.db()).biometricChallenge.updateMany({ where: { challengeId, used: false }, data: { used: true } }))
+      (await (await this.db()).biometricChallenge.updateMany({ where: { biometricChallengeId: challengeId, used: false }, data: { used: true } }))
         .count > 0
     );
   }

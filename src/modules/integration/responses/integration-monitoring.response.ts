@@ -34,7 +34,7 @@ function FallbackEventDTO(row: ProviderFallbackEvent) {
   const endedAt = row.endedAt ? new Date(row.endedAt) : null;
   const MS_PER_SECOND = 1000;
   return {
-    fallbackEventId: row.fallbackEventId,
+    fallbackEventId: row.providerFallbackEventId,
     provider: row.provider,
     circuitProduct: row.circuitProduct,
     startedAt: row.startedAt,

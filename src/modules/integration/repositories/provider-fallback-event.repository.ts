@@ -56,7 +56,7 @@ class ProviderFallbackEventRepository extends PrismaRepository {
         return null;
       }
       return db.providerFallbackEvent.update({
-        where: { fallbackEventId: event.fallbackEventId },
+        where: { providerFallbackEventId: event.providerFallbackEventId },
         data: { endedAt, affectedProcessesCount: affectedCount }
       });
     });
@@ -87,7 +87,7 @@ class ProviderFallbackEventRepository extends PrismaRepository {
     }
     const db = await this.db();
     const [rows, count] = await Promise.all([
-      db.providerFallbackEvent.findMany({ where, ...this.paginationArgs(page, 'fallbackEventId') }),
+      db.providerFallbackEvent.findMany({ where, ...this.paginationArgs(page, 'providerFallbackEventId') }),
       db.providerFallbackEvent.count({ where })
     ]);
     return { rows, count };

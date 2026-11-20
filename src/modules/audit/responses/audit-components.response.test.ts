@@ -40,7 +40,7 @@ const log = {
   createdAt: at
 };
 const alert = {
-  alertId: ID,
+  auditAlertId: ID,
   auditLogId: ID,
   action: 'RBAC_PERMISSION_GRANTED',
   category: 'RBAC',

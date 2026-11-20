@@ -71,7 +71,7 @@ interface TrustedDeviceRow {
 }
 
 interface BiometricCredentialRow {
-  biometricCredentialId: string;
+  userBiometricCredentialId: string;
   userTrustedDeviceId: string;
   credentialId: string;
   signCount: number;
@@ -270,7 +270,7 @@ class BiometricCredentialComponent {
       return null;
     }
     return {
-      biometricCredentialId: credential.biometricCredentialId,
+      biometricCredentialId: credential.userBiometricCredentialId,
       deviceId: credential.userTrustedDeviceId,
       credentialId: credential.credentialId,
       signCount: credential.signCount,

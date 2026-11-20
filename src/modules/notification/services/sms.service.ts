@@ -97,26 +97,26 @@ class SmsService {
       const result = await callProvider({ product: PRODUCT, endpoint: ENDPOINT }, abortSignal =>
         this._ejecutarEnvio({ phoneNumber, message }, abortSignal)
       );
-      await this.smsDeliveryAttemptRepository.markSent(attempt.smsAttemptId, {
+      await this.smsDeliveryAttemptRepository.markSent(attempt.smsDeliveryAttemptId, {
         providerMessageId: result.messageId || null
       });
-      return { success: true, attemptId: attempt.smsAttemptId };
+      return { success: true, attemptId: attempt.smsDeliveryAttemptId };
     } catch (error) {
       if (error instanceof CircuitOpenError) {
-        await this.smsDeliveryAttemptRepository.markFailed(attempt.smsAttemptId, {
+        await this.smsDeliveryAttemptRepository.markFailed(attempt.smsDeliveryAttemptId, {
           lastError: 'Circuit breaker abierto — SMS (AWS SNS) no disponible'
         });
         return {
           success: false,
-          attemptId: attempt.smsAttemptId,
+          attemptId: attempt.smsDeliveryAttemptId,
           error: 'Servicio SMS no disponible temporalmente',
           circuitOpen: true
         };
       }
-      await this.smsDeliveryAttemptRepository.markFailed(attempt.smsAttemptId, { lastError: errorMessage(error) });
+      await this.smsDeliveryAttemptRepository.markFailed(attempt.smsDeliveryAttemptId, { lastError: errorMessage(error) });
       return {
         success: false,
-        attemptId: attempt.smsAttemptId,
+        attemptId: attempt.smsDeliveryAttemptId,
         error: errorMessage(error),
         serviceUnavailable: true
       };
@@ -152,17 +152,17 @@ class SmsService {
    * ni al circuit breaker.
    * @private
    */
-  async _mockEnvio(attempt: Pick<SmsDeliveryAttempt, 'smsAttemptId' | 'purpose'>) {
+  async _mockEnvio(attempt: Pick<SmsDeliveryAttempt, 'smsDeliveryAttemptId' | 'purpose'>) {
     logger.warn('[SMS] MODO MOCK ACTIVO — SMS no enviado realmente (OTP fijo en entornos no productivos)', {
-      attemptId: attempt.smsAttemptId,
+      attemptId: attempt.smsDeliveryAttemptId,
       purpose: attempt.purpose
     });
 
-    await this.smsDeliveryAttemptRepository.markSent(attempt.smsAttemptId, {
-      providerMessageId: `MOCK-${attempt.smsAttemptId}`
+    await this.smsDeliveryAttemptRepository.markSent(attempt.smsDeliveryAttemptId, {
+      providerMessageId: `MOCK-${attempt.smsDeliveryAttemptId}`
     });
 
-    return { success: true, attemptId: attempt.smsAttemptId, mock: true };
+    return { success: true, attemptId: attempt.smsDeliveryAttemptId, mock: true };
   }
 
   /**

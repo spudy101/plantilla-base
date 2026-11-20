@@ -12,7 +12,7 @@ export type RolePermissionOverrideWithGrantor = Prisma.RolePermissionOverrideGet
 
 class RolePermissionOverrideRepository extends PrismaRepository {
   async findById(rolePermissionId: string): Promise<RolePermissionOverride | null> {
-    return (await this.db()).rolePermissionOverride.findUnique({ where: { rolePermissionId } });
+    return (await this.db()).rolePermissionOverride.findUnique({ where: { rolePermissionOverrideId: rolePermissionId } });
   }
 
   async create(data: Prisma.RolePermissionOverrideUncheckedCreateInput): Promise<RolePermissionOverride> {
@@ -30,7 +30,7 @@ class RolePermissionOverrideRepository extends PrismaRepository {
 
   /** true si se eliminó un registro. */
   async deleteById(rolePermissionId: string): Promise<boolean> {
-    return (await (await this.db()).rolePermissionOverride.deleteMany({ where: { rolePermissionId } })).count > 0;
+    return (await (await this.db()).rolePermissionOverride.deleteMany({ where: { rolePermissionOverrideId: rolePermissionId } })).count > 0;
   }
 
   /** ¿Ya existe el override exacto? (detección de duplicados). */

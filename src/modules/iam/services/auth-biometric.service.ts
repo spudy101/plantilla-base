@@ -171,7 +171,7 @@ class AuthBiometricService {
     }
 
     // Consumir ANTES de verificar y solo si sigue sin usar: si otro request lo usó primero, se rechaza (replay)
-    if (!(await this.biometricChallengeRepository.markAsUsed(challengeRecord.challengeId))) {
+    if (!(await this.biometricChallengeRepository.markAsUsed(challengeRecord.biometricChallengeId))) {
       throw AppError.badRequest('Challenge inválido, expirado o ya utilizado');
     }
 
@@ -208,7 +208,7 @@ class AuthBiometricService {
       details: {
         deviceId: device.userTrustedDeviceId
       },
-      entityId: credential.biometricCredentialId,
+      entityId: credential.userBiometricCredentialId,
       entityType: 'BiometricCredential',
       entityTable: 'biometric_credentials'
     });
@@ -221,7 +221,7 @@ class AuthBiometricService {
             type: 'BIOMETRIC_CREDENTIAL_REGISTERED',
             userId,
             // Antes se pasaba el id suelto (string) y la notificación no guardaba la entidad
-            relatedEntity: { type: 'BiometricCredential', id: credential.biometricCredentialId },
+            relatedEntity: { type: 'BiometricCredential', id: credential.userBiometricCredentialId },
             metadata: { nombre: user?.person?.firstName ?? 'Usuario', logoUrl: notifications.ses.logoUrl }
           })
         )
@@ -409,7 +409,7 @@ class AuthBiometricService {
     }
 
     // Consumir ANTES de verificar y solo si sigue sin usar: si otro request lo usó primero, se rechaza (replay)
-    if (!(await this.biometricChallengeRepository.markAsUsed(challengeRecord.challengeId))) {
+    if (!(await this.biometricChallengeRepository.markAsUsed(challengeRecord.biometricChallengeId))) {
       throw AppError.badRequest('Challenge inválido, expirado o ya utilizado');
     }
 
