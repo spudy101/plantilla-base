@@ -214,9 +214,11 @@ de `notification_deliveries`:
 - **Dentro de un `unitOfWork.run()` de quien llama**, la notificación se crea en esa transacción y no se
   envía desde ahí (el commit llega después): las entregas quedan vencidas y las envía el próximo ciclo
   del despachador (≤ 1 min).
-- **Despachador** (`notification-worker.ts`, cada minuto): toma hasta 50 entregas `pending` con
+- **Despachador** (`notification-worker.ts`, cada minuto): toma de a 50 entregas `pending` con
   `next_attempt_at` vencido (`FOR UPDATE SKIP LOCKED`, y las reserva), así que **varias instancias no envían
-  la misma**. Un ciclo sin trabajo no escribe nada en `operations`. La tabla funciona como cola. Cuándo
+  la misma**. En un ciclo sigue tomando hasta vaciar lo vencido o cumplir 45 s, y envía 10 notificaciones a
+  la vez: una acumulación (fin del horario de silencio de muchos usuarios, un proveedor que vuelve) se vacía
+  en minutos. Un ciclo sin trabajo no escribe nada en `operations`. La tabla funciona como cola. Cuándo
   conviene pasar a SQS, RabbitMQ o Kafka, y cómo hacerlo: docs/ARCHITECTURE.md, «Trabajo asíncrono».
 - **Resultado de un intento:**
   - enviado → `sent`;
@@ -286,8 +288,11 @@ masivo** por push/email a todos los clientes activos (`CLIENT_ROLE_NAMES`), seg�
 - **Preferencia:** una por usuario, `GET/PUT /person/notifications/preferences` (`allowPush` / `allowEmail` /
   `allowSms` + horario de silencio). Sin fila → todo permitido, sin horario. **Las categorías críticas la
   ignoran** (un usuario que apagó el email igual recibe el reset de contraseña).
-- **Rate limiting:** SNS ~300/min, SES ~200/min en los envíos masivos (clave Redis por minuto).
-- **SSE (contador de no leídas):** `notification-emitter.util.ts` transporta `count-updated` (Redis Pub/Sub, fallback EventEmitter local; se inicializa en `src/server.ts`); el stream es `GET /notification/notifications/count/stream` (`notification.controller.ts`). El punto único de refresco es `notification-count.util.ts` (`emitCountUpdate(userId)`), invocado vía `setImmediate` en cada flujo que altera el contador: crear notificación individual (`notification-creation.service.ts`), marcar leídas al listar personal/global/mixto (`notification.service.ts`), además del emit propio de `getUnreadCount`. La **notificación global** (1 fila para todos) no hace fan-out por usuario: publica un broadcast `{ global: true }` y cada conexión SSE abierta recalcula su propio count (`computeUnreadCount`, sin re-emitir ni auditar). **Auth por cookie** (`access_token`, canal web): el front abre el stream con `fetch` + `credentials:'include'` (no `EventSource` nativo, que no puede mandar la cookie cross-site). **Heartbeat:** el stream emite un comentario SSE `: ping` cada 25 s (`SSE_HEARTBEAT_MS`) para que el idle timeout del reverse proxy (ALB/nginx, ~60 s) no cierre la conexión en periodos sin eventos y congele el contador; se limpia en `req.on('close')` junto con el listener.
+- **Rate limiting:** tope por minuto de los envíos masivos, `SNS_RATE_LIMIT_PER_MINUTE` (300) y
+  `SES_RATE_LIMIT_PER_MINUTE` (200): ajustarlos a la cuota real de la cuenta de AWS. Cada tanda suma su
+  tamaño con un `INCRBY` atómico de Redis (compartido entre instancias); si se pasa, espera al minuto
+  siguiente. Sin Redis cuenta en el proceso.
+- **SSE (contador de no leídas):** `notification-emitter.util.ts` transporta `count-updated` (Redis Pub/Sub, fallback EventEmitter local; se inicializa en `src/server.ts`); el stream es `GET /notification/notifications/count/stream` (`notification.controller.ts`). El punto único de refresco es `notification-count.util.ts` (`emitCountUpdate(userId)`), invocado vía `setImmediate` en cada flujo que altera el contador: crear notificación individual (`notification-creation.service.ts`), marcar leídas al listar personal/global/mixto (`notification.service.ts`), además del emit propio de `getUnreadCount`. La **notificación global** (1 fila para todos) no hace fan-out por usuario: publica un broadcast `{ global: true }` y cada conexión SSE abierta recalcula su propio count (`computeUnreadCount`: dos `COUNT`, sin re-emitir ni auditar) tras una espera al azar de hasta 5 s, para que miles de conexiones no consulten la base en el mismo instante. **Auth por cookie** (`access_token`, canal web): el front abre el stream con `fetch` + `credentials:'include'` (no `EventSource` nativo, que no puede mandar la cookie cross-site). **Heartbeat:** el stream emite un comentario SSE `: ping` cada 25 s (`SSE_HEARTBEAT_MS`) para que el idle timeout del reverse proxy (ALB/nginx, ~60 s) no cierre la conexión en periodos sin eventos y congele el contador; se limpia en `req.on('close')` junto con el listener.
 
 ## Criticidad (`is_critical`)
 

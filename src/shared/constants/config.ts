@@ -224,6 +224,12 @@ const _buildNotificationsConfig = () => ({
     logoUrl: getOptionalEnv('LOGO_URL'),
     adminEmail: getOptionalEnv('ADMIN_EMAIL'),
     privacyPolicyUrl: getOptionalEnv('PRIVACY_POLICY_URL')
+  },
+  // Tope por minuto de los envíos masivos (notificaciones globales), compartido entre instancias vía
+  // Redis. Ajustar a la cuota real de la cuenta de AWS (SES: sending rate; SNS: publish rate).
+  rateLimits: {
+    snsPerMinute: parseIntEnv(process.env.SNS_RATE_LIMIT_PER_MINUTE, 300),
+    sesPerMinute: parseIntEnv(process.env.SES_RATE_LIMIT_PER_MINUTE, 200)
   }
 });
 

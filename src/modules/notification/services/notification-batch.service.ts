@@ -7,15 +7,12 @@
 // al morir se reenvía.
 //
 // Cada usuario filtra con su preferencia (una consulta por página), salvo categoría crítica.
-import type { KeyValueCache } from '../../../shared/types/cache';
 import iamModule from '../../iam';
 const { userRepository } = iamModule;
 import globalNotificationRepo from '../repositories/global-notification.repository';
 import type { GlobalNotificationWithType } from '../repositories/global-notification.repository';
 import userNotificationPreferenceRepo from '../repositories/user-notification-preference.repository';
 import userPushTokenRepo from '../repositories/user-push-token.repository';
-import redisClient from '../../../shared/infra/redis.util';
-import localCache from '../../../shared/infra/cache.util';
 import EncryptionUtil from '../../../shared/security/encryption.util';
 import emailService from './email-notification.service';
 import pushService from './push-notification.service';
@@ -111,7 +108,6 @@ class NotificationBatchService {
       return;
     }
 
-    const cache: KeyValueCache = redisClient.isAvailable() ? redisClient : localCache;
     let cursor = globalNotification.cursorUserId;
     for (;;) {
       // Solo a clientes finales, nunca a usuarios internos.
@@ -119,7 +115,7 @@ class NotificationBatchService {
       if (users.length === 0) {
         break;
       }
-      const { pushSent, emailSent } = await this.sendPage(globalNotification, users, cache);
+      const { pushSent, emailSent } = await this.sendPage(globalNotification, users);
       cursor = users[users.length - 1]!.userId;
       await this.globalNotificationRepo.recordPage(id, { cursorUserId: cursor, pushSent, emailSent, leaseMs: LEASE_MS });
       if (users.length < PAGE_SIZE) {
@@ -144,7 +140,7 @@ class NotificationBatchService {
   }
 
   /** Una página de usuarios: push y email a quienes los permiten. Devuelve cuántos se enviaron. */
-  async sendPage(globalNotification: GlobalNotificationWithType, users: readonly PageUser[], cache: KeyValueCache) {
+  async sendPage(globalNotification: GlobalNotificationWithType, users: readonly PageUser[]) {
     const type = globalNotification.notificationType!;
     const critical = type.category?.isCritical === true;
     const preferences = await this.userNotificationPreferenceRepo.findByUsers(users.map(u => u.userId));
@@ -158,7 +154,7 @@ class NotificationBatchService {
         users.filter(u => allows(u.userId, 'allowPush')).map(u => u.userId)
       );
       for (const chunk of chunks(tokens, PUSH_CHUNK)) {
-        await this.rateLimitService.checkSNSRateLimit(cache);
+        await this.rateLimitService.checkSNSRateLimit(chunk.length);
         const stats = await this.pushService.enviarPushMasivo(
           chunk.map(t => t.token),
           globalNotification.title,
@@ -177,7 +173,7 @@ class NotificationBatchService {
         return email && allows(u.userId, 'allowEmail') ? [EncryptionUtil.safeDecrypt(email)] : [];
       });
       for (const chunk of chunks(recipients, EMAIL_CHUNK)) {
-        await this.rateLimitService.checkSESRateLimit(cache);
+        await this.rateLimitService.checkSESRateLimit(chunk.length);
         const results = await Promise.allSettled(chunk.map(email => this.emailService.enviarNotificacion(email, type, metadata)));
         // null: dirección suprimida (no se envió)
         emailSent += results.filter(r => r.status === 'fulfilled' && r.value).length;

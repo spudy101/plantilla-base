@@ -116,7 +116,6 @@ describe('send', () => {
 });
 
 describe('sendPage', () => {
-  const cache: Loose = {};
 
   it('filtra por la preferencia de cada usuario, en una sola consulta', async () => {
     const page = [user('u-1'), user('u-2'), user('u-3', null)];
@@ -128,7 +127,7 @@ describe('sendPage', () => {
     );
     tokenRepo.findActiveByUsers.mockResolvedValue([{ token: 'arn-2' }, { token: 'arn-3' }]);
 
-    const result = await batch.sendPage(global(), page, cache);
+    const result = await batch.sendPage(global(), page);
 
     expect(prefRepo.findByUsers).toHaveBeenCalledWith(['u-1', 'u-2', 'u-3']);
     expect(tokenRepo.findActiveByUsers).toHaveBeenCalledWith(['u-2', 'u-3']);
@@ -141,15 +140,15 @@ describe('sendPage', () => {
       { x: 1 }
     );
     expect(result).toEqual({ pushSent: 2, emailSent: 1 });
-    expect(rateLimit.checkSNSRateLimit).toHaveBeenCalledTimes(1);
-    expect(rateLimit.checkSESRateLimit).toHaveBeenCalledTimes(1);
+    expect(rateLimit.checkSNSRateLimit).toHaveBeenCalledWith(2);
+    expect(rateLimit.checkSESRateLimit).toHaveBeenCalledWith(1);
   });
 
   it('desactiva los tokens que SNS dio de baja', async () => {
     tokenRepo.findActiveByUsers.mockResolvedValue([{ token: 'arn-1' }, { token: 'arn-2' }]);
     pushService.enviarPushMasivo.mockResolvedValue({ success: 1, failed: 1, disabledEndpoints: ['arn-2'] });
 
-    const result = await batch.sendPage(global({ sendEmail: false }), [user('u-1')], cache);
+    const result = await batch.sendPage(global({ sendEmail: false }), [user('u-1')]);
 
     expect(result.pushSent).toBe(1);
     expect(tokenRepo.deactivateTokens).toHaveBeenCalledWith(['arn-2']);
@@ -160,8 +159,7 @@ describe('sendPage', () => {
 
     const result = await batch.sendPage(
       global({ sendPush: false, notificationType: { code: 'X', category: { isCritical: true } } }),
-      [user('u-1')],
-      cache
+      [user('u-1')]
     );
 
     expect(result.emailSent).toBe(1);
@@ -170,13 +168,13 @@ describe('sendPage', () => {
   it('solo cuenta los emails que salieron (no los rechazados ni las direcciones suprimidas)', async () => {
     emailService.enviarNotificacion.mockResolvedValueOnce({}).mockResolvedValueOnce(null).mockRejectedValueOnce(new Error('SES'));
 
-    const result = await batch.sendPage(global({ sendPush: false }), [user('u-1'), user('u-2'), user('u-3')], cache);
+    const result = await batch.sendPage(global({ sendPush: false }), [user('u-1'), user('u-2'), user('u-3')]);
 
     expect(result.emailSent).toBe(1);
   });
 
   it('respeta los canales de la global', async () => {
-    const result = await batch.sendPage(global({ sendPush: false, sendEmail: false }), [user('u-1')], cache);
+    const result = await batch.sendPage(global({ sendPush: false, sendEmail: false }), [user('u-1')]);
 
     expect(result).toEqual({ pushSent: 0, emailSent: 0 });
     expect(tokenRepo.findActiveByUsers).not.toHaveBeenCalled();

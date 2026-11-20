@@ -27,7 +27,7 @@ jest.mock('../repositories/notification.repository', () => ({
 
 jest.mock('../repositories/global-notification.repository', () => ({
   findActiveNotifications: jest.fn().mockResolvedValue([]),
-  findUnreadByUser: jest.fn().mockResolvedValue([])
+  countUnreadByUser: jest.fn().mockResolvedValue(0)
 }));
 
 jest.mock('../repositories/global-notification-read.repository', () => ({
@@ -207,7 +207,7 @@ describe('NotificationService', () => {
   describe('getUnreadCount', () => {
     it('computa el total, lo emite por el emitter y audita', async () => {
       notificationRepo.countUnreadByUser.mockResolvedValue(3);
-      globalNotificationRepo.findUnreadByUser.mockResolvedValue([{}, {}]);
+      globalNotificationRepo.countUnreadByUser.mockResolvedValue(2);
 
       const total = await service.getUnreadCount(USER);
 
@@ -221,16 +221,9 @@ describe('NotificationService', () => {
   describe('computeUnreadCount', () => {
     it('suma personales + globales', async () => {
       notificationRepo.countUnreadByUser.mockResolvedValue(2);
-      globalNotificationRepo.findUnreadByUser.mockResolvedValue([{}, {}, {}]);
+      globalNotificationRepo.countUnreadByUser.mockResolvedValue(3);
 
       await expect(service.computeUnreadCount(USER)).resolves.toBe(5);
-    });
-
-    it('trata como 0 el resultado global que no es un array', async () => {
-      notificationRepo.countUnreadByUser.mockResolvedValue(4);
-      globalNotificationRepo.findUnreadByUser.mockResolvedValue(null);
-
-      await expect(service.computeUnreadCount(USER)).resolves.toBe(4);
     });
   });
 

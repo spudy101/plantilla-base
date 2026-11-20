@@ -29,6 +29,8 @@ import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import errorMessageModule from '../../../shared/utils/error-message.util';
 const { errorMessage } = errorMessageModule;
+import concurrencyUtilModule from '../../../shared/utils/concurrency.util';
+const { forEachWithConcurrency } = concurrencyUtilModule;
 import awsProviderMetaUtilModule from '../../../shared/infra/aws-provider-meta.util';
 const { awsErrorCode } = awsProviderMetaUtilModule;
 import awsErrorCodesModule from '../../../shared/constants/aws-error-codes';
@@ -44,8 +46,17 @@ export const MAX_ATTEMPTS = RETRY_DELAYS_MS.length + 1;
 /** Reserva de un intento en curso: si el proceso muere, la entrega vuelve a estar vencida al terminar. */
 const LEASE_MINUTES = 5;
 export const LEASE_MS = LEASE_MINUTES * MINUTE_MS;
-/** Entregas por ciclo del despachador. */
+/** Entregas por toma del despachador. */
 const DISPATCH_BATCH = 50;
+/**
+ * Un ciclo toma de a DISPATCH_BATCH hasta vaciar lo vencido o agotar este tiempo (menos que el minuto del
+ * cron: el siguiente ciclo sigue). Así una acumulación (fin del horario de silencio de muchos usuarios,
+ * vuelta de un proveedor caído) se vacía en minutos y no a 50 por minuto.
+ */
+const DISPATCH_TIME_BUDGET_SECONDS = 45;
+const DISPATCH_TIME_BUDGET_MS = DISPATCH_TIME_BUDGET_SECONDS * 1000;
+/** Notificaciones que se envían a la vez dentro de un ciclo (acotado: no saturar proveedor ni pool de la base). */
+const DISPATCH_CONCURRENCY = 10;
 const SMS_MAX_LENGTH = 160;
 const CHANNELS: readonly NotificationChannel[] = ['push', 'email', 'sms'];
 /** Soporte por defecto si la categoría no lo declara (o el tipo no tiene categoría). */
@@ -143,29 +154,54 @@ class NotificationDeliveryService {
     }
     this.dispatching = true;
     try {
-      const claimed = await this.deliveryRepo.claimDue(DISPATCH_BATCH, LEASE_MS);
-      if (claimed.length > 0) {
-        await wrap(() => this.deliverClaimed(claimed));
+      const startedAt = Date.now();
+      const first = await this.deliveryRepo.claimDue(DISPATCH_BATCH, LEASE_MS);
+      if (first.length === 0) {
+        return { attempted: 0 };
       }
-      return { attempted: claimed.length };
+      let attempted = first.length;
+      await wrap(async () => {
+        let claimed = first;
+        for (;;) {
+          await this.deliverClaimed(claimed);
+          // Una toma incompleta: no queda nada vencido. Sin tiempo: sigue el próximo ciclo.
+          if (claimed.length < DISPATCH_BATCH || Date.now() - startedAt >= DISPATCH_TIME_BUDGET_MS) {
+            return;
+          }
+          claimed = await this.deliveryRepo.claimDue(DISPATCH_BATCH, LEASE_MS);
+          attempted += claimed.length;
+          if (claimed.length === 0) {
+            return;
+          }
+        }
+      });
+      return { attempted };
     } finally {
       this.dispatching = false;
     }
   }
 
-  /** Intenta entregas ya tomadas, agrupadas por notificación (una lectura de la notificación por grupo). */
+  /**
+   * Intenta entregas ya tomadas, agrupadas por notificación (una lectura de la notificación por grupo).
+   * Los grupos van en paralelo, de a DISPATCH_CONCURRENCY; dentro de un grupo, de a uno.
+   */
   async deliverClaimed(claimed: readonly ClaimedDelivery[]) {
     const byNotification = new Map<string, ClaimedDelivery[]>();
     for (const delivery of claimed) {
       byNotification.set(delivery.notificationId, [...(byNotification.get(delivery.notificationId) ?? []), delivery]);
     }
-    for (const [notificationId, deliveries] of byNotification) {
-      const notification = await this.notificationRepo.findByIdWithType(notificationId);
-      // Sin notificación sus entregas ya se borraron en cascada: no hay nada que enviar.
-      if (notification) {
-        await this.attemptAll(deliveries, notification);
+    await forEachWithConcurrency([...byNotification], DISPATCH_CONCURRENCY, async ([notificationId, deliveries]) => {
+      try {
+        const notification = await this.notificationRepo.findByIdWithType(notificationId);
+        // Sin notificación sus entregas ya se borraron en cascada: no hay nada que enviar.
+        if (notification) {
+          await this.attemptAll(deliveries, notification);
+        }
+      } catch (error) {
+        // Falló la lectura de la notificación: la reserva vence y el despachador la retoma. No frena al resto.
+        logger.error('Error leyendo la notificación de una entrega', { error: errorMessage(error), notificationId });
       }
-    }
+    });
   }
 
   /** Intenta las entregas de una notificación, una por una; ninguna aborta a las demás. */
