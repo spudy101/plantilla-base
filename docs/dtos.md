@@ -80,7 +80,6 @@ export const XyzSchema = z.object({
   email: z.string().nullable().meta({ example: '****n@example.com', description: piiMaskingDoc.MASKED_EMAIL_DESC }),
   createdAt: dateTime() // Date en el código, string ISO en el JSON
 });
-export const XyzListSchema = listOf(XyzSchema); // { data: Xyz[], metadata }
 ```
 
 - Lo que puede venir `null` lleva `.nullable()`; lo que puede no venir, `.optional()`.
@@ -97,15 +96,12 @@ it('xyz', () => ok(XyzSchema, components.XyzComponent.build(fixture)));
 ## Lista paginada
 
 ```ts
-function ListXyzResponseDTO(rows: XyzRow[], metadata: Parameters<typeof MetadataDTO.build>[0]) {
-  return {
-    data: Array.isArray(rows) ? rows.map(r => XyzComponent.build(r)) : [],
-    metadata: MetadataDTO.build(metadata) // nunca armar el objeto de paginación a mano
-  };
+function ListXyzResponseDTO(rows: XyzRow[], metadata: PageMetadata) {
+  return { data: Array.isArray(rows) ? rows.map(r => XyzComponent.build(r)) : [], metadata };
 }
 ```
 
-El service arma `metadata` (`{ totalItems, page, limit, sortBy, order, filters }`) y se lo pasa al DTO. En
+El service arma `metadata` con `pageMetadata(page, total, filtros)` (`src/shared/http/pagination.ts`: `{ pagination, sort, filters? }`, con el orden y los filtros **aplicados**) y se lo pasa al DTO; nunca se arma a mano. En
 Swagger se documenta con `commonResponses.paginated({ $ref: '#/components/schemas/Xyz' })`.
 
 ## Excepción de snake_case: valores de enum

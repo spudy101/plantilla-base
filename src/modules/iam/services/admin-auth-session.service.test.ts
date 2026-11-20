@@ -45,7 +45,7 @@ jest.mock('../responses/admin-auth-session.response', () => ({
   AuthAttemptListDTO: jest.fn(() => ({ dto: 'attempts' }))
 }));
 
-import { mocked } from 'tests/helpers/mock';
+import { mocked, Loose } from 'tests/helpers/mock';
 import userSessionRepositoryModule from '../repositories/user-session.repository';
 const userSessionRepository = mocked(userSessionRepositoryModule);
 import auditLogRepositoryModule from '../../audit/repositories/audit-log.repository';
@@ -72,6 +72,9 @@ const flush = () =>
 
 const ADMIN_ID = 'admin-1';
 
+/** La query como la deja validate(): página 1 de 10 por createdAt DESC, más los filtros del caso. */
+const q = <T>(filters: Loose = {}): T => ({ page: 1, limit: 10, sortBy: 'createdAt', order: 'DESC', ...filters }) as T;
+
 describe('AdminAuthSessionService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -82,31 +85,39 @@ describe('AdminAuthSessionService', () => {
 
   describe('listSessions', () => {
     it('pagina, audita y delega en SessionListDTO', async () => {
-      const result = await service.listSessions({ page: '2', limit: '5' }, ADMIN_ID);
+      const result = await service.listSessions(q({ page: 2, limit: 5, sortBy: 'startedAt' }), ADMIN_ID);
+
+      expect(userSessionRepository.findPaginatedWithDeviceAndUser).toHaveBeenCalledWith({}, { page: 2, limit: 5, offset: 5, sortBy: 'startedAt', order: 'DESC' });
 
       expect(userSessionRepository.findPaginatedWithDeviceAndUser).toHaveBeenCalledTimes(1);
       expect(logAudit).toHaveBeenCalledWith('AUTH_SESSION_LIST_VIEWED', expect.objectContaining({ actorId: ADMIN_ID, details: { totalItems: 1 }, entityType: 'AuthSession' })
       );
       expect(SessionListDTO).toHaveBeenCalledWith(
         [{ userSessionId: 's1' }],
-        expect.objectContaining({ totalItems: 1, page: 2, limit: 5, filters: {} })
+        {
+          pagination: { currentPage: 2, pageSize: 5, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: true },
+          sort: { field: 'startedAt', order: 'DESC' }
+        }
       );
       expect(result).toEqual({ dto: 'sessions' });
     });
 
     it('propaga el filtro sessionId cuando viene en el query', async () => {
-      await service.listSessions({ sessionId: 'sess-9' }, ADMIN_ID);
+      await service.listSessions(q({ sessionId: 'sess-9', dateFrom: new Date('2026-11-01') }), ADMIN_ID);
+
+      // Las fechas llegan como Date (las convierte el esquema) y ahora sí se filtran
+      expect(userSessionRepository.buildWhere).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'sess-9', dateFrom: new Date('2026-11-01') }));
 
       expect(SessionListDTO).toHaveBeenCalledWith(
         expect.anything(),
-        expect.objectContaining({ filters: { sessionId: 'sess-9' } })
+        expect.objectContaining({ filters: { sessionId: 'sess-9', dateFrom: new Date('2026-11-01') } })
       );
     });
   });
 
   describe('getSessionsByUser', () => {
     it('arma el where por usuario/estado, audita y responde el DTO', async () => {
-      await service.getSessionsByUser('user-7', { status: 'active' }, ADMIN_ID);
+      await service.getSessionsByUser('user-7', q({ status: 'active' }), ADMIN_ID);
 
       expect(userSessionRepository.buildWhere).toHaveBeenCalledWith({ userId: 'user-7', status: 'active' });
       expect(logAudit).toHaveBeenCalledWith('AUTH_SESSION_BY_USER_VIEWED', expect.objectContaining({ actorId: ADMIN_ID, details: { targetUserId: 'user-7' }, entityId: 'user-7' })
@@ -189,7 +200,7 @@ describe('AdminAuthSessionService', () => {
 
   describe('listAttempts', () => {
     it('scope por defecto = all → filtra por categoría Autenticación', async () => {
-      await service.listAttempts({}, ADMIN_ID);
+      await service.listAttempts(q(), ADMIN_ID);
 
       const criteria = auditLogRepository.findAuthAttemptsPaginated.mock.calls[0][0];
       // el service arma criterios de negocio; el WHERE (Op.between / Op.in) lo arma el repositorio
@@ -201,12 +212,12 @@ describe('AdminAuthSessionService', () => {
       );
       expect(AuthAttemptListDTO).toHaveBeenCalledWith(
         [{ audit_log_id: 'a1' }],
-        expect.objectContaining({ filters: { scope: 'all' } })
+        expect.objectContaining({ sort: { field: 'createdAt', order: 'DESC' }, filters: { scope: 'all' } })
       );
     });
 
     it('scope=login → filtra por acciones de login (no toda la categoría)', async () => {
-      await service.listAttempts({ scope: 'login', userId: 'u-1', outcome: 'FAILED' }, ADMIN_ID);
+      await service.listAttempts(q({ scope: 'login', userId: 'u-1', outcome: 'FAILED' }), ADMIN_ID);
 
       const criteria = auditLogRepository.findAuthAttemptsPaginated.mock.calls[0][0];
       expect(criteria.actions).toEqual(expect.any(Array));
@@ -218,7 +229,7 @@ describe('AdminAuthSessionService', () => {
 
   describe('getAttemptsByUser', () => {
     it('fuerza el user_id del path por sobre el del query y audita', async () => {
-      await service.getAttemptsByUser('user-target', { userId: 'ignorado', scope: 'all' }, ADMIN_ID);
+      await service.getAttemptsByUser('user-target', q({ userId: 'ignorado', scope: 'all' }), ADMIN_ID);
 
       const criteria = auditLogRepository.findAuthAttemptsPaginated.mock.calls[0][0];
       expect(criteria.userId).toBe('user-target');

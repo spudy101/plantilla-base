@@ -21,6 +21,7 @@ import PersonCreationService from './admin-person/person-creation.service';
 import PersonAccessService from './admin-person/person-access.service';
 import PersonCredentialsService from './admin-person/person-credentials.service';
 import auditModule from '../../audit';
+import type { DeletedPersonListQuery, PersonListQuery } from '../requests/person.request';
 const { audit } = auditModule;
 
 /**
@@ -201,11 +202,11 @@ class PersonService {
   // ============================================================
   // ── CONSULTAS → PersonQueryService ──
 
-  list(query: Record<string, unknown>, adminUserId: string) {
+  list(query: PersonListQuery, adminUserId: string) {
     return this.queries.list(query, adminUserId);
   }
 
-  listDeleted(query: Record<string, unknown>, adminUserId: string) {
+  listDeleted(query: DeletedPersonListQuery, adminUserId: string) {
     return this.queries.listDeleted(query, adminUserId);
   }
 

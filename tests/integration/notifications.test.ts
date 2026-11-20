@@ -18,6 +18,7 @@ import verificationCodeRepository from '../../src/modules/notification/repositor
 import emailBounceSuppressionRepository from '../../src/modules/notification/repositories/email-bounce-suppression.repository';
 import userRepository from '../../src/modules/iam/repositories/user.repository';
 import userPushTokenRepository from '../../src/modules/notification/repositories/user-push-token.repository';
+import { page as listPage } from '../helpers/page';
 
 const TAG = `notif-it-${randomUUID().slice(0, 8)}`;
 const CODE = TAG.toUpperCase().replace(/-/g, '_');
@@ -120,7 +121,7 @@ describe('Notificaciones · Prisma contra Postgres', () => {
       push!.notificationDeliveryId
     );
 
-    const admin = await deliveryRepository.findAllForAdmin({ userId, status: 'sent' });
+    const admin = await deliveryRepository.findAllForAdmin({ userId, status: 'sent' }, listPage());
     expect(admin.count).toBe(1);
     expect(admin.rows[0]?.notification.notificationType?.category).toMatchObject({ code: CODE });
 

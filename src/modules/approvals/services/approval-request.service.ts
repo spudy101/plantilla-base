@@ -4,6 +4,7 @@ import type { AdminAuditContext } from '../../../shared/types/audit-context';
 
 import DualApprovalService from './dual-approval.service';
 import auditModule from '../../audit';
+import type { ApprovalListQuery } from '../requests/approval-request.request';
 const { audit } = auditModule;
 
 const ENTITY = { entityType: 'ApprovalRequest', entityTable: 'approval_requests' };
@@ -21,7 +22,7 @@ class ApprovalRequestService {
     this.DualApprovalService = deps.DualApprovalService ?? DualApprovalService;
   }
 
-  async list(query: Record<string, unknown>, adminUserId: string) {
+  async list(query: ApprovalListQuery, adminUserId: string) {
     const result = await this.DualApprovalService.list(query);
     await audit.record('APPROVAL_REQUEST_LIST_VIEWED', {
       actorId: adminUserId,

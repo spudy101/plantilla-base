@@ -11,6 +11,7 @@ import { mocked } from 'tests/helpers/mock';
 import prismaModule from '../../../shared/database/prisma';
 const prisma = mocked(prismaModule);
 import genderRepository from './gender.repository';
+import { page } from 'tests/helpers/page';
 
 describe('GenderRepository (Prisma)', () => {
   beforeEach(() => jest.clearAllMocks());
@@ -36,30 +37,24 @@ describe('GenderRepository (Prisma)', () => {
       prisma.gender.findMany.mockResolvedValue([{ genderId: 'g-1' }]);
       prisma.gender.count.mockResolvedValue(1);
 
-      const result = await genderRepository.findAllPaginated({ isActive: true }, { limit: 10, offset: 20, sortBy: 'name', order: 'ASC' }, 'fem');
+      const result = await genderRepository.findAllPaginated({ isActive: true }, page({ page: 3, sortBy: 'name', order: 'ASC' }), 'fem');
 
       const where = { isActive: true, OR: [{ name: { contains: 'fem', mode: 'insensitive' } }] };
-      expect(prisma.gender.findMany).toHaveBeenCalledWith({ where, take: 10, skip: 20, orderBy: { name: 'asc' } });
+      // desempate por la clave primaria: el orden es estable entre páginas
+      expect(prisma.gender.findMany).toHaveBeenCalledWith({ where, take: 10, skip: 20, orderBy: [{ name: 'asc' }, { genderId: 'asc' }] });
       expect(prisma.gender.count).toHaveBeenCalledWith({ where });
       expect(result).toEqual({ rows: [{ genderId: 'g-1' }], count: 1 });
     });
 
-    it('acepta sortBy con el nombre de columna (created_at, como hasta ahora) y lo pasa a camelCase', async () => {
+    it('aplica el orden pedido tal cual (el esquema del request ya validó el campo)', async () => {
       prisma.gender.findMany.mockResolvedValue([]);
       prisma.gender.count.mockResolvedValue(0);
 
-      await genderRepository.findAllPaginated({}, { sortBy: 'created_at', order: 'DESC' });
+      await genderRepository.findAllPaginated({}, page());
 
-      expect(prisma.gender.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {}, orderBy: { createdAt: 'desc' } }));
-    });
-
-    it('sortBy que no es un campo del modelo → createdAt (no se puede ordenar por cualquier cosa)', async () => {
-      prisma.gender.findMany.mockResolvedValue([]);
-      prisma.gender.count.mockResolvedValue(0);
-
-      await genderRepository.findAllPaginated({}, { sortBy: 'password_hash; DROP', order: 'ASC' });
-
-      expect(prisma.gender.findMany).toHaveBeenCalledWith(expect.objectContaining({ orderBy: { createdAt: 'asc' } }));
+      expect(prisma.gender.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: {}, orderBy: [{ createdAt: 'desc' }, { genderId: 'desc' }] })
+      );
     });
   });
 });

@@ -7,12 +7,14 @@ const { routeParam } = routeParamUtilModule;
 import authUserUtilModule from '../../../shared/http/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
 import auditModule from '../../audit';
+import { validQuery } from '../../../shared/validation/validate';
+import { ConsentTypeListQuery } from '../requests/legal.request';
 const { adminAuditContextUtil: adminAuditContextUtilModule } = auditModule;
 const { adminAuditContext } = adminAuditContextUtilModule;
 
 class ConsentTypeController {
   list = asyncHandler(async (req, res) => {
-    const result = await ConsentTypeService.list(req.query, requireAuthUser(req).userId);
+    const result = await ConsentTypeService.list(validQuery(req, ConsentTypeListQuery), requireAuthUser(req).userId);
     return ApiResponse.success(res, 'Tipos de consentimiento obtenidos exitosamente', result);
   });
 

@@ -48,7 +48,8 @@ export default new MyController();
 ```ts
 import type { AdminAuditContext } from '../../../shared/types/audit-context';
 import AppError from '../../../shared/http/app-error.util';
-import PaginationHelper from '../../../shared/http/pagination.util';
+import { pageMetadata, pageRequest } from '../../../shared/http/pagination';
+import type { MyListQuery } from '../requests/my.request';
 import auditModule from '../../audit';
 const { audit } = auditModule;
 import unitOfWork from '../../../shared/database/unit-of-work';
@@ -66,30 +67,22 @@ class MyService {
     this.myRepository = deps.myRepository ?? myRepository;
   }
 
-  async list(query: Record<string, unknown>, adminUserId: string) {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
-    const filters = PaginationHelper.buildFilters(query, ['status', 'isActive']);
-    const searchTerm = PaginationHelper.stringParam(query, 'search');
+  // query: la ya validada por el esquema de la ruta (el controller la pasa con validQuery(req, MyListQuery))
+  async list(query: MyListQuery, adminUserId: string) {
+    const page = pageRequest(query); // page, limit, offset, sortBy, order
+    const filters = { status: query.status ?? undefined, isActive: query.isActive ?? undefined };
 
-    const { rows, count } = await this.myRepository.findAllPaginated(filters, paginationParams, searchTerm);
-
-    const metadata = {
-      totalItems: count,
-      page: paginationParams.page,
-      limit: paginationParams.limit,
-      sortBy: paginationParams.sortBy,
-      order: paginationParams.order,
-      filters: searchTerm ? { search: searchTerm, ...filters } : filters
-    };
+    const { rows, count } = await this.myRepository.findAllPaginated(filters, page, query.search ?? null);
 
     await audit.record('MY_RESOURCE_LIST_VIEWED', {
       actorId: adminUserId,
-      details: { totalItems: count, page: paginationParams.page },
+      details: { totalItems: count, page: page.page },
       entityType: 'MyResource',
       entityTable: 'my_resources'
     });
 
-    return MyListResponseDTO(rows, metadata);
+    // la metadata informa el orden y los filtros aplicados (pageOf(data, page, count, filters) si el DTO es trivial)
+    return MyListResponseDTO(rows, pageMetadata(page, count, { search: query.search, ...filters }));
   }
 
   async getById(id: string, adminUserId: string) {
@@ -128,9 +121,11 @@ export default Object.assign(new MyService(), { MyService });
 > `searchPaginated`…). Los tipos de las filas sí: `import type { User } from '…/generated/prisma/client'`.
 > ✅ Si el service usa pocos métodos de un repositorio, declara el puerto con `Pick<XRepositoryPort, 'a' | 'b'>`
 > (`src/modules/repository-ports.ts`).
-> ✅ El objeto `metadata` siempre incluye: `totalItems, page, limit, sortBy, order, filters`.
+> ✅ Listados: el contrato completo está en `src/shared/http/pagination.ts`. La query llega **ya validada y
+> tipada** (`MyListQuery`): el service no vuelve a interpretar strings. La metadata sale **siempre** de
+> `pageMetadata` / `pageOf`: `{ pagination, sort, filters? }`, con el orden y los filtros aplicados.
 > ✅ El service retorna directamente el resultado del DTO (que tiene `{ data, metadata }`).
-> ❌ No usar `PaginationHelper.buildMetadata()` — armar el objeto metadata manualmente como arriba.
+> ❌ No armar el objeto de metadata a mano ni repetir en él lo que pidió el cliente si no se aplicó.
 > ❌ `export default new MyService()` sin la clase: la guarda de arquitectura lo rechaza (los tests no
 > podrían inyectar dependencias).
 
@@ -140,19 +135,15 @@ export default Object.assign(new MyService(), { MyService });
 // responses/my.response.ts
 import { z } from '../../../shared/validation/z';
 import { dateTime } from '../../../shared/validation/output';
-import catalogsModule from '../../catalogs';
-const { MetadataDTO } = catalogsModule.catalogComponentsDto;
+import type { PageMetadata } from '../../../shared/http/pagination';
 import type { MyEntity } from '../../../shared/database/generated/prisma/client';
 
 function MyItemDTO(row: MyEntity) {
   return { myEntityId: row.myEntityId, name: row.name, createdAt: row.createdAt }; // campo a campo
 }
 
-function MyListResponseDTO(rows: MyEntity[], metadata: Parameters<typeof MetadataDTO.build>[0]) {
-  return {
-    data: Array.isArray(rows) ? rows.map(MyItemDTO) : [],
-    metadata: MetadataDTO.build(metadata)
-  };
+function MyListResponseDTO(rows: MyEntity[], metadata: PageMetadata) {
+  return { data: Array.isArray(rows) ? rows.map(MyItemDTO) : [], metadata };
 }
 
 export const MyItemSchema = z.object({ myEntityId: z.uuid(), name: z.string(), createdAt: dateTime() });
@@ -173,10 +164,9 @@ it('ítem', () => expect(MyItemSchema.safeParse(dto.MyItemDTO(fixture)).error?.i
 
 ```ts
 import PrismaRepository from '../../../shared/database/prisma.repository';
-import { Prisma } from '../../../shared/database/generated/prisma/client';
-import type { MyEntity } from '../../../shared/database/generated/prisma/client';
+import type { PageRequest } from '../../../shared/http/pagination';
+import type { MyEntity, Prisma } from '../../../shared/database/generated/prisma/client';
 
-const SORTABLE = Object.values(Prisma.MyEntityScalarFieldEnum);
 const SEARCH_FIELDS = ['name', 'description'] as const;
 
 class MyRepository extends PrismaRepository {
@@ -187,7 +177,7 @@ class MyRepository extends PrismaRepository {
 
   async findAllPaginated(
     filters: PrismaRepository.Filters = {},
-    pagination: PrismaRepository.PaginationParams = {},
+    page: PageRequest,
     searchTerm: string | null = null
   ): Promise<{ rows: MyEntity[]; count: number }> {
     const where: Prisma.MyEntityWhereInput = {
@@ -196,7 +186,7 @@ class MyRepository extends PrismaRepository {
     };
     const db = await this.db();
     const [rows, count] = await Promise.all([
-      db.myEntity.findMany({ where, ...this.paginationArgs(SORTABLE, pagination) }),
+      db.myEntity.findMany({ where, ...this.paginationArgs(page, 'myEntityId') }), // desempate por la PK
       db.myEntity.count({ where })
     ]);
     return { rows, count };
@@ -215,8 +205,8 @@ export default new MyRepository();
 > ✅ PII: se lee y escribe en claro (la extensión de `src/shared/database/prisma.ts` cifra y hashea); para buscar
 > por un campo cifrado se filtra por su hash (`hashValue()` de `src/shared/database/pii-fields`).
 > ✅ Escrituras que deben quedar aunque el flujo se revierta (bitácoras) → `this.independentDb()`.
-> ✅ `sortBy` llega en camelCase (`createdAt`; acepta `created_at`) y `paginationArgs` solo ordena por
-> campos del modelo.
+> ✅ `paginationArgs(page, pk)` aplica el `sortBy` tal cual (ya lo validó el esquema del request) y desempata
+> por la clave primaria: sin desempate, filas con el mismo valor pueden repetirse o faltar entre páginas.
 > ✅ Los enums de dominio (estados, catálogos cerrados) se leen de `src/shared/constants/domain-enums.ts`.
 
 ## Routes (admin)
@@ -257,9 +247,18 @@ export default router;
 ```ts
 // requests/my.request.ts
 import { z } from '../../../shared/validation/z';
-import { input, optionalBool, paginationQuery, searchQuery, text, uuid } from '../../../shared/validation/fields';
+import { input, optionalBool, optionalInList, pageQuery, searchQuery, text, uuid } from '../../../shared/validation/fields';
 
-export const MyListQuery = input({ ...paginationQuery, ...searchQuery, isActive: optionalBool('El estado') });
+// Listado: por qué campos se ordena (pocos, con índice) y su orden por defecto; un sortBy fuera de la lista
+// es un 422. Los filtros, tipados acá (el service no los vuelve a interpretar). z.object: lo no declarado
+// se descarta. Orden fijo → `pagingQuery` (solo page/limit: no se acepta un sortBy que no se aplicaría).
+export const MyListQuery = z.object({
+  ...pageQuery(['createdAt', 'name'], { sortBy: 'createdAt' }),
+  ...searchQuery,
+  status: optionalInList(['draft', 'published'], { message: 'status inválido', hint: 'Indicá draft o published' }),
+  isActive: optionalBool('El estado')
+});
+export type MyListQuery = z.output<typeof MyListQuery>; // lo que recibe el service
 export const MyIdParams = input({ categoryId: uuid('La categoría') });
 
 // z.object descarta lo que no está declarado (lista blanca)

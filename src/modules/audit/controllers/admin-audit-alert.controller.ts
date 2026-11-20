@@ -5,11 +5,13 @@ const { asyncHandler } = errorMiddlewareModule;
 import routeParamUtilModule from '../../../shared/http/route-param.util';
 const { routeParam } = routeParamUtilModule;
 import authUserUtilModule from '../../../shared/http/auth-user.util';
+import { validQuery } from '../../../shared/validation/validate';
+import { AuditAlertListQuery } from '../requests/audit.request';
 const { requireAuthUser } = authUserUtilModule;
 
 class AdminAuditAlertController {
   list = asyncHandler(async (req, res) => {
-    const result = await AdminAuditAlertService.list(req.query, requireAuthUser(req).userId);
+    const result = await AdminAuditAlertService.list(validQuery(req, AuditAlertListQuery), requireAuthUser(req).userId);
     return ApiResponse.success(res, 'Alertas de auditoría obtenidas exitosamente', result);
   });
 

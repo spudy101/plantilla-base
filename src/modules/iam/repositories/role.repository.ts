@@ -1,16 +1,16 @@
 // modules/schemas/kyc/iam/repositories/role.repository.ts
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import { Prisma } from '../../../shared/database/generated/prisma/client';
 import type { Role } from '../../../shared/database/generated/prisma/client';
 
-const SORTABLE = Object.values(Prisma.RoleScalarFieldEnum);
 const SEARCH_FIELDS = ['name', 'description'];
 
 class RoleRepository extends PrismaRepository {
   /** Listado paginado del catálogo (mismo contrato que ReadRepository#findAllPaginated). */
   async findAllPaginated(
     filters: PrismaRepository.Filters = {},
-    pagination: PrismaRepository.PaginationParams = {},
+    pagination: PageRequest,
     searchTerm: string | null = null
   ): Promise<PrismaRepository.Page<Role>> {
     const where: Prisma.RoleWhereInput = {
@@ -19,7 +19,7 @@ class RoleRepository extends PrismaRepository {
     };
     const db = await this.db();
     const [rows, count] = await Promise.all([
-      db.role.findMany({ where, ...this.paginationArgs(SORTABLE, pagination) }),
+      db.role.findMany({ where, ...this.paginationArgs(pagination, 'roleId') }),
       db.role.count({ where })
     ]);
     return { rows, count };

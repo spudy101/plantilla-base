@@ -27,6 +27,7 @@ import resetCredentialsRepository from '../../../src/modules/iam/repositories/re
 import biometricRepositories from '../../../src/modules/iam/repositories/biometric.repository';
 import personLocationRepository from '../../../src/modules/person/repositories/person-location.repository';
 import HashUtil from '../../../src/shared/security/hash.util';
+import { page } from '../../helpers/page';
 
 const { biometricChallengeRepository } = biometricRepositories;
 
@@ -58,12 +59,12 @@ describe('ChangeLogRepository (vista sobre audit_logs): filtros', () => {
   const whereOfLastQuery = () => mockDb.auditLog.findMany.mock.calls.at(-1)[0].where;
 
   it('siempre filtra por la acción USER_FIELD_CHANGED; el usuario afectado es entity_id', async () => {
-    await changeLogRepository.findByUserId('user-1');
+    await changeLogRepository.findByUserId('user-1', page());
     expect(whereOfLastQuery()).toMatchObject({ action: 'USER_FIELD_CHANGED', entityId: 'user-1' });
   });
 
   it('findByAdminUser filtra por quién hizo el cambio (user_id) y rol admin (details)', async () => {
-    await changeLogRepository.findByAdminUser('admin-1');
+    await changeLogRepository.findByAdminUser('admin-1', page());
     expect(whereOfLastQuery()).toMatchObject({
       userId: 'admin-1',
       AND: [{ details: { path: ['changedByRole'], equals: 'admin' } }]
@@ -71,7 +72,7 @@ describe('ChangeLogRepository (vista sobre audit_logs): filtros', () => {
   });
 
   it('filtra por tipo de cambio en details', async () => {
-    await changeLogRepository.findAllPaginated({ changeType: 'email' });
+    await changeLogRepository.findAllPaginated({ changeType: 'email' }, page());
     expect(whereOfLastQuery().AND).toEqual([{ details: { path: ['changeType'], equals: 'email' } }]);
   });
 });
@@ -80,21 +81,21 @@ describe('UserRepository.findAllPaginated', () => {
   const andOfLastQuery = () => mockDb.user.findMany.mock.calls.at(-1)[0].where.AND;
 
   it('excluye eliminados por defecto y filtra el documento por su hash (va cifrado)', async () => {
-    await userRepository.findAllPaginated({ nationalId: '123' });
+    await userRepository.findAllPaginated({ nationalId: '123' }, page());
     expect(andOfLastQuery()).toEqual(
       expect.arrayContaining([{ deletedAt: null }, { person: { nationalIdHash: HashUtil.hashForSearch('123') } }])
     );
   });
 
   it('onlyDeleted trae solo eliminados; excludeUserId pisa a userId', async () => {
-    await userRepository.findAllPaginated({ onlyDeleted: true, userId: 'u-1', excludeUserId: 'u-2' });
+    await userRepository.findAllPaginated({ onlyDeleted: true, userId: 'u-1', excludeUserId: 'u-2' }, page());
     const and = andOfLastQuery();
     expect(and).toEqual(expect.arrayContaining([{ deletedAt: { not: null } }, { userId: { not: 'u-2' } }]));
     expect(and).not.toContainEqual({ userId: 'u-1' });
   });
 
   it('busca por username, nombre y apellido sin distinguir mayúsculas', async () => {
-    await userRepository.findAllPaginated({}, {}, 'ana');
+    await userRepository.findAllPaginated({}, page(), 'ana');
     const contains = { contains: 'ana', mode: 'insensitive' };
     expect(andOfLastQuery()).toContainEqual({
       OR: [{ username: contains }, { person: { firstName: contains } }, { person: { lastName: contains } }]

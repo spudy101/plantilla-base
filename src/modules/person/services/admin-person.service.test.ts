@@ -61,11 +61,6 @@ jest.mock('../helpers/profile.helper', () => ({
 jest.mock('../../approvals/services/dual-approval.service', () => ({
   gate: jest.fn()
 }));
-jest.mock('../../../shared/http/pagination.util', () => ({
-  stringParam: jest.requireActual('../../../shared/http/pagination.util').default.stringParam,
-  booleanParam: jest.requireActual('../../../shared/http/pagination.util').default.booleanParam,
-  getPaginationParams: jest.fn(() => ({ page: 1, limit: 10, sortBy: 'created_at', order: 'DESC' }))
-}));
 jest.mock('../../../shared/observability/request-context.util', () => ({
   originFromContext: jest.fn(() => ({ originSessionId: 'sess-1' }))
 }));
@@ -104,9 +99,6 @@ jest.mock('../../../shared/constants', () => ({
 }));
 
 // --- DTOs a passthrough/marcadores ---
-jest.mock('../../catalogs/responses/catalog-components.response', () => ({
-  MetadataDTO: { build: jest.fn(meta => ({ metadata: true, ...meta })) }
-}));
 jest.mock('../responses/admin-person.response', () => ({
   UserDTO: jest.fn(u => ({ dto: 'UserDTO', id: u.userId })),
   UserListItemDTO: jest.fn(u => ({ dto: 'UserListItemDTO', id: u.userId })),
@@ -161,6 +153,9 @@ function makeTransaction() {
   return txn;
 }
 
+/** La query como la deja validate() (PersonListQuery): página 1 de 10 por createdAt DESC. */
+const q = <T>(filters: Record<string, unknown> = {}): T => ({ page: 1, limit: 10, sortBy: 'createdAt', order: 'DESC', ...filters }) as T;
+
 describe('PersonService (admin)', () => {
   let txn: Loose;
 
@@ -180,11 +175,11 @@ describe('PersonService (admin)', () => {
     it('lista clientes con filtros por defecto (roles cliente) y audita', async () => {
       userRepository.findAllPaginated.mockResolvedValue({ rows: [{ userId: 'u1' }, { userId: 'u2' }], count: 2 });
 
-      const result = await service.list({}, AUDIT_CTX.adminUserId);
+      const result = await service.list(q(), AUDIT_CTX.adminUserId);
 
       expect(userRepository.findAllPaginated).toHaveBeenCalledWith(
         { roleIds: ['rc1', 'rc2'] },
-        { page: 1, limit: 10, sortBy: 'created_at', order: 'DESC' },
+        { page: 1, limit: 10, offset: 0, sortBy: 'createdAt', order: 'DESC' },
         null
       );
       expect(logAudit).toHaveBeenCalledWith('PERSON_LIST_VIEWED', { actorId: AUDIT_CTX.adminUserId, details: { totalItems: 2, page: 1 }, entityType: 'User', entityTable: 'users' }
@@ -198,7 +193,7 @@ describe('PersonService (admin)', () => {
     it('intersecta roleId solicitado con los roles cliente válidos', async () => {
       userRepository.findAllPaginated.mockResolvedValue({ rows: [], count: 0 });
 
-      await service.list({ roleId: 'rc1, rX', isActive: true, nationalId: ' 111 ', userId: ' u9 ', search: 'foo' }, 'admin-1');
+      await service.list(q({ roleId: 'rc1, rX', isActive: true, nationalId: '111', userId: 'u9', search: 'foo' }), 'admin-1');
 
       expect(userRepository.findAllPaginated).toHaveBeenCalledWith(
         { isActive: true, roleIds: ['rc1'], nationalId: '111', userId: 'u9' },
@@ -210,7 +205,7 @@ describe('PersonService (admin)', () => {
     it('si el roleId solicitado no es cliente, cae a todos los roles cliente', async () => {
       userRepository.findAllPaginated.mockResolvedValue({ rows: [], count: 0 });
 
-      await service.list({ roleId: 'rX,rY' }, 'admin-1');
+      await service.list(q({ roleId: 'rX,rY' }), 'admin-1');
 
       expect(userRepository.findAllPaginated).toHaveBeenCalledWith(
         { roleIds: ['rc1', 'rc2'] },
@@ -224,7 +219,7 @@ describe('PersonService (admin)', () => {
     it('lista solo cuentas eliminadas (onlyDeleted) y audita', async () => {
       userRepository.findAllPaginated.mockResolvedValue({ rows: [{ userId: 'ud1' }], count: 1 });
 
-      const result = await service.listDeleted({}, 'admin-1');
+      const result = await service.listDeleted(q(), 'admin-1');
 
       expect(userRepository.findAllPaginated).toHaveBeenCalledWith(
         { roleIds: ['rc1', 'rc2'], onlyDeleted: true },

@@ -3,6 +3,8 @@ import ApiResponse from '../../../shared/http/app-response.util';
 import errorMiddlewareModule from '../../../shared/http/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
 import authUserUtilModule from '../../../shared/http/auth-user.util';
+import { validQuery } from '../../../shared/validation/validate';
+import { FallbackQuery } from '../requests/integration-monitoring.request';
 const { requireAuthUser } = authUserUtilModule;
 
 class IntegrationMonitoringController {
@@ -12,7 +14,7 @@ class IntegrationMonitoringController {
   });
 
   fallbacks = asyncHandler(async (req, res) => {
-    const { data, metadata } = await IntegrationMonitoringService.getFallbackHistory(req.query, requireAuthUser(req).userId);
+    const { data, metadata } = await IntegrationMonitoringService.getFallbackHistory(validQuery(req, FallbackQuery), requireAuthUser(req).userId);
     return ApiResponse.success(res, 'Historial de fallbacks obtenido exitosamente', data, 200, metadata);
   });
 }

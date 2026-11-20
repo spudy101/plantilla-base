@@ -1,6 +1,6 @@
 import express from 'express';
 import { validate } from '../../../shared/validation/validate';
-import { PaginationQuery } from '../requests/audit.request';
+import { RecentActivityQuery } from '../requests/audit.request';
 const router = express.Router();
 import UserActivityController from '../controllers/user-activity.controller';
 import iamModule from '../../iam';
@@ -14,7 +14,7 @@ router.get(
   '/audit/recent-activity',
   AuthMiddleware.requireRole(CLIENT_ACCESS_ROLES),
   RateLimitMiddleware.apiLimiter(),
-  validate({ query: PaginationQuery }),
+  validate({ query: RecentActivityQuery }),
   UserActivityController.list
 );
 

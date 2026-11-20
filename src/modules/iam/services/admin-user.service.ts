@@ -37,6 +37,7 @@ import InternalUserQueryService from './admin-user/internal-user-query.service';
 import InternalUserProfileService from './admin-user/internal-user-profile.service';
 import InternalUserAccessService from './admin-user/internal-user-access.service';
 import InternalUserDeletionService from './admin-user/internal-user-deletion.service';
+import type { InternalUserDeletedListQuery, InternalUserListQuery, UserChangeLogsQuery } from '../requests/iam.request';
 
 /** Dependencias que comparten los sub-servicios (cada uno declara las suyas; aquí se unen). */
 type SharedDeps = NonNullable<ConstructorParameters<typeof InternalUserQueryService>[0]> &
@@ -80,11 +81,11 @@ class AdminUserService {
   }
 
   // ── LECTURAS → InternalUserQueryService ──
-  list(query: Record<string, unknown>, adminUserId: string) {
+  list(query: InternalUserListQuery, adminUserId: string) {
     return this.queries.list(query, adminUserId);
   }
 
-  listDeleted(query: Record<string, unknown>, adminUserId: string) {
+  listDeleted(query: InternalUserDeletedListQuery, adminUserId: string) {
     return this.queries.listDeleted(query, adminUserId);
   }
 
@@ -100,7 +101,7 @@ class AdminUserService {
     return this.queries.listSessions(userId, adminUserId);
   }
 
-  listChangeLogs(userId: string, query: Record<string, unknown>, adminUserId: string) {
+  listChangeLogs(userId: string, query: UserChangeLogsQuery, adminUserId: string) {
     return this.queries.listChangeLogs(userId, query, adminUserId);
   }
 

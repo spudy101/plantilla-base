@@ -1,13 +1,13 @@
 // Bandeja in-app del usuario (notificaciones personales). El envío por canal externo vive en
 // notification-delivery.repository.
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import { Prisma } from '../../../shared/database/generated/prisma/client';
 import type { Notification } from '../../../shared/database/generated/prisma/client';
 
 const WITH_TYPE = { notificationType: true } satisfies Prisma.NotificationInclude;
 const WITH_TYPE_AND_CATEGORY = { notificationType: { include: { category: true } } } satisfies Prisma.NotificationInclude;
 
-const LIST_SORTABLE = Object.values(Prisma.NotificationScalarFieldEnum);
 
 export type NotificationWithTypeAndCategory = Prisma.NotificationGetPayload<{ include: typeof WITH_TYPE_AND_CATEGORY }>;
 
@@ -28,13 +28,13 @@ class NotificationRepository extends PrismaRepository {
   /** Notificaciones de un usuario, paginadas y con su tipo; búsqueda opcional sin mayúsculas. */
   async findByUserPaginated(
     userId: string,
-    pagination: PrismaRepository.PaginationParams = {},
+    pagination: PageRequest,
     { searchTerm = null, searchFields = [] }: { searchTerm?: string | null; searchFields?: string[] } = {}
   ) {
     const where = { userId, ...this.searchWhere(searchTerm, searchFields) } as Prisma.NotificationWhereInput;
     const db = await this.db();
     const [rows, count] = await Promise.all([
-      db.notification.findMany({ where, include: WITH_TYPE, ...this.paginationArgs(LIST_SORTABLE, pagination) }),
+      db.notification.findMany({ where, include: WITH_TYPE, ...this.paginationArgs(pagination, 'notificationId') }),
       db.notification.count({ where })
     ]);
     return { rows, count };

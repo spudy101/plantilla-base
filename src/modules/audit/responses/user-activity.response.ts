@@ -2,6 +2,7 @@ import { z } from '../../../shared/validation/z';
 import { dateTime } from '../../../shared/validation/output';
 import type auditLogRepository from '../repositories/audit-log.repository';
 import type changeLogRepository from '../repositories/change-log.repository';
+import type { PageMetadata } from '../../../shared/http/pagination';
 type AuditLogRepositoryPort = typeof auditLogRepository;
 type ChangeLogRepositoryPort = typeof changeLogRepository;
 // DTO del feed de actividad del propio usuario. Client-safe: NUNCA expone `details` de audit_logs
@@ -71,7 +72,7 @@ function _changeItem(row: ChangeRow, deviceBySession: DeviceBySession) {
   };
 }
 
-function UserActivityListResponseDTO(mergedItems: FeedItem[], metadata: unknown, deviceBySession: DeviceBySession = new Map()) {
+function UserActivityListResponseDTO(mergedItems: FeedItem[], metadata: PageMetadata, deviceBySession: DeviceBySession = new Map()) {
   return {
     data: mergedItems.map(item =>
       item.__source === 'audit' ? _auditItem(item.row, deviceBySession) : _changeItem(item.row, deviceBySession)

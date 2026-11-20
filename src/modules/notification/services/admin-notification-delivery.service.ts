@@ -1,15 +1,14 @@
 // Consulta admin de las entregas de notificaciones (soporte: "¿le llegó el correo a este usuario?").
 // Solo lectura: los reintentos son automáticos (notification-delivery.service).
-import type { NotificationChannel, NotificationDeliveryStatus } from '../../../shared/database/generated/prisma/client';
 import deliveryRepo from '../repositories/notification-delivery.repository';
-import PaginationHelper from '../../../shared/http/pagination.util';
-import catalogsModule from '../../catalogs';
-const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
-const { MetadataDTO } = componentsCatalogDtoModule;
 import AppError from '../../../shared/http/app-error.util';
 import adminNotificationDeliveryDtoModule from '../responses/admin-notification-delivery.response';
 const { NotificationDeliveryListDTO, NotificationDeliveryDetailDTO } = adminNotificationDeliveryDtoModule;
 import auditModule from '../../audit';
+import { pageOf, pageRequest } from '../../../shared/http/pagination';
+import type { DeliveryListQuery } from '../requests/notification.request';
+
+type DeliveryFilters = NonNullable<Parameters<(typeof deliveryRepo)['findAllForAdmin']>[0]>;
 const { audit } = auditModule;
 
 class AdminNotificationDeliveryService {
@@ -23,18 +22,18 @@ class AdminNotificationDeliveryService {
     this.deliveryRepo = deps.deliveryRepo ?? deliveryRepo;
   }
 
-  async list(query: Record<string, unknown>, adminUserId: string) {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
+  async list(query: DeliveryListQuery, adminUserId: string) {
+    const page = pageRequest(query);
     // status y channel ya vienen validados contra sus valores (DeliveryListQuery)
     const filters = {
-      status: PaginationHelper.stringParam(query, 'status') as NotificationDeliveryStatus | null,
-      channel: PaginationHelper.stringParam(query, 'channel') as NotificationChannel | null,
-      userId: PaginationHelper.stringParam(query, 'userId'),
-      from: PaginationHelper.stringParam(query, 'from'),
-      to: PaginationHelper.stringParam(query, 'to')
+      status: (query.status ?? null) as DeliveryFilters['status'],
+      channel: (query.channel ?? null) as DeliveryFilters['channel'],
+      userId: query.userId ?? null,
+      from: query.from ?? null,
+      to: query.to ?? null
     };
 
-    const { rows, count } = await this.deliveryRepo.findAllForAdmin(filters, paginationParams);
+    const { rows, count } = await this.deliveryRepo.findAllForAdmin(filters, page);
 
     await audit.record('NOTIFICATION_DELIVERY_LIST_VIEWED', {
       actorId: adminUserId,
@@ -43,18 +42,7 @@ class AdminNotificationDeliveryService {
       entityTable: 'notification_deliveries'
     });
 
-    const activeFilters = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== null));
-    return {
-      data: rows.map(NotificationDeliveryListDTO),
-      metadata: MetadataDTO.build({
-        totalItems: count,
-        page: paginationParams.page,
-        limit: paginationParams.limit,
-        sortBy: paginationParams.sortBy,
-        order: paginationParams.order,
-        filters: Object.keys(activeFilters).length > 0 ? activeFilters : undefined
-      })
-    };
+    return pageOf(rows.map(NotificationDeliveryListDTO), page, count, filters);
   }
 
   async getById(notificationDeliveryId: string, adminUserId: string) {

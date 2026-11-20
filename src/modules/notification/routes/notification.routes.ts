@@ -1,6 +1,6 @@
 import express from 'express';
 import { validate } from '../../../shared/validation/validate';
-import { CreateNotificationBody, NotificationListQuery } from '../requests/notification.request';
+import { CreateNotificationBody, GlobalNotificationListQuery, NotificationFeedQuery, PersonalNotificationListQuery } from '../requests/notification.request';
 const router = express.Router();
 import NotificationController from '../controllers/notification.controller';
 import iamModule from '../../iam';
@@ -37,7 +37,7 @@ router.get(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  validate({ query: NotificationListQuery }),
+  validate({ query: NotificationFeedQuery }),
   NotificationController.getNotificationsList
 );
 
@@ -47,7 +47,7 @@ router.get(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  validate({ query: NotificationListQuery }),
+  validate({ query: PersonalNotificationListQuery }),
   NotificationController.getPersonalNotifications
 );
 
@@ -57,7 +57,7 @@ router.get(
   AuthMiddleware.authenticate,
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  validate({ query: NotificationListQuery }),
+  validate({ query: GlobalNotificationListQuery }),
   NotificationController.getGlobalNotifications
 );
 

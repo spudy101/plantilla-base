@@ -26,21 +26,11 @@ jest.mock('../../../shared/observability/logger.util', () => ({
 jest.mock('../audit.service', () => ({ record: jest.fn() }));
 
 // Paginación reducida a valores deterministas para no depender de su parsing interno.
-jest.mock('../../../shared/http/pagination.util', () => ({
-  stringParam: jest.requireActual('../../../shared/http/pagination.util').default.stringParam,
-  booleanParam: jest.requireActual('../../../shared/http/pagination.util').default.booleanParam,
-  getPaginationParams: jest.fn().mockReturnValue({ limit: 10, offset: 0, page: 1, sortBy: 'created_at', order: 'DESC' }),
-  buildFilters: jest.fn().mockReturnValue({})
-}));
-
 jest.mock('../../../shared/constants', () => ({
   notifications: { ses: { logoUrl: 'https://logo.test/x.png' } }
 }));
 
 // DTOs a identidad/passthrough para no acoplar a su forma interna.
-jest.mock('../../catalogs/responses/catalog-components.response', () => ({
-  MetadataDTO: { build: (meta: Loose) => ({ ...meta }) }
-}));
 jest.mock('../responses/admin-audit-alert.response', () => ({
   AuditAlertListDTO: (row: Loose) => ({ dto: true, ...row })
 }));
@@ -53,6 +43,7 @@ const notificationCreation = mocked(notificationCreationModule);
 import auditServiceModule from '../audit.service';
 const logAudit = mocked(auditServiceModule).record;
 import service from './admin-audit-alert.service';
+import { AuditAlertListQuery } from '../requests/audit.request';
 
 const ADMIN = 'admin-1';
 const flushMacrotasks = () => new Promise(resolve => { setImmediate(resolve); });
@@ -70,16 +61,21 @@ describe('AdminAuditAlertService', () => {
       });
       auditAlertRepo.countPending.mockResolvedValue(5);
 
-      const result = await service.list({ acknowledged: 'false' }, ADMIN);
+      const result = await service.list(AuditAlertListQuery.parse({ acknowledged: 'false', dateFrom: '2026-11-01' }), ADMIN);
 
+      // El esquema ya convirtió acknowledged a boolean y la fecha a Date (antes la fecha se perdía)
       expect(auditAlertRepo.findAllFiltered).toHaveBeenCalledWith(
-        // booleanParam normaliza el query (boolean del validator o string) → boolean para el repo
-        expect.objectContaining({ acknowledged: false }),
-        { limit: 10, offset: 0 }
+        { acknowledged: false, dateFrom: new Date('2026-11-01'), dateTo: undefined, action: undefined, category: undefined },
+        expect.objectContaining({ limit: 10, offset: 0, sortBy: 'createdAt', order: 'DESC' })
       );
       expect(result.data).toHaveLength(2);
       expect(result.data[0]).toMatchObject({ dto: true, audit_alert_id: 'a-1' });
-      expect(result.metadata).toMatchObject({ totalItems: 2, pendingCount: 5 });
+      expect(result.metadata).toMatchObject({
+        pagination: { totalItems: 2 },
+        sort: { field: 'createdAt', order: 'DESC' },
+        filters: { acknowledged: false, dateFrom: new Date('2026-11-01') },
+        pendingCount: 5
+      });
       expect(logAudit).toHaveBeenCalledWith('AUDIT_ALERT_LISTED', expect.objectContaining({ actorId: ADMIN, details: { totalItems: 2, pending: 5 }, entityType: 'AuditAlert' })
       );
     });

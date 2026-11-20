@@ -1,15 +1,14 @@
 // Entrada del módulo person: administración de clientes (admin), perfil propio y referencias personales.
 import { z, withHint } from '../../../shared/validation/z';
-import { email, input, optionalBool, optionalUuid, paginationQuery, searchQuery, uuid } from '../../../shared/validation/fields';
+import { email, input, optionalBool, optionalUuid, pageQuery, searchQuery, uuid } from '../../../shared/validation/fields';
 import { currentPassword, firstName, lastName, nationalId, optionalBirthDate, optionalMiddleName, optionalSecondLastName, phone } from './person.fields';
 import iamModule from '../../iam';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const SORTABLE = ['username', 'createdAt', 'updatedAt', 'isActive', 'created_at', 'updated_at', 'is_active'];
 
 // ── Administración de clientes (admin) ────────────────────────
-export const PersonListQuery = input({
-  ...paginationQuery,
+export const PersonListQuery = z.object({
+  ...pageQuery(['createdAt', 'updatedAt', 'username', 'isActive'], { sortBy: 'createdAt' }),
   ...searchQuery,
   roleId: z
     .string()
@@ -19,16 +18,15 @@ export const PersonListQuery = input({
     hint: 'Ingresá el número de documento completo para la búsqueda exacta'
   }),
   userId: withHint(z.uuid({ error: 'userId debe ser un UUID válido' }).optional(), { hint: 'Filtrá por el identificador exacto del usuario' }),
-  isActive: optionalBool('El estado'),
-  // Se aceptan los campos en camelCase y, por compatibilidad, el nombre de la columna
-  sortBy: withHint(
-    z
-      .string()
-      .refine(v => SORTABLE.includes(v), { error: 'sortBy debe ser: username, createdAt, updatedAt o isActive' })
-      .optional(),
-    { hint: 'Indicá uno de: username, createdAt, updatedAt, isActive' }
-  )
+  isActive: optionalBool('El estado')
 });
+export type PersonListQuery = z.output<typeof PersonListQuery>;
+/** Clientes eliminados (histórico): sin filtros de estado ni de rol, y ordenables por fecha de baja. */
+export const DeletedPersonListQuery = z.object({
+  ...pageQuery(['createdAt', 'deletedAt', 'username'], { sortBy: 'createdAt' }),
+  ...searchQuery
+});
+export type DeletedPersonListQuery = z.output<typeof DeletedPersonListQuery>;
 
 export const PersonUserIdParams = input({ userId: uuid('userId') });
 

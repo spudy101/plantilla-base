@@ -23,16 +23,6 @@ jest.mock('../../notification/notify', () => ({
   notify: jest.fn().mockResolvedValue(undefined)
 }));
 
-jest.mock('../../../shared/http/pagination.util', () => ({
-  stringParam: jest.requireActual('../../../shared/http/pagination.util').default.stringParam,
-  booleanParam: jest.requireActual('../../../shared/http/pagination.util').default.booleanParam,
-  getPaginationParams: jest.fn()
-}));
-
-jest.mock('../../catalogs/responses/catalog-components.response', () => ({
-  MetadataDTO: { build: jest.fn(params => ({ meta: params })) }
-}));
-
 jest.mock('../responses/consent-type.response', () => ({
   ConsentTypeListDTO: jest.fn(r => ({ list: r.code })),
   ConsentTypeDTO: jest.fn(r => ({ detail: r.code }))
@@ -53,22 +43,19 @@ import consentTypeRepositoryModule from '../repositories/consent-type.repository
 const consentTypeRepository = mocked(consentTypeRepositoryModule);
 import NotificationUtilModule from '../../notification/notify';
 const notifier = mocked(NotificationUtilModule);
-import PaginationHelperModule from '../../../shared/http/pagination.util';
-const PaginationHelper = mocked(PaginationHelperModule);
 import loggerUtilModule from '../../../shared/observability/logger.util';
 import auditServiceModule from '../../audit/audit.service';
 const { logger } = mocked(loggerUtilModule);
 const logAudit = mocked(auditServiceModule).record;
 import service from './consent-type.service';
+import { ConsentTypeListQuery } from '../requests/legal.request';
 
 const ADMIN_ID = 'admin-1';
 const AUDIT_CTX = { adminUserId: ADMIN_ID };
-const PAG = { page: 1, limit: 10, sortBy: 'created_at', order: 'DESC' };
 
 describe('ConsentTypeService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    PaginationHelper.getPaginationParams.mockReturnValue(PAG);
   });
 
   describe('list', () => {
@@ -78,11 +65,19 @@ describe('ConsentTypeService', () => {
         count: 2
       });
 
-      const result = await service.list({ search: 'x' }, ADMIN_ID);
+      const result = await service.list(ConsentTypeListQuery.parse({ search: 'x', sortBy: 'name', order: 'asc' }), ADMIN_ID);
 
-      expect(consentTypeRepository.findAllPaginated).toHaveBeenCalledWith({}, PAG, 'x');
+      expect(consentTypeRepository.findAllPaginated).toHaveBeenCalledWith(
+        {},
+        { page: 1, limit: 10, offset: 0, sortBy: 'name', order: 'ASC' },
+        'x'
+      );
       expect(result.data).toEqual([{ list: 'PP' }, { list: 'CC' }]);
-      expect(result.metadata).toEqual({ meta: expect.objectContaining({ totalItems: 2, page: 1 }) });
+      expect(result.metadata).toMatchObject({
+        pagination: { currentPage: 1, totalItems: 2 },
+        sort: { field: 'name', order: 'ASC' },
+        filters: { search: 'x' }
+      });
       expect(logAudit).toHaveBeenCalledWith('CONSENT_TYPE_LIST_VIEWED', expect.objectContaining({ actorId: ADMIN_ID, details: expect.objectContaining({ totalItems: 2 }) })
       );
     });

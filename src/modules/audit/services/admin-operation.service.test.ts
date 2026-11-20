@@ -9,6 +9,7 @@ jest.mock('../audit.service', () => ({ record: jest.fn() }));
 import adminOperationServiceModule from './admin-operation.service';
 const { AdminOperationService } = adminOperationServiceModule;
 import AppError from '../../../shared/http/app-error.util';
+import { OperationListQuery } from '../requests/audit.request';
 
 const OP_ID = '11111111-1111-4111-8111-111111111111';
 const operation = {
@@ -49,14 +50,18 @@ function build() {
 describe('AdminOperationService', () => {
   it('list: traduce los filtros de la query y devuelve data + metadata', async () => {
     const { deps, service } = build();
-    const result = await service.list({ source: 'worker', status: 'failure', page: '2', limit: '5' }, 'admin-1');
+    const result = await service.list(OperationListQuery.parse({ source: 'worker', status: 'failure', page: '2', limit: '5', sortBy: 'durationMs' }), 'admin-1');
 
     expect(deps.operationRepository.findAllPaginated).toHaveBeenCalledWith(
       expect.objectContaining({ source: 'worker', status: 'failure' }),
-      expect.objectContaining({ limit: 5, offset: 5, sortBy: 'startedAt' })
+      { page: 2, limit: 5, offset: 5, sortBy: 'durationMs', order: 'DESC' }
     );
     expect(result.data).toHaveLength(1);
-    expect(result.metadata.pagination).toMatchObject({ currentPage: 2, totalItems: 1 });
+    expect(result.metadata).toMatchObject({
+      pagination: { currentPage: 2, totalItems: 1 },
+      sort: { field: 'durationMs', order: 'DESC' },
+      filters: { source: 'worker', status: 'failure' }
+    });
   });
 
   it('timeline: une la operación con su auditoría por correlationId y trae la consulta de CloudWatch', async () => {

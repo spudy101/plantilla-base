@@ -6,6 +6,7 @@
 // estar vencida al terminar la reserva y otro ciclo la retoma. FOR UPDATE SKIP LOCKED hace que dos
 // instancias nunca tomen la misma fila.
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import { Prisma } from '../../../shared/database/generated/prisma/client';
 import type {
   NotificationChannel,
@@ -125,10 +126,10 @@ class NotificationDeliveryRepository extends PrismaRepository {
     return (await this.db()).notificationDelivery.findUnique({ where: { notificationDeliveryId }, include: ADMIN_INCLUDE });
   }
 
-  /** Consulta admin (soporte: "¿le llegó?"), las más recientes primero. */
+  /** Consulta admin (soporte: "¿le llegó?"). */
   async findAllForAdmin(
     { status = null, channel = null, userId = null, from = null, to = null }: NotificationDeliveryRepository.AdminFilters = {},
-    { limit, offset }: PrismaRepository.PaginationParams = {}
+    page: PageRequest
   ): Promise<PrismaRepository.Page<DeliveryWithNotification>> {
     const where: Prisma.NotificationDeliveryWhereInput = {};
     if (status) {
@@ -148,9 +149,7 @@ class NotificationDeliveryRepository extends PrismaRepository {
       db.notificationDelivery.findMany({
         where,
         include: ADMIN_INCLUDE,
-        orderBy: { createdAt: 'desc' },
-        take: limit,
-        skip: offset
+        ...this.paginationArgs(page, 'notificationDeliveryId')
       }),
       db.notificationDelivery.count({ where })
     ]);

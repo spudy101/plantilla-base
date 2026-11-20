@@ -1,8 +1,11 @@
 import userChangeLogRepository from '../repositories/change-log.repository';
-import PaginationHelper from '../../../shared/http/pagination.util';
 import adminChangeLogDtoModule from '../responses/admin-change-log.response';
 const { ListUserChangeLogsResponseDTO } = adminChangeLogDtoModule;
 import audit from '../audit.service';
+import { pageMetadata, pageRequest } from '../../../shared/http/pagination';
+import type { ChangeLogListQuery } from '../requests/audit.request';
+
+type ChangeLogFilters = Parameters<(typeof userChangeLogRepository)['findAllPaginated']>[0];
 
 class ChangeLogService {
   userChangeLogRepository: typeof userChangeLogRepository;
@@ -17,46 +20,26 @@ class ChangeLogService {
     this.userChangeLogRepository = deps.userChangeLogRepository ?? userChangeLogRepository;
   }
 
-  async listUserChangeLogs(query: Record<string, unknown>, adminUserId: string) {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
-    const filters = PaginationHelper.buildFilters(query, ['changeType', 'changedByRole']);
-    const searchTerm = PaginationHelper.stringParam(query, 'search');
+  async listUserChangeLogs(query: ChangeLogListQuery, adminUserId: string) {
+    const page = pageRequest(query);
+    const filters = {
+      userId: query.userId ?? undefined,
+      changeType: query.changeType ?? undefined,
+      changedByRole: query.changedByRole ?? undefined,
+      dateFrom: query.dateFrom ?? undefined,
+      dateTo: query.dateTo ?? undefined
+    } as ChangeLogFilters;
 
-    if (query.userId) {
-      filters.user_id = query.userId;
-    }
-
-    if (query.dateFrom) {
-      filters.dateFrom = query.dateFrom;
-    }
-
-    if (query.dateTo) {
-      filters.dateTo = query.dateTo;
-    }
-
-    const { rows, count } = await this.userChangeLogRepository.findAllPaginated(filters, paginationParams, searchTerm);
-
-    const metadata = {
-      totalItems: count,
-      page: paginationParams.page,
-      limit: paginationParams.limit,
-      sortBy: paginationParams.sortBy,
-      order: paginationParams.order,
-      filters: searchTerm ? { search: searchTerm, ...filters } : filters
-    };
+    const { rows, count } = await this.userChangeLogRepository.findAllPaginated(filters, page, query.search ?? null);
 
     await audit.record('CHANGE_LOG_VIEWED', {
       actorId: adminUserId,
-      details: {
-        totalItems: count,
-        page: paginationParams.page,
-        ...(PaginationHelper.stringParam(query, 'userId') ? { targetUserId: PaginationHelper.stringParam(query, 'userId') } : {})
-      },
-      entityId: PaginationHelper.stringParam(query, 'userId'),
+      details: { totalItems: count, page: page.page, ...(query.userId ? { targetUserId: query.userId } : {}) },
+      entityId: query.userId ?? null,
       entityType: 'AuditRecord'
     });
 
-    return ListUserChangeLogsResponseDTO(rows, metadata);
+    return ListUserChangeLogsResponseDTO(rows, pageMetadata(page, count, { search: query.search, ...filters }));
   }
 }
 

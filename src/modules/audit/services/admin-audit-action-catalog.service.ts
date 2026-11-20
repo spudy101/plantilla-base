@@ -1,7 +1,3 @@
-import PaginationHelper from '../../../shared/http/pagination.util';
-import catalogsModule from '../../catalogs';
-const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
-const { MetadataDTO } = componentsCatalogDtoModule;
 import auditactionsModule from '../catalog';
 const {
   AUDIT_ACTIONS,
@@ -12,6 +8,8 @@ const {
 import adminAuditActionCatalogDtoModule from '../responses/admin-audit-action-catalog.response';
 const { CategoryDTO, RiskDTO, ModuleDTO, ActionListDTO } = adminAuditActionCatalogDtoModule;
 import audit from '../audit.service';
+import { appliedFilters, pageMetadata, pageRequest } from '../../../shared/http/pagination';
+import type { AuditActionListQuery } from '../requests/audit.request';
 
 /** Acción del catálogo de auditoría (clave + definición). */
 interface CatalogAction {
@@ -71,16 +69,16 @@ class AdminAuditActionCatalogService {
   }
 
   // GET /api/audit-action-catalog/actions?category=&risk=&module=&search=&page=&limit=&order=
-  listActions(query: Record<string, unknown>, adminUserId: string) {
-    const { page, limit, offset, order } = PaginationHelper.getPaginationParams(query);
+  listActions(query: AuditActionListQuery, adminUserId: string) {
+    const page = pageRequest(query);
 
     const all = _filterActions(_allActions(), query);
-    all.sort((a, b) => (order === 'ASC' ? a.action.localeCompare(b.action) : b.action.localeCompare(a.action)));
+    all.sort((a, b) => (page.order === 'ASC' ? a.action.localeCompare(b.action) : b.action.localeCompare(a.action)));
 
     const totalItems = all.length;
-    const pageItems = all.slice(offset, offset + limit);
+    const pageItems = all.slice(page.offset, page.offset + page.limit);
 
-    const activeFilters = PaginationHelper.buildFilters(query, ['category', 'risk', 'module', 'search']);
+    const activeFilters = appliedFilters({ category: query.category, risk: query.risk, module: query.module, search: query.search });
 
     void audit.record('AUDIT_ACTION_CATALOG_ACTIONS_LISTED', {
       actorId: adminUserId,
@@ -90,14 +88,7 @@ class AdminAuditActionCatalogService {
 
     return {
       data: pageItems.map(ActionListDTO),
-      metadata: MetadataDTO.build({
-        totalItems,
-        page,
-        limit,
-        sortBy: 'action',
-        order,
-        filters: Object.keys(activeFilters).length > 0 ? activeFilters : undefined
-      })
+      metadata: pageMetadata(page, totalItems, activeFilters)
     };
   }
 }

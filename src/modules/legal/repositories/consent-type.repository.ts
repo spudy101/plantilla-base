@@ -1,9 +1,10 @@
 // modules/schemas/records/legal/repositories/consent-type.repository.ts
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import { Prisma } from '../../../shared/database/generated/prisma/client';
 import type { ConsentType } from '../../../shared/database/generated/prisma/client';
 
-const LIST = { sortable: Object.values(Prisma.ConsentTypeScalarFieldEnum), searchFields: ['name', 'code', 'description'] };
+const LIST = { tiebreaker: 'consentTypeId', searchFields: ['name', 'code', 'description'] };
 
 class ConsentTypeRepository extends PrismaRepository {
   async findById(consentTypeId: string): Promise<ConsentType | null> {
@@ -26,7 +27,7 @@ class ConsentTypeRepository extends PrismaRepository {
 
   async findAllPaginated(
     filters: PrismaRepository.Filters = {},
-    pagination: PrismaRepository.PaginationParams = {},
+    pagination: PageRequest,
     searchTerm: string | null = null
   ): Promise<PrismaRepository.Page<ConsentType>> {
     const { where, page } = this.listQuery(filters, pagination, searchTerm, LIST);

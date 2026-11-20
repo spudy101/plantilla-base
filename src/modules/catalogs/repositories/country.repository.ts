@@ -1,9 +1,10 @@
 // modules/schemas/kyc/maintainers/repositories/country.repository.ts
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import { Prisma } from '../../../shared/database/generated/prisma/client';
 import type { Country } from '../../../shared/database/generated/prisma/client';
 
-const LIST = { sortable: Object.values(Prisma.CountryScalarFieldEnum), searchFields: ['name', 'code'] };
+const LIST = { tiebreaker: 'countryId', searchFields: ['name', 'code'] };
 
 class CountryRepository extends PrismaRepository {
   async findById(countryId: string): Promise<Country | null> {
@@ -16,7 +17,7 @@ class CountryRepository extends PrismaRepository {
 
   async findAllPaginated(
     filters: PrismaRepository.Filters = {},
-    pagination: PrismaRepository.PaginationParams = {},
+    pagination: PageRequest,
     searchTerm: string | null = null
   ): Promise<PrismaRepository.Page<Country>> {
     const { where, page } = this.listQuery(filters, pagination, searchTerm, LIST);

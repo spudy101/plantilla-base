@@ -1,6 +1,6 @@
 // Salida de la traza de operaciones (admin). Lista blanca: ni payloads de proveedores ni detalles
 // internos más allá de lo que sirve para reconstruir qué pasó.
-import PaginationHelper from '../../../shared/http/pagination.util';
+import type { PageMetadata } from '../../../shared/http/pagination';
 import { z } from '../../../shared/validation/z';
 import { dateTime } from '../../../shared/validation/output';
 import type { AuditLog, Operation } from '../../../shared/database/generated/prisma/client';
@@ -23,14 +23,8 @@ const operationItem = (o: Operation) => ({
   durationMs: o.durationMs
 });
 
-function OperationListDTO(
-  rows: Operation[],
-  meta: { totalItems: number; page: number; limit: number; filters?: Record<string, unknown> }
-) {
-  return {
-    data: rows.map(operationItem),
-    metadata: PaginationHelper.buildMetadata(meta.totalItems, meta.page, meta.limit, meta.filters ?? null)
-  };
+function OperationListDTO(rows: Operation[], metadata: PageMetadata) {
+  return { data: rows.map(operationItem), metadata };
 }
 
 function OperationTimelineDTO({

@@ -13,10 +13,6 @@ import auditModule from '../../../audit';
 const { userChangeLogRepository, audit } = auditModule;
 import approvalsModule from '../../../approvals';
 const { DualApprovalService } = approvalsModule;
-import PaginationHelper from '../../../../shared/http/pagination.util';
-import catalogsModule from '../../../catalogs';
-const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
-const { MetadataDTO } = componentsCatalogDtoModule;
 import constantsModule from '../../../../shared/constants';
 const { INTERNAL_ROLE_NAMES, SUPERADMIN_ROLE_NAMES } = constantsModule;
 import adminUserDtoModule from '../../responses/admin-user.response';
@@ -28,6 +24,8 @@ const {
   RoleOptionDTO
 } = adminUserDtoModule;
 import internalUserGuardsModule from './internal-user-guards';
+import { pageOf, pageRequest } from '../../../../shared/http/pagination';
+import type { InternalUserDeletedListQuery, InternalUserListQuery, UserChangeLogsQuery } from '../../requests/iam.request';
 const { InternalUserGuards } = internalUserGuardsModule;
 const ENTITY = { entityType: 'InternalUser', entityTable: 'users' };
 
@@ -49,23 +47,19 @@ class InternalUserQueryService {
     this.guards = deps.guards ?? new InternalUserGuards(deps);
   }
 
-  async list(query: Record<string, unknown>, adminUserId: string) {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
+  async list(query: InternalUserListQuery, adminUserId: string) {
+    const page = pageRequest(query);
     // El listado nunca expone superadmins (se excluyen de los roles visibles).
     const internalRoleIds = await this.guards.listableInternalRoleIds();
 
     // Filtro por rol: si viene roleId validamos que sea interno (y no superadmin)
     // antes de usarlo; si no, listamos todos los roles internos visibles.
-    const roleIdParam = PaginationHelper.stringParam(query, 'roleId');
-    const roleIds = roleIdParam && internalRoleIds.includes(roleIdParam) ? [roleIdParam] : internalRoleIds;
+    const roleIds = query.roleId && internalRoleIds.includes(query.roleId) ? [query.roleId] : internalRoleIds;
 
     // Excluimos al propio solicitante: un admin no se ve a sí mismo en el listado.
-    const filters: UserRepositoryFilters = { roleIds, excludeUserId: adminUserId };
-    if (query.isActive !== undefined) {
-      filters.isActive = PaginationHelper.booleanParam(query, 'isActive');
-    }
+    const filters: UserRepositoryFilters = { roleIds, excludeUserId: adminUserId, isActive: query.isActive ?? undefined };
 
-    const { rows, count } = await this.userRepository.findAllPaginated(filters, paginationParams, PaginationHelper.stringParam(query, 'search'));
+    const { rows, count } = await this.userRepository.findAllPaginated(filters, page, query.search ?? null);
 
     await this.DualApprovalService.annotatePending('User', rows, 'userId');
 
@@ -75,39 +69,20 @@ class InternalUserQueryService {
       ...ENTITY
     });
 
-    const activeFilters: Record<string, unknown> = {};
-    if (roleIdParam) {
-      activeFilters.roleId = roleIdParam;
-    }
-    if (query.isActive !== undefined) {
-      activeFilters.isActive = query.isActive;
-    }
-
-    return {
-      data: rows.map(InternalUserListDTO),
-      metadata: MetadataDTO.build({
-        totalItems: count,
-        page: paginationParams.page,
-        limit: paginationParams.limit,
-        sortBy: paginationParams.sortBy,
-        order: paginationParams.order,
-        filters: Object.keys(activeFilters).length > 0 ? activeFilters : undefined
-      })
-    };
+    return pageOf(rows.map(InternalUserListDTO), page, count, { search: query.search, roleId: query.roleId, isActive: query.isActive });
   }
 
   /**
    * Listado HISTÓRICO de usuarios internos ELIMINADOS (read-only). Solo cuentas con
    * deleted_at != null. El listado normal (list) las excluye; son intocables.
    */
-  async listDeleted(query: Record<string, unknown>, adminUserId: string) {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
+  async listDeleted(query: InternalUserDeletedListQuery, adminUserId: string) {
+    const page = pageRequest(query);
     const internalRoleIds = await this.guards.listableInternalRoleIds();
-    const roleIdParam = PaginationHelper.stringParam(query, 'roleId');
-    const roleIds = roleIdParam && internalRoleIds.includes(roleIdParam) ? [roleIdParam] : internalRoleIds;
+    const roleIds = query.roleId && internalRoleIds.includes(query.roleId) ? [query.roleId] : internalRoleIds;
 
     const filters: UserRepositoryFilters = { roleIds, onlyDeleted: true };
-    const { rows, count } = await this.userRepository.findAllPaginated(filters, paginationParams, PaginationHelper.stringParam(query, 'search'));
+    const { rows, count } = await this.userRepository.findAllPaginated(filters, page, query.search ?? null);
 
     await audit.record('INTERNAL_USER_DELETED_LIST_VIEWED', {
       actorId: adminUserId,
@@ -115,16 +90,7 @@ class InternalUserQueryService {
       ...ENTITY
     });
 
-    return {
-      data: rows.map(InternalUserListDTO),
-      metadata: MetadataDTO.build({
-        totalItems: count,
-        page: paginationParams.page,
-        limit: paginationParams.limit,
-        sortBy: paginationParams.sortBy,
-        order: paginationParams.order
-      })
-    };
+    return pageOf(rows.map(InternalUserListDTO), page, count, { search: query.search, roleId: query.roleId });
   }
 
   /**
@@ -165,10 +131,10 @@ class InternalUserQueryService {
     return sessions.map(UserSessionDTO);
   }
 
-  async listChangeLogs(userId: string, query: Record<string, unknown>, adminUserId: string) {
+  async listChangeLogs(userId: string, query: UserChangeLogsQuery, adminUserId: string) {
     await this.guards.getInternalUserOrFail(userId);
-    const paginationParams = PaginationHelper.getPaginationParams(query);
-    const { rows, count } = await this.userChangeLogRepository.findByUserId(userId, paginationParams);
+    const page = pageRequest(query);
+    const { rows, count } = await this.userChangeLogRepository.findByUserId(userId, page);
 
     await audit.record('INTERNAL_USER_CHANGE_LOGS_VIEWED', {
       actorId: adminUserId,
@@ -177,16 +143,7 @@ class InternalUserQueryService {
       ...ENTITY
     });
 
-    return {
-      data: rows.map(UserChangeLogDTO),
-      metadata: MetadataDTO.build({
-        totalItems: count,
-        page: paginationParams.page,
-        limit: paginationParams.limit,
-        sortBy: paginationParams.sortBy,
-        order: paginationParams.order
-      })
-    };
+    return pageOf(rows.map(UserChangeLogDTO), page, count);
   }
 }
 

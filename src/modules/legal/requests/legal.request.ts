@@ -1,6 +1,6 @@
 // Entrada del módulo legal: consentimientos (admin y usuario), tipos de consentimiento y políticas de privacidad.
 import { z, withHint } from '../../../shared/validation/z';
-import { fileField, input, optionalBool, optionalIsoDate, optionalUuid, paginationQuery, searchQuery, uuid } from '../../../shared/validation/fields';
+import { fileField, input, optionalBool, optionalIsoDate, optionalUuid, pageQuery, searchQuery, uuid } from '../../../shared/validation/fields';
 
 const upperCode = (label: string, hint: string) =>
   withHint(
@@ -13,8 +13,9 @@ const upperCode = (label: string, hint: string) =>
   );
 
 // ── Consentimientos de usuarios (admin) ───────────────────────
-export const AdminUserConsentListQuery = input({
-  ...paginationQuery,
+const byGrantedAt = pageQuery(['grantedAt'], { sortBy: 'grantedAt' });
+export const AdminUserConsentListQuery = z.object({
+  ...byGrantedAt,
   userId: optionalUuid('El ID de usuario'),
   consentTypeCode: withHint(
     z
@@ -24,17 +25,19 @@ export const AdminUserConsentListQuery = input({
       .optional(),
     { hint: 'Ingresá el código del tipo de consentimiento como texto' }
   ),
-  // Se deja como texto ('true' / 'false'): el service lo compara así
-  isCurrent: withHint(z.enum(['true', 'false', '1', '0'], { error: 'isCurrent debe ser true o false' }).optional(), { hint: 'Ingresá true o false' }),
+  isCurrent: optionalBool('isCurrent'),
   dateFrom: optionalIsoDate('dateFrom'),
   dateTo: optionalIsoDate('dateTo')
 });
+export type AdminUserConsentListQuery = z.output<typeof AdminUserConsentListQuery>;
 
 export const UserIdParams = input({ userId: uuid('El ID de usuario') });
-export const PaginationQuery = input({ ...paginationQuery });
+export const ConsentHistoryQuery = z.object(byGrantedAt);
+export type ConsentHistoryQuery = z.output<typeof ConsentHistoryQuery>;
 
 // ── Tipos de consentimiento ───────────────────────────────────
-export const ConsentTypeListQuery = input({ ...paginationQuery, ...searchQuery });
+export const ConsentTypeListQuery = z.object({ ...pageQuery(['createdAt', 'name', 'code'], { sortBy: 'createdAt' }), ...searchQuery });
+export type ConsentTypeListQuery = z.output<typeof ConsentTypeListQuery>;
 export const ConsentTypeIdParams = input({ consentTypeId: uuid('El ID de tipo de consentimiento') });
 
 export const CreateConsentTypeBody = input({
@@ -65,7 +68,12 @@ export const UpdateConsentTypeBody = input({
 const VERSION_REGEX = /^\d+\.\d+$/;
 const VERSION_HINT = 'Usá el formato N.N (ej: 1.0, 1.1, 2.0)';
 
-export const PrivacyPolicyListQuery = input({ ...paginationQuery, ...searchQuery, isActive: optionalBool('El estado') });
+export const PrivacyPolicyListQuery = z.object({
+  ...pageQuery(['createdAt', 'effectiveDate', 'version'], { sortBy: 'createdAt' }),
+  ...searchQuery,
+  isActive: optionalBool('El estado')
+});
+export type PrivacyPolicyListQuery = z.output<typeof PrivacyPolicyListQuery>;
 
 /** POST — multipart/form-data: el PDF va en req.files (campo policyDocument), el resto en el body. */
 export const CreatePrivacyPolicyBody = input({

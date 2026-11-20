@@ -25,13 +25,6 @@ jest.mock('./notification-creation.service', () => ({
   crearNotificacion: jest.fn()
 }));
 
-jest.mock('../../../shared/http/pagination.util', () => ({
-  stringParam: jest.requireActual('../../../shared/http/pagination.util').default.stringParam,
-  booleanParam: jest.requireActual('../../../shared/http/pagination.util').default.booleanParam,
-  getPaginationParams: jest.fn().mockReturnValue({ limit: 10, offset: 0, page: 1, sortBy: 'created_at', order: 'DESC' }),
-  buildFilters: jest.fn().mockReturnValue({})
-}));
-
 jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn(), debug: jest.fn() }
@@ -61,6 +54,7 @@ const notificationCreation = mocked(notificationCreationModule);
 import auditServiceModule from '../../audit/audit.service';
 const logAudit = mocked(auditServiceModule).record;
 import service from './admin-notification-type.service';
+import { TypeListQuery } from '../requests/notification.request';
 
 const ADMIN = 'admin-1';
 
@@ -73,9 +67,10 @@ describe('NotificationTypeService', () => {
     it('pagina, audita y responde vía DTO de lista', async () => {
       typeRepo.findAllPaginated.mockResolvedValue({ rows: [{ notificationTypeId: 't-1' }], count: 1 });
 
-      const result = await service.list({ search: 'foo' }, ADMIN);
+      const result = await service.list(TypeListQuery.parse({ search: 'foo' }), ADMIN);
 
-      expect(typeRepo.findAllPaginated).toHaveBeenCalledWith({}, expect.any(Object), 'foo');
+      expect(typeRepo.findAllPaginated).toHaveBeenCalledWith({}, expect.objectContaining({ sortBy: 'createdAt', order: 'DESC', offset: 0 }), 'foo');
+      expect(result.metadata).toMatchObject({ sort: { field: 'createdAt', order: 'DESC' }, filters: { search: 'foo' } });
       expect(result.data).toHaveLength(1);
       expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_TYPE_LIST_VIEWED', expect.objectContaining({ actorId: ADMIN, details: expect.objectContaining({ totalItems: 1 }), entityType: 'NotificationType' })
       );

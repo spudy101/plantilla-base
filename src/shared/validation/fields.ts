@@ -4,6 +4,7 @@
 import { z, withHint } from './z';
 import constantsModule from '../constants';
 const { REGEX } = constantsModule;
+import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, type SortOrder } from '../http/pagination';
 
 const UUID_HINT = 'El identificador debe ser un UUID válido';
 
@@ -96,19 +97,58 @@ export const email = (label = 'El email') =>
 export const oneOf = <T extends readonly [string, ...string[]]>(label: string, values: T) =>
   withHint(z.enum(values, { error: `${label} debe ser: ${values.join(', ')}` }), { hint: `Indicá uno de: ${values.join(', ')}` });
 
-/** page/limit/sortBy/order de los listados paginados (query). */
-export const paginationQuery = {
-  page: withHint(z.coerce.number({ error: 'La página debe ser un número entero mayor a 0' }).int({ error: 'La página debe ser un número entero mayor a 0' }).min(1, { error: 'La página debe ser un número entero mayor a 0' }).optional(), {
+const PAGE_ERROR = 'La página debe ser un número entero mayor a 0';
+const LIMIT_ERROR = `El límite debe ser un número entre 1 y ${MAX_PAGE_SIZE}`;
+const snake = (s: string) => s.replace(/[A-Z]/g, c => `_${c.toLowerCase()}`);
+const camel = (s: string) => s.replace(/_([a-z0-9])/g, (_m, c: string) => c.toUpperCase());
+
+/**
+ * Solo page/limit (con default), para un listado de **orden fijo**: no acepta sortBy/order porque no los
+ * aplicaría. El service informa su orden en la metadata. Para el resto, `pageQuery`.
+ */
+export const pagingQuery = {
+  page: withHint(z.coerce.number({ error: PAGE_ERROR }).int({ error: PAGE_ERROR }).min(1, { error: PAGE_ERROR }).default(1), {
     hint: 'Ingresá un número de página mayor a 0'
   }),
   limit: withHint(
-    z.coerce.number({ error: 'El límite debe ser un número entre 1 y 100' }).int({ error: 'El límite debe ser un número entre 1 y 100' }).min(1, { error: 'El límite debe ser un número entre 1 y 100' }).max(100, { error: 'El límite debe ser un número entre 1 y 100' }).optional(),
-    { hint: 'Ingresá un límite entre 1 y 100' }
-  ),
-  sortBy: withHint(z.string().trim().max(50, { error: 'El campo de ordenamiento es inválido' }).optional(), {
-    hint: 'Indicá un campo de ordenamiento de hasta 50 caracteres'
-  }),
-  order: withHint(z.enum(['ASC', 'DESC', 'asc', 'desc'], { error: 'El orden debe ser ASC o DESC' }).optional(), { hint: 'Indicá ASC o DESC' })
+    z.coerce
+      .number({ error: LIMIT_ERROR })
+      .int({ error: LIMIT_ERROR })
+      .min(1, { error: LIMIT_ERROR })
+      .max(MAX_PAGE_SIZE, { error: LIMIT_ERROR })
+      .default(DEFAULT_PAGE_SIZE),
+    { hint: `Ingresá un límite entre 1 y ${MAX_PAGE_SIZE}` }
+  )
+};
+
+/**
+ * page/limit/sortBy/order de un listado paginado (query). Cada listado declara **por qué campos se puede
+ * ordenar** (pocos, idealmente con índice) y su orden por defecto: un `sortBy` fuera de la lista es un 422,
+ * nunca se ignora en silencio. Ya parseado: page/limit con default, `sortBy` en camelCase (también acepta
+ * el nombre de columna, `created_at`) y `order` en mayúsculas. Lo consume shared/http/pagination.ts.
+ *   export const XListQuery = input({ ...pageQuery(['createdAt', 'name'], { sortBy: 'createdAt' }), ...filtros });
+ */
+export const pageQuery = <const S extends readonly [string, ...string[]]>(sortable: S, defaults: { sortBy: S[number]; order?: SortOrder }) => {
+  const accepted = [...new Set([...sortable, ...sortable.map(snake)])] as [string, ...string[]];
+  const order = defaults.order ?? 'DESC';
+  return {
+    ...pagingQuery,
+    sortBy: withHint(
+      z
+        .enum(accepted, { error: `sortBy debe ser uno de: ${sortable.join(', ')}` })
+        .transform(v => camel(v) as S[number])
+        // el genérico S no se reduce dentro de Zod: el default es un S[number] por la firma
+        .default(defaults.sortBy as never),
+      { hint: `Ordená por uno de: ${sortable.join(', ')}`, description: `Campo de orden (por defecto ${defaults.sortBy}).` }
+    ),
+    order: withHint(
+      z
+        .enum(['ASC', 'DESC', 'asc', 'desc'], { error: 'El orden debe ser ASC o DESC' })
+        .transform(v => v.toUpperCase() as SortOrder)
+        .default(order),
+      { hint: 'Indicá ASC o DESC', description: `Dirección del orden (por defecto ${order}).` }
+    )
+  };
 };
 
 /** Término de búsqueda (query). */

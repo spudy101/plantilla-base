@@ -1,5 +1,6 @@
 // modules/schemas/notification/repositories/notification-type.repository.ts
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import { Prisma } from '../../../shared/database/generated/prisma/client';
 import type { NotificationType } from '../../../shared/database/generated/prisma/client';
 import type { NotificationCategoryRow } from './notification-category.repository';
@@ -9,7 +10,7 @@ export type NotificationTypeWithCategory = NotificationType & { category: Notifi
 
 const WITH_CATEGORY = { category: true } satisfies Prisma.NotificationTypeInclude;
 
-const LIST = { sortable: Object.values(Prisma.NotificationTypeScalarFieldEnum), searchFields: ['name', 'code', 'description'] };
+const LIST = { tiebreaker: 'notificationTypeId', searchFields: ['name', 'code', 'description'] };
 
 class NotificationTypeRepository extends PrismaRepository {
   /** Tipo activo por código, con su categoría. */
@@ -30,7 +31,7 @@ class NotificationTypeRepository extends PrismaRepository {
   /** Listado paginado para el admin. Filtros: isActive, notificationCategoryId. */
   async findAllPaginated(
     filters: PrismaRepository.Filters = {},
-    pagination: PrismaRepository.PaginationParams = {},
+    pagination: PageRequest,
     searchTerm: string | null = null
   ): Promise<PrismaRepository.Page<NotificationTypeWithCategory>> {
     const { where, page } = this.listQuery(filters, pagination, searchTerm, {

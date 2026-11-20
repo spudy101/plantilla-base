@@ -1,6 +1,6 @@
 import commonResponses from '../../../config/swagger/responses/common.responses';
 import { toOpenApi, toParameters } from '../../../shared/validation/openapi';
-import { AdminUserConsentListQuery, PaginationQuery, UserIdParams } from '../requests/legal.request';
+import { AdminUserConsentListQuery, ConsentHistoryQuery, UserIdParams } from '../requests/legal.request';
 import { UserConsentSchema } from '../responses/legal-components.response';
 
 /**
@@ -55,7 +55,7 @@ const paths = {
         'Roles: SUPERADMIN, AUDITOR_INTERNO.',
       operationId: 'adminGetUserConsentHistory',
       security: [{ bearerAuth: [] }, { idTokenAuth: [] }],
-      parameters: [...toParameters(UserIdParams, 'path'), ...toParameters(PaginationQuery, 'query')],
+      parameters: [...toParameters(UserIdParams, 'path'), ...toParameters(ConsentHistoryQuery, 'query')],
       responses: {
         200: commonResponses.paginated(
           { $ref: '#/components/schemas/UserConsentAuditItem' },

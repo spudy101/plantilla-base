@@ -1,6 +1,6 @@
 import commonResponses from '../../../config/swagger/responses/common.responses';
 import { toOpenApi, toParameters } from '../../../shared/validation/openapi';
-import { CatalogListQuery } from '../requests/maintainers.request';
+import * as requests from '../requests/maintainers.request';
 import { ActivePrivacyPolicySchema, DocumentTypeSchema } from '../responses/maintainers.response';
 
 // ─── Schemas y parámetros: generados desde los esquemas Zod ──
@@ -11,9 +11,7 @@ const schemas = {
   ActivePrivacyPolicy: toOpenApi(ActivePrivacyPolicySchema, 'output')
 };
 
-const queryParams = toParameters(CatalogListQuery, 'query');
-const param = (name: string) => queryParams.find(p => p.name === name)!;
-const paginationParams = ['page', 'limit', 'search', 'sortBy', 'order', 'isActive'].map(param);
+const query = (schema: Parameters<typeof toParameters>[0]) => toParameters(schema, 'query');
 
 // ─── Paths ────────────────────────────────────────────────────
 
@@ -42,7 +40,7 @@ const paths = {
       summary: 'Listar géneros',
       operationId: 'listGenders',
       security: [],
-      parameters: [...paginationParams],
+      parameters: query(requests.GenderListQuery),
       responses: {
         200: commonResponses.paginated({ $ref: '#/components/schemas/Gender' }),
         ...commonResponses.RateLimitExceeded,
@@ -58,7 +56,7 @@ const paths = {
       summary: 'Listar prefijos telefónicos',
       operationId: 'listPhonePrefixes',
       security: [],
-      parameters: [...paginationParams, param('countryId')],
+      parameters: query(requests.PhonePrefixListQuery),
       responses: {
         200: commonResponses.paginated({ $ref: '#/components/schemas/PhonePrefix' }),
         ...commonResponses.RateLimitExceeded,
@@ -74,7 +72,7 @@ const paths = {
       summary: 'Listar países',
       operationId: 'listCountries',
       security: [],
-      parameters: [...paginationParams],
+      parameters: query(requests.CountryListQuery),
       responses: {
         200: commonResponses.paginated({ $ref: '#/components/schemas/Country' }),
         ...commonResponses.RateLimitExceeded,
@@ -90,7 +88,7 @@ const paths = {
       summary: 'Listar departamentos / regiones',
       operationId: 'listDepartments',
       security: [],
-      parameters: [...paginationParams, param('countryId')],
+      parameters: query(requests.DepartmentListQuery),
       responses: {
         200: commonResponses.paginated({ $ref: '#/components/schemas/Department' }),
         ...commonResponses.RateLimitExceeded,
@@ -106,7 +104,7 @@ const paths = {
       summary: 'Listar ciudades',
       operationId: 'listCities',
       security: [],
-      parameters: [...paginationParams, param('departmentId')],
+      parameters: query(requests.CityListQuery),
       responses: {
         200: commonResponses.paginated({ $ref: '#/components/schemas/City' }),
         ...commonResponses.RateLimitExceeded,
@@ -122,7 +120,7 @@ const paths = {
       summary: 'Listar avatares',
       operationId: 'listAvatars',
       security: [],
-      parameters: [...paginationParams, param('themeId')],
+      parameters: query(requests.AvatarListQuery),
       responses: {
         200: commonResponses.paginated({ $ref: '#/components/schemas/Avatar' }),
         ...commonResponses.RateLimitExceeded,
@@ -138,7 +136,7 @@ const paths = {
       summary: 'Listar temas de avatares',
       operationId: 'listAvatarThemes',
       security: [],
-      parameters: [...paginationParams],
+      parameters: query(requests.AvatarThemeListQuery),
       responses: {
         200: commonResponses.paginated({ $ref: '#/components/schemas/AvatarTheme' }),
         ...commonResponses.RateLimitExceeded,
@@ -154,12 +152,7 @@ const paths = {
       summary: 'Listar tipos de notificación',
       operationId: 'listNotificationTypes',
       security: [],
-      parameters: [
-        ...paginationParams,
-        { name: 'supportsPush', in: 'query', schema: { type: 'boolean' } },
-        { name: 'supportsEmail', in: 'query', schema: { type: 'boolean' } },
-        { name: 'priority', in: 'query', schema: { type: 'string', example: 'high' } }
-      ],
+      parameters: query(requests.NotificationTypeCatalogListQuery),
       responses: {
         200: commonResponses.paginated({ $ref: '#/components/schemas/NotificationType' }),
         ...commonResponses.RateLimitExceeded,
@@ -175,7 +168,7 @@ const paths = {
       summary: 'Listar roles del sistema',
       operationId: 'listRoles',
       security: [],
-      parameters: [...paginationParams],
+      parameters: query(requests.RoleListQuery),
       responses: {
         200: commonResponses.paginated({ $ref: '#/components/schemas/Role' }),
         ...commonResponses.RateLimitExceeded,

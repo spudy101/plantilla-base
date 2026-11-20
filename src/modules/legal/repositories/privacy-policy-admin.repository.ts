@@ -3,10 +3,11 @@
 // Capacidades de administración de PrivacyPolicy: paginación, búsqueda, detalle y publicación de
 // versiones. El repositorio público (privacy-policy.repository) solo lee.
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import { Prisma } from '../../../shared/database/generated/prisma/client';
 import type { PrivacyPolicy } from '../../../shared/database/generated/prisma/client';
 
-const LIST = { sortable: Object.values(Prisma.PrivacyPolicyScalarFieldEnum), searchFields: ['version', 'summary'] };
+const LIST = { tiebreaker: 'privacyPolicyId', searchFields: ['version', 'summary'] };
 
 class PrivacyPolicyAdminRepository extends PrismaRepository {
   async findById(privacyPolicyId: string): Promise<PrivacyPolicy | null> {
@@ -20,7 +21,7 @@ class PrivacyPolicyAdminRepository extends PrismaRepository {
   /** Listado paginado; sin `sortBy` ordena por fecha de vigencia. */
   async findAllPaginated(
     filters: PrismaRepository.Filters = {},
-    pagination: PrismaRepository.PaginationParams = {},
+    pagination: PageRequest,
     searchTerm: string | null = null
   ): Promise<PrismaRepository.Page<PrivacyPolicy>> {
     const { where, page } = this.listQuery(

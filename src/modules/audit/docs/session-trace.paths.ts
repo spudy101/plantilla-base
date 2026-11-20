@@ -1,6 +1,6 @@
 import commonResponses from '../../../config/swagger/responses/common.responses';
 import { toOpenApi, toParameters } from '../../../shared/validation/openapi';
-import { PaginationQuery, SessionEntitiesQuery, SessionIdParams, SessionListQuery } from '../requests/audit.request';
+import { SessionTimelineQuery, SessionEntitiesQuery, SessionIdParams, SessionListQuery } from '../requests/audit.request';
 import {
   SessionEntitiesSchema,
   SessionTimelineEventSchema,
@@ -72,7 +72,7 @@ No confundir con \`/auth/sessions\` (módulo \`activeSessions\`), que es *contro
       description: `Cabecera de la sesión + **timeline cronológico** (ascendente por \`created_at\`) de todas las
 acciones registradas en \`audit_logs\` para esa sesión. Cada evento trae \`entityTable\` + \`entityId\` y un flag
 \`hasDetail\` que indica si su fila de dominio es hidratable vía \`/sessions/{sessionId}/entities\`.`,
-      parameters: [...toParameters(SessionIdParams, 'path'), ...toParameters(PaginationQuery, 'query')],
+      parameters: [...toParameters(SessionIdParams, 'path'), ...toParameters(SessionTimelineQuery, 'query')],
       responses: {
         200: commonResponses.ok(
           { $ref: '#/components/schemas/SessionTimelineResponse' },

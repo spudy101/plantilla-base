@@ -1,14 +1,12 @@
 // Entrada del monitoreo de proveedores (solo lectura): filtros del historial de caídas.
 import { z, withHint } from '../../../shared/validation/z';
-import { input, optionalIsoDate, paginationQuery } from '../../../shared/validation/fields';
+import { optionalBool, optionalIsoDate, pageQuery } from '../../../shared/validation/fields';
 
-export const FallbackQuery = input({
-  provider: z.string().trim().max(50).optional(),
-  // Se deja como texto ('true' / 'false'): el service lo compara así
-  activeOnly: withHint(z.enum(['true', 'false', '1', '0'], { error: 'activeOnly debe ser booleano' }).optional(), {
-    hint: 'Usá true o false'
-  }),
+export const FallbackQuery = z.object({
+  ...pageQuery(['startedAt', 'endedAt'], { sortBy: 'startedAt' }),
+  provider: withHint(z.string().trim().max(50).optional(), { hint: 'Usá el nombre del proveedor (hasta 50 caracteres)' }),
+  activeOnly: optionalBool('activeOnly'),
   from: optionalIsoDate('La fecha desde'),
-  to: optionalIsoDate('La fecha hasta'),
-  ...paginationQuery
+  to: optionalIsoDate('La fecha hasta')
 });
+export type FallbackQuery = z.output<typeof FallbackQuery>;

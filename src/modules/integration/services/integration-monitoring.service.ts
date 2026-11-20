@@ -5,12 +5,10 @@
 import CircuitBreaker from '../../../shared/infra/circuit-breaker.util';
 import { PROVIDER_PRODUCTS } from '../../../shared/infra/provider-call.util';
 import providerFallbackRepository from '../repositories/provider-fallback-event.repository';
-import PaginationHelper from '../../../shared/http/pagination.util';
-import catalogsModule from '../../catalogs';
-const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
-const { MetadataDTO } = componentsCatalogDtoModule;
 import integrationMonitoringDtoModule from '../responses/integration-monitoring.response';
 import auditModule from '../../audit';
+import { pageOf, pageRequest } from '../../../shared/http/pagination';
+import type { FallbackQuery } from '../requests/integration-monitoring.request';
 const { audit } = auditModule;
 const { ProvidersHealthDTO, FallbackEventDTO } = integrationMonitoringDtoModule;
 
@@ -47,16 +45,16 @@ class IntegrationMonitoringService {
   /**
    * Historial paginado de eventos de fallback (ventanas de caída con duración).
    */
-  async getFallbackHistory(query: Record<string, unknown>, adminUserId: string) {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
+  async getFallbackHistory(query: FallbackQuery, adminUserId: string) {
+    const page = pageRequest(query);
     const filters = {
-      provider: PaginationHelper.stringParam(query, 'provider'),
-      activeOnly: query.activeOnly === 'true',
-      from: PaginationHelper.stringParam(query, 'from'),
-      to: PaginationHelper.stringParam(query, 'to')
+      provider: query.provider || null,
+      activeOnly: query.activeOnly === true,
+      from: query.from ?? null,
+      to: query.to ?? null
     };
 
-    const { rows, count } = await this.providerFallbackRepository.findAllPaginated(filters, paginationParams);
+    const { rows, count } = await this.providerFallbackRepository.findAllPaginated(filters, page);
 
     await audit.record('PROVIDER_FALLBACK_HISTORY_VIEWED', {
       actorId: adminUserId,
@@ -64,19 +62,7 @@ class IntegrationMonitoringService {
       ...FALLBACK_ENTITY
     });
 
-    const activeFilters = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== null && v !== false));
-
-    return {
-      data: rows.map(FallbackEventDTO),
-      metadata: MetadataDTO.build({
-        totalItems: count,
-        page: paginationParams.page,
-        limit: paginationParams.limit,
-        sortBy: paginationParams.sortBy,
-        order: paginationParams.order,
-        filters: Object.keys(activeFilters).length > 0 ? activeFilters : undefined
-      })
-    };
+    return pageOf(rows.map(FallbackEventDTO), page, count, { ...filters, activeOnly: filters.activeOnly || undefined });
   }
 }
 

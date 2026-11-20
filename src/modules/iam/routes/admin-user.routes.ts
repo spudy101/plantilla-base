@@ -9,7 +9,7 @@
 
 import express from 'express';
 import { validate } from '../../../shared/validation/validate';
-import { InternalUserListQuery, CreateInternalUserBody, InternalUserIdParams, UpdateInternalUserBody, ChangeInternalRoleBody, ChangeStatusBody, DeleteInternalUserBody, PaginationQuery } from '../requests/iam.request';
+import { InternalUserListQuery, InternalUserDeletedListQuery, CreateInternalUserBody, InternalUserIdParams, UpdateInternalUserBody, ChangeInternalRoleBody, ChangeStatusBody, DeleteInternalUserBody, UserChangeLogsQuery } from '../requests/iam.request';
 const router = express.Router();
 import AdminUserController from '../controllers/admin-user.controller';
 import AuthMiddleware from '../middlewares/auth.middleware';
@@ -51,7 +51,7 @@ router.get(
   RbacMiddleware.requirePermission(M, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  validate({ query: InternalUserListQuery }),
+  validate({ query: InternalUserDeletedListQuery }),
   AdminUserController.listDeleted
 );
 
@@ -156,7 +156,7 @@ router.get(
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
   validate({ params: InternalUserIdParams }),
-  validate({ query: PaginationQuery }),
+  validate({ query: UserChangeLogsQuery }),
   AdminUserController.listChangeLogs
 );
 

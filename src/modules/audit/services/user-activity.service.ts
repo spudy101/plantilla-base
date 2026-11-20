@@ -3,10 +3,11 @@ import auditLogRepository from '../repositories/audit-log.repository';
 import userChangeLogRepository from '../repositories/change-log.repository';
 import iamModule from '../../iam';
 const { userSessionRepository } = iamModule;
-import PaginationHelper from '../../../shared/http/pagination.util';
 import userActivityDtoModule from '../responses/user-activity.response';
 const { UserActivityListResponseDTO } = userActivityDtoModule;
 import audit from '../audit.service';
+import { pageMetadata, pageRequest } from '../../../shared/http/pagination';
+import type { RecentActivityQuery } from '../requests/audit.request';
 
 // Whitelist client-safe del feed: hitos que el usuario entiende y le pertenecen. Nada de acciones
 // de solo lectura (*_VIEWED, ruido) ni acciones administrativas. Ampliar acá = aparece en el feed.
@@ -69,9 +70,9 @@ class UserActivityService {
    * Paginación por corte: cada fuente aporta como máximo offset+limit filas, se mezclan por fecha
    * descendente y se corta la página (feed de páginas chicas, no export).
    */
-  async getRecentActivity(userId: string, query: Record<string, unknown>) {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
-    const { limit, offset, page } = paginationParams;
+  async getRecentActivity(userId: string, query: RecentActivityQuery) {
+    // Orden fijo (más reciente primero): las dos fuentes se mezclan por fecha.
+    const { limit, offset, page } = pageRequest({ ...query, sortBy: 'createdAt', order: 'DESC' });
 
     const fetch = { limit: offset + limit, offset: 0 };
 
@@ -91,14 +92,7 @@ class UserActivityService {
 
     const totalItems = activity.count + changes.count;
 
-    const metadata = {
-      totalItems,
-      page,
-      limit,
-      sortBy: 'createdAt',
-      order: 'DESC',
-      filters: {}
-    };
+    const metadata = pageMetadata({ page, limit, sortBy: 'createdAt', order: 'DESC' }, totalItems);
 
     await audit.record('RECENT_ACTIVITY_VIEWED', {
       actorId: userId,

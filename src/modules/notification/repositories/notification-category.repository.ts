@@ -1,6 +1,7 @@
 // Categorías de notificación: fuente de verdad de los canales (push/email/sms), de la criticidad
 // (crítica = se envía siempre, sin mirar preferencias ni horario de silencio) y del layout del email.
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import { Prisma } from '../../../shared/database/generated/prisma/client';
 import type { NotificationCategory } from '../../../shared/database/generated/prisma/client';
 
@@ -9,7 +10,7 @@ export type NotificationCategoryRow = NotificationCategory;
 export type NotificationCategoryInput = Prisma.NotificationCategoryUncheckedUpdateManyInput;
 
 const LIST = {
-  sortable: Object.values(Prisma.NotificationCategoryScalarFieldEnum),
+  tiebreaker: 'notificationCategoryId',
   searchFields: ['name', 'code', 'description']
 };
 
@@ -29,7 +30,7 @@ class NotificationCategoryRepository extends PrismaRepository {
   /** Listado paginado para el admin. Filtros: isActive, isCritical. */
   async findAllPaginated(
     filters: PrismaRepository.Filters = {},
-    pagination: PrismaRepository.PaginationParams = {},
+    pagination: PageRequest,
     searchTerm: string | null = null
   ): Promise<PrismaRepository.Page<NotificationCategoryRow>> {
     const { where, page } = this.listQuery(filters, pagination, searchTerm, LIST);

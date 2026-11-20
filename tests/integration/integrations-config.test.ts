@@ -11,6 +11,7 @@ import ErrorMiddleware from '../../src/shared/http/error.middleware';
 import systemGlobalConfigRepository from '../../src/modules/settings/repositories/system-global-config.repository';
 import approvalRequestRepository from '../../src/modules/approvals/repositories/approval-request.repository';
 import providerFallbackEventRepository from '../../src/modules/integration/repositories/provider-fallback-event.repository';
+import { page } from '../helpers/page';
 
 const TAG = `g4-it-${randomUUID().slice(0, 8)}`;
 let roleId: string;
@@ -77,7 +78,7 @@ describe('Integraciones y config · Prisma contra Postgres', () => {
       expiresAt: new Date(Date.now() - 1000)
     });
 
-    const { rows, count } = await approvalRequestRepository.findAllPaginatedWithUsers({ operationKey: TAG }, { limit: 10, offset: 0 }, TAG.toUpperCase());
+    const { rows, count } = await approvalRequestRepository.findAllPaginatedWithUsers({ operationKey: TAG }, page(), TAG.toUpperCase());
     expect(count).toBe(1);
     expect(rows[0]?.requester).toEqual({ userId: maker, username: `${TAG}-maker`, person: { firstName: 'Ana-maker', lastName: TAG } });
 

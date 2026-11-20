@@ -217,7 +217,7 @@ const service = new PersonReferenceService({ personReferenceRepository: { findAl
 Ejemplos reales: `consent-recorder.service.test.ts`, `unit-of-work.test.ts` y el bloque
 `notification-delivery.service.test.ts`.
 
-> Nota: los utils puros o transversales (`AppError`, `logger`, `PaginationHelper`, DTOs) se siguen
+> Nota: los utils puros o transversales (`AppError`, `logger`, `pageMetadata`, DTOs) se siguen
 > importando directo. DIP apunta a las dependencias que **cambian o tocan infraestructura**.
 
 ### 2. Unit of Work

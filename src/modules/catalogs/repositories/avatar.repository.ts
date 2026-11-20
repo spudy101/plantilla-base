@@ -1,10 +1,11 @@
 // modules/schemas/kyc/maintainers/repositories/avatar.repository.ts
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import { Prisma } from '../../../shared/database/generated/prisma/client';
 import type { Avatar } from '../../../shared/database/generated/prisma/client';
 
 const LIST = {
-  sortable: Object.values(Prisma.AvatarScalarFieldEnum),
+  tiebreaker: 'avatarId',
   searchFields: ['name'],
   filterId: { key: 'themeId', field: 'avatarThemeId' }
 };
@@ -18,7 +19,7 @@ class AvatarRepository extends PrismaRepository {
 
   async findAllPaginated(
     filters: PrismaRepository.Filters = {},
-    pagination: PrismaRepository.PaginationParams = {},
+    pagination: PageRequest,
     searchTerm: string | null = null
   ) {
     const { where, page } = this.listQuery(filters, pagination, searchTerm, LIST);

@@ -1,6 +1,16 @@
 import express from 'express';
 import { validate } from '../../../shared/validation/validate';
-import { CatalogListQuery } from '../requests/maintainers.request';
+import {
+  AvatarListQuery,
+  AvatarThemeListQuery,
+  CityListQuery,
+  CountryListQuery,
+  DepartmentListQuery,
+  GenderListQuery,
+  NotificationTypeCatalogListQuery,
+  PhonePrefixListQuery,
+  RoleListQuery
+} from '../requests/maintainers.request';
 const router = express.Router();
 import MaintainersController from '../controllers/maintainers.controller';
 import RateLimitMiddleware from '../../../shared/http/rate-limit.middleware';
@@ -16,7 +26,7 @@ router.get(
   '/maintainers/genders',
   RateLimitMiddleware.publicLimiter(),
   RequestLockMiddleware.forPublicEndpoints(),
-  validate({ query: CatalogListQuery }),
+  validate({ query: GenderListQuery }),
   MaintainersController.listGenders
 );
 
@@ -24,7 +34,6 @@ router.get(
   '/maintainers/document-types',
   RateLimitMiddleware.publicLimiter(),
   RequestLockMiddleware.forPublicEndpoints(),
-  validate({ query: CatalogListQuery }),
   MaintainersController.listDocumentTypes
 );
 
@@ -32,7 +41,7 @@ router.get(
   '/maintainers/phone-prefixes',
   RateLimitMiddleware.publicLimiter(),
   RequestLockMiddleware.forPublicEndpoints(),
-  validate({ query: CatalogListQuery }),
+  validate({ query: PhonePrefixListQuery }),
   MaintainersController.listPhonePrefixes
 );
 
@@ -40,7 +49,7 @@ router.get(
   '/maintainers/countries',
   RateLimitMiddleware.publicLimiter(),
   RequestLockMiddleware.forPublicEndpoints(),
-  validate({ query: CatalogListQuery }),
+  validate({ query: CountryListQuery }),
   MaintainersController.listCountries
 );
 
@@ -48,7 +57,7 @@ router.get(
   '/maintainers/departments',
   RateLimitMiddleware.publicLimiter(),
   RequestLockMiddleware.forPublicEndpoints(),
-  validate({ query: CatalogListQuery }),
+  validate({ query: DepartmentListQuery }),
   MaintainersController.listDepartments
 );
 
@@ -56,7 +65,7 @@ router.get(
   '/maintainers/cities',
   RateLimitMiddleware.publicLimiter(),
   RequestLockMiddleware.forPublicEndpoints(),
-  validate({ query: CatalogListQuery }),
+  validate({ query: CityListQuery }),
   MaintainersController.listCities
 );
 
@@ -64,7 +73,7 @@ router.get(
   '/maintainers/avatars',
   RateLimitMiddleware.publicLimiter(),
   RequestLockMiddleware.forPublicEndpoints(),
-  validate({ query: CatalogListQuery }),
+  validate({ query: AvatarListQuery }),
   MaintainersController.listAvatars
 );
 
@@ -72,7 +81,7 @@ router.get(
   '/maintainers/avatar-themes',
   RateLimitMiddleware.publicLimiter(),
   RequestLockMiddleware.forPublicEndpoints(),
-  validate({ query: CatalogListQuery }),
+  validate({ query: AvatarThemeListQuery }),
   MaintainersController.listAvatarThemes
 );
 
@@ -80,7 +89,7 @@ router.get(
   '/maintainers/notification-types',
   RateLimitMiddleware.publicLimiter(),
   RequestLockMiddleware.forPublicEndpoints(),
-  validate({ query: CatalogListQuery }),
+  validate({ query: NotificationTypeCatalogListQuery }),
   MaintainersController.listNotificationTypes
 );
 
@@ -88,7 +97,7 @@ router.get(
   '/maintainers/roles',
   RateLimitMiddleware.publicLimiter(),
   RequestLockMiddleware.forPublicEndpoints(),
-  validate({ query: CatalogListQuery }),
+  validate({ query: RoleListQuery }),
   MaintainersController.listRoles
 );
 
