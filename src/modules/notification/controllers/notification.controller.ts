@@ -24,6 +24,8 @@ const {
 
 // Intervalo del keepalive del stream SSE (ms). 25 s < idle timeout típico de ALB/nginx (60 s).
 const SSE_HEARTBEAT_MS = 25000;
+// Ventana (ms) en la que cada conexión recalcula su contador tras una notificación global, al azar.
+const SSE_GLOBAL_REFRESH_JITTER_MS = 5000;
 
 class NotificationController {
   /** GET /notifications/count/stream — SSE: emite { count } en tiempo real */
@@ -46,13 +48,27 @@ class NotificationController {
       res.write(`data: ${JSON.stringify({ count: 0 })}\n\n`);
     }
 
+    let closed = false;
+    let globalRefresh: NodeJS.Timeout | null = null;
     const handler = (event: { global?: boolean; userId?: string; count?: number } | null | undefined) => {
-      // Broadcast de notificación global (una sola fila para todos, sin fan-out por usuario):
-      // cada conexión abierta recalcula su propio contador. Costo: 2 queries por conexión activa.
+      // Broadcast de notificación global (una sola fila para todos, sin fan-out por usuario): cada
+      // conexión abierta recalcula su propio contador (2 COUNT). Cada una espera un tiempo al azar para
+      // que miles de conexiones no consulten la base en el mismo instante; varias globales seguidas
+      // dentro de esa espera se resuelven con un solo recálculo.
       if (event?.global === true) {
-        NotificationService.computeUnreadCount(userId)
-          .then(count => res.write(`data: ${JSON.stringify({ count })}\n\n`))
-          .catch(err => logger.error('SSE global count refresh error', { error: err.message, userId }));
+        if (globalRefresh) {
+          return;
+        }
+        globalRefresh = setTimeout(() => {
+          globalRefresh = null;
+          NotificationService.computeUnreadCount(userId)
+            .then(count => {
+              if (!closed) {
+                res.write(`data: ${JSON.stringify({ count })}\n\n`);
+              }
+            })
+            .catch(err => logger.error('SSE global count refresh error', { error: errorMessage(err), userId }));
+        }, Math.floor(Math.random() * SSE_GLOBAL_REFRESH_JITTER_MS));
         return;
       }
       if (event?.userId === userId) {
@@ -69,7 +85,11 @@ class NotificationController {
     const heartbeat = setInterval(() => res.write(': ping\n\n'), SSE_HEARTBEAT_MS);
 
     req.on('close', () => {
+      closed = true;
       clearInterval(heartbeat);
+      if (globalRefresh) {
+        clearTimeout(globalRefresh);
+      }
       NotificationEmitter.off('count-updated', handler);
       logger.info('SSE stream cerrado', { userId, localListeners: NotificationEmitter.listenerCount('count-updated') });
     });

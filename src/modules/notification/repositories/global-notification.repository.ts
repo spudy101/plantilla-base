@@ -60,12 +60,9 @@ class GlobalNotificationRepository extends PrismaRepository {
   }
 
   /** Las que el usuario todavía no leyó, con su tipo. */
-  async findUnreadByUser(userId: string) {
-    return (await this.db()).globalNotification.findMany({
-      where: { globalNotificationReads: { none: { userId } } },
-      include: WITH_TYPE,
-      orderBy: { createdAt: 'desc' }
-    });
+  /** Globales que el usuario no leyó (para el contador): un COUNT, sin traer las filas. */
+  async countUnreadByUser(userId: string): Promise<number> {
+    return (await this.db()).globalNotification.count({ where: { globalNotificationReads: { none: { userId } } } });
   }
 
   /** null si la fila ya no existe. */

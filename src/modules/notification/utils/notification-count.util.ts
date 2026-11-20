@@ -20,11 +20,11 @@ class NotificationCountUtil {
    */
   static async emitCountUpdate(userId: string) {
     try {
-      const [personalCount, globalUnread] = await Promise.all([
+      const [personalCount, globalCount] = await Promise.all([
         notificationRepo.countUnreadByUser(userId),
-        globalNotificationRepo.findUnreadByUser(userId)
+        globalNotificationRepo.countUnreadByUser(userId)
       ]);
-      const count = personalCount + (Array.isArray(globalUnread) ? globalUnread.length : 0);
+      const count = personalCount + globalCount;
 
       notificationEmitter.emit('count-updated', { userId, count });
 

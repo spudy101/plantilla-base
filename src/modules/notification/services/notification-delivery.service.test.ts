@@ -327,4 +327,54 @@ describe('dispatchDue', () => {
     expect(deliveryRepo.markSkipped).toHaveBeenCalledWith('d-2', expect.any(String));
     expect(deliveryRepo.markSent).not.toHaveBeenCalledWith('d-3');
   });
+
+  it('vacía lo vencido en varias tomas dentro del mismo ciclo, con una sola operación', async () => {
+    const fullBatch = Array.from({ length: 50 }, (_, i) => claimed({ notificationDeliveryId: `a-${i}`, notificationId: `n-a-${i}` }));
+    deliveryRepo.claimDue
+      .mockResolvedValueOnce(fullBatch)
+      .mockResolvedValueOnce([claimed({ notificationDeliveryId: 'b-1', notificationId: 'n-b-1' })]);
+    notificationRepo.findByIdWithType.mockResolvedValue(null);
+    let operations = 0;
+    const wrap = <T,>(send: () => Promise<T>) => {
+      operations++;
+      return send();
+    };
+
+    await expect(delivery.dispatchDue(wrap)).resolves.toEqual({ attempted: 51 });
+
+    expect(deliveryRepo.claimDue).toHaveBeenCalledTimes(2);
+    expect(operations).toBe(1);
+    expect(notificationRepo.findByIdWithType).toHaveBeenCalledTimes(51);
+  });
+
+  it('deja de tomar al agotar el tiempo del ciclo (sigue el próximo)', async () => {
+    const fullBatch = Array.from({ length: 50 }, (_, i) => claimed({ notificationDeliveryId: `a-${i}`, notificationId: `n-a-${i}` }));
+    deliveryRepo.claimDue.mockResolvedValue(fullBatch);
+    notificationRepo.findByIdWithType.mockResolvedValue(null);
+    const now = jest.spyOn(Date, 'now').mockReturnValueOnce(0).mockReturnValue(60 * 1000);
+
+    try {
+      await expect(delivery.dispatchDue()).resolves.toEqual({ attempted: 50 });
+      expect(deliveryRepo.claimDue).toHaveBeenCalledTimes(1);
+    } finally {
+      now.mockRestore();
+    }
+  });
+
+  it('un fallo al leer una notificación no frena las demás', async () => {
+    deliveryRepo.claimDue.mockResolvedValue([
+      claimed({ notificationDeliveryId: 'd-1', notificationId: 'broken' }),
+      claimed({ notificationDeliveryId: 'd-2', channel: 'email' })
+    ]);
+    notificationRepo.findByIdWithType.mockImplementation(async (id: string) => {
+      if (id === 'broken') {
+        throw new Error('db down');
+      }
+      return notification({ metadata: { email: 'a@x.cl' } });
+    });
+    emailService.enviarNotificacion.mockResolvedValue({});
+
+    await expect(delivery.dispatchDue()).resolves.toEqual({ attempted: 2 });
+    expect(deliveryRepo.markSent).toHaveBeenCalledWith('d-2');
+  });
 });

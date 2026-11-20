@@ -135,11 +135,11 @@ class NotificationService {
    * conexión abierta cuando llega el broadcast de una notificación global ({ global: true }).
    */
   async computeUnreadCount(userId: string) {
-    const [personalCount, globalUnread] = await Promise.all([
+    const [personalCount, globalCount] = await Promise.all([
       this.notificationRepository.countUnreadByUser(userId),
-      this.globalNotificationRepository.findUnreadByUser(userId)
+      this.globalNotificationRepository.countUnreadByUser(userId)
     ]);
-    return personalCount + (Array.isArray(globalUnread) ? globalUnread.length : 0);
+    return personalCount + globalCount;
   }
 
   async createNotification(data: NotificationService.CreateInput, externalService: string | null | undefined = null) {

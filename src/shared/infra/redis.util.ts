@@ -223,6 +223,25 @@ class RedisClient {
     }
   }
 
+  /**
+   * Suma `amount` al contador `key` de forma atómica (INCRBY: seguro entre instancias) y le pone TTL.
+   * Devuelve el total tras sumar, o null si Redis no está disponible o falla.
+   */
+  async incrBy(key: string, amount: number, ttlSeconds: number): Promise<number | null> {
+    if (!this.isAvailable()) {
+      return null;
+    }
+    try {
+      const results = await this.client.multi().incrby(key, amount).expire(key, ttlSeconds).exec();
+      const total = results?.[0]?.[1];
+      return typeof total === 'number' ? total : null;
+    } catch (error) {
+      logger.error('Redis INCRBY error', { key, error: errorMessage(error) });
+      this.isEnabled = false;
+      return null;
+    }
+  }
+
   async del(key: string | string[]): Promise<number> {
     if (!this.isAvailable()) {
       return 0;

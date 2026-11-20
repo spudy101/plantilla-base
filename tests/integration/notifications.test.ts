@@ -137,18 +137,15 @@ describe('Notificaciones · Prisma contra Postgres', () => {
   });
 
   it('global: leída una vez aunque se marque dos', async () => {
+    const unreadBefore = await globalNotificationRepository.countUnreadByUser(userId);
     const g = await globalNotificationRepository.create({ notificationTypeId: typeId, title: 'G', body: 'B', status: 'completed' });
-    expect((await globalNotificationRepository.findUnreadByUser(userId)).map(r => r.globalNotificationId)).toContain(
-      g.globalNotificationId
-    );
+    expect(await globalNotificationRepository.countUnreadByUser(userId)).toBe(unreadBefore + 1);
 
     await globalNotificationReadRepository.bulkMarkAsRead([g.globalNotificationId], userId);
     await globalNotificationReadRepository.bulkMarkAsRead([g.globalNotificationId], userId);
 
     expect(await globalNotificationReadRepository.getReadIdsByUser(userId)).toEqual([g.globalNotificationId]);
-    expect((await globalNotificationRepository.findUnreadByUser(userId)).map(r => r.globalNotificationId)).not.toContain(
-      g.globalNotificationId
-    );
+    expect(await globalNotificationRepository.countUnreadByUser(userId)).toBe(unreadBefore);
   });
 
   it('global: el despachador la toma una sola vez, guarda el avance y no la retoma terminada', async () => {
