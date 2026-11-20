@@ -5,12 +5,14 @@ const { asyncHandler } = errorMiddlewareModule;
 import routeParamUtilModule from '../../../shared/http/route-param.util';
 const { routeParam } = routeParamUtilModule;
 import authUserUtilModule from '../../../shared/http/auth-user.util';
+import { validQuery } from '../../../shared/validation/validate';
+import { TypeListQuery } from '../requests/notification.request';
 const { requireAuthUser } = authUserUtilModule;
 
 class NotificationTypeController {
   /** GET /notification-types */
   list = asyncHandler(async (req, res) => {
-    const result = await NotificationTypeService.list(req.query, requireAuthUser(req).userId); // ✅ adminUserId
+    const result = await NotificationTypeService.list(validQuery(req, TypeListQuery), requireAuthUser(req).userId);
     return ApiResponse.success(res, 'Tipos de notificación obtenidos exitosamente', result);
   });
 

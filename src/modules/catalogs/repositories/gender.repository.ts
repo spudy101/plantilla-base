@@ -2,10 +2,10 @@
 //
 // Primer repositorio sobre Prisma (fase 0 de docs/prisma-migration.md): catálogo de géneros.
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import { Prisma } from '../../../shared/database/generated/prisma/client';
 import type { Gender } from '../../../shared/database/generated/prisma/client';
 
-const SORTABLE = Object.values(Prisma.GenderScalarFieldEnum);
 const SEARCH_FIELDS = ['name'] as const;
 
 class GenderRepository extends PrismaRepository {
@@ -21,7 +21,7 @@ class GenderRepository extends PrismaRepository {
   /** Listado paginado del catálogo (mismo contrato que ReadRepository#findAllPaginated). */
   async findAllPaginated(
     filters: PrismaRepository.Filters = {},
-    pagination: PrismaRepository.PaginationParams = {},
+    pagination: PageRequest,
     searchTerm: string | null = null
   ): Promise<{ rows: Gender[]; count: number }> {
     const where: Prisma.GenderWhereInput = {
@@ -30,7 +30,7 @@ class GenderRepository extends PrismaRepository {
     };
     const db = await this.db();
     const [rows, count] = await Promise.all([
-      db.gender.findMany({ where, ...this.paginationArgs(SORTABLE, pagination) }),
+      db.gender.findMany({ where, ...this.paginationArgs(pagination, 'genderId') }),
       db.gender.count({ where })
     ]);
     return { rows, count };

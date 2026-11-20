@@ -5,21 +5,20 @@
 // a paso vive en CloudWatch, incluidas las llamadas a proveedores externos: la respuesta trae la
 // consulta de Logs Insights lista para pegar.
 import AppError from '../../../shared/http/app-error.util';
-import PaginationHelper from '../../../shared/http/pagination.util';
 import operationRepository from '../../../shared/observability/operation.repository';
 import auditLogRepository from '../repositories/audit-log.repository';
 import adminOperationDtoModule from '../responses/admin-operation.response';
 const { OperationListDTO, OperationTimelineDTO } = adminOperationDtoModule;
-import type { OperationSource, OperationStatus } from '../../../shared/database/generated/prisma/client';
 import audit from '../audit.service';
+import { appliedFilters, pageMetadata, pageRequest } from '../../../shared/http/pagination';
+import type { OperationListQuery } from '../requests/audit.request';
+
+type OperationFilters = NonNullable<Parameters<(typeof operationRepository)['findAllPaginated']>[0]>;
 
 type OperationReader = Pick<typeof operationRepository, 'findAllPaginated' | 'findById' | 'findChildren'>;
 type AuditReader = Pick<typeof auditLogRepository, 'findByCorrelationId'>;
 
-const FILTERS = ['source', 'status', 'userId', 'name', 'dateFrom', 'dateTo'] as const;
 const ENTITY = { entityType: 'Operation', entityTable: 'operations' };
-
-const optionalDate = (value: string | null) => (value ? new Date(value) : undefined);
 
 class AdminOperationService {
   operationRepository: OperationReader;
@@ -30,20 +29,27 @@ class AdminOperationService {
     this.auditLogRepository = deps.auditLogRepository ?? auditLogRepository;
   }
 
-  async list(query: Record<string, unknown>, adminUserId: string) {
-    const pagination = PaginationHelper.getPaginationParams({ sortBy: 'startedAt', ...query });
+  async list(query: OperationListQuery, adminUserId: string) {
+    const page = pageRequest(query);
     const { rows, count } = await this.operationRepository.findAllPaginated(
       {
-        source: (PaginationHelper.stringParam(query, 'source') as OperationSource | null) ?? undefined,
-        status: (PaginationHelper.stringParam(query, 'status') as OperationStatus | null) ?? undefined,
-        userId: PaginationHelper.stringParam(query, 'userId') ?? undefined,
-        name: PaginationHelper.stringParam(query, 'name') ?? undefined,
-        from: optionalDate(PaginationHelper.stringParam(query, 'dateFrom')),
-        to: optionalDate(PaginationHelper.stringParam(query, 'dateTo'))
+        source: (query.source ?? undefined) as OperationFilters['source'],
+        status: (query.status ?? undefined) as OperationFilters['status'],
+        userId: query.userId ?? undefined,
+        name: query.name || undefined,
+        from: query.dateFrom ?? undefined,
+        to: query.dateTo ?? undefined
       },
-      pagination
+      page
     );
-    const filters = PaginationHelper.buildFilters(query, FILTERS);
+    const filters = appliedFilters({
+      source: query.source,
+      status: query.status,
+      userId: query.userId,
+      name: query.name,
+      dateFrom: query.dateFrom,
+      dateTo: query.dateTo
+    });
 
     await audit.record('OPERATION_LIST_VIEWED', {
       actorId: adminUserId,
@@ -51,12 +57,7 @@ class AdminOperationService {
       ...ENTITY
     });
 
-    return OperationListDTO(rows, {
-      totalItems: count,
-      page: pagination.page,
-      limit: pagination.limit,
-      filters: Object.keys(filters).length > 0 ? filters : undefined
-    });
+    return OperationListDTO(rows, pageMetadata(page, count, filters));
   }
 
   async timeline(operationId: string, adminUserId: string) {

@@ -2,7 +2,7 @@
 
 import express from 'express';
 import { validate } from '../../../shared/validation/validate';
-import { PersonListQuery, PersonUserIdParams, CreatePersonBody, ChangeEmailBody, ChangeNationalIdBody, ChangeRoleBody, AdminDeleteAccountBody } from '../requests/person.request';
+import { PersonListQuery, DeletedPersonListQuery, PersonUserIdParams, CreatePersonBody, ChangeEmailBody, ChangeNationalIdBody, ChangeRoleBody, AdminDeleteAccountBody } from '../requests/person.request';
 const router = express.Router();
 import PersonController from '../controllers/admin-person.controller';
 import iamModule from '../../iam';
@@ -40,7 +40,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.CLIENTS_LIST, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  validate({ query: PersonListQuery }),
+  validate({ query: DeletedPersonListQuery }),
   PersonController.listDeleted
 );
 

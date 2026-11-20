@@ -39,6 +39,7 @@ const logAudit = mocked(auditServiceModule).record;
 import userActivityDtoModule from '../responses/user-activity.response';
 const { UserActivityListResponseDTO } = mocked(userActivityDtoModule);
 import service from './user-activity.service';
+import { RecentActivityQuery } from '../requests/audit.request';
 
 const USER_ID = 'user-1';
 
@@ -63,7 +64,7 @@ describe('UserActivityService', () => {
       ]);
 
       // UserActivityListResponseDTO está mockeado: el resultado tiene la forma del mock
-      const result: Loose = await service.getRecentActivity(USER_ID, { page: '1', limit: '10' });
+      const result: Loose = await service.getRecentActivity(USER_ID, RecentActivityQuery.parse({ page: '1', limit: '10' }));
 
       // La fuente audit se consulta con la whitelist client-safe y offset+limit filas.
       expect(auditLogRepository.findClientSafeByUser).toHaveBeenCalledWith(
@@ -87,7 +88,10 @@ describe('UserActivityService', () => {
 
       expect(logAudit).toHaveBeenCalledWith('RECENT_ACTIVITY_VIEWED', expect.objectContaining({ actorId: USER_ID, details: { totalItems: 2, page: 1 } })
       );
-      expect(result.metadata).toEqual(expect.objectContaining({ totalItems: 2, page: 1, order: 'DESC' }));
+      expect(result.metadata).toEqual({
+        pagination: { currentPage: 1, pageSize: 10, totalItems: 2, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+        sort: { field: 'createdAt', order: 'DESC' }
+      });
     });
 
     it('no consulta dispositivos cuando ningún ítem tiene session_id', async () => {
@@ -100,12 +104,12 @@ describe('UserActivityService', () => {
         count: 1
       });
 
-      const result: Loose = await service.getRecentActivity(USER_ID, {});
+      const result: Loose = await service.getRecentActivity(USER_ID, RecentActivityQuery.parse({}));
 
       expect(userSessionRepository.findByIdsWithDeviceForUser).not.toHaveBeenCalled();
       const deviceMap = UserActivityListResponseDTO.mock.calls[0][2];
       expect(deviceMap.size).toBe(0);
-      expect(result.metadata.totalItems).toBe(2);
+      expect(result.metadata.pagination.totalItems).toBe(2);
     });
   });
 });

@@ -3,9 +3,9 @@
 // Feed de notificaciones del usuario: personales + globales mezcladas y ordenadas por fecha.
 // Lo arma NotificationService y lo serializan los DTOs. Solo tipos.
 import type { GlobalNotification, Notification, NotificationType } from '../../shared/database/generated/prisma/client';
-import type PaginationHelper from '../../shared/http/pagination.util';
+import type { PageRequest } from '../../shared/http/pagination';
 
-export type PaginationParams = ReturnType<typeof PaginationHelper.getPaginationParams>;
+export type PaginationParams = PageRequest;
 
 /** Notificación personal o global con su tipo (filas de Prisma). */
 export type PersonalRow = Notification & { notificationType: NotificationType | null };

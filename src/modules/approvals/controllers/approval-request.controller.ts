@@ -7,12 +7,14 @@ const { routeParam } = routeParamUtilModule;
 import authUserUtilModule from '../../../shared/http/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
 import auditModule from '../../audit';
+import { validQuery } from '../../../shared/validation/validate';
+import { ApprovalListQuery } from '../requests/approval-request.request';
 const { adminAuditContextUtil: adminAuditContextUtilModule } = auditModule;
 const { adminAuditContext } = adminAuditContextUtilModule;
 
 class ApprovalRequestController {
   list = asyncHandler(async (req, res) => {
-    const result = await ApprovalRequestService.list(req.query, requireAuthUser(req).userId);
+    const result = await ApprovalRequestService.list(validQuery(req, ApprovalListQuery), requireAuthUser(req).userId);
     return ApiResponse.success(res, 'Solicitudes de aprobación obtenidas exitosamente', result);
   });
 

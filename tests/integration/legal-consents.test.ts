@@ -11,6 +11,7 @@ import userRepository from '../../src/modules/iam/repositories/user.repository';
 import userConsentRepository from '../../src/modules/legal/repositories/user-consent.repository';
 import privacyPolicyAdminRepository from '../../src/modules/legal/repositories/privacy-policy-admin.repository';
 import privacyPolicyRepository from '../../src/modules/legal/repositories/privacy-policy.repository';
+import { page } from '../helpers/page';
 
 const TAG = `legal-it-${randomUUID().slice(0, 8)}`;
 let roleId: string;
@@ -59,13 +60,13 @@ describe('Legal (consentimientos y política) · Prisma contra Postgres', () => 
 
   it('el historial trae tipo, política y usuario con los mismos campos que en Sequelize', async () => {
     await userConsentRepository.grant({ userId, consentTypeId });
-    const { rows, count } = await userConsentRepository.findHistoryByUser(userId);
+    const { rows, count } = await userConsentRepository.findHistoryByUser(userId, page({ sortBy: 'grantedAt' }));
 
     expect(count).toBe(rows.length);
     expect(rows[0]?.consentType).toEqual(expect.objectContaining({ consentTypeId, code: TAG.toUpperCase() }));
     expect(rows[0]?.user).toEqual({ userId, username: TAG, person: { firstName: 'Ada', lastName: TAG } });
 
-    const filtered = await userConsentRepository.findAllPaginatedForAdmin({ userId, consentTypeCode: TAG.toUpperCase(), isCurrent: true });
+    const filtered = await userConsentRepository.findAllPaginatedForAdmin({ userId, consentTypeCode: TAG.toUpperCase(), isCurrent: true }, page({ sortBy: 'grantedAt' }));
     expect(filtered.count).toBe(1);
   });
 

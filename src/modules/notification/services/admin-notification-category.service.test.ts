@@ -20,13 +20,6 @@ jest.mock('../repositories/notification-type.repository', () => ({
   countByCategory: jest.fn()
 }));
 
-jest.mock('../../../shared/http/pagination.util', () => ({
-  stringParam: jest.requireActual('../../../shared/http/pagination.util').default.stringParam,
-  booleanParam: jest.requireActual('../../../shared/http/pagination.util').default.booleanParam,
-  getPaginationParams: jest.fn().mockReturnValue({ limit: 10, offset: 0, page: 1, sortBy: 'created_at', order: 'DESC' }),
-  buildFilters: jest.fn().mockReturnValue({})
-}));
-
 jest.mock('../../../shared/observability/logger.util', () => ({
   logAudit: jest.fn(),
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn(), debug: jest.fn() }
@@ -46,6 +39,7 @@ const typeRepo = mocked(typeRepoModule);
 import auditServiceModule from '../../audit/audit.service';
 const logAudit = mocked(auditServiceModule).record;
 import service from './admin-notification-category.service';
+import { CategoryListQuery } from '../requests/notification.request';
 
 const ADMIN = 'admin-1';
 
@@ -58,11 +52,11 @@ describe('NotificationCategoryService', () => {
     it('pagina, filtra, audita y responde vía DTO de lista', async () => {
       categoryRepo.findAllPaginated.mockResolvedValue({ rows: [{ notificationCategoryId: 'c-1' }], count: 1 });
 
-      const result = await service.list({ search: 'foo' }, ADMIN);
+      const result = await service.list(CategoryListQuery.parse({ search: 'foo', isCritical: 'true' }), ADMIN);
 
-      expect(categoryRepo.findAllPaginated).toHaveBeenCalledWith({}, expect.any(Object), 'foo');
+      expect(categoryRepo.findAllPaginated).toHaveBeenCalledWith({ isCritical: true }, expect.objectContaining({ sortBy: 'createdAt' }), 'foo');
       expect(result.data).toHaveLength(1);
-      expect(result.metadata.filters).toMatchObject({ search: 'foo' });
+      expect(result.metadata.filters).toEqual({ search: 'foo', isCritical: true });
       expect(logAudit).toHaveBeenCalledWith('NOTIFICATION_CATEGORY_LIST_VIEWED', expect.objectContaining({ actorId: ADMIN, details: { totalItems: 1 } }));
     });
   });

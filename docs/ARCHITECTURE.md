@@ -118,7 +118,7 @@ parameters: toParameters(CategoryIdParams, 'path'),
 requestBody: jsonBody('AdminNotificationCategoryUpdateRequest'),
 ```
 
-Piezas de salida compartidas: `dateTime()`, `PaginationMetadata` y `listOf()` en `shared/validation/output.ts`;
+Piezas de salida compartidas: `dateTime()` y `PaginationMetadata` en `shared/validation/output.ts`;
 los textos de enmascaramiento PII en `shared/validation/pii-masking.doc.ts`. Si otro módulo necesita un esquema
 de salida, el `index.ts` lo expone (`personModule.personSchemas`, `iamModule.authSchemas`,
 `catalogsModule.catalogSchemas`, `legalModule.legalSchemas`). Los esquemas globales de Swagger
@@ -224,6 +224,22 @@ Son tres cosas distintas y cada una tiene su lugar:
 
 Todo comparte el mismo `correlationId`, que identifica una operación (petición HTTP, webhook, ciclo
 de worker o tarea de sistema) de principio a fin.
+
+## Listados: paginación, orden y filtros
+
+Todos los listados siguen el mismo contrato (`src/shared/http/pagination.ts`):
+
+- **Entrada.** El esquema del request declara `...pageQuery(campos, { sortBy })` y sus filtros tipados. Cada listado
+  dice por qué campos se puede ordenar (pocos, con índice; nunca columnas sensibles); un `sortBy`, `limit` (máx.
+  100) o filtro inválido es un 422, no se ignora. Un listado de orden fijo usa `pagingQuery` (solo page/limit).
+- **Service.** Recibe la query ya validada (`validQuery(req, Schema)` en el controller), arma la página con
+  `pageRequest(query)` y pasa los filtros al repositorio con el nombre que espera.
+- **Repositorio.** `paginationArgs(page, pk)`: ordena por el campo pedido y desempata por la clave primaria.
+- **Salida.** `{ data, metadata }` con `metadata = pageMetadata(...)`: `{ pagination, sort, filters? }`, con el orden y
+  los filtros que se **aplicaron**.
+
+Es paginación por offset con total (la que necesitan las pantallas de administración). Si un listado de una tabla
+muy grande se vuelve lento, se pagina ese listado por cursor; el contrato del resto no cambia.
 
 ## Errores, reintentos e idempotencia
 

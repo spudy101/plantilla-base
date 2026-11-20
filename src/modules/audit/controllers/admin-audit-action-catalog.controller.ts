@@ -3,6 +3,8 @@ import ApiResponse from '../../../shared/http/app-response.util';
 import errorMiddlewareModule from '../../../shared/http/error.middleware';
 const { asyncHandler } = errorMiddlewareModule;
 import authUserUtilModule from '../../../shared/http/auth-user.util';
+import { validQuery } from '../../../shared/validation/validate';
+import { AuditActionListQuery } from '../requests/audit.request';
 const { requireAuthUser } = authUserUtilModule;
 
 class AdminAuditActionCatalogController {
@@ -22,7 +24,7 @@ class AdminAuditActionCatalogController {
   });
 
   actions = asyncHandler(async (req, res) => {
-    const result = await AdminAuditActionCatalogService.listActions(req.query, requireAuthUser(req).userId);
+    const result = await AdminAuditActionCatalogService.listActions(validQuery(req, AuditActionListQuery), requireAuthUser(req).userId);
     return ApiResponse.success(res, 'Catálogo de acciones de auditoría obtenido exitosamente', result);
   });
 }

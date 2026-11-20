@@ -5,11 +5,13 @@ const { asyncHandler } = errorMiddlewareModule;
 import routeParamUtilModule from '../../../shared/http/route-param.util';
 const { routeParam } = routeParamUtilModule;
 import authUserUtilModule from '../../../shared/http/auth-user.util';
+import { validQuery } from '../../../shared/validation/validate';
+import { DeliveryListQuery } from '../requests/notification.request';
 const { requireAuthUser } = authUserUtilModule;
 
 class AdminNotificationDeliveryController {
   list = asyncHandler(async (req, res) => {
-    const result = await AdminNotificationDeliveryService.list(req.query, requireAuthUser(req).userId);
+    const result = await AdminNotificationDeliveryService.list(validQuery(req, DeliveryListQuery), requireAuthUser(req).userId);
     return ApiResponse.success(res, 'Entregas de notificaciones obtenidas exitosamente', result);
   });
 

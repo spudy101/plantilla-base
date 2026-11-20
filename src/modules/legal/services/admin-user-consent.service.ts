@@ -1,12 +1,12 @@
-import PaginationHelper from '../../../shared/http/pagination.util';
-import catalogsModule from '../../catalogs';
-const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
-const { MetadataDTO } = componentsCatalogDtoModule;
 import AppError from '../../../shared/http/app-error.util';
 import userConsentRepository from '../repositories/user-consent.repository';
 import adminUserConsentDtoModule from '../responses/admin-user-consent.response';
 const { UserConsentAuditItemDTO } = adminUserConsentDtoModule;
 import auditModule from '../../audit';
+import { appliedFilters, pageOf, pageRequest } from '../../../shared/http/pagination';
+import type { AdminUserConsentListQuery, ConsentHistoryQuery } from '../requests/legal.request';
+
+type ConsentFilters = NonNullable<Parameters<(typeof userConsentRepository)['findAllPaginatedForAdmin']>[0]>;
 const { audit } = auditModule;
 
 class AdminUserConsentService {
@@ -22,14 +22,17 @@ class AdminUserConsentService {
     this.userConsentRepository = deps.userConsentRepository ?? userConsentRepository;
   }
 
-  async list(query: Record<string, unknown>, adminUserId: string) {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
-    const filters = _buildFilters(query);
+  async list(query: AdminUserConsentListQuery, adminUserId: string) {
+    const page = pageRequest(query);
+    const filters = appliedFilters({
+      userId: query.userId,
+      consentTypeCode: query.consentTypeCode,
+      isCurrent: query.isCurrent,
+      dateFrom: query.dateFrom,
+      dateTo: query.dateTo
+    }) as ConsentFilters;
 
-    const { rows, count } = await this.userConsentRepository.findAllPaginatedForAdmin(filters, {
-      limit: paginationParams.limit,
-      offset: paginationParams.offset
-    });
+    const { rows, count } = await this.userConsentRepository.findAllPaginatedForAdmin(filters, page);
 
     await audit.record('CONSENT_LIST_VIEWED', {
       actorId: adminUserId,
@@ -38,26 +41,18 @@ class AdminUserConsentService {
       entityTable: 'user_consents'
     });
 
-    return {
-      data: rows.map(r => UserConsentAuditItemDTO(r)),
-      metadata: MetadataDTO.build({
-        totalItems: count,
-        page: paginationParams.page,
-        limit: paginationParams.limit,
-        sortBy: paginationParams.sortBy,
-        order: paginationParams.order,
-        filters: Object.keys(filters).length > 0 ? filters : undefined
-      })
-    };
+    return pageOf(
+      rows.map(r => UserConsentAuditItemDTO(r)),
+      page,
+      count,
+      filters
+    );
   }
 
-  async getHistoryByUser(userId: string, query: Record<string, unknown>, adminUserId: string) {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
+  async getHistoryByUser(userId: string, query: ConsentHistoryQuery, adminUserId: string) {
+    const page = pageRequest(query);
 
-    const { rows, count } = await this.userConsentRepository.findHistoryByUser(userId, {
-      limit: paginationParams.limit,
-      offset: paginationParams.offset
-    });
+    const { rows, count } = await this.userConsentRepository.findHistoryByUser(userId, page);
 
     if (count === 0) {
       throw AppError.notFound('No se encontraron consentimientos para este usuario');
@@ -71,42 +66,15 @@ class AdminUserConsentService {
       entityTable: 'user_consents'
     });
 
-    return {
-      data: rows.map(r => UserConsentAuditItemDTO(r)),
-      metadata: MetadataDTO.build({
-        totalItems: count,
-        page: paginationParams.page,
-        limit: paginationParams.limit,
-        sortBy: paginationParams.sortBy,
-        order: paginationParams.order
-      })
-    };
+    return pageOf(
+      rows.map(r => UserConsentAuditItemDTO(r)),
+      page,
+      count
+    );
   }
 }
 
-function _buildFilters(query: Record<string, unknown>) {
-  const filters: { userId?: string; consentTypeCode?: string; isCurrent?: boolean; dateFrom?: Date; dateTo?: Date } = {};
-  const userId = PaginationHelper.stringParam(query, 'userId');
-  const consentTypeCode = PaginationHelper.stringParam(query, 'consentTypeCode');
-  const dateFrom = PaginationHelper.stringParam(query, 'dateFrom');
-  const dateTo = PaginationHelper.stringParam(query, 'dateTo');
-  if (userId) {
-    filters.userId = userId;
-  }
-  if (consentTypeCode) {
-    filters.consentTypeCode = consentTypeCode;
-  }
-  if (query.isCurrent !== undefined) {
-    filters.isCurrent = query.isCurrent === 'true';
-  }
-  if (dateFrom) {
-    filters.dateFrom = new Date(dateFrom);
-  }
-  if (dateTo) {
-    filters.dateTo = new Date(dateTo);
-  }
-  return filters;
-}
+
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 namespace AdminUserConsentService {

@@ -2,6 +2,7 @@
 //
 // Alertas de auditoría para el superadmin. Las crea audit.record() junto con el registro que las dispara.
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import type { AuditAlert, Prisma } from '../../../shared/database/generated/prisma/client';
 import { loadUserRefs } from './user-ref';
 import type { UserRef } from './user-ref';
@@ -23,7 +24,7 @@ class AuditAlertRepository extends PrismaRepository {
 
   async findAllFiltered(
     { acknowledged, dateFrom, dateTo, action, category }: AuditAlertRepository.Filters = {},
-    { limit = 20, offset = 0 }: { limit?: number; offset?: number } = {}
+    page: PageRequest
   ): Promise<PrismaRepository.Page<AuditAlertWithUsers>> {
     const where: Prisma.AuditAlertWhereInput = {
       ...(typeof acknowledged === 'boolean' ? { acknowledged } : {}),
@@ -35,7 +36,7 @@ class AuditAlertRepository extends PrismaRepository {
     };
     const db = await this.db();
     const [rows, count] = await Promise.all([
-      db.auditAlert.findMany({ where, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
+      db.auditAlert.findMany({ where, ...this.paginationArgs(page, 'alertId') }),
       db.auditAlert.count({ where })
     ]);
     return { rows: await this.attachUsers(rows), count };

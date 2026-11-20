@@ -18,7 +18,6 @@ import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
 import businessHoursUtilModule from '../utils/business-hours.util';
 const { addBusinessHours } = businessHoursUtilModule;
-import PaginationHelper from '../../../shared/http/pagination.util';
 import approvalRequestRepository from '../repositories/approval-request.repository';
 import iamModule from '../../iam';
 const { userRepository } = iamModule;
@@ -36,15 +35,14 @@ import rbacModule from '../../../shared/constants/rbac';
 const { SUPERADMIN_ROLE_NAMES } = rbacModule;
 import componentsApprovalDtoModule from '../responses/approval-components.response';
 const { ApprovalRequestComponent, PendingApprovalComponent } = componentsApprovalDtoModule;
-import catalogsModule from '../../catalogs';
-const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
-const { MetadataDTO } = componentsCatalogDtoModule;
 import errorMessageModule from '../../../shared/utils/error-message.util';
 import type { AdminAuditContext } from '../../../shared/types/audit-context';
 import type { ApprovalRequest, Prisma } from '../../../shared/database/generated/prisma/client';
 
 const { errorMessage } = errorMessageModule;
 import auditModule from '../../audit';
+import { pageOf, pageRequest } from '../../../shared/http/pagination';
+import type { ApprovalListQuery } from '../requests/approval-request.request';
 const { audit } = auditModule;
 
 
@@ -430,26 +428,16 @@ class DualApprovalService {
   // ── List / getById para endpoints admin ───────────────────────────────────────
 
   // eslint-disable-next-line class-methods-use-this
-  async list(query: Record<string, unknown>) {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
-    const filters = PaginationHelper.buildFilters(query, ['operationKey', 'status', 'entityType']);
-    const searchTerm = typeof query.search === 'string' && query.search ? query.search : null;
-
-    const { rows, count } = await this.approvalRequestRepository.findAllPaginatedWithUsers(filters, paginationParams, searchTerm);
-
-    const metadata = {
-      totalItems: count,
-      page: paginationParams.page,
-      limit: paginationParams.limit,
-      sortBy: paginationParams.sortBy,
-      order: paginationParams.order,
-      filters: searchTerm ? { search: searchTerm, ...filters } : filters
-    };
-
-    return {
-      data: Array.isArray(rows) ? rows.map(r => ApprovalRequestComponent.buildList(r)) : [],
-      metadata: MetadataDTO.build(metadata)
-    };
+  async list(query: ApprovalListQuery) {
+    const page = pageRequest(query);
+    const filters = { operationKey: query.operationKey, status: query.status, entityType: query.entityType };
+    const { rows, count } = await this.approvalRequestRepository.findAllPaginatedWithUsers(filters, page, query.search ?? null);
+    return pageOf(
+      rows.map(r => ApprovalRequestComponent.buildList(r)),
+      page,
+      count,
+      { search: query.search, ...filters }
+    );
   }
 
   // eslint-disable-next-line class-methods-use-this

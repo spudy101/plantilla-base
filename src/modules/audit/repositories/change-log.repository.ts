@@ -4,12 +4,12 @@
 // una vista sobre audit_logs (acción USER_FIELD_CHANGED; ver audit.recordChange). Devuelve filas con la
 // forma de siempre (logId, changeType, previousValue/newValue…) para que los DTOs no cambien.
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import type { AuditLog, Prisma } from '../../../shared/database/generated/prisma/client';
 import { loadUserRefs, type UserRef } from './user-ref';
 import type { ChangedByRole, ChangeType } from '../audit.service';
 
 const CHANGE_ACTION = 'USER_FIELD_CHANGED';
-const SORTABLE = ['createdAt'] as const;
 
 interface ChangeDetails {
   changeType?: ChangeType;
@@ -111,13 +111,13 @@ class ChangeLogRepository extends PrismaRepository {
   /** Listado paginado con el usuario afectado y quién hizo el cambio. */
   async findAllPaginated(
     filters: ChangeLogRepository.Filters = {},
-    pagination: PrismaRepository.PaginationParams = {},
+    pagination: PageRequest,
     searchTerm: string | null = null
   ): Promise<PrismaRepository.Page<ChangeLogWithUsers>> {
     const where = this.where(filters, searchTerm);
     const db = await this.db();
     const [logs, count] = await Promise.all([
-      db.auditLog.findMany({ where, ...this.paginationArgs(SORTABLE, pagination) }),
+      db.auditLog.findMany({ where, ...this.paginationArgs(pagination, 'auditLogId') }),
       db.auditLog.count({ where })
     ]);
     const rows = logs.map(toRow);
@@ -129,12 +129,12 @@ class ChangeLogRepository extends PrismaRepository {
   }
 
   /** Cambios de un usuario. */
-  findByUserId(userId: string, pagination: PrismaRepository.PaginationParams = {}) {
+  findByUserId(userId: string, pagination: PageRequest) {
     return this.findAllPaginated({ userId }, pagination);
   }
 
   /** Cambios hechos por un admin. */
-  findByAdminUser(adminUserId: string, pagination: PrismaRepository.PaginationParams = {}) {
+  findByAdminUser(adminUserId: string, pagination: PageRequest) {
     return this.findAllPaginated({ changedByUserId: adminUserId, changedByRole: 'admin' }, pagination);
   }
 }

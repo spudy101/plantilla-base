@@ -9,6 +9,7 @@ import {
   ChangeRoleBody,
   CreatePersonBody,
   PersonListQuery,
+  DeletedPersonListQuery,
   PersonUserIdParams
 } from '../requests/person.request';
 import {
@@ -165,7 +166,7 @@ Estas cuentas fueron ofuscadas de forma irreversible (Ley 1581/2012) y son **int
 
 El listado normal (\`GET /person\`) **excluye** estas cuentas; este endpoint es exclusivamente para consulta histórica. La búsqueda por texto es limitada porque los datos están ofuscados.`,
       security: adminSecurity,
-      parameters: toParameters(PersonListQuery, 'query'),
+      parameters: toParameters(DeletedPersonListQuery, 'query'),
       responses: {
         200: commonResponses.paginated(
           { $ref: '#/components/schemas/AdminUserListItem' },

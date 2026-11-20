@@ -25,13 +25,6 @@ jest.mock('../../../shared/observability/logger.util', () => ({ logAudit: jest.f
 jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 jest.mock('../../../shared/infra/redis.util', () => ({ get: jest.fn(), set: jest.fn() }));
 
-jest.mock('../../../shared/http/pagination.util', () => ({
-  stringParam: jest.requireActual('../../../shared/http/pagination.util').default.stringParam,
-  booleanParam: jest.requireActual('../../../shared/http/pagination.util').default.booleanParam,
-  getPaginationParams: jest.fn(),
-  buildFilters: jest.fn()
-}));
-
 // DTOs a passthrough: devuelven { rows, metadata } para verificar qué recibió cada uno.
 jest.mock('../responses/maintainers.response', () => ({
   ListGendersResponseDTO: jest.fn((rows, metadata) => ({ dto: 'genders', rows, metadata })),
@@ -60,22 +53,13 @@ import auditServiceModule from '../../audit/audit.service';
 const logAudit = mocked(auditServiceModule).record;
 import redisClientModule from '../../../shared/infra/redis.util';
 const redisClient = mocked(redisClientModule);
-import PaginationHelperModule from '../../../shared/http/pagination.util';
-const PaginationHelper = mocked(PaginationHelperModule);
 import AppError from '../../../shared/http/app-error.util';
 import service from './maintainers.service';
+import { GenderListQuery, PhonePrefixListQuery } from '../requests/maintainers.request';
 
 describe('MaintainersService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    PaginationHelper.getPaginationParams.mockReturnValue({
-      page: 2,
-      limit: 10,
-      offset: 10,
-      sortBy: 'name',
-      order: 'ASC'
-    });
-    PaginationHelper.buildFilters.mockReturnValue({ isActive: true });
   });
 
   describe('_list (vía listGenders)', () => {
@@ -83,14 +67,12 @@ describe('MaintainersService', () => {
       const rows = [{ id: 1 }, { id: 2 }];
       genderRepository.findAllPaginated.mockResolvedValue({ rows, count: 25 });
 
-      const result = await service.listGenders({ page: '2' }, 'user-1');
+      const result = await service.listGenders(GenderListQuery.parse({ page: '2', sortBy: 'name', order: 'asc', isActive: 'true' }), 'user-1');
 
-      expect(PaginationHelper.getPaginationParams).toHaveBeenCalledWith({ page: '2' });
-      expect(PaginationHelper.buildFilters).toHaveBeenCalledWith({ page: '2' }, ['isActive']);
       expect(genderRepository.findAllPaginated).toHaveBeenCalledWith(
         { isActive: true },
         { page: 2, limit: 10, offset: 10, sortBy: 'name', order: 'ASC' },
-        null
+        undefined
       );
       expect(logAudit).toHaveBeenCalledWith('MAINTAINER_GENDERS_VIEWED', { actorId: 'user-1', details: { totalItems: 25, page: 2 }, entityType: 'Catalog', entityTable: null }
       );
@@ -98,12 +80,9 @@ describe('MaintainersService', () => {
         dto: 'genders',
         rows,
         metadata: {
-          totalItems: 25,
-          page: 2,
-          limit: 10,
-          sortBy: 'name',
-          order: 'ASC',
-          // Sin search, metadata.filters expone los filtros aplicados (builtFilters).
+          pagination: { currentPage: 2, pageSize: 10, totalItems: 25, totalPages: 3, hasNextPage: true, hasPreviousPage: true },
+          sort: { field: 'name', order: 'ASC' },
+          // Sin search, metadata.filters expone los filtros aplicados.
           filters: { isActive: true }
         }
       });
@@ -112,11 +91,11 @@ describe('MaintainersService', () => {
     it('incluye el searchTerm en metadata.filters cuando viene query.search', async () => {
       phonePrefixRepository.findAllPaginated.mockResolvedValue({ rows: [], count: 0 });
 
-      const result = await service.listPhonePrefixes({ search: 'chile' });
+      const result = await service.listPhonePrefixes(PhonePrefixListQuery.parse({ search: 'chile', isActive: 'true', page: '2' }));
 
       expect(phonePrefixRepository.findAllPaginated).toHaveBeenCalledWith(
-        { isActive: true },
-        expect.any(Object),
+        { isActive: true, countryId: undefined },
+        expect.objectContaining({ sortBy: 'createdAt', order: 'DESC' }),
         'chile'
       );
       // userId por defecto es null en rutas públicas.
@@ -131,7 +110,7 @@ describe('MaintainersService', () => {
       const items = [{ documentTypeId: 'dt-1' }, { documentTypeId: 'dt-2' }];
       documentTypeRepository.findAllVisibleToClient.mockResolvedValue(items);
 
-      const result = await service.listDocumentTypes({}, 'user-9');
+      const result = await service.listDocumentTypes('user-9');
 
       expect(documentTypeRepository.findAllVisibleToClient).toHaveBeenCalled();
       expect(logAudit).toHaveBeenCalledWith('MAINTAINER_DOCUMENT_TYPES_VIEWED', { actorId: 'user-9', details: { totalItems: 2 }, entityType: 'Catalog', entityTable: null }
@@ -139,7 +118,10 @@ describe('MaintainersService', () => {
       expect(result).toEqual({
         dto: 'documentTypes',
         rows: items,
-        metadata: { totalItems: 2, page: 1, limit: 2, sortBy: 'name', order: 'ASC', filters: {} }
+        metadata: {
+          pagination: { currentPage: 1, pageSize: 2, totalItems: 2, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+          sort: { field: 'name', order: 'ASC' }
+        }
       });
     });
   });

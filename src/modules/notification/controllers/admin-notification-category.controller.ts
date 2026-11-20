@@ -5,12 +5,14 @@ const { asyncHandler } = errorMiddlewareModule;
 import routeParamUtilModule from '../../../shared/http/route-param.util';
 const { routeParam } = routeParamUtilModule;
 import authUserUtilModule from '../../../shared/http/auth-user.util';
+import { validQuery } from '../../../shared/validation/validate';
+import { CategoryListQuery } from '../requests/notification.request';
 const { requireAuthUser } = authUserUtilModule;
 
 class NotificationCategoryController {
   /** GET /notification-categories */
   list = asyncHandler(async (req, res) => {
-    const result = await NotificationCategoryService.list(req.query, requireAuthUser(req).userId);
+    const result = await NotificationCategoryService.list(validQuery(req, CategoryListQuery), requireAuthUser(req).userId);
     return ApiResponse.success(res, 'Categorías de notificación obtenidas exitosamente', result);
   });
 

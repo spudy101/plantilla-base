@@ -7,19 +7,21 @@ const { routeParam } = routeParamUtilModule;
 import authUserUtilModule from '../../../shared/http/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
 import auditModule from '../../audit';
+import { validQuery } from '../../../shared/validation/validate';
+import { DeletedPersonListQuery, PersonListQuery } from '../requests/person.request';
 const { adminAuditContextUtil: adminAuditContextUtilModule } = auditModule;
 const { adminAuditContext } = adminAuditContextUtilModule;
 
 class PersonController {
   /** GET /person */
   list = asyncHandler(async (req, res) => {
-    const result = await PersonService.list(req.query, requireAuthUser(req).userId);
+    const result = await PersonService.list(validQuery(req, PersonListQuery), requireAuthUser(req).userId);
     return ApiResponse.success(res, 'Usuarios obtenidos exitosamente', result);
   });
 
   /** GET /person/deleted — listado histórico de clientes eliminados (read-only) */
   listDeleted = asyncHandler(async (req, res) => {
-    const result = await PersonService.listDeleted(req.query, requireAuthUser(req).userId);
+    const result = await PersonService.listDeleted(validQuery(req, DeletedPersonListQuery), requireAuthUser(req).userId);
     return ApiResponse.success(res, 'Clientes eliminados obtenidos exitosamente', result);
   });
 

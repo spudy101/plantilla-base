@@ -9,6 +9,8 @@ const { asyncHandler } = errorMiddlewareModule;
 import routeParamUtilModule from '../../../shared/http/route-param.util';
 const { routeParam } = routeParamUtilModule;
 import authUserUtilModule from '../../../shared/http/auth-user.util';
+import { validQuery } from '../../../shared/validation/validate';
+import { PrivacyPolicyListQuery } from '../requests/legal.request';
 const { requireAuthUser } = authUserUtilModule;
 
 class PrivacyPolicyAdminController {
@@ -19,7 +21,7 @@ class PrivacyPolicyAdminController {
     return ApiResponse.success(
       res,
       'Versiones de política de privacidad obtenidas exitosamente',
-      await PrivacyPolicyAdminService.listVersions(req.query, requireAuthUser(req).userId)
+      await PrivacyPolicyAdminService.listVersions(validQuery(req, PrivacyPolicyListQuery), requireAuthUser(req).userId)
     );
   });
 

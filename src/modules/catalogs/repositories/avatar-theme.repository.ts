@@ -1,14 +1,15 @@
 // modules/schemas/kyc/maintainers/repositories/avatar-theme.repository.ts
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import { Prisma } from '../../../shared/database/generated/prisma/client';
 import type { AvatarTheme } from '../../../shared/database/generated/prisma/client';
 
-const LIST = { sortable: Object.values(Prisma.AvatarThemeScalarFieldEnum), searchFields: ['name'] };
+const LIST = { tiebreaker: 'avatarThemeId', searchFields: ['name'] };
 
 class AvatarThemeRepository extends PrismaRepository {
   async findAllPaginated(
     filters: PrismaRepository.Filters = {},
-    pagination: PrismaRepository.PaginationParams = {},
+    pagination: PageRequest,
     searchTerm: string | null = null
   ): Promise<PrismaRepository.Page<AvatarTheme>> {
     const { where, page } = this.listQuery(filters, pagination, searchTerm, LIST);

@@ -3,6 +3,7 @@
 // Consentimientos otorgados (RF-ADM-04). origin_session_id / origin_correlation_id los completa la
 // extensión de Prisma al crear (shared/database/prisma-extensions.ts), desde el contexto de la request.
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import type { Prisma, UserConsent } from '../../../shared/database/generated/prisma/client';
 
 // Mismos campos que los include de Sequelize
@@ -58,16 +59,14 @@ class UserConsentRepository extends PrismaRepository {
     return (await this.db()).userConsent.findMany({ where: { userConsentId: { in: [...ids] } } });
   }
 
-  async findHistoryByUser(userId: string, { limit = 50, offset = 0 }: { limit?: number; offset?: number } = {}) {
+  async findHistoryByUser(userId: string, page: PageRequest) {
     const db = await this.db();
     const where = { userId } satisfies Prisma.UserConsentWhereInput;
     const [rows, count] = await Promise.all([
       db.userConsent.findMany({
         where,
         include: WITH_TYPE_POLICY_AND_USER,
-        orderBy: { grantedAt: 'desc' },
-        take: limit,
-        skip: offset
+        ...this.paginationArgs(page, 'userConsentId')
       }),
       db.userConsent.count({ where })
     ]);
@@ -142,7 +141,7 @@ class UserConsentRepository extends PrismaRepository {
 
   async findAllPaginatedForAdmin(
     filters: UserConsentRepository.AdminFilters = {},
-    { limit = 20, offset = 0 }: { limit?: number; offset?: number } = {}
+    page: PageRequest
   ) {
     const where: Prisma.UserConsentWhereInput = {};
     if (filters.userId) {
@@ -166,9 +165,7 @@ class UserConsentRepository extends PrismaRepository {
       db.userConsent.findMany({
         where,
         include: WITH_TYPE_POLICY_AND_USER,
-        orderBy: { grantedAt: 'desc' },
-        take: limit,
-        skip: offset
+        ...this.paginationArgs(page, 'userConsentId')
       }),
       db.userConsent.count({ where })
     ]);

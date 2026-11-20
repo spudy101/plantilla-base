@@ -1,18 +1,10 @@
 // AdminNotificationDeliveryService — consulta (solo lectura) de las entregas por canal: list (filtros
-// activos + paginación + auditoría) y getById (404 vs DTO). Repo, paginación y DTOs se mockean.
+// activos + paginación + auditoría) y getById (404 vs DTO). Repo y DTOs se mockean; la query pasa por el
+// esquema real (DeliveryListQuery), como la deja validate().
 
 jest.mock('../repositories/notification-delivery.repository', () => ({
   findAllForAdmin: jest.fn(),
   findByIdWithNotification: jest.fn()
-}));
-
-jest.mock('../../../shared/http/pagination.util', () => ({
-  stringParam: jest.requireActual('../../../shared/http/pagination.util').default.stringParam,
-  getPaginationParams: jest.fn().mockReturnValue({ limit: 10, offset: 0, page: 1, sortBy: 'created_at', order: 'DESC' })
-}));
-
-jest.mock('../../catalogs/responses/catalog-components.response', () => ({
-  MetadataDTO: { build: (meta: Loose) => ({ ...meta }) }
 }));
 
 jest.mock('../responses/admin-notification-delivery.response', () => ({
@@ -32,6 +24,7 @@ const deliveryRepo = mocked(deliveryRepoModule);
 import auditServiceModule from '../../audit/audit.service';
 const logAudit = mocked(auditServiceModule).record;
 import service from './admin-notification-delivery.service';
+import { DeliveryListQuery } from '../requests/notification.request';
 
 beforeEach(() => jest.clearAllMocks());
 
@@ -39,14 +32,19 @@ describe('list', () => {
   it('pasa solo los filtros presentes, mapea las filas y audita', async () => {
     deliveryRepo.findAllForAdmin.mockResolvedValue({ rows: [{ notificationDeliveryId: 'd-1' }], count: 1 });
 
-    const result = await service.list({ status: 'failed', channel: 'email' }, 'admin-1');
+    const result = await service.list(DeliveryListQuery.parse({ status: 'failed', channel: 'email', from: '2026-11-01' }), 'admin-1');
 
+    const from = new Date('2026-11-01');
     expect(deliveryRepo.findAllForAdmin).toHaveBeenCalledWith(
-      { status: 'failed', channel: 'email', userId: null, from: null, to: null },
-      expect.objectContaining({ limit: 10, offset: 0 })
+      { status: 'failed', channel: 'email', userId: null, from, to: null },
+      expect.objectContaining({ limit: 10, offset: 0, sortBy: 'createdAt', order: 'DESC' })
     );
     expect(result.data).toEqual([{ dto: 'list', id: 'd-1' }]);
-    expect(result.metadata).toMatchObject({ totalItems: 1, filters: { status: 'failed', channel: 'email' } });
+    expect(result.metadata).toEqual({
+      pagination: { currentPage: 1, pageSize: 10, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+      sort: { field: 'createdAt', order: 'DESC' },
+      filters: { status: 'failed', channel: 'email', from }
+    });
     expect(logAudit).toHaveBeenCalledWith(
       'NOTIFICATION_DELIVERY_LIST_VIEWED',
       expect.objectContaining({ actorId: 'admin-1', details: { totalItems: 1 } })
@@ -55,7 +53,7 @@ describe('list', () => {
 
   it('sin filtros no informa filters', async () => {
     deliveryRepo.findAllForAdmin.mockResolvedValue({ rows: [], count: 0 });
-    const result = await service.list({}, 'admin-1');
+    const result = await service.list(DeliveryListQuery.parse({}), 'admin-1');
     expect(result.metadata.filters).toBeUndefined();
   });
 });

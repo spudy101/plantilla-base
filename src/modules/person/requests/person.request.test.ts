@@ -16,12 +16,21 @@ describe('PersonListQuery — sortBy', () => {
 
   it('rechaza un campo fuera de la lista y sugiere los nombres en camelCase', () => {
     expect(issuesOf(PersonListQuery.safeParse({ sortBy: 'password_hash' }))).toEqual([
-      { field: 'sortBy', message: 'sortBy debe ser: username, createdAt, updatedAt o isActive' }
+      { field: 'sortBy', message: 'sortBy debe ser uno de: createdAt, updatedAt, username, isActive' }
     ]);
   });
 
   it('convierte page/limit e isActive desde la query string', () => {
     expect(PersonListQuery.parse({ page: '2', limit: '10', isActive: 'false' })).toMatchObject({ page: 2, limit: 10, isActive: false });
+  });
+
+  it('aplica los defaults y deja sortBy en camelCase y order en mayúsculas', () => {
+    expect(PersonListQuery.parse({})).toMatchObject({ page: 1, limit: 10, sortBy: 'createdAt', order: 'DESC' });
+    expect(PersonListQuery.parse({ sortBy: 'updated_at', order: 'asc' })).toMatchObject({ sortBy: 'updatedAt', order: 'ASC' });
+  });
+
+  it('rechaza un limit mayor a 100', () => {
+    expect(PersonListQuery.safeParse({ limit: '101' }).success).toBe(false);
   });
 
   it('roleId acepta una lista de UUIDs separados por coma', () => {

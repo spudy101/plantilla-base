@@ -2,10 +2,8 @@ import { z } from '../../../shared/validation/z';
 import { GlobalNotificationSchema, NotificationSchema } from './notification-components.response';
 import type * as Feed from '../notification-feed.types';
 import componentsNotificationDtoModule from './notification-components.response';
+import { pageMetadata } from '../../../shared/http/pagination';
 const { NotificationComponent, GlobalNotificationComponent } = componentsNotificationDtoModule;
-import catalogsModule from '../../catalogs';
-const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
-const { MetadataDTO } = componentsCatalogDtoModule;
 
 function _buildMixedItem(item: Feed.FeedItem, readIds: string[]) {
   if (item.__type === 'personal') {
@@ -27,14 +25,7 @@ function NotificationsListResponseDTO(result: Feed.MixedListResult) {
   const { mixed, readIds, totalItems, paginationParams } = result;
   return {
     data: Array.isArray(mixed) ? mixed.map(item => _buildMixedItem(item, readIds)) : [],
-    metadata: MetadataDTO.build({
-      totalItems,
-      page: paginationParams.page,
-      limit: paginationParams.limit,
-      sortBy: paginationParams.sortBy,
-      order: paginationParams.order,
-      filters: {}
-    })
+    metadata: pageMetadata(paginationParams, totalItems)
   };
 }
 
@@ -42,14 +33,7 @@ function PersonalNotificationsResponseDTO(result: Feed.PersonalListResult) {
   const { rows, count, paginationParams } = result;
   return {
     data: NotificationComponent.buildArray(Array.isArray(rows) ? rows : [], { includeType: true }),
-    metadata: MetadataDTO.build({
-      totalItems: count,
-      page: paginationParams.page,
-      limit: paginationParams.limit,
-      sortBy: paginationParams.sortBy,
-      order: paginationParams.order,
-      filters: {}
-    })
+    metadata: pageMetadata(paginationParams, count)
   };
 }
 
@@ -64,14 +48,7 @@ function GlobalNotificationsResponseDTO(result: Feed.GlobalListResult) {
           })
         )
       : [],
-    metadata: MetadataDTO.build({
-      totalItems,
-      page: paginationParams.page,
-      limit: paginationParams.limit,
-      sortBy: paginationParams.sortBy,
-      order: paginationParams.order,
-      filters: {}
-    })
+    metadata: pageMetadata(paginationParams, totalItems)
   };
 }
 

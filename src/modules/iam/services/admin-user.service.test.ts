@@ -76,16 +76,6 @@ jest.mock('../../../shared/observability/logger.util', () => ({
 }));
 jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
-jest.mock('../../../shared/http/pagination.util', () => ({
-  stringParam: jest.requireActual('../../../shared/http/pagination.util').default.stringParam,
-  booleanParam: jest.requireActual('../../../shared/http/pagination.util').default.booleanParam,
-  getPaginationParams: jest.fn().mockReturnValue({ limit: 10, offset: 0, page: 1, sortBy: 'created_at', order: 'DESC' })
-}));
-
-jest.mock('../../catalogs/responses/catalog-components.response', () => ({
-  MetadataDTO: { build: (meta: Loose) => ({ meta: true, ...meta }) }
-}));
-
 jest.mock('../../../shared/constants', () => ({
   INTERNAL_ROLE_NAMES: ['auditor', 'admin', 'super_admin'],
   SUPERADMIN_ROLE_NAMES: ['super_admin'],
@@ -163,6 +153,9 @@ const makeUser = (over = {}) => ({
   ...over
 });
 
+/** La query como la deja validate(): página 1 de 10 por createdAt DESC, más los filtros del caso. */
+const q = <T>(filters: Loose = {}): T => ({ page: 1, limit: 10, sortBy: 'createdAt', order: 'DESC', ...filters }) as T;
+
 describe('AdminUserService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -180,24 +173,24 @@ describe('AdminUserService', () => {
     it('lista usuarios internos, anota pendientes, audita y arma metadata con filtros activos', async () => {
       userRepository.findAllPaginated.mockResolvedValue({ rows: [makeUser()], count: 1 });
 
-      const result = await service.list({ roleId: 'role-admin', isActive: true, search: 'jua' }, 'admin-1');
+      const result = await service.list(q({ roleId: 'role-admin', isActive: true, search: 'jua' }), 'admin-1');
 
       // roleId interno válido → se filtra por ese rol; se excluye al solicitante.
       expect(userRepository.findAllPaginated).toHaveBeenCalledWith(
         expect.objectContaining({ roleIds: ['role-admin'], excludeUserId: 'admin-1', isActive: true }),
-        expect.any(Object),
+        { page: 1, limit: 10, offset: 0, sortBy: 'createdAt', order: 'DESC' },
         'jua'
       );
       expect(DualApprovalService.annotatePending).toHaveBeenCalledWith('User', expect.any(Array), 'userId');
       expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_LIST_VIEWED', expect.objectContaining({ actorId: 'admin-1', details: { totalItems: 1 } }));
       expect(result.data).toHaveLength(1);
-      expect(result.metadata).toMatchObject({ meta: true, totalItems: 1, filters: { roleId: 'role-admin', isActive: true } });
+      expect(result.metadata).toMatchObject({ pagination: { totalItems: 1 }, filters: { search: 'jua', roleId: 'role-admin', isActive: true } });
     });
 
     it('si el roleId no es interno cae a todos los roles listables y no expone filtro de rol', async () => {
       userRepository.findAllPaginated.mockResolvedValue({ rows: [], count: 0 });
 
-      const result = await service.list({ roleId: 'role-cliente' }, 'admin-1');
+      const result = await service.list(q({ roleId: 'role-cliente' }), 'admin-1');
 
       expect(userRepository.findAllPaginated).toHaveBeenCalledWith(
         expect.objectContaining({ roleIds: ['role-auditor', 'role-admin'] }),
@@ -213,7 +206,7 @@ describe('AdminUserService', () => {
     it('lista solo eliminados (onlyDeleted) y audita', async () => {
       userRepository.findAllPaginated.mockResolvedValue({ rows: [makeUser({ deletedAt: new Date() })], count: 1 });
 
-      const result = await service.listDeleted({}, 'admin-1');
+      const result = await service.listDeleted(q(), 'admin-1');
 
       expect(userRepository.findAllPaginated).toHaveBeenCalledWith(
         expect.objectContaining({ onlyDeleted: true }),
@@ -523,11 +516,11 @@ describe('AdminUserService', () => {
     it('devuelve la bitácora paginada del usuario y audita', async () => {
       userChangeLogRepository.findByUserId.mockResolvedValue({ rows: [{ id: 'l-1' }], count: 1 });
 
-      const result = await service.listChangeLogs('u-1', {}, 'admin-1');
+      const result = await service.listChangeLogs('u-1', q(), 'admin-1');
 
       expect(logAudit).toHaveBeenCalledWith('INTERNAL_USER_CHANGE_LOGS_VIEWED', expect.objectContaining({ actorId: 'admin-1', details: { targetUserId: 'u-1' } }));
       expect(result.data).toEqual([{ dto: 'log', id: 'l-1' }]);
-      expect(result.metadata).toMatchObject({ totalItems: 1 });
+      expect(result.metadata).toMatchObject({ pagination: { totalItems: 1 }, sort: { field: 'createdAt', order: 'DESC' } });
     });
   });
 });

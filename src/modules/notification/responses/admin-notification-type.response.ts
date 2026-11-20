@@ -1,3 +1,4 @@
+import type { PageMetadata } from '../../../shared/http/pagination';
 import { z } from '../../../shared/validation/z';
 import { dateTime } from '../../../shared/validation/output';
 import { NotificationTypeSchema } from './notification-components.response';
@@ -6,9 +7,6 @@ import type { NotificationTypeWithCategory } from '../repositories/notification-
 import componentsNotificationDtoModule from './notification-components.response';
 const { NotificationTypeComponent } = componentsNotificationDtoModule;
 
-import catalogsModule from '../../catalogs';
-const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
-const { MetadataDTO } = componentsCatalogDtoModule;
 
 /**
  * ============================================================
@@ -33,11 +31,11 @@ function NotificationTypeAdminDTO(nt: NotificationTypeWithCategory) {
 
 function ListNotificationTypesResponseDTO(
   rows: NotificationTypeWithCategory[],
-  metadata: Parameters<typeof MetadataDTO.build>[0]
+  metadata: PageMetadata
 ) {
   return {
     data: Array.isArray(rows) ? rows.map(r => NotificationTypeAdminDTO(r)) : [],
-    metadata: MetadataDTO.build(metadata)
+    metadata
   };
 }
 

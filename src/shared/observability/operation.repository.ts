@@ -3,9 +3,8 @@
 // Tabla `operations`: una fila por operación. Escribe con el cliente independiente (nunca dentro de la
 // transacción de negocio: la traza queda aunque el flujo se revierta).
 import PrismaRepository from '../database/prisma.repository';
+import type { PageRequest } from '../http/pagination';
 import type { Operation, OperationSource, OperationStatus, Prisma } from '../database/generated/prisma/client';
-
-const SORTABLE = ['startedAt', 'durationMs', 'name', 'status'] as const;
 
 class OperationRepository extends PrismaRepository {
   start(data: Pick<Prisma.OperationUncheckedCreateInput, 'operationId' | 'parentId' | 'clientRequestId' | 'source' | 'name' | 'ip'>) {
@@ -32,7 +31,7 @@ class OperationRepository extends PrismaRepository {
 
   async findAllPaginated(
     { source, status, userId, name, from, to }: OperationRepository.Filters = {},
-    pagination: PrismaRepository.PaginationParams = {}
+    pagination: PageRequest
   ): Promise<PrismaRepository.Page<Operation>> {
     const where: Prisma.OperationWhereInput = {
       ...(source ? { source } : {}),
@@ -43,7 +42,7 @@ class OperationRepository extends PrismaRepository {
     };
     const db = this.independentDb();
     const [rows, count] = await Promise.all([
-      db.operation.findMany({ where, ...this.paginationArgs(SORTABLE, pagination, 'startedAt') }),
+      db.operation.findMany({ where, ...this.paginationArgs(pagination, 'operationId') }),
       db.operation.count({ where })
     ]);
     return { rows, count };

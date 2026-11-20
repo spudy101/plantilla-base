@@ -1,3 +1,4 @@
+import type { PageMetadata } from '../../../shared/http/pagination';
 import type { UserTrustedDevice } from '../../../shared/database/generated/prisma/client';
 import { z } from '../../../shared/validation/z';
 import { AuditLogSchema } from './audit-components.response';
@@ -12,9 +13,6 @@ import type { AuditLogWithExecutor } from '../repositories/audit-log.repository'
 import componentsAuditDtoModule from './audit-components.response';
 const { AuditLogComponent } = componentsAuditDtoModule;
 const { UserSessionComponent } = componentsAuthModule;
-import catalogsModule from '../../catalogs';
-const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
-const { MetadataDTO } = componentsCatalogDtoModule;
 
 function _deviceRef(
   device:
@@ -49,12 +47,12 @@ function SessionHeaderDTO(session: SessionWithDeviceAndUser, actionCount = 0) {
 function SessionTraceListDTO(
   rows: SessionWithDeviceAndUser[],
   countMap: Map<string, number>,
-  metadata: Parameters<typeof MetadataDTO.build>[0]
+  metadata: PageMetadata
 ) {
   const list = Array.isArray(rows) ? rows : [];
   return {
     data: list.map(s => SessionHeaderDTO(s, countMap.get(s.userSessionId) ?? 0)),
-    metadata: MetadataDTO.build(metadata)
+    metadata
   };
 }
 
@@ -72,14 +70,14 @@ function SessionTimelineDTO(
   session: SessionWithDeviceAndUser,
   actionCount: number,
   timelineRows: AuditLogWithExecutor[],
-  metadata: Parameters<typeof MetadataDTO.build>[0],
+  metadata: PageMetadata,
   hasDetailFn: (log: AuditLogWithExecutor) => boolean
 ) {
   const rows = Array.isArray(timelineRows) ? timelineRows : [];
   return {
     session: SessionHeaderDTO(session, actionCount),
     timeline: rows.map(log => TimelineEventDTO(log, hasDetailFn(log))),
-    metadata: MetadataDTO.build(metadata)
+    metadata
   };
 }
 

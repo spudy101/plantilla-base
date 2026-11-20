@@ -99,4 +99,13 @@ export function validate(schemas: Schemas) {
   };
 }
 
-export default { validate };
+/**
+ * La query ya validada por `validate({ query: schema })`, con el tipo de salida de ese esquema (defaults
+ * aplicados, valores convertidos). Se pasa el mismo esquema de la ruta para que el tipo no se desalinee:
+ *   const result = await XService.list(validQuery(req, XListQuery), userId);
+ */
+export function validQuery<T extends z.ZodType>(req: Request, _schema: T): z.output<T> {
+  return req.query as unknown as z.output<T>;
+}
+
+export default { validate, validQuery };

@@ -1,12 +1,10 @@
+import type { PageMetadata } from '../../../shared/http/pagination';
 import { z } from '../../../shared/validation/z';
 import { dateTime } from '../../../shared/validation/output';
 import { NotificationCategorySchema } from './notification-components.response';
 import type { NotificationCategoryRow } from '../repositories/notification-category.repository';
 import componentsNotificationDtoModule from './notification-components.response';
 const { NotificationCategoryComponent } = componentsNotificationDtoModule;
-import catalogsModule from '../../catalogs';
-const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
-const { MetadataDTO } = componentsCatalogDtoModule;
 
 // El admin ve el layout de email completo (includeLayout = true).
 
@@ -20,11 +18,11 @@ function NotificationCategoryAdminDTO(category: NotificationCategoryRow, extra: 
 
 function ListNotificationCategoriesResponseDTO(
   rows: NotificationCategoryRow[],
-  metadata: Parameters<typeof MetadataDTO.build>[0]
+  metadata: PageMetadata
 ) {
   return {
     data: Array.isArray(rows) ? rows.map(r => NotificationCategoryAdminDTO(r)) : [],
-    metadata: MetadataDTO.build(metadata)
+    metadata
   };
 }
 

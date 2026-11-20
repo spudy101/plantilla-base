@@ -3,7 +3,7 @@
 import commonResponses from '../../../config/swagger/responses/common.responses';
 import { NotificationCreatedSchema } from '../responses/notification.response';
 import { jsonBody, toOpenApi, toParameters } from '../../../shared/validation/openapi';
-import { CreateNotificationBody, NotificationListQuery } from '../requests/notification.request';
+import { CreateNotificationBody, GlobalNotificationListQuery, NotificationFeedQuery, PersonalNotificationListQuery } from '../requests/notification.request';
 import { NotificationMixedItemSchema, UnreadCountSchema } from '../responses/notification.response';
 
 /**
@@ -141,7 +141,7 @@ const paths = {
         '',
         'Cada ítem incluye el campo `type` para discriminar entre `personal` y `global`.'
       ].join('\n'),
-      parameters: toParameters(NotificationListQuery, 'query'),
+      parameters: toParameters(NotificationFeedQuery, 'query'),
       responses: {
         200: commonResponses.paginated(
           { $ref: '#/components/schemas/NotificationMixedItem' },
@@ -163,7 +163,7 @@ const paths = {
       operationId: 'getPersonalNotifications',
       description:
         'Solo notificaciones dirigidas directamente al usuario autenticado. Soporta búsqueda por título o cuerpo. Las notificaciones de la página se marcan automáticamente como leídas.',
-      parameters: toParameters(NotificationListQuery, 'query'),
+      parameters: toParameters(PersonalNotificationListQuery, 'query'),
       responses: {
         200: commonResponses.paginated(
           { $ref: '#/components/schemas/Notification' },
@@ -189,7 +189,7 @@ const paths = {
         'El campo `isRead` refleja si el usuario autenticado ya leyó esa notificación global.',
         'Las notificaciones de la página se marcan como leídas automáticamente.'
       ].join('\n'),
-      parameters: toParameters(NotificationListQuery, 'query'),
+      parameters: toParameters(GlobalNotificationListQuery, 'query'),
       responses: {
         200: commonResponses.paginated(
           { $ref: '#/components/schemas/GlobalNotification' },

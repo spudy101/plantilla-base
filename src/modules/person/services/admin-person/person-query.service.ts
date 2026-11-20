@@ -7,16 +7,14 @@ import iamModule from '../../../iam';
 const { userRepository, roleRepository } = iamModule;
 type UserRepositoryPort = (typeof iamModule)['userRepository'];
 import AppError from '../../../../shared/http/app-error.util';
-import PaginationHelper from '../../../../shared/http/pagination.util';
-import catalogsModule from '../../../catalogs';
-const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
-const { MetadataDTO } = componentsCatalogDtoModule;
 import constantsModule from '../../../../shared/constants';
 const { CLIENT_ROLE_NAMES } = constantsModule;
 
 import adminPersonDtoModule from '../../responses/admin-person.response';
 const { UserDTO, UserListItemDTO, RoleOptionDTO } = adminPersonDtoModule;
 import auditModule from '../../../audit';
+import { pageOf, pageRequest } from '../../../../shared/http/pagination';
+import type { DeletedPersonListQuery, PersonListQuery } from '../../requests/person.request';
 const { audit } = auditModule;
 
 class PersonQueryService {
@@ -36,18 +34,9 @@ class PersonQueryService {
   // CONSULTAS
   // ============================================================
 
-  async list(query: Record<string, unknown>, adminUserId: string) {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
-    const searchTerm = PaginationHelper.stringParam(query, 'search');
-
-    // Construimos los filtros explícitamente para no depender de buildFilters
-    // y garantizar que las keys lleguen al repository con el nombre exacto que espera.
-    const filters: NonNullable<Parameters<UserRepositoryPort['findAllPaginated']>[0]> = {};
-
-    // isActive viene como booleano (el validator hace .toBoolean())
-    if (query.isActive !== undefined) {
-      filters.isActive = PaginationHelper.booleanParam(query, 'isActive');
-    }
+  async list(query: PersonListQuery, adminUserId: string) {
+    const page = pageRequest(query);
+    const filters: NonNullable<Parameters<UserRepositoryPort['findAllPaginated']>[0]> = { isActive: query.isActive ?? undefined };
 
     // El listado de clientes SOLO muestra usuarios con rol CLIENTE o CLIENTE_VERIFICADO
     // (espejo de admin-user.service, que se limita a INTERNAL_ROLE_NAMES). Si llega roleId,
@@ -67,42 +56,34 @@ class PersonQueryService {
     filters.roleIds = roleIds;
 
     // nationalId se busca por hash exacto (el campo está cifrado con IV aleatorio)
-    const nationalIdParam = PaginationHelper.stringParam(query, 'nationalId');
-    if (nationalIdParam) {
-      filters.nationalId = nationalIdParam.trim();
+    if (query.nationalId) {
+      filters.nationalId = query.nationalId;
     }
 
     // userId filtra por el PK exacto del usuario
-    const userIdParam = PaginationHelper.stringParam(query, 'userId');
-    if (userIdParam) {
-      filters.userId = userIdParam.trim();
+    if (query.userId) {
+      filters.userId = query.userId;
     }
 
-    const { rows, count } = await this.userRepository.findAllPaginated(filters, paginationParams, searchTerm);
-
-    const activeFilters = searchTerm ? { search: searchTerm, ...filters } : filters;
+    const { rows, count } = await this.userRepository.findAllPaginated(filters, page, query.search ?? null);
 
     await audit.record('PERSON_LIST_VIEWED', {
       actorId: adminUserId,
       details: {
         totalItems: count,
-        page: paginationParams.page
+        page: page.page
       },
       entityType: 'User',
       entityTable: 'users'
     });
 
-    return {
-      data: rows.map(u => UserListItemDTO(u)),
-      metadata: MetadataDTO.build({
-        totalItems: count,
-        page: paginationParams.page,
-        limit: paginationParams.limit,
-        sortBy: paginationParams.sortBy,
-        order: paginationParams.order,
-        filters: Object.keys(activeFilters).length > 0 ? activeFilters : null
-      })
-    };
+    // En la metadata, los filtros que pidió el cliente (el nationalId no se devuelve: es PII)
+    return pageOf(
+      rows.map(u => UserListItemDTO(u)),
+      page,
+      count,
+      { search: query.search, roleId: query.roleId, userId: query.userId, isActive: query.isActive }
+    );
   }
 
   /** @private — IDs de los roles de cliente (CLIENTE, CLIENTE_VERIFICADO) */
@@ -115,32 +96,22 @@ class PersonQueryService {
    * Listado HISTÓRICO de clientes eliminados (read-only). Solo cuentas con deleted_at != null.
    * El listado normal (list) las excluye; estas cuentas son intocables (no se modifican).
    */
-  async listDeleted(query: Record<string, unknown>, adminUserId: string) {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
-    const searchTerm = PaginationHelper.stringParam(query, 'search');
+  async listDeleted(query: DeletedPersonListQuery, adminUserId: string) {
+    const page = pageRequest(query);
 
     const clientRoleIds = await this._clientRoleIds();
     const filters = { roleIds: clientRoleIds, onlyDeleted: true };
 
-    const { rows, count } = await this.userRepository.findAllPaginated(filters, paginationParams, searchTerm);
+    const { rows, count } = await this.userRepository.findAllPaginated(filters, page, query.search ?? null);
 
     await audit.record('PERSON_DELETED_LIST_VIEWED', {
       actorId: adminUserId,
-      details: { totalItems: count, page: paginationParams.page },
+      details: { totalItems: count, page: page.page },
       entityType: 'User',
       entityTable: 'users'
     });
 
-    return {
-      data: rows.map(u => UserListItemDTO(u)),
-      metadata: MetadataDTO.build({
-        totalItems: count,
-        page: paginationParams.page,
-        limit: paginationParams.limit,
-        sortBy: paginationParams.sortBy,
-        order: paginationParams.order
-      })
-    };
+    return pageOf(rows.map(u => UserListItemDTO(u)), page, count, { search: query.search });
   }
 
   /**

@@ -7,7 +7,8 @@ import {
   optionalInList,
   optionalIsoDate,
   optionalUuid,
-  paginationQuery,
+  pageQuery,
+  pagingQuery,
   searchQuery,
   uuid
 } from '../../../shared/validation/fields';
@@ -25,7 +26,16 @@ const time = (field: string) =>
 const bodyBool = (field: string) => optionalBool(field);
 
 // ── Bandeja del usuario ───────────────────────────────────────
-export const NotificationListQuery = input({ ...paginationQuery, ...searchQuery });
+const byCreatedAt = pageQuery(['createdAt'], { sortBy: 'createdAt' });
+/** Bandeja mezclada (personales + globales), por fecha. */
+export const NotificationFeedQuery = z.object(byCreatedAt);
+export type NotificationFeedQuery = z.output<typeof NotificationFeedQuery>;
+/** Solo personales: por fecha, con búsqueda en título y cuerpo. */
+export const PersonalNotificationListQuery = z.object({ ...byCreatedAt, ...searchQuery });
+export type PersonalNotificationListQuery = z.output<typeof PersonalNotificationListQuery>;
+/** Solo globales: orden fijo (más reciente primero). */
+export const GlobalNotificationListQuery = z.object(pagingQuery);
+export type GlobalNotificationListQuery = z.output<typeof GlobalNotificationListQuery>;
 
 // ── Creación por un servicio externo (X-API-Key) ──────────────
 export const CreateNotificationBody = input({
@@ -122,12 +132,14 @@ export const VerifyCodeBody = input({
 });
 
 // ── Categorías (admin) ────────────────────────────────────────
-export const CategoryListQuery = input({
-  ...paginationQuery,
+const byNameOrCode = pageQuery(['createdAt', 'name', 'code'], { sortBy: 'createdAt' });
+export const CategoryListQuery = z.object({
+  ...byNameOrCode,
   ...searchQuery,
   isActive: optionalBool('El estado'),
   isCritical: optionalBool('La criticidad')
 });
+export type CategoryListQuery = z.output<typeof CategoryListQuery>;
 export const CategoryIdParams = input({ notificationCategoryId: uuid('La categoría de notificación') });
 
 const editableCategory = {
@@ -166,12 +178,13 @@ export const UpdateCategoryBody = input({
 });
 
 // ── Tipos de notificación (admin) ─────────────────────────────
-export const TypeListQuery = input({
-  ...paginationQuery,
+export const TypeListQuery = z.object({
+  ...byNameOrCode,
   ...searchQuery,
   isActive: optionalBool('El estado'),
   notificationCategoryId: optionalUuid('notificationCategoryId')
 });
+export type TypeListQuery = z.output<typeof TypeListQuery>;
 export const TypeIdParams = input({ notificationTypeId: uuid('El tipo de notificación') });
 export const UpdateTypeBody = input({
   name: z.string().trim().min(2).max(100).optional(),
@@ -214,8 +227,8 @@ export const DirectNotificationBody = input({
 // ── Entregas (admin, solo consulta) ───────────────────────────
 const DELIVERY_STATUSES = ['pending', 'sent', 'failed', 'skipped'];
 const DELIVERY_CHANNELS = ['push', 'email', 'sms'];
-export const DeliveryListQuery = input({
-  ...paginationQuery,
+export const DeliveryListQuery = z.object({
+  ...pageQuery(['createdAt'], { sortBy: 'createdAt' }),
   status: optionalInList(DELIVERY_STATUSES, {
     message: `status debe ser: ${DELIVERY_STATUSES.join(', ')}`,
     hint: `Indicá uno de los valores: ${DELIVERY_STATUSES.join(', ')}`
@@ -228,4 +241,5 @@ export const DeliveryListQuery = input({
   from: optionalIsoDate('from'),
   to: optionalIsoDate('to')
 });
+export type DeliveryListQuery = z.output<typeof DeliveryListQuery>;
 export const DeliveryIdParams = input({ id: uuid('La entrega') });

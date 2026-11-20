@@ -10,7 +10,8 @@ import {
   DeleteInternalUserBody,
   InternalUserIdParams,
   InternalUserListQuery,
-  PaginationQuery,
+  InternalUserDeletedListQuery,
+  UserChangeLogsQuery,
   UpdateInternalUserBody
 } from '../requests/iam.request';
 import {
@@ -160,7 +161,7 @@ Estas cuentas fueron ofuscadas de forma irreversible y son **intocables**: no se
 
 El listado normal (\`GET /users\`) **excluye** estas cuentas; este endpoint es exclusivamente para consulta histórica.`,
       security: adminSecurity,
-      parameters: toParameters(InternalUserListQuery, 'query'),
+      parameters: toParameters(InternalUserDeletedListQuery, 'query'),
       responses: {
         200: commonResponses.paginated(
           { $ref: '#/components/schemas/InternalUserListItem' },
@@ -359,7 +360,7 @@ Un **superadministrador** (\`SUPERADMIN\`) no se puede eliminar (**403**). Una c
       operationId: 'adminListInternalUserChangeLogs',
       description: 'Lista paginada de cambios auditados del usuario: cambios de rol, activación/desactivación, etc.',
       security: adminSecurity,
-      parameters: [...toParameters(InternalUserIdParams, 'path'), ...toParameters(PaginationQuery, 'query')],
+      parameters: [...toParameters(InternalUserIdParams, 'path'), ...toParameters(UserChangeLogsQuery, 'query')],
       responses: {
         200: commonResponses.paginated(
           { $ref: '#/components/schemas/UserChangeLog' },

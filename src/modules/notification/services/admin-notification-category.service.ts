@@ -2,10 +2,11 @@ import type { NotificationCategoryInput } from '../repositories/notification-cat
 import notificationCategoryRepository from '../repositories/notification-category.repository';
 import notificationTypeRepository from '../repositories/notification-type.repository';
 import AppError from '../../../shared/http/app-error.util';
-import PaginationHelper from '../../../shared/http/pagination.util';
 import adminNotificationCategoryDtoModule from '../responses/admin-notification-category.response';
 import auditModule from '../../audit';
 import type { NotificationCategoryDeleted } from '../responses/admin-notification-category.response';
+import { pageMetadata, pageRequest } from '../../../shared/http/pagination';
+import type { CategoryListQuery } from '../requests/notification.request';
 const { audit } = auditModule;
 const {
   NotificationCategoryAdminDTO,
@@ -52,21 +53,11 @@ class NotificationCategoryService {
     this.notificationTypeRepository = deps.notificationTypeRepository ?? notificationTypeRepository;
   }
 
-  async list(query: Record<string, unknown>, adminUserId: string) {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
-    const filters = PaginationHelper.buildFilters(query, ['isActive', 'isCritical']);
-    const searchTerm = PaginationHelper.stringParam(query, 'search');
+  async list(query: CategoryListQuery, adminUserId: string) {
+    const page = pageRequest(query);
+    const filters = { isActive: query.isActive ?? undefined, isCritical: query.isCritical ?? undefined };
 
-    const { rows, count } = await this.notificationCategoryRepository.findAllPaginated(filters, paginationParams, searchTerm);
-
-    const metadata = {
-      totalItems: count,
-      page: paginationParams.page,
-      limit: paginationParams.limit,
-      sortBy: paginationParams.sortBy,
-      order: paginationParams.order,
-      filters: searchTerm ? { search: searchTerm, ...filters } : filters
-    };
+    const { rows, count } = await this.notificationCategoryRepository.findAllPaginated(filters, page, query.search ?? null);
 
     await audit.record('NOTIFICATION_CATEGORY_LIST_VIEWED', {
       actorId: adminUserId,
@@ -74,7 +65,7 @@ class NotificationCategoryService {
       ...AUDIT_META
     });
 
-    return ListNotificationCategoriesResponseDTO(rows, metadata);
+    return ListNotificationCategoriesResponseDTO(rows, pageMetadata(page, count, { search: query.search, ...filters }));
   }
 
   async getById(notificationCategoryId: string, adminUserId: string) {
