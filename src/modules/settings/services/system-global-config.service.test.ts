@@ -49,7 +49,7 @@ const flush = () => new Promise(resolve => { setImmediate(resolve); });
 
 // Fila de config activa (objeto plano: la escritura va por el repositorio, no por la instancia).
 const makeConfig = (over = {}): Record<string, Loose> => ({
-  configId: 'cfg-1',
+  systemGlobalConfigId: 'cfg-1',
   configVersion: 3,
   integrationResilience: { timeout_ms: 1000, circuit_breaker: { failure_threshold: 5, recovery_time_ms: 30000 } },
   ...over
@@ -65,7 +65,7 @@ describe('SystemGlobalConfigService', () => {
     // Como la base: configVersion llega como { increment: 1 } y la fila devuelta ya trae la versión nueva
     systemGlobalConfigRepository.update.mockImplementation(async (configId: string, payload: Loose) => {
       const current = makeConfig();
-      return { ...current, ...payload, configId, configVersion: current.configVersion + payload.configVersion.increment };
+      return { ...current, ...payload, systemGlobalConfigId: configId, configVersion: current.configVersion + payload.configVersion.increment };
     });
   });
 
@@ -81,7 +81,7 @@ describe('SystemGlobalConfigService', () => {
 
       expect(systemGlobalConfigRepository.findActive).toHaveBeenCalled();
       expect(logAudit).toHaveBeenCalledWith('SYSTEM_GLOBAL_CONFIG_VIEWED', expect.objectContaining({ actorId: 'admin-1', entityId: 'cfg-1' }));
-      expect(result).toMatchObject({ dto: 'config', configId: 'cfg-1' });
+      expect(result).toMatchObject({ dto: 'config', systemGlobalConfigId: 'cfg-1' });
     });
 
     it('lanza (404) si no hay configuración global activa', async () => {

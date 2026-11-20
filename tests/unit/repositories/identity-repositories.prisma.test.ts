@@ -11,7 +11,7 @@ const mockDb = {
   auditLog: { findMany: jest.fn(), count: jest.fn() },
   userSession: { updateMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
   userTrustedDevice: { findFirst: jest.fn(), updateManyAndReturn: jest.fn() },
-  resetCredentials: { updateMany: jest.fn() },
+  credentialReset: { updateMany: jest.fn() },
   biometricChallenge: { updateMany: jest.fn() },
   personLocation: { upsert: jest.fn() }
 };
@@ -23,7 +23,7 @@ import userRepository from '../../../src/modules/iam/repositories/user.repositor
 import changeLogRepository from '../../../src/modules/audit/repositories/change-log.repository';
 import userSessionRepository from '../../../src/modules/iam/repositories/user-session.repository';
 import trustedDeviceRepository from '../../../src/modules/iam/repositories/auth-trusted-device.repository';
-import resetCredentialsRepository from '../../../src/modules/iam/repositories/reset-credentials.repository';
+import credentialResetRepository from '../../../src/modules/iam/repositories/credential-reset.repository';
 import biometricRepositories from '../../../src/modules/iam/repositories/biometric.repository';
 import personLocationRepository from '../../../src/modules/person/repositories/person-location.repository';
 import HashUtil from '../../../src/shared/security/hash.util';
@@ -142,10 +142,10 @@ describe('TrustedDeviceRepository', () => {
 
 describe('Consumo de un solo uso (token de reset, challenge biométrico)', () => {
   it('markAsUsed del token solo marca si seguía sin usar', async () => {
-    mockDb.resetCredentials.updateMany.mockResolvedValue({ count: 0 });
-    await expect(resetCredentialsRepository.markAsUsed('rc-1')).resolves.toBe(false);
-    expect(mockDb.resetCredentials.updateMany).toHaveBeenCalledWith({
-      where: { resetCredentialsId: 'rc-1', used: false },
+    mockDb.credentialReset.updateMany.mockResolvedValue({ count: 0 });
+    await expect(credentialResetRepository.markAsUsed('rc-1')).resolves.toBe(false);
+    expect(mockDb.credentialReset.updateMany).toHaveBeenCalledWith({
+      where: { credentialResetId: 'rc-1', used: false },
       data: { used: true, usedAt: expect.any(Date) }
     });
   });
@@ -154,7 +154,7 @@ describe('Consumo de un solo uso (token de reset, challenge biométrico)', () =>
     mockDb.biometricChallenge.updateMany.mockResolvedValue({ count: 1 });
     await expect(biometricChallengeRepository.markAsUsed('ch-1')).resolves.toBe(true);
     expect(mockDb.biometricChallenge.updateMany).toHaveBeenCalledWith({
-      where: { challengeId: 'ch-1', used: false },
+      where: { biometricChallengeId: 'ch-1', used: false },
       data: { used: true }
     });
   });

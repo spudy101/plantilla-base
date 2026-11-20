@@ -31,7 +31,7 @@ class SmsDeliveryAttemptRepository extends PrismaRepository {
   /** null si el intento no existe. */
   async markSent(smsAttemptId: string, { providerMessageId = null }: { providerMessageId?: string | null } = {}): Promise<SmsDeliveryAttempt | null> {
     const [row] = await (await this.db()).smsDeliveryAttempt.updateManyAndReturn({
-      where: { smsAttemptId },
+      where: { smsDeliveryAttemptId: smsAttemptId },
       data: { status: 'sent', providerMessageId, sentAt: new Date() }
     });
     return row ?? null;
@@ -40,7 +40,7 @@ class SmsDeliveryAttemptRepository extends PrismaRepository {
   /** null si el intento no existe. Sin `retryCount` conserva el que tenía. */
   async markFailed(smsAttemptId: string, { lastError, retryCount }: { lastError?: string | null; retryCount?: number } = {}): Promise<SmsDeliveryAttempt | null> {
     const [row] = await (await this.db()).smsDeliveryAttempt.updateManyAndReturn({
-      where: { smsAttemptId },
+      where: { smsDeliveryAttemptId: smsAttemptId },
       data: { status: 'failed', lastError: lastError || null, ...(retryCount !== undefined ? { retryCount } : {}) }
     });
     return row ?? null;

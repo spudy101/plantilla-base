@@ -1,5 +1,5 @@
-import type { ResetCredentials } from '../../../../shared/database/generated/prisma/client';
-import type { ResetTokenWithUser } from '../../repositories/reset-credentials.repository';
+import type { CredentialReset } from '../../../../shared/database/generated/prisma/client';
+import type { ResetTokenWithUser } from '../../repositories/credential-reset.repository';
 
 /** Titular del token: id, authUsername, nombre y email. */
 type ResetUser = ResetTokenWithUser['user'];
@@ -12,7 +12,7 @@ import crypto from 'node:crypto';
 import userRepository from '../../repositories/user.repository';
 import personModule from '../../../person';
 const { personContactRepository, KycSharedUtil } = personModule;
-import resetCredentialsRepository from '../../repositories/reset-credentials.repository';
+import credentialResetRepository from '../../repositories/credential-reset.repository';
 import userSessionRepository from '../../repositories/user-session.repository';
 import notificationModule from '../../../notification';
 const { notifier } = notificationModule;
@@ -33,7 +33,7 @@ class CredentialResetService {
   unitOfWork: typeof unitOfWork;
   userRepository: typeof userRepository;
   personContactRepository: typeof personContactRepository;
-  resetCredentialsRepository: typeof resetCredentialsRepository;
+  credentialResetRepository: typeof credentialResetRepository;
   userSessionRepository: typeof userSessionRepository;
   notifier: typeof notifier;
   kycSharedUtil: typeof KycSharedUtil;
@@ -46,7 +46,7 @@ class CredentialResetService {
     this.unitOfWork = deps.unitOfWork ?? unitOfWork;
     this.userRepository = deps.userRepository ?? userRepository;
     this.personContactRepository = deps.personContactRepository ?? personContactRepository;
-    this.resetCredentialsRepository = deps.resetCredentialsRepository ?? resetCredentialsRepository;
+    this.credentialResetRepository = deps.credentialResetRepository ?? credentialResetRepository;
     this.userSessionRepository = deps.userSessionRepository ?? userSessionRepository;
     this.notifier = deps.notifier ?? notifier;
     this.kycSharedUtil = deps.kycSharedUtil ?? KycSharedUtil;
@@ -70,7 +70,7 @@ class CredentialResetService {
       return false;
     }
 
-    const invalidated = await this.resetCredentialsRepository.invalidateUserTokens(user.userId);
+    const invalidated = await this.credentialResetRepository.invalidateUserTokens(user.userId);
     if (invalidated > 0) {
       logger.info('Previous reset tokens invalidated', {
         userId: user.userId,
@@ -82,7 +82,7 @@ class CredentialResetService {
     const token = crypto.randomBytes(RESET_TOKEN_BYTES).toString('hex');
     const expiresAt = new Date(Date.now() + SECURITY.RESET_TOKEN_EXPIRATION_MINUTES * MS_PER_MINUTE);
 
-    await this.resetCredentialsRepository.createResetToken({
+    await this.credentialResetRepository.createResetToken({
       userId: user.userId,
       email,
       token,
@@ -137,7 +137,7 @@ class CredentialResetService {
     const tipoNotif = await this.unitOfWork.run(async () => {
       // Se consume primero y solo si sigue sin usar: dos requests simultáneos con el mismo token ya no
       // aplican el reset dos veces (el segundo revierte).
-      if (!(await this.resetCredentialsRepository.markAsUsed(resetRecord.resetCredentialsId))) {
+      if (!(await this.credentialResetRepository.markAsUsed(resetRecord.credentialResetId))) {
         throw AppError.badRequest('Token inválido o expirado');
       }
       return this._applyCredentialReset(type, user, newPassword);
@@ -162,7 +162,7 @@ class CredentialResetService {
 
   /** @private */
   async _findValidResetRecord(token: string) {
-    const resetRecord = await this.resetCredentialsRepository.findValidTokenWithUser(token);
+    const resetRecord = await this.credentialResetRepository.findValidTokenWithUser(token);
     if (!resetRecord) {
       throw AppError.badRequest('Token inválido o expirado');
     }
@@ -247,14 +247,14 @@ class CredentialResetService {
 // eslint-disable-next-line @typescript-eslint/no-namespace
 namespace CredentialResetService {
   /** password → nueva contraseña; mfa → baja total del MFA (pérdida de dispositivo) */
-  export type ResetType = ResetCredentials['type'];
+  export type ResetType = CredentialReset['type'];
 
   /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */
   export interface Deps {
     unitOfWork?: typeof unitOfWork;
     userRepository?: typeof userRepository;
     personContactRepository?: typeof personContactRepository;
-    resetCredentialsRepository?: typeof resetCredentialsRepository;
+    credentialResetRepository?: typeof credentialResetRepository;
     userSessionRepository?: typeof userSessionRepository;
     notifier?: typeof notifier;
     kycSharedUtil?: typeof KycSharedUtil;

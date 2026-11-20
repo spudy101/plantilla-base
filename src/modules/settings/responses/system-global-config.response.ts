@@ -11,7 +11,7 @@ interface StoredResilience {
 
 /** Fila de Prisma. El contenido de integrationResilience sigue en snake_case. */
 interface SystemGlobalConfigRow {
-  configId: string;
+  systemGlobalConfigId: string;
   configVersion: number | string;
   currency: string;
   auditRetentionHotYears: number;
@@ -81,7 +81,7 @@ function SystemGlobalConfigDTO(record: SystemGlobalConfigRow | null | undefined)
     return null;
   }
   return {
-    configId: record.configId,
+    configId: record.systemGlobalConfigId,
     configVersion: record.configVersion,
     currency: record.currency,
     auditRetentionHotYears: record.auditRetentionHotYears,

@@ -118,9 +118,9 @@ describe('Auditoría · Prisma contra Postgres', () => {
 
   it('alertas: reconocer solo cambia las pendientes y adjunta quién reconoció', async () => {
     const alert = await auditAlertRepository.create({ action: TAG, risk: 'high', userId });
-    expect(await auditAlertRepository.acknowledge(alert.alertId, userId)).toBe(1);
-    expect(await auditAlertRepository.acknowledge(alert.alertId, userId)).toBe(0);
-    expect(await auditAlertRepository.findById(alert.alertId)).toMatchObject({ acknowledged: true, actor: { userId }, acknowledgedByUser: { username: TAG } });
+    expect(await auditAlertRepository.acknowledge(alert.auditAlertId, userId)).toBe(1);
+    expect(await auditAlertRepository.acknowledge(alert.auditAlertId, userId)).toBe(0);
+    expect(await auditAlertRepository.findById(alert.auditAlertId)).toMatchObject({ acknowledged: true, actor: { userId }, acknowledgedByUser: { username: TAG } });
   });
 
   it('intentos de login: el documento se guarda cifrado y el bloqueo se busca por su hash', async () => {

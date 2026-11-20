@@ -59,7 +59,7 @@ describe('IntegrationMonitoringService', () => {
       fallbackRepo.findAllPaginated.mockResolvedValue({
         rows: [
           {
-            fallbackEventId: 'f-1',
+            providerFallbackEventId: 'f-1',
             provider: 'aws_sns',
             circuitProduct: 'sns',
             startedAt: new Date(),
