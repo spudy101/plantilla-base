@@ -13,6 +13,7 @@ import sessionDto, {
   SessionTraceListItemSchema
 } from './admin-session-trace.response';
 import activityDto, { UserActivityItemSchema } from './user-activity.response';
+import { pageMetadata } from '../../../shared/http/pagination';
 
 const ID = '0f8fad5b-d9cb-469f-a165-70867728950e';
 const at = new Date('2026-01-01T00:00:00Z');
@@ -87,7 +88,7 @@ const session = {
   sessionUser: user,
   device: { userTrustedDeviceId: ID, deviceName: 'PC', deviceType: 'desktop', browser: 'Chrome', os: 'Windows', status: 'active' }
 };
-const meta = { totalItems: 1, page: 1, limit: 10 };
+const meta = pageMetadata({ page: 1, limit: 10, sortBy: 'createdAt', order: 'DESC' }, 1);
 
 const ok = (schema: { safeParse(v: unknown): { error?: { issues: unknown[] } } }, value: unknown) =>
   expect(schema.safeParse(value).error?.issues ?? []).toEqual([]);
@@ -144,7 +145,7 @@ describe('esquemas de salida de audit', () => {
           at
         }
       ],
-      {},
+      meta,
       devices
     );
     data.forEach(item => ok(UserActivityItemSchema, item));

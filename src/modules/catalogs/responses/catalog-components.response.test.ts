@@ -11,6 +11,9 @@ import components, {
   RoleSchema
 } from './catalog-components.response';
 import maintainers, { ActivePrivacyPolicySchema, DocumentTypeSchema } from './maintainers.response';
+import { pageMetadata } from '../../../shared/http/pagination';
+
+const meta = pageMetadata({ page: 1, limit: 10, sortBy: 'createdAt', order: 'DESC' }, 1);
 
 const at = new Date('2026-01-01T00:00:00Z');
 const base = { name: 'X', isActive: true, createdAt: at, updatedAt: at };
@@ -41,11 +44,7 @@ describe('esquemas de salida de catálogos', () => {
     [
       'DocumentType',
       DocumentTypeSchema,
-      maintainers.ListDocumentTypesResponseDTO([{ documentTypeId: country.countryId, code: 'CC', name: 'Cédula', isVisibleToClient: true, isActive: true }], {
-        totalItems: 1,
-        page: 1,
-        limit: 10
-      }).data[0]
+      maintainers.ListDocumentTypesResponseDTO([{ documentTypeId: country.countryId, code: 'CC', name: 'Cédula', isVisibleToClient: true, isActive: true }], meta).data[0]
     ],
     [
       'ActivePrivacyPolicy',
