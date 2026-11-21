@@ -10,7 +10,7 @@
 
 Los campos PII se guardan **cifrados** (AES-256-GCM) y, en paralelo, se guarda un **hash determinístico**
 (`*_hash`, HMAC-SHA256) que permite buscar por igualdad sin descifrar. El cliente de Prisma lo hace
-solo (`piiExtension`, `src/src/shared/database/prisma-extensions.ts`): descifra al leer —también en `include`— y
+solo (`piiExtension`, `src/shared/database/prisma-extensions.ts`): descifra al leer —también en `include`— y
 cifra + calcula el hash al escribir —también en escrituras anidadas—. Los repositorios leen y escriben en claro.
 Los `*_hash` son internos: **nunca** se exponen en DTOs.
 
@@ -39,7 +39,7 @@ Los `*_hash` son internos: **nunca** se exponen en DTOs.
   (un dato legado guardado en claro se devuelve tal cual) y los DTOs como defensa.
 - `generateHmac(data, secret)` → HMAC-SHA256 genérico. **La firma de requests mobile NO usa este**: usa
   `generateRequestHmac(timestamp, method, path, secret)` sobre `${timestamp}:${method}:${path}`, con ventana
-  de 10 s (`src/shared/security/hmac.service.ts`).
+  de 10 s (la verifica `src/modules/iam/services/hmac.service.ts`).
 - Clave AES desde config (env). El `AES_IV` del env es solo compatibilidad legado (CBC); los cifrados
   nuevos usan IV aleatorio embebido.
 

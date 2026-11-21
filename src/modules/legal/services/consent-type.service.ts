@@ -3,10 +3,6 @@ import type { AdminAuditContext } from '../../../shared/types/audit-context';
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
-import PaginationHelper from '../../../shared/http/pagination.util';
-import catalogsModule from '../../catalogs';
-const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
-const { MetadataDTO } = componentsCatalogDtoModule;
 import consentTypeRepository from '../repositories/consent-type.repository';
 import notificationModule from '../../notification';
 const { notifier } = notificationModule;
@@ -15,6 +11,8 @@ const { notifications } = constantsModule;
 import consentTypeDtoModule from '../responses/consent-type.response';
 const { ConsentTypeListDTO, ConsentTypeDTO } = consentTypeDtoModule;
 import auditModule from '../../audit';
+import { pageOf, pageRequest } from '../../../shared/http/pagination';
+import type { ConsentTypeListQuery } from '../requests/legal.request';
 const { audit } = auditModule;
 
 class ConsentTypeService {
@@ -32,27 +30,18 @@ class ConsentTypeService {
     this.notifier = deps.notifier ?? notifier;
   }
 
-  async list(query: Record<string, unknown>, adminUserId: string) {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
-    const { rows, count } = await this.consentTypeRepository.findAllPaginated({}, paginationParams, PaginationHelper.stringParam(query, 'search'));
+  async list(query: ConsentTypeListQuery, adminUserId: string) {
+    const page = pageRequest(query);
+    const { rows, count } = await this.consentTypeRepository.findAllPaginated({}, page, query.search ?? null);
 
     await audit.record('CONSENT_TYPE_LIST_VIEWED', {
       actorId: adminUserId,
-      details: { totalItems: count, page: paginationParams.page },
+      details: { totalItems: count, page: page.page },
       entityType: 'ConsentType',
       entityTable: 'consent_types'
     });
 
-    return {
-      data: rows.map(r => ConsentTypeListDTO(r)),
-      metadata: MetadataDTO.build({
-        totalItems: count,
-        page: paginationParams.page,
-        limit: paginationParams.limit,
-        sortBy: paginationParams.sortBy,
-        order: paginationParams.order
-      })
-    };
+    return pageOf(rows.map(r => ConsentTypeListDTO(r)), page, count, { search: query.search });
   }
 
   async getById(consentTypeId: string, adminUserId: string) {

@@ -41,7 +41,7 @@ model ApprovalRequest {
 }
 
 model AuditAlert {
-  alertId        String         @id(map: "pk_audit_alerts") @default(uuid()) @map("alert_id") @db.Uuid
+  auditAlertId   String         @id(map: "pk_audit_alerts") @default(uuid()) @map("audit_alert_id") @db.Uuid
   auditLogId     String?        @map("audit_log_id") @db.Uuid
   action         String         @db.VarChar(100)
   category       String?        @db.VarChar(50)
@@ -124,14 +124,14 @@ model Avatar {
 }
 
 model BiometricChallenge {
-  challengeId String   @id(map: "pk_biometric_challenges") @default(uuid()) @map("challenge_id") @db.Uuid
-  userId      String?  @map("user_id") @db.Uuid
-  challenge   String   @unique(map: "uq_biometric_challenges_challenge")
-  type        String   @db.VarChar(20)
-  used        Boolean  @default(false)
-  expiresAt   DateTime @map("expires_at") @db.Timestamptz(6)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  user        User?    @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "fk_biometric_challenges_user_id")
+  biometricChallengeId String   @id(map: "pk_biometric_challenges") @default(uuid()) @map("biometric_challenge_id") @db.Uuid
+  userId               String?  @map("user_id") @db.Uuid
+  challenge            String   @unique(map: "uq_biometric_challenges_challenge")
+  type                 String   @db.VarChar(20)
+  used                 Boolean  @default(false)
+  expiresAt            DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user                 User?    @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "fk_biometric_challenges_user_id")
 
   @@index([expiresAt], map: "idx_biometric_challenges_expires_at")
   @@index([userId], map: "idx_biometric_challenges_user_id")
@@ -272,66 +272,53 @@ model GlobalNotificationRead {
   @@map("global_notification_reads")
 }
 
+/// Notificación para todos los clientes: una fila in-app que todos ven + envío masivo por push/email.
+/// El envío va por páginas de usuarios (orden user_id) y guarda su avance en cursor_user_id: si el proceso
+/// muere, la reserva (locked_until) vence y el despachador lo retoma desde el cursor.
 model GlobalNotification {
-  globalNotificationId    String                        @id(map: "pk_global_notifications") @default(uuid()) @map("global_notification_id") @db.Uuid
-  notificationTypeId      String?                       @map("notification_type_id") @db.Uuid
+  globalNotificationId    String                   @id(map: "pk_global_notifications") @default(uuid()) @map("global_notification_id") @db.Uuid
+  notificationTypeId      String?                  @map("notification_type_id") @db.Uuid
   title                   String
   body                    String
   metadata                Json?
-  sendPush                Boolean?                      @default(false) @map("send_push")
-  sendEmail               Boolean?                      @default(false) @map("send_email")
-  sendInApp               Boolean?                      @default(true) @map("send_in_app")
-  pushProcessingStatus    NotificationProcessingStatus? @default(pending) @map("push_processing_status")
-  emailProcessingStatus   NotificationProcessingStatus? @default(pending) @map("email_processing_status")
-  pushSentCount           Int?                          @default(0) @map("push_sent_count")
-  emailSentCount          Int?                          @default(0) @map("email_sent_count")
-  isActive                Boolean?                      @default(true) @map("is_active")
-  startsAt                DateTime?                     @map("starts_at") @db.Timestamptz(6)
-  endsAt                  DateTime?                     @map("ends_at") @db.Timestamptz(6)
-  targetUserRole          String?                       @map("target_user_role") @db.VarChar(50)
-  targetConditions        Json?                         @map("target_conditions")
-  createdBy               String?                       @map("created_by") @db.Uuid
-  batchSize               Int?                          @default(100) @map("batch_size")
-  processingStartedAt     DateTime?                     @map("processing_started_at") @db.Timestamptz(6)
-  processingCompletedAt   DateTime?                     @map("processing_completed_at") @db.Timestamptz(6)
-  totalTargetUsers        Int?                          @default(0) @map("total_target_users")
-  originSessionId         String?                       @map("origin_session_id") @db.Uuid
-  originCorrelationId     String?                       @map("origin_correlation_id") @db.VarChar(128)
-  createdAt               DateTime                      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt               DateTime                      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sendPush                Boolean                  @default(false) @map("send_push")
+  sendEmail               Boolean                  @default(false) @map("send_email")
+  /// Envío masivo: pending → processing → completed (failed: no se puede enviar, p. ej. sin tipo).
+  status                  GlobalNotificationStatus @default(pending)
+  /// Último user_id ya enviado; la próxima página empieza después de él.
+  cursorUserId            String?                  @map("cursor_user_id") @db.Uuid
+  /// Reserva del envío en curso; vencida, el despachador lo retoma.
+  lockedUntil             DateTime?                @map("locked_until") @db.Timestamptz(6)
+  pushSentCount           Int                      @default(0) @map("push_sent_count")
+  emailSentCount          Int                      @default(0) @map("email_sent_count")
+  originSessionId         String?                  @map("origin_session_id") @db.Uuid
+  originCorrelationId     String?                  @map("origin_correlation_id") @db.VarChar(128)
+  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
   globalNotificationReads GlobalNotificationRead[]
-  creator                 User?                         @relation(fields: [createdBy], references: [userId], map: "fk_global_notifications_created_by")
-  notificationType        NotificationType?             @relation(fields: [notificationTypeId], references: [notificationTypeId], map: "fk_global_notifications_notification_type_id")
+  notificationType        NotificationType?        @relation(fields: [notificationTypeId], references: [notificationTypeId], map: "fk_global_notifications_notification_type_id")
 
-  @@index([createdBy], map: "idx_global_notifications_created_by")
-  @@index([emailProcessingStatus], map: "idx_global_notifications_email_processing_status")
-  @@index([isActive, startsAt, endsAt], map: "idx_global_notifications_is_active_starts_at_ends_at")
+  @@index([status], map: "idx_global_notifications_status")
   @@index([notificationTypeId], map: "idx_global_notifications_notification_type_id")
-  @@index([pushProcessingStatus], map: "idx_global_notifications_push_processing_status")
   @@index([originSessionId], map: "idx_global_notifications_origin_session_id")
   @@map("global_notifications")
 }
 
 model NotificationCategory {
-  notificationCategoryId String                       @id(map: "pk_notification_categories") @default(uuid()) @map("notification_category_id") @db.Uuid
-  code                   String                       @unique(map: "uq_notification_categories_code") @db.VarChar(100)
-  name                   String                       @db.VarChar(200)
+  notificationCategoryId String             @id(map: "pk_notification_categories") @default(uuid()) @map("notification_category_id") @db.Uuid
+  code                   String             @unique(map: "uq_notification_categories_code") @db.VarChar(100)
+  name                   String             @db.VarChar(200)
   description            String?
-  supportsPush           Boolean                      @default(true) @map("supports_push")
-  supportsEmail          Boolean                      @default(true) @map("supports_email")
-  supportsSms            Boolean                      @default(false) @map("supports_sms")
-  allowDnd               Boolean                      @default(true) @map("allow_dnd")
-  isCritical             Boolean                      @default(false) @map("is_critical")
-  defaultQuietHoursStart DateTime?                    @map("default_quiet_hours_start") @db.Time(6)
-  defaultQuietHoursEnd   DateTime?                    @map("default_quiet_hours_end") @db.Time(6)
-  priority               String                       @default("normal") @db.VarChar(20)
-  emailLayoutTemplate    String?                      @map("email_layout_template")
-  sortOrder              Int                          @default(0) @map("sort_order")
-  isActive               Boolean                      @default(true) @map("is_active")
-  createdAt              DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt              DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  supportsPush           Boolean            @default(true) @map("supports_push")
+  supportsEmail          Boolean            @default(true) @map("supports_email")
+  supportsSms            Boolean            @default(false) @map("supports_sms")
+  /// Crítica: se envía siempre, sin mirar las preferencias ni el horario de silencio del usuario.
+  isCritical             Boolean            @default(false) @map("is_critical")
+  emailLayoutTemplate    String?            @map("email_layout_template")
+  isActive               Boolean            @default(true) @map("is_active")
+  createdAt              DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
   notificationTypes      NotificationType[]
-  userPreferences        UserNotificationPreference[]
 
   @@index([isActive], map: "idx_notification_categories_is_active")
   @@map("notification_categories")
@@ -342,7 +329,6 @@ model NotificationType {
   code                   String                @unique(map: "uq_notification_types_code") @db.VarChar(100)
   name                   String                @db.VarChar(200)
   description            String?
-  priority               String?               @default("normal") @db.VarChar(20)
   titleTemplate          String                @map("title_template")
   bodyTemplate           String                @map("body_template")
   emailSubjectTemplate   String?               @map("email_subject_template")
@@ -357,57 +343,56 @@ model NotificationType {
 
   @@index([notificationCategoryId], map: "idx_notification_types_category_id")
   @@index([isActive], map: "idx_notification_types_is_active")
-  @@index([priority], map: "idx_notification_types_priority")
   @@map("notification_types")
 }
 
+/// Bandeja in-app del usuario. El envío por canales externos vive en notification_deliveries.
 model Notification {
-  notificationId     String                        @id(map: "pk_notifications") @default(uuid()) @map("notification_id") @db.Uuid
-  userId             String                        @map("user_id") @db.Uuid
-  notificationTypeId String?                       @map("notification_type_id") @db.Uuid
+  notificationId     String                 @id(map: "pk_notifications") @default(uuid()) @map("notification_id") @db.Uuid
+  userId             String                 @map("user_id") @db.Uuid
+  notificationTypeId String?                @map("notification_type_id") @db.Uuid
   title              String
   body               String
-  relatedEntityType  String?                       @map("related_entity_type") @db.VarChar(50)
-  relatedEntityId    String?                       @map("related_entity_id") @db.Uuid
+  relatedEntityType  String?                @map("related_entity_type") @db.VarChar(50)
+  relatedEntityId    String?                @map("related_entity_id") @db.Uuid
   metadata           Json?
-  isRead             Boolean?                      @default(false) @map("is_read")
-  readAt             DateTime?                     @map("read_at") @db.Timestamptz(6)
-  pushSent           Boolean?                      @default(false) @map("push_sent")
-  pushSentAt         DateTime?                     @map("push_sent_at") @db.Timestamptz(6)
-  pushError          String?                       @map("push_error")
-  /// Código del proveedor del último fallo (p. ej. EndpointDisabled): decide si es un rebote definitivo.
-  pushErrorCode      String?                       @map("push_error_code") @db.VarChar(100)
-  pushRetryCount     Int?                          @default(0) @map("push_retry_count")
-  pushNextRetryAt    DateTime?                     @map("push_next_retry_at") @db.Timestamptz(6)
-  emailSent          Boolean?                      @default(false) @map("email_sent")
-  emailSentAt        DateTime?                     @map("email_sent_at") @db.Timestamptz(6)
-  emailError         String?                       @map("email_error")
-  /// Código del proveedor del último fallo (p. ej. MessageRejected): decide si es un rebote definitivo.
-  emailErrorCode     String?                       @map("email_error_code") @db.VarChar(100)
-  emailRetryCount    Int?                          @default(0) @map("email_retry_count")
-  emailNextRetryAt   DateTime?                     @map("email_next_retry_at") @db.Timestamptz(6)
-  scheduledFor       DateTime?                     @map("scheduled_for") @db.Timestamptz(6)
-  priority           Int?                          @default(5)
-  processingStatus   NotificationProcessingStatus? @default(pending) @map("processing_status")
-  retryCount         Int                           @default(0) @map("retry_count")
-  createdAt          DateTime                      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime                      @updatedAt @map("updated_at") @db.Timestamptz(6)
-  smsSent            Boolean?                      @default(false) @map("sms_sent")
-  smsSentAt          DateTime?                     @map("sms_sent_at") @db.Timestamptz(6)
-  smsError           String?                       @map("sms_error")
-  smsRetryCount      Int?                          @default(0) @map("sms_retry_count")
-  smsNextRetryAt     DateTime?                     @map("sms_next_retry_at") @db.Timestamptz(6)
-  notificationType   NotificationType?             @relation(fields: [notificationTypeId], references: [notificationTypeId], map: "fk_notifications_notification_type_id")
-  user               User                          @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "fk_notifications_user_id")
+  isRead             Boolean?               @default(false) @map("is_read")
+  readAt             DateTime?              @map("read_at") @db.Timestamptz(6)
+  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deliveries         NotificationDelivery[]
+  notificationType   NotificationType?      @relation(fields: [notificationTypeId], references: [notificationTypeId], map: "fk_notifications_notification_type_id")
+  user               User                   @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "fk_notifications_user_id")
 
-  @@index([emailNextRetryAt], map: "idx_notifications_email_next_retry_at")
   @@index([notificationTypeId], map: "idx_notifications_notification_type_id")
-  @@index([pushNextRetryAt], map: "idx_notifications_push_next_retry_at")
   @@index([relatedEntityType, relatedEntityId], map: "idx_notifications_related_entity_type_related_entity_id")
   @@index([userId], map: "idx_notifications_user_id")
   @@index([userId, createdAt], map: "idx_notifications_user_id_created_at")
   @@index([userId, isRead, createdAt], map: "idx_notifications_user_id_is_read_created_at")
   @@map("notifications")
+}
+
+/// Envío de una notificación por un canal externo (una fila por canal que aplica). El despachador toma
+/// las pendientes con next_attempt_at vencido (docs/notifications.md).
+model NotificationDelivery {
+  notificationDeliveryId String                     @id(map: "pk_notification_deliveries") @default(uuid()) @map("notification_delivery_id") @db.Uuid
+  notificationId         String                     @map("notification_id") @db.Uuid
+  channel                NotificationChannel
+  status                 NotificationDeliveryStatus @default(pending)
+  attempts               Int                        @default(0)
+  /// Próximo intento (pendiente) o fin de la reserva del intento en curso; null cuando ya terminó.
+  nextAttemptAt          DateTime?                  @map("next_attempt_at") @db.Timestamptz(6)
+  sentAt                 DateTime?                  @map("sent_at") @db.Timestamptz(6)
+  lastError              String?                    @map("last_error")
+  /// Código del proveedor del último fallo (p. ej. MessageRejected): decide si es un rebote definitivo.
+  lastErrorCode          String?                    @map("last_error_code") @db.VarChar(100)
+  createdAt              DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  notification           Notification               @relation(fields: [notificationId], references: [notificationId], onDelete: Cascade, map: "fk_notification_deliveries_notification_id")
+
+  @@unique([notificationId, channel], map: "uq_notification_deliveries_notification_id_channel")
+  @@index([status, nextAttemptAt], map: "idx_notification_deliveries_status_next_attempt_at")
+  @@map("notification_deliveries")
 }
 
 /// Una fila por operación (petición HTTP, webhook, ciclo de worker o tarea de sistema): se inserta al
@@ -605,15 +590,15 @@ model PrivacyPolicy {
 }
 
 model ProviderFallbackEvent {
-  fallbackEventId        String    @id(map: "pk_provider_fallback_events") @default(uuid()) @map("fallback_event_id") @db.Uuid
-  provider               String    @db.VarChar(50)
-  circuitProduct         String    @map("circuit_product") @db.VarChar(50)
-  startedAt              DateTime  @map("started_at") @db.Timestamptz(6)
-  endedAt                DateTime? @map("ended_at") @db.Timestamptz(6)
-  affectedProcessesCount Int?      @map("affected_processes_count")
-  metadata               Json?
-  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  providerFallbackEventId String    @id(map: "pk_provider_fallback_events") @default(uuid()) @map("provider_fallback_event_id") @db.Uuid
+  provider                String    @db.VarChar(50)
+  circuitProduct          String    @map("circuit_product") @db.VarChar(50)
+  startedAt               DateTime  @map("started_at") @db.Timestamptz(6)
+  endedAt                 DateTime? @map("ended_at") @db.Timestamptz(6)
+  affectedProcessesCount  Int?      @map("affected_processes_count")
+  metadata                Json?
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([circuitProduct], map: "idx_provider_fallback_events_circuit_product")
   @@index([endedAt], map: "idx_provider_fallback_events_ended_at")
@@ -623,43 +608,43 @@ model ProviderFallbackEvent {
   @@map("provider_fallback_events")
 }
 
-model ResetCredentials {
-  resetCredentialsId  String               @id(map: "pk_reset_credentials") @default(uuid()) @map("reset_credentials_id") @db.Uuid
-  userId              String               @map("user_id") @db.Uuid
-  token               String               @unique(map: "uq_reset_credentials_token") @db.VarChar(500)
-  email               String               @db.VarChar(255)
-  type                ResetCredentialsType
-  expiresAt           DateTime             @map("expires_at") @db.Timestamptz(6)
-  used                Boolean?             @default(false)
-  usedAt              DateTime?            @map("used_at") @db.Timestamptz(6)
-  originSessionId     String?              @map("origin_session_id") @db.Uuid
-  originCorrelationId String?              @map("origin_correlation_id") @db.VarChar(128)
-  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
-  user                User                 @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "fk_reset_credentials_user_id")
+model CredentialReset {
+  credentialResetId   String              @id(map: "pk_credential_resets") @default(uuid()) @map("credential_reset_id") @db.Uuid
+  userId              String              @map("user_id") @db.Uuid
+  token               String              @unique(map: "uq_credential_resets_token") @db.VarChar(500)
+  email               String              @db.VarChar(255)
+  type                CredentialResetType
+  expiresAt           DateTime            @map("expires_at") @db.Timestamptz(6)
+  used                Boolean?            @default(false)
+  usedAt              DateTime?           @map("used_at") @db.Timestamptz(6)
+  originSessionId     String?             @map("origin_session_id") @db.Uuid
+  originCorrelationId String?             @map("origin_correlation_id") @db.VarChar(128)
+  createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                User                @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "fk_credential_resets_user_id")
 
-  @@index([email], map: "idx_reset_credentials_email")
-  @@index([expiresAt], map: "idx_reset_credentials_expires_at")
-  @@index([originSessionId], map: "idx_reset_credentials_origin_session_id")
-  @@index([token, used, expiresAt], map: "idx_reset_credentials_token_validation")
-  @@index([type], map: "idx_reset_credentials_type")
-  @@index([used], map: "idx_reset_credentials_used")
-  @@index([userId], map: "idx_reset_credentials_user_id")
-  @@index([userId, type, used], map: "idx_reset_credentials_user_type_used")
-  @@map("reset_credentials")
+  @@index([email], map: "idx_credential_resets_email")
+  @@index([expiresAt], map: "idx_credential_resets_expires_at")
+  @@index([originSessionId], map: "idx_credential_resets_origin_session_id")
+  @@index([token, used, expiresAt], map: "idx_credential_resets_token_validation")
+  @@index([type], map: "idx_credential_resets_type")
+  @@index([used], map: "idx_credential_resets_used")
+  @@index([userId], map: "idx_credential_resets_user_id")
+  @@index([userId, type, used], map: "idx_credential_resets_user_type_used")
+  @@map("credential_resets")
 }
 
 model RolePermissionOverride {
-  rolePermissionId    String   @id(map: "pk_role_permission_overrides") @default(dbgenerated("gen_random_uuid()")) @map("role_permission_id") @db.Uuid
-  roleName            String   @map("role_name") @db.VarChar(50)
-  moduleName          String   @map("module_name") @db.VarChar(50)
-  action              String   @db.VarChar(20)
-  grantedByUserId     String   @map("granted_by_user_id") @db.Uuid
-  originSessionId     String?  @map("origin_session_id") @db.Uuid
-  originCorrelationId String?  @map("origin_correlation_id") @db.VarChar(128)
-  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  grantedBy           User     @relation(fields: [grantedByUserId], references: [userId], map: "fk_role_permission_overrides_granted_by_user_id")
+  rolePermissionOverrideId String   @id(map: "pk_role_permission_overrides") @default(dbgenerated("gen_random_uuid()")) @map("role_permission_override_id") @db.Uuid
+  roleName                 String   @map("role_name") @db.VarChar(50)
+  moduleName               String   @map("module_name") @db.VarChar(50)
+  action                   String   @db.VarChar(20)
+  grantedByUserId          String   @map("granted_by_user_id") @db.Uuid
+  originSessionId          String?  @map("origin_session_id") @db.Uuid
+  originCorrelationId      String?  @map("origin_correlation_id") @db.VarChar(128)
+  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  grantedBy                User     @relation(fields: [grantedByUserId], references: [userId], map: "fk_role_permission_overrides_granted_by_user_id")
 
   @@unique([roleName, moduleName, action], map: "uq_role_permission_overrides_role_module_action")
   @@index([originSessionId], map: "idx_role_permission_overrides_origin_session_id")
@@ -681,19 +666,19 @@ model Role {
 }
 
 model SmsDeliveryAttempt {
-  smsAttemptId      String                   @id(map: "pk_sms_delivery_attempts") @default(uuid()) @map("sms_attempt_id") @db.Uuid
-  userId            String?                  @map("user_id") @db.Uuid
-  phoneHash         String                   @map("phone_hash") @db.VarChar(64)
-  provider          String                   @default("aws_sms") @db.VarChar(30)
-  purpose           String                   @db.VarChar(30)
-  status            SmsDeliveryAttemptStatus @default(pending)
-  retryCount        Int                      @default(0) @map("retry_count")
-  lastError         String?                  @map("last_error")
-  providerMessageId String?                  @map("provider_message_id") @db.VarChar(255)
-  sentAt            DateTime?                @map("sent_at") @db.Timestamptz(6)
-  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
-  user              User?                    @relation(fields: [userId], references: [userId], map: "fk_sms_delivery_attempts_user_id")
+  smsDeliveryAttemptId String                   @id(map: "pk_sms_delivery_attempts") @default(uuid()) @map("sms_delivery_attempt_id") @db.Uuid
+  userId               String?                  @map("user_id") @db.Uuid
+  phoneHash            String                   @map("phone_hash") @db.VarChar(64)
+  provider             String                   @default("aws_sms") @db.VarChar(30)
+  purpose              String                   @db.VarChar(30)
+  status               SmsDeliveryAttemptStatus @default(pending)
+  retryCount           Int                      @default(0) @map("retry_count")
+  lastError            String?                  @map("last_error")
+  providerMessageId    String?                  @map("provider_message_id") @db.VarChar(255)
+  sentAt               DateTime?                @map("sent_at") @db.Timestamptz(6)
+  createdAt            DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                 User?                    @relation(fields: [userId], references: [userId], map: "fk_sms_delivery_attempts_user_id")
 
   @@index([createdAt], map: "idx_sms_delivery_attempts_created_at")
   @@index([phoneHash], map: "idx_sms_delivery_attempts_phone_hash")
@@ -703,7 +688,7 @@ model SmsDeliveryAttempt {
 }
 
 model SystemGlobalConfig {
-  configId                String   @id(map: "pk_system_global_config") @default(dbgenerated("gen_random_uuid()")) @map("config_id") @db.Uuid
+  systemGlobalConfigId    String   @id(map: "pk_system_global_config") @default(dbgenerated("gen_random_uuid()")) @map("system_global_config_id") @db.Uuid
   configVersion           Int      @default(1) @map("config_version")
   isActive                Boolean  @unique(map: "uq_system_global_config_is_active") @default(true) @map("is_active")
   currency                String   @default("CLP") @db.VarChar(10)
@@ -724,18 +709,18 @@ model SystemGlobalConfig {
 }
 
 model UserBiometricCredential {
-  biometricCredentialId String            @id(map: "pk_user_biometric_credentials") @default(uuid()) @map("biometric_credential_id") @db.Uuid
-  userId                String            @map("user_id") @db.Uuid
-  userTrustedDeviceId   String            @map("user_trusted_device_id") @db.Uuid
-  credentialId          String            @unique(map: "uq_user_biometric_credentials_credential_id") @map("credential_id")
-  publicKey             String            @map("public_key")
-  signCount             Int               @default(0) @map("sign_count")
-  isActive              Boolean           @default(true) @map("is_active")
-  lastUsedAt            DateTime?         @map("last_used_at") @db.Timestamptz(6)
-  createdAt             DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
-  user                  User              @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "fk_user_biometric_credentials_user_id")
-  trustedDevice         UserTrustedDevice @relation(fields: [userTrustedDeviceId], references: [userTrustedDeviceId], onDelete: Cascade, map: "fk_user_biometric_credentials_user_trusted_device_id")
+  userBiometricCredentialId String            @id(map: "pk_user_biometric_credentials") @default(uuid()) @map("user_biometric_credential_id") @db.Uuid
+  userId                    String            @map("user_id") @db.Uuid
+  userTrustedDeviceId       String            @map("user_trusted_device_id") @db.Uuid
+  credentialId              String            @unique(map: "uq_user_biometric_credentials_credential_id") @map("credential_id")
+  publicKey                 String            @map("public_key")
+  signCount                 Int               @default(0) @map("sign_count")
+  isActive                  Boolean           @default(true) @map("is_active")
+  lastUsedAt                DateTime?         @map("last_used_at") @db.Timestamptz(6)
+  createdAt                 DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                      User              @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "fk_user_biometric_credentials_user_id")
+  trustedDevice             UserTrustedDevice @relation(fields: [userTrustedDeviceId], references: [userTrustedDeviceId], onDelete: Cascade, map: "fk_user_biometric_credentials_user_trusted_device_id")
 
   @@index([userTrustedDeviceId], map: "idx_user_biometric_credentials_user_trusted_device_id")
   @@index([userId], map: "idx_user_biometric_credentials_user_id")
@@ -802,26 +787,22 @@ model UserLoginAttempt {
   @@map("user_login_attempts")
 }
 
+/// Preferencia de notificación del usuario: una sola por usuario. Las categorías críticas la ignoran.
 model UserNotificationPreference {
-  userNotificationPreferenceId String                @id(map: "pk_user_notification_preferences") @default(uuid()) @map("user_notification_preference_id") @db.Uuid
-  userId                       String                @map("user_id") @db.Uuid
-  notificationCategoryCode     String?               @map("notification_category_code") @db.VarChar(100)
-  allowPush                    Boolean?              @default(true) @map("allow_push")
-  allowEmail                   Boolean?              @default(true) @map("allow_email")
-  quietHoursStart              DateTime?             @map("quiet_hours_start") @db.Time(6)
-  quietHoursEnd                DateTime?             @map("quiet_hours_end") @db.Time(6)
-  originSessionId              String?               @map("origin_session_id") @db.Uuid
-  originCorrelationId          String?               @map("origin_correlation_id") @db.VarChar(128)
-  createdAt                    DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                    DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
-  allowSms                     Boolean?              @default(true) @map("allow_sms")
-  notificationCategory         NotificationCategory? @relation(fields: [notificationCategoryCode], references: [code], onDelete: Cascade, map: "fk_user_notification_preferences_notification_category_code")
-  user                         User                  @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "fk_user_notification_preferences_user_id")
+  userNotificationPreferenceId String    @id(map: "pk_user_notification_preferences") @default(uuid()) @map("user_notification_preference_id") @db.Uuid
+  userId                       String    @unique(map: "uq_user_notification_preferences_user_id") @map("user_id") @db.Uuid
+  allowPush                    Boolean?  @default(true) @map("allow_push")
+  allowEmail                   Boolean?  @default(true) @map("allow_email")
+  allowSms                     Boolean?  @default(true) @map("allow_sms")
+  quietHoursStart              DateTime? @map("quiet_hours_start") @db.Time(6)
+  quietHoursEnd                DateTime? @map("quiet_hours_end") @db.Time(6)
+  originSessionId              String?   @map("origin_session_id") @db.Uuid
+  originCorrelationId          String?   @map("origin_correlation_id") @db.VarChar(128)
+  createdAt                    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                         User      @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "fk_user_notification_preferences_user_id")
 
-  @@unique([userId, notificationCategoryCode], map: "uq_user_notif_prefs_user_id_notification_category_code")
-  @@index([notificationCategoryCode], map: "idx_user_notification_preferences_notification_category_code")
   @@index([originSessionId], map: "idx_user_notification_preferences_origin_session_id")
-  @@index([userId], map: "idx_user_notification_preferences_user_id")
   @@map("user_notification_preferences")
 }
 
@@ -914,44 +895,43 @@ model UserTrustedDevice {
 }
 
 model User {
-  userId                           String                       @id(map: "pk_users") @default(uuid()) @map("user_id") @db.Uuid
-  username                         String                       @unique(map: "uq_users_username") @db.VarChar(50)
-  passwordHash                     String?                      @map("password_hash") @db.VarChar(255)
-  authUsername                     String?                      @unique(map: "uq_users_auth_username") @map("auth_username") @db.VarChar(255)
-  personId                         String                       @unique(map: "uq_users_person_id") @map("person_id") @db.Uuid
-  roleId                           String                       @map("role_id") @db.Uuid
-  avatarId                         String?                      @map("avatar_id") @db.Uuid
-  totpEnabled                      Boolean?                     @default(false) @map("totp_enabled")
-  smsMfaEnabled                    Boolean                      @default(false) @map("sms_mfa_enabled")
-  preferredMfaMethod               String                       @default("none") @map("preferred_mfa_method") @db.VarChar(10)
-  privacyPolicyVersion             String?                      @map("privacy_policy_version") @db.VarChar(20)
-  privacyPolicyAcceptedAt          DateTime?                    @map("privacy_policy_accepted_at") @db.Timestamptz(6)
-  privacyPolicyAcceptedIp          String?                      @map("privacy_policy_accepted_ip") @db.VarChar(45)
-  isActive                         Boolean?                     @default(true) @map("is_active")
-  createdAt                        DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                        DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  userId                           String                      @id(map: "pk_users") @default(uuid()) @map("user_id") @db.Uuid
+  username                         String                      @unique(map: "uq_users_username") @db.VarChar(50)
+  passwordHash                     String?                     @map("password_hash") @db.VarChar(255)
+  authUsername                     String?                     @unique(map: "uq_users_auth_username") @map("auth_username") @db.VarChar(255)
+  personId                         String                      @unique(map: "uq_users_person_id") @map("person_id") @db.Uuid
+  roleId                           String                      @map("role_id") @db.Uuid
+  avatarId                         String?                     @map("avatar_id") @db.Uuid
+  totpEnabled                      Boolean?                    @default(false) @map("totp_enabled")
+  smsMfaEnabled                    Boolean                     @default(false) @map("sms_mfa_enabled")
+  preferredMfaMethod               String                      @default("none") @map("preferred_mfa_method") @db.VarChar(10)
+  privacyPolicyVersion             String?                     @map("privacy_policy_version") @db.VarChar(20)
+  privacyPolicyAcceptedAt          DateTime?                   @map("privacy_policy_accepted_at") @db.Timestamptz(6)
+  privacyPolicyAcceptedIp          String?                     @map("privacy_policy_accepted_ip") @db.VarChar(45)
+  isActive                         Boolean?                    @default(true) @map("is_active")
+  createdAt                        DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                        DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
   // columna "deletedAt" fuera del schema: residuo sin uso (la real es deleted_at); fase 6c la elimina
-  deletedAt                        DateTime?                    @map("deleted_at") @db.Timestamptz(6)
-  totpSecret                       String?                      @map("totp_secret")
-  approvalRequestsByRequestedBy    ApprovalRequest[]            @relation("ApprovalRequest_requester")
-  approvalRequestsBySecondApprover ApprovalRequest[]            @relation("ApprovalRequest_secondApprover")
+  deletedAt                        DateTime?                   @map("deleted_at") @db.Timestamptz(6)
+  totpSecret                       String?                     @map("totp_secret")
+  approvalRequestsByRequestedBy    ApprovalRequest[]           @relation("ApprovalRequest_requester")
+  approvalRequestsBySecondApprover ApprovalRequest[]           @relation("ApprovalRequest_secondApprover")
   biometricChallenges              BiometricChallenge[]
   emailBounceSuppressions          EmailBounceSuppression[]
   globalNotificationReads          GlobalNotificationRead[]
-  globalNotifications              GlobalNotification[]
   notifications                    Notification[]
-  resetCredentials                 ResetCredentials[]
+  credentialResets                 CredentialReset[]
   rolePermissionOverrides          RolePermissionOverride[]
   smsDeliveryAttempts              SmsDeliveryAttempt[]
   userBiometricCredentials         UserBiometricCredential[]
   userConsents                     UserConsent[]
   loginAttempts                    UserLoginAttempt[]
-  notificationPreference           UserNotificationPreference[]
+  notificationPreference           UserNotificationPreference?
   userPushTokens                   UserPushToken[]
   trustedDevices                   UserTrustedDevice[]
-  avatar                           Avatar?                      @relation(fields: [avatarId], references: [avatarId], map: "fk_users_avatar_id")
-  person                           Person                       @relation(fields: [personId], references: [personId], onDelete: Cascade, map: "fk_users_person_id")
-  role                             Role                         @relation(fields: [roleId], references: [roleId], map: "fk_users_role_id")
+  avatar                           Avatar?                     @relation(fields: [avatarId], references: [avatarId], map: "fk_users_avatar_id")
+  person                           Person                      @relation(fields: [personId], references: [personId], onDelete: Cascade, map: "fk_users_person_id")
+  role                             Role                        @relation(fields: [roleId], references: [roleId], map: "fk_users_role_id")
 
   @@index([deletedAt], map: "idx_users_deleted_at")
   @@index([smsMfaEnabled], map: "idx_users_sms_mfa_enabled")
@@ -1052,15 +1032,33 @@ enum EmailBounceSuppressionStatus {
   @@map("enum_email_bounce_suppressions_status")
 }
 
-/// Estado de procesamiento de notificaciones y notificaciones globales (antes varchar).
-enum NotificationProcessingStatus {
+/// Estado del envío masivo de una notificación global (ver docs/notifications.md).
+enum GlobalNotificationStatus {
   pending
   processing
   completed
-  partial_failure
   failed
 
-  @@map("enum_notification_processing_status")
+  @@map("enum_global_notifications_status")
+}
+
+/// Canal externo de una entrega de notificación.
+enum NotificationChannel {
+  push
+  email
+  sms
+
+  @@map("enum_notification_deliveries_channel")
+}
+
+/// pending: por enviar (o en curso) · sent · failed: rebote definitivo o intentos agotados · skipped: sin destinatario.
+enum NotificationDeliveryStatus {
+  pending
+  sent
+  failed
+  skipped
+
+  @@map("enum_notification_deliveries_status")
 }
 
 enum PersonReferenceReferenceType {
@@ -1070,11 +1068,11 @@ enum PersonReferenceReferenceType {
   @@map("enum_person_references_reference_type")
 }
 
-enum ResetCredentialsType {
+enum CredentialResetType {
   mfa
   password
 
-  @@map("enum_reset_credentials_type")
+  @@map("enum_credential_resets_type")
 }
 
 enum SmsDeliveryAttemptStatus {

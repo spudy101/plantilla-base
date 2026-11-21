@@ -4,11 +4,12 @@ import iamModule from '../../iam';
 const { userRepository } = iamModule;
 import NotificationUtil from './notification-creation.service';
 import AppError from '../../../shared/http/app-error.util';
-import PaginationHelper from '../../../shared/http/pagination.util';
 import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
 import adminNotificationTypeDtoModule from '../responses/admin-notification-type.response';
 import auditModule from '../../audit';
+import { pageMetadata, pageRequest } from '../../../shared/http/pagination';
+import type { TypeListQuery } from '../requests/notification.request';
 const { audit } = auditModule;
 const {
   ListNotificationTypesResponseDTO,
@@ -36,34 +37,23 @@ class NotificationTypeService {
     this.NotificationUtil = deps.NotificationUtil ?? NotificationUtil;
   }
 
-  async list(query: Record<string, unknown>, adminUserId: string) {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
-    const filters = PaginationHelper.buildFilters(query, ['isActive', 'priority', 'notificationCategoryId']);
-    const searchTerm = PaginationHelper.stringParam(query, 'search');
+  async list(query: TypeListQuery, adminUserId: string) {
+    const page = pageRequest(query);
+    const filters = { isActive: query.isActive ?? undefined, notificationCategoryId: query.notificationCategoryId ?? undefined };
 
-    const { rows, count } = await this.notificationTypeRepository.findAllPaginated(filters, paginationParams, searchTerm);
+    const { rows, count } = await this.notificationTypeRepository.findAllPaginated(filters, page, query.search ?? null);
 
-    const metadata = {
-      totalItems: count,
-      page: paginationParams.page,
-      limit: paginationParams.limit,
-      sortBy: paginationParams.sortBy,
-      order: paginationParams.order,
-      filters: searchTerm ? { search: searchTerm, ...filters } : filters
-    };
-
-    // ✅ .description extrae el string del objeto AUDIT_ACTIONS
     await audit.record('NOTIFICATION_TYPE_LIST_VIEWED', {
       actorId: adminUserId,
       details: {
         totalItems: count,
-        page: paginationParams.page
+        page: page.page
       },
       entityType: 'NotificationType',
       entityTable: 'notification_types'
     });
 
-    return ListNotificationTypesResponseDTO(rows, metadata);
+    return ListNotificationTypesResponseDTO(rows, pageMetadata(page, count, { search: query.search, ...filters }));
   }
 
   async update(notificationTypeId: string, data: Record<string, unknown>, adminUserId: string) {
@@ -80,8 +70,8 @@ class NotificationTypeService {
       }
     }
 
-    // Los templates no se incluyen: son read-only vía API. Los canales/DND viven en la categoría.
-    const EDITABLE = ['name', 'description', 'priority', 'notificationCategoryId'] as const;
+    // Los templates no se incluyen: son read-only vía API. Canales y criticidad viven en la categoría.
+    const EDITABLE = ['name', 'description', 'notificationCategoryId'] as const;
     const updateData: Record<string, unknown> = {};
     for (const key of EDITABLE) {
       if (data[key] !== undefined) {

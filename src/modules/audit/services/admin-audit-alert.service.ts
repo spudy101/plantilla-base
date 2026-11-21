@@ -1,19 +1,17 @@
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
-import PaginationHelper from '../../../shared/http/pagination.util';
 import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
 import notificationModule from '../../notification';
 const { notifier } = notificationModule;
-import catalogsModule from '../../catalogs';
-const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
-const { MetadataDTO } = componentsCatalogDtoModule;
 import auditAlertRepository from '../repositories/audit-alert.repository';
 import adminAuditAlertDtoModule from '../responses/admin-audit-alert.response';
 const { AuditAlertListDTO } = adminAuditAlertDtoModule;
 import audit from '../audit.service';
 import type { AlertsAcknowledged } from '../responses/admin-audit-alert.response';
+import { pageMetadata, pageRequest } from '../../../shared/http/pagination';
+import type { AuditAlertListQuery } from '../requests/audit.request';
 
 class AdminAuditAlertService {
   notifier: typeof notifier;
@@ -30,23 +28,18 @@ class AdminAuditAlertService {
     this.auditAlertRepository = deps.auditAlertRepository ?? auditAlertRepository;
   }
 
-  async list(query: Record<string, unknown>, adminUserId: string) {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
-    const acknowledged = PaginationHelper.booleanParam(query, 'acknowledged');
-    const { rows, count } = await this.auditAlertRepository.findAllFiltered(
-      {
-        acknowledged,
-        dateFrom: PaginationHelper.stringParam(query, 'dateFrom') ?? undefined,
-        dateTo: PaginationHelper.stringParam(query, 'dateTo') ?? undefined,
-        action: PaginationHelper.stringParam(query, 'action') ?? undefined,
-        category: PaginationHelper.stringParam(query, 'category') ?? undefined
-      },
-      { limit: paginationParams.limit, offset: paginationParams.offset }
-    );
+  async list(query: AuditAlertListQuery, adminUserId: string) {
+    const page = pageRequest(query);
+    const filters = {
+      acknowledged: query.acknowledged ?? undefined,
+      dateFrom: query.dateFrom ?? undefined,
+      dateTo: query.dateTo ?? undefined,
+      action: query.action ?? undefined,
+      category: query.category ?? undefined
+    };
+    const { rows, count } = await this.auditAlertRepository.findAllFiltered(filters, page);
 
     const pending = await this.auditAlertRepository.countPending();
-
-    const activeFilters = PaginationHelper.buildFilters(query, ['acknowledged', 'dateFrom', 'dateTo', 'action', 'category']);
 
     await audit.record('AUDIT_ALERT_LISTED', {
       actorId: adminUserId,
@@ -57,17 +50,7 @@ class AdminAuditAlertService {
 
     return {
       data: rows.map(r => AuditAlertListDTO(r)),
-      metadata: {
-        ...MetadataDTO.build({
-          totalItems: count,
-          page: paginationParams.page,
-          limit: paginationParams.limit,
-          sortBy: paginationParams.sortBy,
-          order: paginationParams.order,
-          filters: Object.keys(activeFilters).length > 0 ? activeFilters : undefined
-        }),
-        pendingCount: pending
-      }
+      metadata: { ...pageMetadata(page, count, filters), pendingCount: pending }
     };
   }
 

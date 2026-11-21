@@ -6,15 +6,6 @@ import type { NotificationType } from '../../../shared/database/generated/prisma
 // Absorbe notificationPriority.util.js — sin lógica de negocio,
 // sin repositorios, reutilizable en cualquier contexto.
 
-const PRIORITY_SCORES = {
-  low: 3,
-  normal: 5,
-  high: 8,
-  urgent: 10
-};
-
-const DEFAULT_PRIORITY_SCORE = PRIORITY_SCORES.normal;
-
 class NotificationContentUtil {
   // ============================================================
   // CONTENT GENERATION
@@ -65,20 +56,6 @@ class NotificationContentUtil {
       const value = (data as Record<string, unknown> | null | undefined)?.[variable];
       return value === null || value === undefined ? match : String(value);
     });
-  }
-
-  // ============================================================
-  // PRIORITY MAPPING
-  // (absorbido de notificationPriority.util.js)
-  // ============================================================
-
-  /**
-   * Mapea prioridad string → número para ordenamiento en BD
-   * @param {'low'|'normal'|'high'|'urgent'} priority
-   * @returns {number}
-   */
-  static mapPriority(priority: string | null | undefined) {
-    return (priority && (PRIORITY_SCORES as Record<string, number>)[priority]) || DEFAULT_PRIORITY_SCORE;
   }
 }
 

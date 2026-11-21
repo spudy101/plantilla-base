@@ -1,10 +1,8 @@
+import type { PageMetadata } from '../../../shared/http/pagination';
 import { z } from '../../../shared/validation/z';
 import { dateTime } from '../../../shared/validation/output';
 import type { PrivacyPolicy } from '../../../shared/database/generated/prisma/client';
 
-import catalogsModule from '../../catalogs';
-const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
-const { MetadataDTO } = componentsCatalogDtoModule;
 
 // ============================================================
 // COMPONENTE BASE — un ítem de la lista o el detalle completo
@@ -25,10 +23,10 @@ function PrivacyPolicyItemDTO(policy: PrivacyPolicy) {
 // LIST — paginado
 // ============================================================
 
-function ListPrivacyPoliciesResponseDTO(policies: PrivacyPolicy[], metadata: Parameters<typeof MetadataDTO.build>[0]) {
+function ListPrivacyPoliciesResponseDTO(policies: PrivacyPolicy[], metadata: PageMetadata) {
   return {
     data: Array.isArray(policies) ? policies.map(PrivacyPolicyItemDTO) : [],
-    metadata: MetadataDTO.build(metadata)
+    metadata
   };
 }
 

@@ -118,7 +118,7 @@ parameters: toParameters(CategoryIdParams, 'path'),
 requestBody: jsonBody('AdminNotificationCategoryUpdateRequest'),
 ```
 
-Piezas de salida compartidas: `dateTime()`, `PaginationMetadata` y `listOf()` en `shared/validation/output.ts`;
+Piezas de salida compartidas: `dateTime()` y `PaginationMetadata` en `shared/validation/output.ts`;
 los textos de enmascaramiento PII en `shared/validation/pii-masking.doc.ts`. Si otro módulo necesita un esquema
 de salida, el `index.ts` lo expone (`personModule.personSchemas`, `iamModule.authSchemas`,
 `catalogsModule.catalogSchemas`, `legalModule.legalSchemas`). Los esquemas globales de Swagger
@@ -195,7 +195,7 @@ const res = await callProvider({ product: 'ses', endpoint: 'SES:SendEmailCommand
   llamadas extra. Sirve igual para un proveedor que no sea de AWS. Las **alarmas** (p. ej. `Failures`/`Calls`
   de SES > 5% en 5 min, `Rejected` > 0) y la retención del log group se configuran en AWS.
 - Si el negocio necesita un dato de la llamada, se guarda **en la entidad del negocio**: p. ej. el código de
-  error de un envío va a `notifications.email_error_code` / `push_error_code`, que lee el worker de reintentos.
+  error de un envío va a `notification_deliveries.last_error_code`, que decide si es un rebote definitivo.
 - Los clientes del SDK (SES, SNS, S3) se crean con `...AWS_CLIENT_OPTIONS` (`maxAttempts: 1`): reintenta solo
   `callProvider`, no también el SDK. Lo verifica `tests/unit/guards/provider-calls.test.ts`.
 - Solo los errores **transitorios** (5xx, 408/429, throttling, timeout, red) se reintentan y cuentan para el
@@ -225,6 +225,22 @@ Son tres cosas distintas y cada una tiene su lugar:
 Todo comparte el mismo `correlationId`, que identifica una operación (petición HTTP, webhook, ciclo
 de worker o tarea de sistema) de principio a fin.
 
+## Listados: paginación, orden y filtros
+
+Todos los listados siguen el mismo contrato (`src/shared/http/pagination.ts`):
+
+- **Entrada.** El esquema del request declara `...pageQuery(campos, { sortBy })` y sus filtros tipados. Cada listado
+  dice por qué campos se puede ordenar (pocos, con índice; nunca columnas sensibles); un `sortBy`, `limit` (máx.
+  100) o filtro inválido es un 422, no se ignora. Un listado de orden fijo usa `pagingQuery` (solo page/limit).
+- **Service.** Recibe la query ya validada (`validQuery(req, Schema)` en el controller), arma la página con
+  `pageRequest(query)` y pasa los filtros al repositorio con el nombre que espera.
+- **Repositorio.** `paginationArgs(page, pk)`: ordena por el campo pedido y desempata por la clave primaria.
+- **Salida.** `{ data, metadata }` con `metadata = pageMetadata(...)`: `{ pagination, sort, filters? }`, con el orden y
+  los filtros que se **aplicaron**.
+
+Es paginación por offset con total (la que necesitan las pantallas de administración). Si un listado de una tabla
+muy grande se vuelve lento, se pagina ese listado por cursor; el contrato del resto no cambia.
+
 ## Errores, reintentos e idempotencia
 
 Toda respuesta de error dice si es **temporal** (`retryable: true`, y `Retry-After` si se sabe cuánto
@@ -235,6 +251,35 @@ contrato completo, para quien consume la API: docs/errors-and-retries.md.
 Las operaciones que no se deben ejecutar dos veces (hoy: crear y enviar notificaciones) exigen el header
 `Idempotency-Key`: un reintento con la misma clave recibe la respuesta guardada. Cómo funciona, cuándo
 usarlo y sus límites: docs/idempotency.md.
+
+## Trabajo asíncrono: la cola es Postgres (y cuándo dejar de serlo)
+
+Hoy el trabajo en segundo plano usa **tablas de Postgres como cola**, sin un broker de mensajes. Por
+ejemplo, `notification_deliveries` y el envío masivo de globales (docs/notifications.md) se procesan así:
+un worker toma lo que vence con `FOR UPDATE SKIP LOCKED` y lo reserva con un lease. Hay reintentos con
+backoff, y si una instancia se cae, otra retoma su trabajo. Con esto se tiene lo esencial de una cola
+(trabajo persistido, varios consumidores sin pisarse, reintentos, recuperación) sin agregar infraestructura.
+Además, el trabajo se encola **en la misma transacción** que el dato que lo origina: o se guardan los dos
+o ninguno, cosa que un broker externo no da sin un patrón *outbox*.
+
+**Cuando el sistema crezca**, conviene pasar a un servicio de colas o de mensajería. Señales concretas:
+
+| Señal | Qué usar |
+|---|---|
+| La cola carga la base (cientos de miles de trabajos por hora, el despachador compitiendo con las consultas de la app) o hay que absorber picos grandes | **SQS** para los procesos asíncronos (con DLQ para los que agotan reintentos) |
+| El trabajo pasa a otro servicio o despliegue (p. ej. un servicio de envíos aparte) | **SQS**, o **RabbitMQ** si se necesita ruteo entre colas (prioridades, colas por tipo de trabajo) |
+| Una misma acción tiene que avisar a varios sistemas independientes (registro de usuario → facturación, CRM, analítica) | Eventos con **SNS/EventBridge** o **RabbitMQ** (exchanges) |
+| Flujo masivo de eventos (miles por segundo) con varios consumidores que leen a su ritmo y necesitan **releer el historial** | **Kafka** (MSK) |
+
+Cómo migrar sin rehacer el diseño:
+- Mantener la tabla como *outbox*: se escribe en la transacción, como hoy, y un publicador la pasa al
+  broker. Así no se pierde la atomicidad.
+- Cambiar solo el consumidor. El `dispatchDue` del worker pasa a ser un consumidor de la cola; el resto
+  (cómo se agenda un trabajo, cómo se registra su estado, los reintentos y la idempotencia) no cambia.
+- La entrega sigue siendo *at-least-once*: el consumidor tiene que tolerar un mensaje repetido, igual que hoy.
+
+Mientras ninguna de esas señales aparezca, no se agrega un broker (KISS/YAGNI): sería más
+infraestructura que operar, pagar y simular en los tests sin resolver un problema que exista.
 
 ## Servidor
 

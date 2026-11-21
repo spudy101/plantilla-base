@@ -9,19 +9,21 @@ const { routeParam } = routeParamUtilModule;
 import authUserUtilModule from '../../../shared/http/auth-user.util';
 const { requireAuthUser } = authUserUtilModule;
 import auditModule from '../../audit';
+import { validQuery } from '../../../shared/validation/validate';
+import { InternalUserDeletedListQuery, InternalUserListQuery, UserChangeLogsQuery } from '../requests/iam.request';
 const { adminAuditContextUtil: adminAuditContextUtilModule } = auditModule;
 const { adminAuditContext } = adminAuditContextUtilModule;
 
 class AdminUserController {
   /** GET /admin/api/users */
   list = asyncHandler(async (req, res) => {
-    const result = await AdminUserService.list(req.query, requireAuthUser(req).userId);
+    const result = await AdminUserService.list(validQuery(req, InternalUserListQuery), requireAuthUser(req).userId);
     return ApiResponse.success(res, 'Usuarios internos obtenidos exitosamente', result);
   });
 
   /** GET /admin/api/users/deleted — listado histórico de usuarios internos eliminados (read-only) */
   listDeleted = asyncHandler(async (req, res) => {
-    const result = await AdminUserService.listDeleted(req.query, requireAuthUser(req).userId);
+    const result = await AdminUserService.listDeleted(validQuery(req, InternalUserDeletedListQuery), requireAuthUser(req).userId);
     return ApiResponse.success(res, 'Usuarios internos eliminados obtenidos exitosamente', result);
   });
 
@@ -87,7 +89,7 @@ class AdminUserController {
 
   /** GET /admin/api/users/:userId/change-logs */
   listChangeLogs = asyncHandler(async (req, res) => {
-    const data = await AdminUserService.listChangeLogs(routeParam(req, 'userId'), req.query, requireAuthUser(req).userId);
+    const data = await AdminUserService.listChangeLogs(routeParam(req, 'userId'), validQuery(req, UserChangeLogsQuery), requireAuthUser(req).userId);
     return ApiResponse.success(res, 'Bitácora obtenida exitosamente', data);
   });
 }

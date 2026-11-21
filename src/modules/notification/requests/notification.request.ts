@@ -7,19 +7,14 @@ import {
   optionalInList,
   optionalIsoDate,
   optionalUuid,
-  paginationQuery,
+  pageQuery,
+  pagingQuery,
   searchQuery,
   uuid
 } from '../../../shared/validation/fields';
-import DomainEnums from '../../../shared/constants/domain-enums';
 
-const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 const TIME_REGEX = /^\d{2}:\d{2}(:\d{2})?$/;
 
-const priority = optionalInList(PRIORITIES, {
-  message: 'priority debe ser "low", "normal", "high" o "urgent"',
-  hint: 'Indicá uno de: low, normal, high, urgent'
-});
 const time = (field: string) =>
   withHint(
     z
@@ -31,7 +26,16 @@ const time = (field: string) =>
 const bodyBool = (field: string) => optionalBool(field);
 
 // ── Bandeja del usuario ───────────────────────────────────────
-export const NotificationListQuery = input({ ...paginationQuery, ...searchQuery });
+const byCreatedAt = pageQuery(['createdAt'], { sortBy: 'createdAt' });
+/** Bandeja mezclada (personales + globales), por fecha. */
+export const NotificationFeedQuery = z.object(byCreatedAt);
+export type NotificationFeedQuery = z.output<typeof NotificationFeedQuery>;
+/** Solo personales: por fecha, con búsqueda en título y cuerpo. */
+export const PersonalNotificationListQuery = z.object({ ...byCreatedAt, ...searchQuery });
+export type PersonalNotificationListQuery = z.output<typeof PersonalNotificationListQuery>;
+/** Solo globales: orden fijo (más reciente primero). */
+export const GlobalNotificationListQuery = z.object(pagingQuery);
+export type GlobalNotificationListQuery = z.output<typeof GlobalNotificationListQuery>;
 
 // ── Creación por un servicio externo (X-API-Key) ──────────────
 export const CreateNotificationBody = input({
@@ -64,15 +68,6 @@ export const UpdatePreferenceBody = input({
   quietHoursEnd: time('quietHoursEnd')
 }).refine(v => EDITABLE_FIELDS.some(f => (v as Record<string, unknown>)[f] !== undefined), {
   error: 'Debe enviar al menos un campo para actualizar las preferencias'
-});
-export const CategoryCodeParams = input({
-  categoryCode: withHint(
-    z
-      .string({ error: 'categoryCode es requerido' })
-      .min(1, { error: 'categoryCode es requerido' })
-      .regex(/^[A-Z0-9_]{2,100}$/, { error: 'categoryCode inválido' }),
-    { hint: 'Ej: SECURITY, ACCOUNT' }
-  )
 });
 
 // ── Verificación de email / teléfono ──────────────────────────
@@ -137,13 +132,14 @@ export const VerifyCodeBody = input({
 });
 
 // ── Categorías (admin) ────────────────────────────────────────
-export const CategoryListQuery = input({
-  ...paginationQuery,
+const byNameOrCode = pageQuery(['createdAt', 'name', 'code'], { sortBy: 'createdAt' });
+export const CategoryListQuery = z.object({
+  ...byNameOrCode,
   ...searchQuery,
   isActive: optionalBool('El estado'),
-  isCritical: optionalBool('La criticidad'),
-  priority
+  isCritical: optionalBool('La criticidad')
 });
+export type CategoryListQuery = z.output<typeof CategoryListQuery>;
 export const CategoryIdParams = input({ notificationCategoryId: uuid('La categoría de notificación') });
 
 const editableCategory = {
@@ -151,13 +147,8 @@ const editableCategory = {
   supportsPush: bodyBool('supportsPush'),
   supportsEmail: bodyBool('supportsEmail'),
   supportsSms: bodyBool('supportsSms'),
-  allowDnd: bodyBool('allowDnd'),
   isCritical: bodyBool('isCritical'),
-  defaultQuietHoursStart: time('defaultQuietHoursStart'),
-  defaultQuietHoursEnd: time('defaultQuietHoursEnd'),
-  priority,
   emailLayoutTemplate: z.string().max(20000).nullish(),
-  sortOrder: z.coerce.number().int().min(0).optional(),
   isActive: bodyBool('isActive')
 };
 export const CreateCategoryBody = input({
@@ -187,18 +178,17 @@ export const UpdateCategoryBody = input({
 });
 
 // ── Tipos de notificación (admin) ─────────────────────────────
-export const TypeListQuery = input({
-  ...paginationQuery,
+export const TypeListQuery = z.object({
+  ...byNameOrCode,
   ...searchQuery,
   isActive: optionalBool('El estado'),
-  notificationCategoryId: optionalUuid('notificationCategoryId'),
-  priority
+  notificationCategoryId: optionalUuid('notificationCategoryId')
 });
+export type TypeListQuery = z.output<typeof TypeListQuery>;
 export const TypeIdParams = input({ notificationTypeId: uuid('El tipo de notificación') });
 export const UpdateTypeBody = input({
   name: z.string().trim().min(2).max(100).optional(),
   description: z.string().trim().max(500).optional(),
-  priority,
   notificationCategoryId: withHint(z.uuid({ error: 'notificationCategoryId debe ser un UUID válido' }).nullish(), {
     hint: 'Usá el identificador de la categoría (formato UUID)'
   })
@@ -234,22 +224,22 @@ export const DirectNotificationBody = input({
   ...globalNotification
 });
 
-// ── Entregas (admin) ──────────────────────────────────────────
-const VALID_STATUSES: string[] = Object.values(DomainEnums.NOTIFICATION_PROCESSING_STATUS);
-const VALID_CHANNELS = ['email', 'push', 'sms', 'all'];
-const deliveryRange = { userId: optionalUuid('El ID de usuario'), from: optionalIsoDate('from'), to: optionalIsoDate('to') };
-export const DeliveryListQuery = input({
-  ...paginationQuery,
-  processingStatus: optionalInList(VALID_STATUSES, {
-    message: `processingStatus debe ser: ${VALID_STATUSES.join(', ')}`,
-    hint: `Indicá uno de los valores: ${VALID_STATUSES.join(', ')}`
+// ── Entregas (admin, solo consulta) ───────────────────────────
+const DELIVERY_STATUSES = ['pending', 'sent', 'failed', 'skipped'];
+const DELIVERY_CHANNELS = ['push', 'email', 'sms'];
+export const DeliveryListQuery = z.object({
+  ...pageQuery(['createdAt'], { sortBy: 'createdAt' }),
+  status: optionalInList(DELIVERY_STATUSES, {
+    message: `status debe ser: ${DELIVERY_STATUSES.join(', ')}`,
+    hint: `Indicá uno de los valores: ${DELIVERY_STATUSES.join(', ')}`
   }),
-  channel: optionalInList(VALID_CHANNELS, {
-    message: `channel debe ser: ${VALID_CHANNELS.join(', ')}`,
-    hint: `Indicá uno de los valores: ${VALID_CHANNELS.join(', ')}`
+  channel: optionalInList(DELIVERY_CHANNELS, {
+    message: `channel debe ser: ${DELIVERY_CHANNELS.join(', ')}`,
+    hint: `Indicá uno de los valores: ${DELIVERY_CHANNELS.join(', ')}`
   }),
-  ...deliveryRange,
-  onlyCritical: withHint(optionalBool('onlyCritical'), { hint: 'Enviá true para listar solo notificaciones críticas' })
+  userId: optionalUuid('El ID de usuario'),
+  from: optionalIsoDate('from'),
+  to: optionalIsoDate('to')
 });
-export const DeliveryMetricsQuery = input(deliveryRange);
-export const DeliveryIdParams = input({ id: uuid('La notificación') });
+export type DeliveryListQuery = z.output<typeof DeliveryListQuery>;
+export const DeliveryIdParams = input({ id: uuid('La entrega') });

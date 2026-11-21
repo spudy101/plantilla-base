@@ -3,14 +3,16 @@ import ExcelJS from 'exceljs';
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
-import PaginationHelper from '../../../shared/http/pagination.util';
-import catalogsModule from '../../catalogs';
-const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
-const { MetadataDTO } = componentsCatalogDtoModule;
 import auditLogRepository from '../repositories/audit-log.repository';
 import adminAuditLogDtoModule from '../responses/admin-audit-log.response';
 const { AuditLogListDTO, AuditLogDTO } = adminAuditLogDtoModule;
 import audit from '../audit.service';
+import { appliedFilters, pageMetadata, pageRequest } from '../../../shared/http/pagination';
+import type { AuditLogListQuery } from '../requests/audit.request';
+
+/** Los filtros con valor, sin null (el repositorio los recibe como opcionales). */
+const definedOnly = <T extends Record<string, unknown>>(filters: T) =>
+  Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== null && v !== undefined)) as { [K in keyof T]?: NonNullable<T[K]> };
 
 const EXPORT_LIMIT = 50000;
 
@@ -44,35 +46,12 @@ class AdminAuditLogService {
     this.auditLogRepository = deps.auditLogRepository ?? auditLogRepository;
   }
 
-  async list(query: Record<string, unknown>, adminUserId: string) {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
-    // Los filtros de negocio se traducen a WHERE dentro del repositorio (el service no conoce Sequelize).
-    const { rows, count } = await this.auditLogRepository.searchPaginated(
-      query,
-      {
-        limit: paginationParams.limit,
-        offset: paginationParams.offset,
-        sortBy: paginationParams.sortBy,
-        order: paginationParams.order
-      }
-    );
-
-    const activeFilters = PaginationHelper.buildFilters(query, [
-      'dateFrom',
-      'dateTo',
-      'action',
-      'userId',
-      'sessionId',
-      'category',
-      'module',
-      'outcome',
-      'risk',
-      'ip',
-      'correlationId',
-      'entityId',
-      'entityType',
-      'source'
-    ]);
+  async list(query: AuditLogListQuery, adminUserId: string) {
+    const { page: pageNumber, limit, sortBy, order, ...filters } = query;
+    const page = pageRequest({ page: pageNumber, limit, sortBy, order });
+    // Los filtros de negocio se traducen a WHERE dentro del repositorio.
+    const { rows, count } = await this.auditLogRepository.searchPaginated(definedOnly(filters), page);
+    const activeFilters = appliedFilters(filters);
 
     await audit.record('AUDIT_LOG_LISTED', {
       actorId: adminUserId,
@@ -83,14 +62,7 @@ class AdminAuditLogService {
 
     return {
       data: rows.map(r => AuditLogListDTO(r)),
-      metadata: MetadataDTO.build({
-        totalItems: count,
-        page: paginationParams.page,
-        limit: paginationParams.limit,
-        sortBy: paginationParams.sortBy,
-        order: paginationParams.order,
-        filters: Object.keys(activeFilters).length > 0 ? activeFilters : undefined
-      })
+      metadata: pageMetadata(page, count, activeFilters)
     };
   }
 

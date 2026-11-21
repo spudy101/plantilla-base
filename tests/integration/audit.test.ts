@@ -13,6 +13,7 @@ import auditAlertRepository from '../../src/modules/audit/repositories/audit-ale
 import userLoginAttemptRepository from '../../src/modules/audit/repositories/user-login-attempt.repository';
 import audit from '../../src/modules/audit/audit.service';
 import requestContext from '../../src/shared/observability/request-context.util';
+import { page } from '../helpers/page';
 
 const TAG = `audit-it-${randomUUID().slice(0, 8)}`;
 const SESSION_A = randomUUID();
@@ -92,7 +93,7 @@ describe('Auditoría · Prisma contra Postgres', () => {
     await auditLogRepository.create({ ...base, action: `${TAG}-a`, userId, sessionId: SESSION_A });
     await auditLogRepository.create({ ...base, action: `${TAG}-b`, sessionId: SESSION_B });
 
-    const { rows, count } = await auditLogRepository.searchPaginated({ module: TAG, sessionId: SESSION_A }, { limit: 10, offset: 0 });
+    const { rows, count } = await auditLogRepository.searchPaginated({ module: TAG, sessionId: SESSION_A }, page());
     expect(count).toBe(2);
     expect(rows[0]?.executor).toEqual({ userId, username: TAG, person: { firstName: 'Ana', lastName: TAG } });
 
@@ -117,9 +118,9 @@ describe('Auditoría · Prisma contra Postgres', () => {
 
   it('alertas: reconocer solo cambia las pendientes y adjunta quién reconoció', async () => {
     const alert = await auditAlertRepository.create({ action: TAG, risk: 'high', userId });
-    expect(await auditAlertRepository.acknowledge(alert.alertId, userId)).toBe(1);
-    expect(await auditAlertRepository.acknowledge(alert.alertId, userId)).toBe(0);
-    expect(await auditAlertRepository.findById(alert.alertId)).toMatchObject({ acknowledged: true, actor: { userId }, acknowledgedByUser: { username: TAG } });
+    expect(await auditAlertRepository.acknowledge(alert.auditAlertId, userId)).toBe(1);
+    expect(await auditAlertRepository.acknowledge(alert.auditAlertId, userId)).toBe(0);
+    expect(await auditAlertRepository.findById(alert.auditAlertId)).toMatchObject({ acknowledged: true, actor: { userId }, acknowledgedByUser: { username: TAG } });
   });
 
   it('intentos de login: el documento se guarda cifrado y el bloqueo se busca por su hash', async () => {

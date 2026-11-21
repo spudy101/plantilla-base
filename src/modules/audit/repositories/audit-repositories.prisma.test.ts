@@ -21,6 +21,7 @@ import userLoginAttemptRepository from './user-login-attempt.repository';
 import txContext from '../../../shared/database/transaction-context';
 import EncryptionUtil from '../../../shared/security/encryption.util';
 import HashUtil from '../../../shared/security/hash.util';
+import { page } from 'tests/helpers/page';
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -60,14 +61,19 @@ describe('AuditLogRepository — filtros de negocio a WHERE', () => {
     });
   });
 
-  it('searchPaginated consulta con el WHERE traducido, ordena por la columna pedida y adjunta el executor', async () => {
+  it('searchPaginated consulta con el WHERE traducido, ordena por el campo pedido (desempate por id) y adjunta el executor', async () => {
     mockDb.auditLog.findMany.mockResolvedValue([{ auditLogId: 'a-1', userId: 'u-1' }, { auditLogId: 'a-2', userId: null }]);
     mockDb.auditLog.count.mockResolvedValue(2);
     mockDb.user.findMany.mockResolvedValue([{ userId: 'u-1', username: 'ana', person: { firstName: 'Ana', lastName: 'P' } }]);
 
-    const { rows, count } = await auditLogRepository.searchPaginated({ action: 'LOGIN' }, { limit: 10, offset: 0, sortBy: 'created_at', order: 'ASC' });
+    const { rows, count } = await auditLogRepository.searchPaginated({ action: 'LOGIN' }, page({ sortBy: 'createdAt', order: 'ASC' }));
 
-    expect(mockDb.auditLog.findMany).toHaveBeenCalledWith({ where: { action: 'LOGIN' }, take: 10, skip: 0, orderBy: { createdAt: 'asc' } });
+    expect(mockDb.auditLog.findMany).toHaveBeenCalledWith({
+      where: { action: 'LOGIN' },
+      take: 10,
+      skip: 0,
+      orderBy: [{ createdAt: 'asc' }, { auditLogId: 'asc' }]
+    });
     expect(count).toBe(2);
     expect(rows[0]?.executor).toMatchObject({ username: 'ana' });
     expect(rows[1]?.executor).toBeNull();
@@ -139,7 +145,7 @@ describe('AuditAlertRepository.acknowledge', () => {
     mockDb.auditAlert.updateMany.mockResolvedValue({ count: 0 });
     await expect(auditAlertRepository.acknowledge('al-1', 'admin-1')).resolves.toBe(0);
     expect(mockDb.auditAlert.updateMany).toHaveBeenCalledWith({
-      where: { alertId: { in: ['al-1'] }, acknowledged: false },
+      where: { auditAlertId: { in: ['al-1'] }, acknowledged: false },
       data: { acknowledged: true, acknowledgedBy: 'admin-1', acknowledgedAt: expect.any(Date) }
     });
   });

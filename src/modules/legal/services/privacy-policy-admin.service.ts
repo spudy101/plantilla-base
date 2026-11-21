@@ -17,11 +17,12 @@ import redisClient from '../../../shared/infra/redis.util';
 import AppError from '../../../shared/http/app-error.util';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
-import PaginationHelper from '../../../shared/http/pagination.util';
 import notificationModule from '../../notification';
 const { notifier } = notificationModule;
 import privacyPolicyAdminDtoModule from '../responses/privacy-policy-admin.response';
 import auditModule from '../../audit';
+import { pageMetadata, pageRequest } from '../../../shared/http/pagination';
+import type { PrivacyPolicyListQuery } from '../requests/legal.request';
 const { audit } = auditModule;
 const {
   ListPrivacyPoliciesResponseDTO,
@@ -56,36 +57,26 @@ class PrivacyPolicyAdminService {
    *   search                      — busca en version y summary
    *   isActive                    — filtra por estado (true/false)
    *
-   * @param {Object} query   - req.query
-   * @param {string} userId  - ID del admin que consulta (para auditoría)
+   * @param query   - la query ya validada (PrivacyPolicyListQuery)
+   * @param userId  - ID del admin que consulta (para auditoría)
    */
-  async listVersions(query: Record<string, unknown>, userId: string) {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
-    const filters = PaginationHelper.buildFilters(query, ['isActive']);
-    const searchTerm = PaginationHelper.stringParam(query, 'search');
+  async listVersions(query: PrivacyPolicyListQuery, userId: string) {
+    const page = pageRequest(query);
+    const filters = { isActive: query.isActive ?? undefined };
 
-    const { rows, count } = await this.privacyPolicyAdminRepository.findAllPaginated(filters, paginationParams, searchTerm);
-
-    const metadata = {
-      totalItems: count,
-      page: paginationParams.page,
-      limit: paginationParams.limit,
-      sortBy: paginationParams.sortBy,
-      order: paginationParams.order,
-      filters: searchTerm ? { search: searchTerm, ...filters } : filters
-    };
+    const { rows, count } = await this.privacyPolicyAdminRepository.findAllPaginated(filters, page, query.search ?? null);
 
     await audit.record('PRIVACY_POLICY_LIST_VIEWED', {
       actorId: userId,
       details: {
         totalItems: count,
-        page: paginationParams.page
+        page: page.page
       },
       entityType: 'PrivacyPolicy',
       entityTable: 'privacy_policies'
     });
 
-    return ListPrivacyPoliciesResponseDTO(rows, metadata);
+    return ListPrivacyPoliciesResponseDTO(rows, pageMetadata(page, count, { search: query.search, ...filters }));
   }
 
   // ============================================================

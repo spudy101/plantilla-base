@@ -8,7 +8,6 @@ import type SessionTraceDto from '../responses/admin-session-trace.response';
 // un findAll por tabla involucrada, agrupando los ids, reusando los DTOs admin que ya existen.
 
 import AppError from '../../../shared/http/app-error.util';
-import PaginationHelper from '../../../shared/http/pagination.util';
 
 import auditLogRepository from '../repositories/audit-log.repository';
 import iamModule from '../../iam';
@@ -27,6 +26,8 @@ const { UserConsentComponent } = legalComponentsDto;
 import adminSessionTraceDtoModule from '../responses/admin-session-trace.response';
 const { SessionTraceListDTO, SessionTimelineDTO, SessionEntitiesDTO } = adminSessionTraceDtoModule;
 import audit from '../audit.service';
+import { appliedFilters, pageMetadata, pageRequest } from '../../../shared/http/pagination';
+import type { SessionListQuery, SessionTimelineQuery } from '../requests/audit.request';
 
 // ============================================================
 // REGISTRY — mapa entity_table → { repository, pk, entityType, dto } declarado en UN solo lugar (§8.4).
@@ -89,18 +90,26 @@ class AdminSessionTraceService {
   }
 
   // GET /records/audit/sessions — listado paginado de sesiones con conteo de acciones por sesión.
-  async listSessions(query: Record<string, unknown>, adminUserId: string) {
-    const pagination = PaginationHelper.getPaginationParams(query);
-    const where = this.userSessionRepository.buildWhere(query);
+  async listSessions(query: SessionListQuery, adminUserId: string) {
+    const page = pageRequest(query);
+    const filters = {
+      userId: query.userId ?? undefined,
+      sessionId: query.sessionId ?? undefined,
+      status: query.status ?? undefined,
+      ip: query.ip ?? undefined,
+      dateFrom: query.dateFrom ?? undefined,
+      dateTo: query.dateTo ?? undefined
+    };
+    const where = this.userSessionRepository.buildWhere(filters);
 
-    const { rows, count } = await this.userSessionRepository.findPaginatedWithDeviceAndUser(where, pagination);
+    const { rows, count } = await this.userSessionRepository.findPaginatedWithDeviceAndUser(where, page);
 
     // Conteo de acciones por sesión, solo para las sesiones de esta página (un query agrupado).
     const sessionIds = rows.map(s => s.userSessionId);
     const counts = await this.auditLogRepository.countBySessionIds(sessionIds);
     const countMap = new Map(counts.map(row => [row.sessionId, row.count]));
 
-    const activeFilters = PaginationHelper.buildFilters(query, ['userId', 'sessionId', 'status', 'ip', 'dateFrom', 'dateTo']);
+    const activeFilters = appliedFilters(filters);
 
     await audit.record('SESSION_TRACE_LIST_VIEWED', {
       actorId: adminUserId,
@@ -109,29 +118,18 @@ class AdminSessionTraceService {
       entityTable: 'user_sessions'
     });
 
-    return SessionTraceListDTO(rows, countMap, {
-      totalItems: count,
-      page: pagination.page,
-      limit: pagination.limit,
-      sortBy: pagination.sortBy,
-      order: pagination.order,
-      filters: Object.keys(activeFilters).length > 0 ? activeFilters : undefined
-    });
+    return SessionTraceListDTO(rows, countMap, pageMetadata(page, count, activeFilters));
   }
 
   // GET /records/audit/sessions/:sessionId — cabecera + timeline cronológico de audit_logs.
-  async getSessionTimeline(sessionId: string, query: Record<string, unknown>, adminUserId: string) {
+  async getSessionTimeline(sessionId: string, query: SessionTimelineQuery, adminUserId: string) {
     const session = await this.userSessionRepository.findByIdWithDeviceAndUser(sessionId);
     if (!session) {
       throw AppError.notFound('Sesión no encontrada');
     }
 
-    const pagination = PaginationHelper.getPaginationParams(query);
-
-    const { rows, count } = await this.auditLogRepository.findPaginatedWithExecutor(
-      { sessionId },
-      { limit: pagination.limit, offset: pagination.offset, sortBy: 'createdAt', order: 'ASC' }
-    );
+    const page = pageRequest(query);
+    const { rows, count } = await this.auditLogRepository.findPaginatedWithExecutor({ sessionId }, page);
 
     await audit.record('SESSION_TRACE_VIEWED', {
       actorId: adminUserId,
@@ -145,13 +143,7 @@ class AdminSessionTraceService {
       session,
       count,
       rows,
-      {
-        totalItems: count,
-        page: pagination.page,
-        limit: pagination.limit,
-        sortBy: 'createdAt',
-        order: 'ASC'
-      },
+      pageMetadata(page, count),
       log => _isHydratable(log.entityTable, log.entityId)
     );
   }
@@ -166,7 +158,7 @@ class AdminSessionTraceService {
     }
 
     let refs = await this.auditLogRepository.findEntityRefsBySession(sessionId);
-    const entityTableFilter = PaginationHelper.stringParam(query, 'entityTable');
+    const entityTableFilter = typeof query.entityTable === 'string' && query.entityTable ? query.entityTable : null;
     if (entityTableFilter) {
       refs = refs.filter(r => r.entityTable === entityTableFilter);
     }

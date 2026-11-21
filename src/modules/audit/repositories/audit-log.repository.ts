@@ -4,6 +4,7 @@
 // repositorio no expone update ni delete. Las escrituras van con el cliente por defecto aunque haya una
 // unidad de trabajo activa: la auditoría queda aunque el flujo que la disparó se revierta.
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import { Prisma } from '../../../shared/database/generated/prisma/client';
 import type { AuditLog, AuditLogOutcome } from '../../../shared/database/generated/prisma/client';
 import { loadUserRefs } from './user-ref';
@@ -11,8 +12,6 @@ import type { UserRef } from './user-ref';
 
 /** Log con quién ejecutó la acción (usuario + nombre). */
 export type AuditLogWithExecutor = AuditLog & { executor: UserRef | null };
-
-const SORTABLE = Object.values(Prisma.AuditLogScalarFieldEnum);
 
 class AuditLogRepository extends PrismaRepository {
   /**
@@ -45,14 +44,11 @@ class AuditLogRepository extends PrismaRepository {
     return { rows, count };
   }
 
-  /** Paginación con el executor adjunto. `sortBy` acepta columna (created_at) o campo. */
-  async findPaginatedWithExecutor(
-    where: Prisma.AuditLogWhereInput,
-    { limit, offset, sortBy = 'createdAt', order = 'DESC' }: AuditLogRepository.Pagination
-  ): Promise<PrismaRepository.Page<AuditLogWithExecutor>> {
+  /** Paginación con el executor adjunto. */
+  async findPaginatedWithExecutor(where: Prisma.AuditLogWhereInput, page: PageRequest): Promise<PrismaRepository.Page<AuditLogWithExecutor>> {
     const db = await this.db();
     const [rows, count] = await Promise.all([
-      db.auditLog.findMany({ where, ...this.paginationArgs(SORTABLE, { limit, offset, sortBy, order }) }),
+      db.auditLog.findMany({ where, ...this.paginationArgs(page, 'auditLogId') }),
       db.auditLog.count({ where })
     ]);
     return { rows: await this.attachExecutor(rows), count };
@@ -82,7 +78,7 @@ class AuditLogRepository extends PrismaRepository {
   }
 
   /** Listado paginado de auditoría a partir de filtros de negocio. */
-  searchPaginated(filters: AuditLogRepository.SearchFilters, pagination: AuditLogRepository.Pagination) {
+  searchPaginated(filters: AuditLogRepository.SearchFilters, pagination: PageRequest) {
     return this.findPaginatedWithExecutor(this.buildSearchWhere(filters), pagination);
   }
 
@@ -102,7 +98,7 @@ class AuditLogRepository extends PrismaRepository {
   }
 
   /** Intentos de autenticación paginados. */
-  findAuthAttemptsPaginated(criteria: AuditLogRepository.AuthAttemptsCriteria, pagination: AuditLogRepository.Pagination) {
+  findAuthAttemptsPaginated(criteria: AuditLogRepository.AuthAttemptsCriteria, pagination: PageRequest) {
     return this.findPaginatedWithExecutor(this.buildAuthAttemptsWhere(criteria), pagination);
   }
 
@@ -182,10 +178,6 @@ namespace AuditLogRepository {
     offset?: number;
   }
 
-  export interface Pagination extends Page {
-    sortBy?: string;
-    order?: 'ASC' | 'DESC';
-  }
 
   /** Filtros de negocio del listado/exportación de auditoría (los traduce buildSearchWhere). */
   export interface SearchFilters {

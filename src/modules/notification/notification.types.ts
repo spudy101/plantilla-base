@@ -1,12 +1,9 @@
-// modules/schemas/notification/notification.types.ts
-//
 // Formas compartidas entre los services de notificación (creación, envío, email, lotes). Solo tipos.
 // Los services exportan instancias (`export =`), así que los tipos que cruzan archivos viven aquí.
-// Filas de Prisma (camelCase): el dominio de notificaciones migró en la fase 5 (grupo 3).
-import type { NotificationType } from '../../shared/database/generated/prisma/client';
+import type { NotificationChannel, NotificationType } from '../../shared/database/generated/prisma/client';
 import type { NotificationCategoryRow } from './repositories/notification-category.repository';
 
-export type ChannelKey = 'push' | 'email' | 'sms';
+export type ChannelKey = NotificationChannel;
 
 /** Flags supports<Canal> de la categoría (fuente de verdad de los canales del tipo). */
 export type CategoryChannels = Partial<Record<`supports${Capitalize<ChannelKey>}`, boolean | null>>;
@@ -18,12 +15,13 @@ export type EmailTemplateSource = Pick<NotificationType, 'code' | 'emailSubjectT
 
 /** Tipo de notificación con su categoría, tal como lo consumen el envío individual y el masivo. */
 export type NotificationTypeSource = Omit<EmailTemplateSource, 'category'> & {
-  priority?: NotificationType['priority'];
-  category?: (CategoryChannels & NonNullable<EmailTemplateSource['category']>) | null;
+  category?: (CategoryChannels & { isCritical?: boolean | null } & NonNullable<EmailTemplateSource['category']>) | null;
 };
 
-/** Preferencias del usuario: horario de no molestar ('HH:MM:SS') + allow<Canal>. null/undefined → todo permitido. */
+/** Preferencias del usuario: horario de silencio ('HH:MM:SS') + allow<Canal>. null/undefined → todo permitido. */
 export type UserPreference =
-  | ({ quietHoursStart?: string | null; quietHoursEnd?: string | null } & Partial<Record<`allow${Capitalize<ChannelKey>}`, boolean | null>>)
+  | ({ quietHoursStart?: string | null; quietHoursEnd?: string | null } & Partial<
+      Record<`allow${Capitalize<ChannelKey>}`, boolean | null>
+    >)
   | null
   | undefined;

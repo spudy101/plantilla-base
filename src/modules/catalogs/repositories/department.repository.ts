@@ -1,10 +1,11 @@
 // modules/schemas/kyc/maintainers/repositories/department.repository.ts
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import { Prisma } from '../../../shared/database/generated/prisma/client';
 import type { Department } from '../../../shared/database/generated/prisma/client';
 
 const LIST = {
-  sortable: Object.values(Prisma.DepartmentScalarFieldEnum),
+  tiebreaker: 'departmentId',
   searchFields: ['name'],
   filterId: { key: 'countryId', field: 'countryId' }
 };
@@ -18,7 +19,7 @@ class DepartmentRepository extends PrismaRepository {
 
   async findAllPaginated(
     filters: PrismaRepository.Filters = {},
-    pagination: PrismaRepository.PaginationParams = {},
+    pagination: PageRequest,
     searchTerm: string | null = null
   ) {
     const { where, page } = this.listQuery(filters, pagination, searchTerm, LIST);

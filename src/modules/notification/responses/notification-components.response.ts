@@ -14,12 +14,7 @@ interface NotificationCategoryRow {
   supportsPush?: Maybe<boolean>;
   supportsEmail?: Maybe<boolean>;
   supportsSms?: Maybe<boolean>;
-  allowDnd?: Maybe<boolean>;
   isCritical?: Maybe<boolean>;
-  defaultQuietHoursStart?: Maybe<string>;
-  defaultQuietHoursEnd?: Maybe<string>;
-  priority?: Maybe<string | number>;
-  sortOrder?: Maybe<number>;
   isActive?: Maybe<boolean>;
   emailLayoutTemplate?: Maybe<string>;
 }
@@ -30,7 +25,6 @@ interface NotificationTypeRow {
   name?: Maybe<string>;
   description?: Maybe<string>;
   notificationCategoryId?: Maybe<string>;
-  priority?: Maybe<string | number>;
   isActive?: Maybe<boolean>;
   category?: Maybe<NotificationCategoryRow>;
 }
@@ -46,9 +40,6 @@ interface NotificationRow {
   metadata?: unknown;
   isRead?: Maybe<boolean>;
   readAt?: Maybe<DbDate>;
-  processingStatus?: Maybe<string>;
-  scheduledFor?: Maybe<DbDate>;
-  priority?: Maybe<string | number>;
   createdAt?: Maybe<DbDate>;
   notificationType?: Maybe<NotificationTypeRow>;
 }
@@ -61,26 +52,8 @@ interface GlobalNotificationRow {
   metadata?: unknown;
   sendPush?: Maybe<boolean>;
   sendEmail?: Maybe<boolean>;
-  sendInApp?: Maybe<boolean>;
-  isActive?: Maybe<boolean>;
-  startsAt?: Maybe<DbDate>;
-  endsAt?: Maybe<DbDate>;
   createdAt?: Maybe<DbDate>;
   notificationType?: Maybe<NotificationTypeRow>;
-}
-
-interface UserNotificationPreferenceRow {
-  userNotificationPreferenceId: string;
-  userId: string;
-  notificationCategoryCode?: Maybe<string>;
-  allowPush?: Maybe<boolean>;
-  allowEmail?: Maybe<boolean>;
-  allowSms?: Maybe<boolean>;
-  quietHoursStart?: Maybe<string>;
-  quietHoursEnd?: Maybe<string>;
-  notificationCategory?: Maybe<NotificationCategoryRow>;
-  createdAt?: Maybe<DbDate>;
-  updatedAt?: Maybe<DbDate>;
 }
 
 interface NotificationBuildOptions {
@@ -111,12 +84,7 @@ class NotificationCategoryComponent {
       supportsPush: category.supportsPush,
       supportsEmail: category.supportsEmail,
       supportsSms: category.supportsSms,
-      allowDnd: category.allowDnd,
       isCritical: category.isCritical,
-      defaultQuietHoursStart: category.defaultQuietHoursStart || null,
-      defaultQuietHoursEnd: category.defaultQuietHoursEnd || null,
-      priority: category.priority,
-      sortOrder: category.sortOrder,
       isActive: category.isActive,
       ...(includeLayout ? { emailLayoutTemplate: category.emailLayoutTemplate || null } : {})
     };
@@ -145,7 +113,6 @@ class NotificationTypeComponent {
       name: notificationType.name,
       description: notificationType.description || null,
       notificationCategoryId: notificationType.notificationCategoryId || null,
-      priority: notificationType.priority,
       isActive: notificationType.isActive,
       ...(notificationType.category ? { category: NotificationCategoryComponent.build(notificationType.category) } : {})
     };
@@ -173,9 +140,6 @@ class NotificationComponent {
       metadata: MaskingUtil.redactPayload(notification.metadata) || null,
       isRead: notification.isRead,
       readAt: notification.readAt || null,
-      processingStatus: notification.processingStatus,
-      scheduledFor: notification.scheduledFor || null,
-      priority: notification.priority,
       createdAt: notification.createdAt,
       ...(includeType && notification.notificationType
         ? { notificationType: NotificationTypeComponent.build(notification.notificationType) }
@@ -211,10 +175,6 @@ class GlobalNotificationComponent {
       metadata: MaskingUtil.redactPayload(globalNotification.metadata) || null,
       sendPush: globalNotification.sendPush,
       sendEmail: globalNotification.sendEmail,
-      sendInApp: globalNotification.sendInApp,
-      isActive: globalNotification.isActive,
-      startsAt: globalNotification.startsAt,
-      endsAt: globalNotification.endsAt || null,
       createdAt: globalNotification.createdAt,
       ...(isRead !== null ? { isRead } : {}),
       ...(includeType && globalNotification.notificationType
@@ -225,49 +185,13 @@ class GlobalNotificationComponent {
 }
 
 // ============================================================
-// USER NOTIFICATION PREFERENCE
-// ============================================================
-
-class UserNotificationPreferenceComponent {
-  static build(preference: Maybe<UserNotificationPreferenceRow>) {
-    if (!preference) {
-      return null;
-    }
-    return {
-      userNotificationPreferenceId: preference.userNotificationPreferenceId,
-      userId: preference.userId,
-      // null = preferencia global; con valor = override de esa categoría.
-      notificationCategoryCode: preference.notificationCategoryCode || null,
-      allowPush: preference.allowPush,
-      allowEmail: preference.allowEmail,
-      allowSms: preference.allowSms,
-      quietHoursStart: preference.quietHoursStart || null,
-      quietHoursEnd: preference.quietHoursEnd || null,
-      category: preference.notificationCategory ? NotificationCategoryComponent.build(preference.notificationCategory) : null,
-      createdAt: preference.createdAt,
-      updatedAt: preference.updatedAt
-    };
-  }
-
-  static buildArray(preferences: Maybe<UserNotificationPreferenceRow[]>) {
-    if (!preferences || preferences.length === 0) {
-      return [];
-    }
-    return preferences.map(p => UserNotificationPreferenceComponent.build(p));
-  }
-}
-
-// ============================================================
 // ESQUEMAS DE SALIDA
 // ============================================================
 
-const PRIORITY_LEVELS = ['low', 'normal', 'high', 'urgent'] as const;
-export const PROCESSING_STATUSES = ['pending', 'processing', 'completed', 'partial_failure', 'failed'] as const;
 const maskedMetadata = z
   .record(z.string(), z.unknown())
   .nullable()
   .meta({ description: 'Variables del mensaje (JSON). Los datos personales salen enmascarados.' });
-const timeOfDay = z.string().nullable().meta({ example: '22:00:00' });
 
 export const NotificationCategorySchema = z.object({
   notificationCategoryId: z.uuid(),
@@ -277,12 +201,9 @@ export const NotificationCategorySchema = z.object({
   supportsPush: z.boolean(),
   supportsEmail: z.boolean(),
   supportsSms: z.boolean(),
-  allowDnd: z.boolean().meta({ description: 'false: el usuario no puede silenciarla (se ignoran sus horas de silencio).' }),
-  isCritical: z.boolean().meta({ description: 'true: emergencia; ignora horas de silencio y no se puede silenciar.' }),
-  defaultQuietHoursStart: timeOfDay,
-  defaultQuietHoursEnd: timeOfDay,
-  priority: z.enum(PRIORITY_LEVELS),
-  sortOrder: z.number().int(),
+  isCritical: z
+    .boolean()
+    .meta({ description: 'true: se envía siempre, sin mirar las preferencias ni el horario de silencio del usuario.' }),
   isActive: z.boolean(),
   emailLayoutTemplate: z.string().nullable().optional().meta({ description: 'Layout HTML del email. Solo en el panel admin.' })
 });
@@ -293,11 +214,10 @@ export const NotificationTypeSchema = z.object({
   name: z.string().meta({ example: 'Operación aprobada' }),
   description: z.string().nullable(),
   notificationCategoryId: z.uuid().nullable(),
-  priority: z.enum(PRIORITY_LEVELS).nullable(),
   isActive: z.boolean(),
   category: NotificationCategorySchema.nullable()
     .optional()
-    .meta({ description: 'Categoría: de ella salen los canales, el DND y el layout del email.' })
+    .meta({ description: 'Categoría: de ella salen los canales, la criticidad y el layout del email.' })
 });
 
 export const NotificationSchema = z.object({
@@ -311,9 +231,6 @@ export const NotificationSchema = z.object({
   metadata: maskedMetadata,
   isRead: z.boolean(),
   readAt: dateTime().nullable(),
-  processingStatus: z.enum(PROCESSING_STATUSES).nullable(),
-  scheduledFor: dateTime().nullable(),
-  priority: z.number().int().nullable().meta({ example: 5, description: 'Prioridad de envío: 1 (máxima) a 10.' }),
   createdAt: dateTime(),
   notificationType: NotificationTypeSchema.optional()
 });
@@ -326,36 +243,14 @@ export const GlobalNotificationSchema = z.object({
   metadata: maskedMetadata,
   sendPush: z.boolean(),
   sendEmail: z.boolean(),
-  sendInApp: z.boolean(),
-  isActive: z.boolean(),
-  startsAt: dateTime(),
-  endsAt: dateTime().nullable(),
   createdAt: dateTime(),
   isRead: z.boolean().optional().meta({ description: 'Si el usuario actual ya la leyó.' }),
   notificationType: NotificationTypeSchema.optional()
-});
-
-export const UserNotificationPreferenceSchema = z.object({
-  userNotificationPreferenceId: z.uuid(),
-  userId: z.uuid(),
-  notificationCategoryCode: z
-    .string()
-    .nullable()
-    .meta({ description: 'null = preferencia global; con valor = ajuste de esa categoría.' }),
-  allowPush: z.boolean(),
-  allowEmail: z.boolean(),
-  allowSms: z.boolean(),
-  quietHoursStart: timeOfDay,
-  quietHoursEnd: timeOfDay,
-  category: NotificationCategorySchema.nullable(),
-  createdAt: dateTime(),
-  updatedAt: dateTime()
 });
 
 export default {
   NotificationCategoryComponent,
   NotificationTypeComponent,
   NotificationComponent,
-  GlobalNotificationComponent,
-  UserNotificationPreferenceComponent
+  GlobalNotificationComponent
 };

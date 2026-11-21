@@ -1,5 +1,6 @@
 // modules/schemas/kyc/maintainers/repositories/city.repository.ts
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import { Prisma } from '../../../shared/database/generated/prisma/client';
 import type { City } from '../../../shared/database/generated/prisma/client';
 
@@ -38,7 +39,7 @@ const WITH_DEPARTMENT = {
 } satisfies Prisma.CityInclude;
 
 const LIST = {
-  sortable: Object.values(Prisma.CityScalarFieldEnum),
+  tiebreaker: 'cityId',
   searchFields: ['name'],
   filterId: { key: 'departmentId', field: 'departmentId' }
 };
@@ -50,7 +51,7 @@ class CityRepository extends PrismaRepository {
 
   async findAllPaginated(
     filters: PrismaRepository.Filters = {},
-    pagination: PrismaRepository.PaginationParams = {},
+    pagination: PageRequest,
     searchTerm: string | null = null
   ) {
     const { where, page } = this.listQuery(filters, pagination, searchTerm, LIST);

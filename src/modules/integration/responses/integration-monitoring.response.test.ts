@@ -4,7 +4,7 @@ import dto, { FallbackEventSchema, ProvidersHealthSchema } from './integration-m
 const ID = '0f8fad5b-d9cb-469f-a165-70867728950e';
 const at = new Date('2026-01-01T00:00:00Z');
 const fallback = {
-  fallbackEventId: ID,
+  providerFallbackEventId: ID,
   provider: 'aws_ses',
   circuitProduct: 'ses',
   startedAt: at,

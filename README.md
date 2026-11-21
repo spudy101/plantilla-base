@@ -70,9 +70,9 @@ Todo lo transversal que un proyecto necesita el día 1, ya construido y probado:
 ### 🔔 Notificaciones multicanal — [`docs/notifications.md`](docs/notifications.md)
 
 - Canales: **email (SES)**, **push (SNS)**, **SMS (SNS)** e **in-app**. Punto de entrada único
-  (`NotificationCreationService`), templates por tipo, categorías como fuente de verdad (canales, DND,
-  layout de email), preferencias por usuario, quiet hours, rate limiting y **reintentos automáticos**
-  por worker (con detección de hard-bounce). Bandeja in-app con contador en vivo por **SSE**.
+  (`NotificationCreationService`), templates por tipo, categorías como fuente de verdad (canales, criticidad,
+  layout de email), una preferencia por usuario (canales + horario de silencio), rate limiting y
+  **reintentos automáticos** (despachador cada minuto, con detección de hard-bounce). Bandeja in-app con contador en vivo por **SSE**.
 
 ### 🔒 Cifrado y PII
 
@@ -87,7 +87,7 @@ Todo lo transversal que un proyecto necesita el día 1, ya construido y probado:
 - **Idempotencia** de operaciones, **correlationId** por request de punta a punta.
 - Manejo de errores centralizado (`AppError` + handler global), respuestas uniformes (`ApiResponse`).
 - **Swagger/OpenAPI** autogenerado por servidor. Detalle: [`docs/swagger.md`](docs/swagger.md).
-- **Workers** (cron) para expiración de sesiones, reintentos de notificación, expiración de doble
+- **Workers** (cron) para expiración de sesiones, despacho de notificaciones, expiración de doble
   aprobación y archivado de auditoría.
 - Consentimientos / política de privacidad, configuración global del sistema, banners promocionales.
 

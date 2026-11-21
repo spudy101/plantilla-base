@@ -36,7 +36,7 @@ class SystemGlobalConfigService {
 
     await audit.record('SYSTEM_GLOBAL_CONFIG_VIEWED', {
       actorId: adminUserId,
-      entityId: config.configId,
+      entityId: config.systemGlobalConfigId,
       entityType: 'SystemGlobalConfig',
       entityTable: 'system_global_config'
     });
@@ -55,7 +55,7 @@ class SystemGlobalConfigService {
     const updatePayload = _buildUpdatePayload(data, config);
     const previousVersion = config.configVersion;
 
-    const updated = await this.systemGlobalConfigRepository.update(config.configId, updatePayload);
+    const updated = await this.systemGlobalConfigRepository.update(config.systemGlobalConfigId, updatePayload);
     if (!updated) {
       throw AppError.notFound('Configuración global no encontrada');
     }
@@ -66,7 +66,7 @@ class SystemGlobalConfigService {
         updatedFields: Object.keys(data),
         configVersion: { before: previousVersion, after: updated.configVersion }
       },
-      entityId: config.configId,
+      entityId: config.systemGlobalConfigId,
       entityType: 'SystemGlobalConfig',
       entityTable: 'system_global_config'
     });
@@ -76,7 +76,7 @@ class SystemGlobalConfigService {
         .notify({
           type: NOTIF_SYSTEM_CONFIG_UPDATED,
           userId: null,
-          relatedEntity: { type: 'SystemGlobalConfig', id: config.configId },
+          relatedEntity: { type: 'SystemGlobalConfig', id: config.systemGlobalConfigId },
           metadata: {
             camposActualizados: Object.keys(data),
             versionAnterior: previousVersion,

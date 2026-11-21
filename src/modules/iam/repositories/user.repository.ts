@@ -4,6 +4,7 @@
 // con Sequelize). La PII de persona y contacto llega descifrada (piiExtension); se filtra por su hash.
 import bcrypt from 'bcryptjs';
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import { Prisma } from '../../../shared/database/generated/prisma/client';
 import type { User } from '../../../shared/database/generated/prisma/client';
 import { hashValue } from '../../../shared/database/pii-fields';
@@ -51,7 +52,6 @@ const ADMIN_TARGET = {
   role: { select: { roleId: true, name: true, description: true } }
 } satisfies Prisma.UserInclude;
 
-const SORTABLE = Object.values(Prisma.UserScalarFieldEnum);
 
 export type UserIncludeLevel = keyof typeof INCLUDES;
 export type UserWith<L extends UserIncludeLevel> = Prisma.UserGetPayload<{ include: (typeof INCLUDES)[L] }>;
@@ -154,18 +154,23 @@ class UserRepository extends PrismaRepository {
     });
   }
 
-  /** Usuarios activos cuyo rol está en roleNames, con el perfil básico (broadcast de notificaciones). */
-  async findActiveUsersByRoleNamesDetailed(roleNames: readonly string[]): Promise<UserProfileRow[]> {
+  /**
+   * Una página de usuarios activos cuyo rol está en roleNames, ordenados por user_id y a partir del
+   * siguiente a `afterUserId`, con su contacto (envío masivo de notificaciones globales).
+   */
+  async findActivePageByRoleNames(roleNames: readonly string[], afterUserId: string | null, limit: number) {
     return (await this.db()).user.findMany({
-      where: { isActive: true, role: { name: { in: [...roleNames] } } },
-      include: INCLUDES.basic
+      where: { isActive: true, role: { name: { in: [...roleNames] } }, ...(afterUserId ? { userId: { gt: afterUserId } } : {}) },
+      include: INCLUDES.minimal,
+      orderBy: { userId: 'asc' },
+      take: limit
     });
   }
 
   /** Listado paginado con el perfil básico, filtros y búsqueda por username / nombre. */
   async findAllPaginated(
     filters: UserRepository.Filters = {},
-    pagination: PrismaRepository.PaginationParams = {},
+    pagination: PageRequest,
     searchTerm: string | null = null
   ): Promise<PrismaRepository.Page<UserProfileRow>> {
     const and: Prisma.UserWhereInput[] = [];
@@ -198,7 +203,7 @@ class UserRepository extends PrismaRepository {
     const where: Prisma.UserWhereInput = { AND: and };
     const db = await this.db();
     const [rows, count] = await Promise.all([
-      db.user.findMany({ where, include: INCLUDES.basic, ...this.paginationArgs(SORTABLE, pagination) }),
+      db.user.findMany({ where, include: INCLUDES.basic, ...this.paginationArgs(pagination, 'userId') }),
       db.user.count({ where })
     ]);
     return { rows, count };

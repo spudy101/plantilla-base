@@ -41,7 +41,8 @@ esquema migra y siembra desde cero **sin tocar** los demás.
    constraint lleva su nombre explícito** (`map:`) según la convención: `@id(map: "pk_<tabla>")`,
    `@unique(map: "uq_<tabla>_<columnas>")`, `@relation(…, map: "fk_<tabla>_<columnas>")`,
    `@@index([…], map: "idx_<tabla>_<columnas>")`. Sin `map:` Prisma usa sus nombres por defecto (`*_pkey`,
-   `*_key`, `*_fkey`, `*_idx`).
+   `*_key`, `*_fkey`, `*_idx`). Tablas en plural y snake_case; la PK se llama `<tabla_en_singular>_id`
+   (`audit_alert_id`) y un tipo ENUM, `enum_<tabla>_<columna>` (`enum_notification_deliveries_status`).
 2. `npm run db:migrate:dev -- --name <qué-cambia>` genera `prisma/migrations/<timestamp>_<nombre>/migration.sql`,
    la aplica a tu base y regenera el cliente. Revisá el SQL antes de commitearlo: es lo que corre en
    producción.

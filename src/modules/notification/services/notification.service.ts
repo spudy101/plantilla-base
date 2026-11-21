@@ -2,7 +2,6 @@ import type * as Feed from '../notification-feed.types';
 import unitOfWork from '../../../shared/database/unit-of-work';
 import loggerUtilModule from '../../../shared/observability/logger.util';
 const { logger } = loggerUtilModule;
-import PaginationHelper from '../../../shared/http/pagination.util';
 import notificationRepository from '../repositories/notification.repository';
 import globalNotificationRepository from '../repositories/global-notification.repository';
 // eslint-disable-next-line max-len -- ruta de require de una sola línea; Prettier no la parte
@@ -14,6 +13,8 @@ import errorMessageModule from '../../../shared/utils/error-message.util';
 
 const { errorMessage } = errorMessageModule;
 import auditModule from '../../audit';
+import { pageRequest } from '../../../shared/http/pagination';
+import type { GlobalNotificationListQuery, NotificationFeedQuery, PersonalNotificationListQuery } from '../requests/notification.request';
 const { audit } = auditModule;
 
 
@@ -40,15 +41,15 @@ class NotificationService {
 
   // ── Públicos ───────────────────────────────────────────────────────────────
 
-  async getNotificationsList(userId: string, query: Record<string, unknown>): Promise<Feed.MixedListResult & { personal: Feed.FeedItem[]; global: Feed.GlobalFeedItem[] }> {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
+  async getNotificationsList(userId: string, query: NotificationFeedQuery): Promise<Feed.MixedListResult & { personal: Feed.FeedItem[]; global: Feed.GlobalFeedItem[] }> {
+    const paginationParams = pageRequest(query);
 
     const [personal, { rows: globalTagged, readIds }] = await Promise.all([
       this._getPersonalRaw(userId),
       this._getGlobalRaw(userId)
     ]);
 
-    const mixed = this._mergeAndSort(personal, globalTagged, paginationParams.sortBy, paginationParams.order);
+    const mixed = this._mergeAndSort(personal, globalTagged, paginationParams.order);
     const totalItems = mixed.length;
 
     const paginatedMixed = mixed.slice(paginationParams.offset, paginationParams.offset + paginationParams.limit);
@@ -65,10 +66,9 @@ class NotificationService {
     return { personal, global: globalTagged, mixed: paginatedMixed, readIds, totalItems, paginationParams };
   }
 
-  async getPersonalNotifications(userId: string, query: Record<string, unknown>): Promise<Feed.PersonalListResult> {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
-    const searchTerm = typeof query.search === 'string' && query.search ? query.search : null;
-    const searchConfig = searchTerm ? { searchTerm, searchFields: ['title', 'body'] } : {};
+  async getPersonalNotifications(userId: string, query: PersonalNotificationListQuery): Promise<Feed.PersonalListResult> {
+    const paginationParams = pageRequest(query);
+    const searchConfig = query.search ? { searchTerm: query.search, searchFields: ['title', 'body'] } : {};
     const { rows, count } = await this.notificationRepository.findByUserPaginated(userId, paginationParams, searchConfig);
 
     const unreadIds = rows.filter(n => !n.isRead).map(n => n.notificationId);
@@ -87,8 +87,9 @@ class NotificationService {
     return { rows, count, paginationParams };
   }
 
-  async getGlobalNotifications(userId: string, query: Record<string, unknown>): Promise<Feed.GlobalListResult> {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
+  async getGlobalNotifications(userId: string, query: GlobalNotificationListQuery): Promise<Feed.GlobalListResult> {
+    // Orden fijo: el repositorio las trae de la más reciente a la más antigua.
+    const paginationParams = pageRequest({ ...query, sortBy: 'createdAt', order: 'DESC' });
 
     const { rows, readIds } = await this._getGlobalRaw(userId);
     const totalItems = rows.length;
@@ -134,11 +135,11 @@ class NotificationService {
    * conexión abierta cuando llega el broadcast de una notificación global ({ global: true }).
    */
   async computeUnreadCount(userId: string) {
-    const [personalCount, globalUnread] = await Promise.all([
+    const [personalCount, globalCount] = await Promise.all([
       this.notificationRepository.countUnreadByUser(userId),
-      this.globalNotificationRepository.findUnreadByUser(userId)
+      this.globalNotificationRepository.countUnreadByUser(userId)
     ]);
-    return personalCount + (Array.isArray(globalUnread) ? globalUnread.length : 0);
+    return personalCount + globalCount;
   }
 
   async createNotification(data: NotificationService.CreateInput, externalService: string | null | undefined = null) {
@@ -202,7 +203,8 @@ class NotificationService {
     return { rows: tagged, readIds };
   }
 
-  _mergeAndSort(personal: Feed.FeedItem[], globalTagged: Feed.FeedItem[], sortBy: string, order: string): Feed.FeedItem[] {
+  /** Mezcla personales y globales por fecha de creación (el único orden que admite la bandeja). */
+  _mergeAndSort(personal: Feed.FeedItem[], globalTagged: Feed.FeedItem[], order: string): Feed.FeedItem[] {
     const merged = [...personal, ...globalTagged];
     const direction = order === 'DESC' ? -1 : 1;
     return merged.sort((a, b) => direction * (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()));

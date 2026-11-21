@@ -5,11 +5,13 @@ const { asyncHandler } = errorMiddlewareModule;
 import routeParamUtilModule from '../../../shared/http/route-param.util';
 const { routeParam } = routeParamUtilModule;
 import authUserUtilModule from '../../../shared/http/auth-user.util';
+import { validQuery } from '../../../shared/validation/validate';
+import { OperationListQuery } from '../requests/audit.request';
 const { requireAuthUser } = authUserUtilModule;
 
 class AdminOperationController {
   list = asyncHandler(async (req, res) => {
-    const result = await AdminOperationService.list(req.query, requireAuthUser(req).userId);
+    const result = await AdminOperationService.list(validQuery(req, OperationListQuery), requireAuthUser(req).userId);
     return ApiResponse.success(res, 'Operaciones obtenidas exitosamente', result);
   });
 

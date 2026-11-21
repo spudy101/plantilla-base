@@ -24,7 +24,7 @@ const makeService = () => {
     unitOfWork: { run: jest.fn(managedTransaction(transaction)) },
     userRepository: { updatePassword: jest.fn().mockResolvedValue(undefined), update: jest.fn().mockResolvedValue(undefined) },
     personContactRepository: { findByEmailWithUser: jest.fn() },
-    resetCredentialsRepository: {
+    credentialResetRepository: {
       invalidateUserTokens: jest.fn().mockResolvedValue(0),
       createResetToken: jest.fn().mockResolvedValue({}),
       findValidTokenWithUser: jest.fn(),
@@ -41,7 +41,7 @@ const makeService = () => {
 };
 
 const resetRecord = (type: Loose, over = {}) => ({
-  resetCredentialsId: 'rc-1',
+  credentialResetId: 'rc-1',
   type,
   user: { userId: 'u-1', person: { firstName: 'Ada', contact: { email: 'ada@x.cl' } } },
   ...over
@@ -61,7 +61,7 @@ describe('CredentialResetService', () => {
       });
       await expect(service.requestResetCredentials({ email: 'x@x.cl', type: 'password' })).resolves.toBe(false);
 
-      expect(deps.resetCredentialsRepository.createResetToken).not.toHaveBeenCalled();
+      expect(deps.credentialResetRepository.createResetToken).not.toHaveBeenCalled();
     });
 
     it('crea un token nuevo invalidando los anteriores y envía el enlace por email', async () => {
@@ -73,8 +73,8 @@ describe('CredentialResetService', () => {
       await expect(service.requestResetCredentials({ email: 'ada@x.cl', type: 'mfa' })).resolves.toBe(true);
       await flush();
 
-      expect(deps.resetCredentialsRepository.invalidateUserTokens).toHaveBeenCalledWith('u-1');
-      expect(deps.resetCredentialsRepository.createResetToken).toHaveBeenCalledWith(
+      expect(deps.credentialResetRepository.invalidateUserTokens).toHaveBeenCalledWith('u-1');
+      expect(deps.credentialResetRepository.createResetToken).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'u-1', email: 'ada@x.cl', type: 'mfa', token: expect.stringMatching(/^[a-f0-9]{64}$/) })
       );
       expect(deps.notifier.notifyEmail).toHaveBeenCalledWith(
@@ -86,10 +86,10 @@ describe('CredentialResetService', () => {
   describe('confirmResetCredentials', () => {
     it('token inválido o de otro tipo → 400 sin abrir transacción', async () => {
       const { service, deps } = makeService();
-      deps.resetCredentialsRepository.findValidTokenWithUser.mockResolvedValueOnce(null);
+      deps.credentialResetRepository.findValidTokenWithUser.mockResolvedValueOnce(null);
       await expect(service.confirmResetCredentials({ token: 't', type: 'password' })).rejects.toMatchObject({ statusCode: 400 });
 
-      deps.resetCredentialsRepository.findValidTokenWithUser.mockResolvedValueOnce(resetRecord('mfa'));
+      deps.credentialResetRepository.findValidTokenWithUser.mockResolvedValueOnce(resetRecord('mfa'));
       await expect(service.confirmResetCredentials({ token: 't', type: 'password' })).rejects.toThrow('Tipo de reset incorrecto');
 
       expect(deps.unitOfWork.run).not.toHaveBeenCalled();
@@ -97,12 +97,12 @@ describe('CredentialResetService', () => {
 
     it('password: actualiza, marca el token usado en la transacción e invalida todas las sesiones', async () => {
       const { service, deps, transaction } = makeService();
-      deps.resetCredentialsRepository.findValidTokenWithUser.mockResolvedValue(resetRecord('password'));
+      deps.credentialResetRepository.findValidTokenWithUser.mockResolvedValue(resetRecord('password'));
 
       await service.confirmResetCredentials({ token: 't', type: 'password', newPassword: 'N3w!pass' });
 
       expect(deps.userRepository.updatePassword).toHaveBeenCalledWith('u-1', 'N3w!pass');
-      expect(deps.resetCredentialsRepository.markAsUsed).toHaveBeenCalledWith('rc-1');
+      expect(deps.credentialResetRepository.markAsUsed).toHaveBeenCalledWith('rc-1');
       expect(transaction.commit).toHaveBeenCalled();
       expect(TokenBlacklistUtil.invalidateUserSessions).toHaveBeenCalledWith('u-1');
       expect(deps.userSessionRepository.closeAllByUser).toHaveBeenCalledWith('u-1', 'password_reset');
@@ -111,7 +111,7 @@ describe('CredentialResetService', () => {
 
     it('mfa: baja TOTP y SMS, registra ambos cambios y NO cierra sesiones', async () => {
       const { service, deps } = makeService();
-      deps.resetCredentialsRepository.findValidTokenWithUser.mockResolvedValue(resetRecord('mfa'));
+      deps.credentialResetRepository.findValidTokenWithUser.mockResolvedValue(resetRecord('mfa'));
 
       await service.confirmResetCredentials({ token: 't', type: 'mfa' });
 
@@ -125,8 +125,8 @@ describe('CredentialResetService', () => {
 
     it('si otro request ya consumió el token, no aplica el reset y revierte', async () => {
       const { service, deps, transaction } = makeService();
-      deps.resetCredentialsRepository.findValidTokenWithUser.mockResolvedValue(resetRecord('password'));
-      deps.resetCredentialsRepository.markAsUsed.mockResolvedValue(false);
+      deps.credentialResetRepository.findValidTokenWithUser.mockResolvedValue(resetRecord('password'));
+      deps.credentialResetRepository.markAsUsed.mockResolvedValue(false);
 
       await expect(
         service.confirmResetCredentials({ token: 't', type: 'password', newPassword: 'Nueva123!' })
@@ -140,7 +140,7 @@ describe('CredentialResetService', () => {
 
     it('si falla dentro de la transacción hace rollback y propaga', async () => {
       const { service, deps, transaction } = makeService();
-      deps.resetCredentialsRepository.findValidTokenWithUser.mockResolvedValue(resetRecord('password'));
+      deps.credentialResetRepository.findValidTokenWithUser.mockResolvedValue(resetRecord('password'));
 
       await expect(service.confirmResetCredentials({ token: 't', type: 'password' })).rejects.toThrow('La nueva contraseña es requerida');
       expect(transaction.rollback).toHaveBeenCalled();

@@ -9,6 +9,7 @@ jest.mock('../../shared/observability/logger.util', () => ({
 }));
 jest.mock('../audit/audit.service', () => ({ record: jest.fn() }));
 jest.mock('./utils/notification-count.util', () => ({ emitCountUpdate: jest.fn() }));
+jest.mock('../../shared/database/unit-of-work', () => ({ run: jest.fn((work: () => unknown) => work()) }));
 
 const mockSend = jest.fn();
 jest.mock('@aws-sdk/client-sns', () => {
@@ -19,8 +20,6 @@ jest.mock('@aws-sdk/client-sns', () => {
 import { fixture } from 'tests/helpers/mock';
 import pushNotificationServiceModule from './services/push-notification.service';
 const { PushNotificationService } = pushNotificationServiceModule;
-import notificationBatchServiceModule from './services/notification-batch.service';
-const { NotificationBatchService } = notificationBatchServiceModule;
 import notificationCreationServiceModule from './services/notification-creation.service';
 const { NotificationCreationService } = notificationCreationServiceModule;
 
@@ -35,28 +34,8 @@ describe('PushNotificationService.registrarDispositivo', () => {
     Object.defineProperty(service, 'PLATFORM_ARNS', { value: { ios: 'arn:ios', android: 'arn:android' } });
 
     await expect(service.registrarDispositivo('fcm-token', 'android', 'u-1')).resolves.toBe('arn:aws:sns:endpoint/1');
-    expect(mockSend).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('NotificationBatchService._scheduleCacheCleanup', () => {
-  // Antes: cache.del(...).catch(...) con la caché local (síncrona, del() devuelve un número) lanzaba
-  // TypeError dentro del timer → uncaughtException → process.exit(1) en producción.
-  it('tolera una caché síncrona (sin Redis)', async () => {
-    jest.useFakeTimers();
-    try {
-      const syncCache = { get: jest.fn(), set: jest.fn(), del: jest.fn(() => 1) };
-      const service = new NotificationBatchService({});
-
-      service._scheduleCacheCleanup(syncCache, 'g-1');
-      expect(() => jest.runOnlyPendingTimers()).not.toThrow();
-      await Promise.resolve();
-      await Promise.resolve();
-
-      expect(syncCache.del).toHaveBeenCalledWith('global_notif:g-1:batch_state');
-    } finally {
-      jest.useRealTimers();
-    }
+    // crear + leer atributos (+ habilitar, porque el doble no devuelve atributos)
+    expect(mockSend).toHaveBeenCalled();
   });
 });
 
@@ -67,11 +46,10 @@ describe('NotificationCreationService: entidad relacionada', () => {
     const notificationRepo = { create: jest.fn().mockResolvedValue({ notificationId: 'n-1' }) };
     const service = new NotificationCreationService(fixture({
       notificationRepo,
-      userNotificationPreferenceRepo: { findGlobalByUser: jest.fn().mockResolvedValue(null) },
-      notificationSchedulerService: { isInQuietHours: jest.fn(() => false) },
-      notificationSendingService: { procesarEnviosIndividuales: jest.fn().mockResolvedValue(undefined) }
+      userNotificationPreferenceRepo: { findByUser: jest.fn().mockResolvedValue(null) },
+      notificationDeliveryService: { schedule: jest.fn().mockResolvedValue({ deliveries: [], sendNow: false }), sendInBackground: jest.fn() }
     }));
-    const notificationType = { notificationTypeId: 'nt-1', priority: 'normal', category: null };
+    const notificationType = { notificationTypeId: 'nt-1', category: null };
 
     await service._crearNotificacionIndividual('u-1', fixture(notificationType), 'T', 'B', { type: 'ApprovalRequest', id: 'ar-1' }, {});
 

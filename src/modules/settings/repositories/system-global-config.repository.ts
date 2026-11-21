@@ -23,7 +23,7 @@ class SystemGlobalConfigRepository extends PrismaRepository {
 
   /** null si la fila ya no existe. */
   async update(configId: string, data: Prisma.SystemGlobalConfigUpdateManyMutationInput): Promise<SystemGlobalConfig | null> {
-    const [row] = await (await this.db()).systemGlobalConfig.updateManyAndReturn({ where: { configId }, data });
+    const [row] = await (await this.db()).systemGlobalConfig.updateManyAndReturn({ where: { systemGlobalConfigId: configId }, data });
     return row ?? null;
   }
 }

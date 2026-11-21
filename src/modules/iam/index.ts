@@ -40,9 +40,9 @@ export default {
     return interopDefault(require('./repositories/biometric.repository') as typeof import('./repositories/biometric.repository'));
   },
 
-  get resetCredentialsRepository() {
+  get credentialResetRepository() {
     return interopDefault(
-      require('./repositories/reset-credentials.repository') as typeof import('./repositories/reset-credentials.repository')
+      require('./repositories/credential-reset.repository') as typeof import('./repositories/credential-reset.repository')
     );
   },
 

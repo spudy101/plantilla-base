@@ -316,98 +316,6 @@ class AvatarComponent {
 }
 
 // ============================================================
-// PAGINATION — reutilizable en cualquier respuesta paginada
-// ============================================================
-
-interface PaginationInfo {
-  currentPage: number;
-  pageSize: number;
-  totalItems: number;
-  totalPages: number;
-  hasNextPage: boolean;
-  hasPreviousPage: boolean;
-}
-
-interface SortInfo {
-  field: string;
-  order: string;
-}
-
-/** Parámetros de MetadataDTO.build (los que entrega PaginationHelper.getPaginationParams + el total). */
-interface MetadataParams {
-  totalItems: number;
-  page: number;
-  limit: number;
-  sortBy?: string | null;
-  order?: string | null;
-  filters?: Record<string, unknown> | null;
-}
-
-function PaginationDTO(data: PaginationInfo): PaginationInfo {
-  return {
-    currentPage: data.currentPage,
-    pageSize: data.pageSize,
-    totalItems: data.totalItems,
-    totalPages: data.totalPages,
-    hasNextPage: data.hasNextPage,
-    hasPreviousPage: data.hasPreviousPage
-  };
-}
-
-function SortDTO(data: SortInfo): SortInfo {
-  return {
-    field: data.field,
-    order: data.order
-  };
-}
-
-/**
- * Metadata completa para respuestas paginadas.
- * Uso:
- *   const meta = MetadataDTO.build({
- *     totalItems: count,
- *     page, limit,
- *     sortBy: 'createdAt', order: 'DESC',
- *     filters: { isActive: true },
- *   });
- */
-class MetadataDTO {
-  pagination: PaginationInfo;
-  sort: SortInfo;
-  // `declare`: solo se crea la propiedad cuando hay filtros (no aparece como `filters: undefined`)
-  declare filters?: Record<string, unknown>;
-
-  constructor(data: MetadataParams) {
-    const totalPages = Math.ceil(data.totalItems / data.limit);
-
-    // PaginationDTO/SortDTO son funciones que devuelven el objeto (antes se invocaban con `new`,
-    // que en JS devuelve ese mismo objeto: el resultado es idéntico).
-    this.pagination = PaginationDTO({
-      currentPage: data.page,
-      pageSize: data.limit,
-      totalItems: data.totalItems,
-      totalPages,
-      hasNextPage: data.page < totalPages,
-      hasPreviousPage: data.page > 1
-    });
-
-    this.sort = SortDTO({
-      field: data.sortBy || 'createdAt',
-      order: data.order || 'DESC'
-    });
-
-    if (data.filters && Object.keys(data.filters).length > 0) {
-      this.filters = data.filters;
-    }
-  }
-
-  /** Factory — atajo para construir desde los params de paginación. */
-  static build(params: MetadataParams): MetadataDTO {
-    return new MetadataDTO(params);
-  }
-}
-
-// ============================================================
 // ESQUEMAS DE SALIDA — describen (y documentan) lo que arman los componentes de arriba
 // ============================================================
 
@@ -475,10 +383,5 @@ export default {
   // Catálogo de sistema
   RoleComponent,
   AvatarThemeComponent,
-  AvatarComponent,
-
-  // Paginación (compartida en los 3 archivos de DTOs)
-  PaginationDTO,
-  SortDTO,
-  MetadataDTO
+  AvatarComponent
 };

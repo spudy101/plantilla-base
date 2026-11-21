@@ -4,6 +4,7 @@
 // en la misma consulta (en Sequelize, incluir User dos veces con su persona generaba SQL inválido y se
 // resolvían aparte).
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import { Prisma } from '../../../shared/database/generated/prisma/client';
 import type { ApprovalRequest, ApprovalRequestStatus } from '../../../shared/database/generated/prisma/client';
 
@@ -17,7 +18,6 @@ const WITH_REQUESTER = { requester: USER_REF } satisfies Prisma.ApprovalRequestI
 
 export type ApprovalRequestWithUsers = Prisma.ApprovalRequestGetPayload<{ include: typeof WITH_USERS }>;
 
-const SORTABLE = Object.values(Prisma.ApprovalRequestScalarFieldEnum);
 const SEARCH_FIELDS = ['operationKey', 'entityType'];
 
 class ApprovalRequestRepository extends PrismaRepository {
@@ -57,7 +57,7 @@ class ApprovalRequestRepository extends PrismaRepository {
 
   async findAllPaginatedWithUsers(
     filters: ApprovalRequestRepository.Filters,
-    pagination: PrismaRepository.PaginationParams,
+    pagination: PageRequest,
     searchTerm: string | null
   ): Promise<PrismaRepository.Page<ApprovalRequestWithUsers>> {
     const where = {
@@ -68,7 +68,7 @@ class ApprovalRequestRepository extends PrismaRepository {
     } as Prisma.ApprovalRequestWhereInput;
     const db = await this.db();
     const [rows, count] = await Promise.all([
-      db.approvalRequest.findMany({ where, include: WITH_USERS, ...this.paginationArgs(SORTABLE, pagination) }),
+      db.approvalRequest.findMany({ where, include: WITH_USERS, ...this.paginationArgs(pagination, 'approvalRequestId') }),
       db.approvalRequest.count({ where })
     ]);
     return { rows, count };

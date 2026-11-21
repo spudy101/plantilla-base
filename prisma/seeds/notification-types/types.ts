@@ -7,7 +7,6 @@ export interface NotificationTypeSeed {
   code: string;
   name: string;
   description: string;
-  priority: string;
   titleTemplate: string;
   bodyTemplate: string;
   emailSubjectTemplate: string | null;

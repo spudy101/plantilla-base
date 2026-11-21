@@ -11,6 +11,7 @@ import ErrorMiddleware from '../../src/shared/http/error.middleware';
 import systemGlobalConfigRepository from '../../src/modules/settings/repositories/system-global-config.repository';
 import approvalRequestRepository from '../../src/modules/approvals/repositories/approval-request.repository';
 import providerFallbackEventRepository from '../../src/modules/integration/repositories/provider-fallback-event.repository';
+import { page } from '../helpers/page';
 
 const TAG = `g4-it-${randomUUID().slice(0, 8)}`;
 let roleId: string;
@@ -43,7 +44,7 @@ describe('Integraciones y config · Prisma contra Postgres', () => {
     const existing = await systemGlobalConfigRepository.findActive();
     const config = existing ?? (await systemGlobalConfigRepository.createActive());
     try {
-      const updated = await systemGlobalConfigRepository.update(config.configId, {
+      const updated = await systemGlobalConfigRepository.update(config.systemGlobalConfigId, {
         configVersion: { increment: 1 },
         integrationResilience: { timeout_ms: 1234, circuit_breaker: { failure_threshold: 9 } }
       });
@@ -54,11 +55,11 @@ describe('Integraciones y config · Prisma contra Postgres', () => {
       });
     } finally {
       await prisma.systemGlobalConfig.update({
-        where: { configId: config.configId },
+        where: { systemGlobalConfigId: config.systemGlobalConfigId },
         data: { configVersion: config.configVersion, integrationResilience: config.integrationResilience as object }
       });
       if (!existing) {
-        await prisma.systemGlobalConfig.delete({ where: { configId: config.configId } });
+        await prisma.systemGlobalConfig.delete({ where: { systemGlobalConfigId: config.systemGlobalConfigId } });
       }
     }
   });
@@ -77,7 +78,7 @@ describe('Integraciones y config · Prisma contra Postgres', () => {
       expiresAt: new Date(Date.now() - 1000)
     });
 
-    const { rows, count } = await approvalRequestRepository.findAllPaginatedWithUsers({ operationKey: TAG }, { limit: 10, offset: 0 }, TAG.toUpperCase());
+    const { rows, count } = await approvalRequestRepository.findAllPaginatedWithUsers({ operationKey: TAG }, page(), TAG.toUpperCase());
     expect(count).toBe(1);
     expect(rows[0]?.requester).toEqual({ userId: maker, username: `${TAG}-maker`, person: { firstName: 'Ana-maker', lastName: TAG } });
 

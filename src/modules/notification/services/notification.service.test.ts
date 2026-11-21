@@ -18,12 +18,6 @@ jest.mock('../../../shared/observability/logger.util', () => ({
 }));
 jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
-jest.mock('../../../shared/http/pagination.util', () => ({
-  stringParam: jest.requireActual('../../../shared/http/pagination.util').default.stringParam,
-  booleanParam: jest.requireActual('../../../shared/http/pagination.util').default.booleanParam,
-  getPaginationParams: jest.fn().mockReturnValue({ page: 1, limit: 10, offset: 0, sortBy: 'created_at', order: 'DESC' })
-}));
-
 jest.mock('../repositories/notification.repository', () => ({
   findByUserPaginated: jest.fn(),
   findAllByUser: jest.fn(),
@@ -33,7 +27,7 @@ jest.mock('../repositories/notification.repository', () => ({
 
 jest.mock('../repositories/global-notification.repository', () => ({
   findActiveNotifications: jest.fn().mockResolvedValue([]),
-  findUnreadByUser: jest.fn().mockResolvedValue([])
+  countUnreadByUser: jest.fn().mockResolvedValue(0)
 }));
 
 jest.mock('../repositories/global-notification-read.repository', () => ({
@@ -75,6 +69,7 @@ const NotificationEmitter = mocked(NotificationEmitterModule);
 import NotificationCountUtilModule from '../utils/notification-count.util';
 const NotificationCountUtil = mocked(NotificationCountUtilModule);
 import service from './notification.service';
+import { GlobalNotificationListQuery, NotificationFeedQuery, PersonalNotificationListQuery } from '../requests/notification.request';
 
 const USER = 'u-1';
 const flush = () => new Promise(resolve => { setImmediate(resolve); });
@@ -104,7 +99,7 @@ describe('NotificationService', () => {
       ]);
       globalReadRepo.getReadIdsByUser.mockResolvedValue([]);
 
-      const result = await service.getNotificationsList(USER, {});
+      const result = await service.getNotificationsList(USER, NotificationFeedQuery.parse({}));
 
       expect(result.totalItems).toBe(2);
       // Orden DESC: la personal (02-ene) va antes que la global (01-ene).
@@ -131,7 +126,7 @@ describe('NotificationService', () => {
       globalReadRepo.getReadIdsByUser.mockResolvedValue([]);
       notificationRepo.markAsReadByIds.mockRejectedValue(new Error('db write fail'));
 
-      const result = await service.getNotificationsList(USER, {});
+      const result = await service.getNotificationsList(USER, NotificationFeedQuery.parse({}));
 
       expect(result.totalItems).toBe(1);
       expect(tx.rollback).toHaveBeenCalled();
@@ -153,7 +148,7 @@ describe('NotificationService', () => {
         count: 2
       });
 
-      const result = await service.getPersonalNotifications(USER, {});
+      const result = await service.getPersonalNotifications(USER, PersonalNotificationListQuery.parse({}));
 
       // solo las no leídas; el WHERE con IN lo arma el repositorio
       expect(notificationRepo.markAsReadByIds).toHaveBeenCalledWith(['n-1']);
@@ -171,7 +166,7 @@ describe('NotificationService', () => {
         count: 1
       });
 
-      await service.getPersonalNotifications(USER, {});
+      await service.getPersonalNotifications(USER, PersonalNotificationListQuery.parse({}));
 
       expect(notificationRepo.markAsReadByIds).not.toHaveBeenCalled();
       await flush();
@@ -186,7 +181,7 @@ describe('NotificationService', () => {
       ]);
       globalReadRepo.getReadIdsByUser.mockResolvedValue([]);
 
-      const result = await service.getGlobalNotifications(USER, {});
+      const result = await service.getGlobalNotifications(USER, GlobalNotificationListQuery.parse({}));
 
       expect(globalReadRepo.bulkMarkAsRead).toHaveBeenCalledWith(['g-1'], USER);
       expect(result.totalItems).toBe(1);
@@ -203,7 +198,7 @@ describe('NotificationService', () => {
       ]);
       globalReadRepo.getReadIdsByUser.mockResolvedValue(['g-1']);
 
-      await service.getGlobalNotifications(USER, {});
+      await service.getGlobalNotifications(USER, GlobalNotificationListQuery.parse({}));
 
       expect(globalReadRepo.bulkMarkAsRead).not.toHaveBeenCalled();
     });
@@ -212,7 +207,7 @@ describe('NotificationService', () => {
   describe('getUnreadCount', () => {
     it('computa el total, lo emite por el emitter y audita', async () => {
       notificationRepo.countUnreadByUser.mockResolvedValue(3);
-      globalNotificationRepo.findUnreadByUser.mockResolvedValue([{}, {}]);
+      globalNotificationRepo.countUnreadByUser.mockResolvedValue(2);
 
       const total = await service.getUnreadCount(USER);
 
@@ -226,16 +221,9 @@ describe('NotificationService', () => {
   describe('computeUnreadCount', () => {
     it('suma personales + globales', async () => {
       notificationRepo.countUnreadByUser.mockResolvedValue(2);
-      globalNotificationRepo.findUnreadByUser.mockResolvedValue([{}, {}, {}]);
+      globalNotificationRepo.countUnreadByUser.mockResolvedValue(3);
 
       await expect(service.computeUnreadCount(USER)).resolves.toBe(5);
-    });
-
-    it('trata como 0 el resultado global que no es un array', async () => {
-      notificationRepo.countUnreadByUser.mockResolvedValue(4);
-      globalNotificationRepo.findUnreadByUser.mockResolvedValue(null);
-
-      await expect(service.computeUnreadCount(USER)).resolves.toBe(4);
     });
   });
 

@@ -3,6 +3,7 @@
 // Sesiones de usuario. user_sessions no declara relación con users en el schema, así que el usuario de
 // las vistas admin (`sessionUser`) se adjunta con una consulta por lote (loadUserRefs).
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import { UserSessionStatus } from '../../../shared/database/generated/prisma/client';
 import type { Prisma, UserSession } from '../../../shared/database/generated/prisma/client';
 import auditModule from '../../audit';
@@ -109,14 +110,14 @@ class UserSessionRepository extends PrismaRepository {
     });
   }
 
-  /** Listado paginado admin con dispositivo y usuario de cada sesión (más recientes primero). */
+  /** Listado paginado admin con dispositivo y usuario de cada sesión. */
   async findPaginatedWithDeviceAndUser(
     where: Prisma.UserSessionWhereInput,
-    { limit = 20, offset = 0 }: { limit?: number; offset?: number } = {}
+    page: PageRequest
   ): Promise<PrismaRepository.Page<SessionWithDeviceAndUser>> {
     const db = await this.db();
     const [rows, count] = await Promise.all([
-      db.userSession.findMany({ where, include: DEVICE_REF, orderBy: { startedAt: 'desc' }, take: limit, skip: offset }),
+      db.userSession.findMany({ where, include: DEVICE_REF, ...this.paginationArgs(page, 'userSessionId') }),
       db.userSession.count({ where })
     ]);
     return { rows: await this.attachUsers(rows), count };

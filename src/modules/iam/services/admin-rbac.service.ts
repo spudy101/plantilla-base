@@ -117,7 +117,7 @@ class AdminRbacService {
         moduleName,
         action
       },
-      entityId: override.rolePermissionId,
+      entityId: override.rolePermissionOverrideId,
       entityType: 'RbacPermission',
       entityTable: 'role_permission_overrides'
     });
@@ -126,7 +126,7 @@ class AdminRbacService {
       this.notifier.notify({
         type: 'IAM_RBAC_PERMISSION_GRANTED',
         userId: grantedByUserId,
-        relatedEntity: { type: 'RolePermissionOverride', id: override.rolePermissionId },
+        relatedEntity: { type: 'RolePermissionOverride', id: override.rolePermissionOverrideId },
         metadata: { roleName, moduleName, action, logoUrl: notifications.ses.logoUrl }
       }).catch(err => logger.warn('Error enviando IAM_RBAC_PERMISSION_GRANTED', { error: err.message }));
     });

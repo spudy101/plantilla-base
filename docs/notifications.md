@@ -8,23 +8,23 @@
 Cada notificación se define por un **`NotificationType`** (fila en `notification_types`, identificada por
 `code`), que **pertenece a una `NotificationCategory`**. Un service de negocio dispara
 `crearNotificacion({ tipoNotificacion: 'CODE', ... })`; el sistema resuelve el tipo por `code`, renderiza los
-templates con `metadata`, persiste la notificación y programa el envío (push/email/**sms**) en background
-respetando preferencias del usuario, quiet hours, rate limits y retries.
+templates con `metadata`, guarda la notificación in-app y **una entrega por cada canal externo** que
+corresponda (push/email/**sms**), y las envía respetando la preferencia del usuario, su horario de silencio
+y los reintentos.
 
 > **La categoría es la FUENTE DE VERDAD** de: los canales soportados (`supports_push`/`supports_email`/
-> `supports_sms`), el "no molestar" (`allow_dnd`, `is_critical`, quiet hours por defecto), la `priority`
-> y el **layout base del email** (`email_layout_template`, un cascarón HTML con el placeholder `{{content}}`
-> donde se inyecta el `email_body_template` del tipo). El **tipo** solo aporta su contenido (los templates).
-> Las **preferencias del usuario** se atan a la **categoría** (o son globales), no al tipo — ver "Comportamiento automático".
+> `supports_sms`), la **criticidad** (`is_critical`: se envía siempre, sin mirar la preferencia ni el
+> horario de silencio del usuario) y el **layout base del email** (`email_layout_template`, un cascarón
+> HTML con el placeholder `{{content}}` donde se inyecta el `email_body_template` del tipo). El **tipo**
+> solo aporta su contenido (los templates). La **preferencia del usuario** es una sola, global.
 
 ```
 Service ──crearNotificacion()──> resuelve NotificationType por code (+ su categoría)
                                   └─ render {{variables}} con metadata
-                                  └─ envuelve el email en el layout de la categoría
-                                  └─ persiste Notification (o GlobalNotification si userId=null)
-                                  └─ setImmediate → notification-sending (push SNS / email SES / sms SNS)
+                                  └─ en UNA transacción: Notification (in-app) + NotificationDelivery por canal
+                                  └─ tras confirmar: envía las entregas en segundo plano (push SNS / email SES / sms SNS)
                                   └─ emite SSE 'count-updated'
-Workers (cron) ──> procesar diferidas (quiet hours) · retry push · retry email · cleanup
+Despachador (cron, cada minuto) ──> envía las entregas vencidas: diferidas, reintentos y las que quedaron a medias
 ```
 
 ## ¿Cuándo disparar una notificación? (criterio)
@@ -38,7 +38,7 @@ Toda notificación crea el registro **interno (in-app)** — es el piso, siempre
 - Acción rutinaria → puede quedar solo interna. Ej: `PROFILE_UPDATED` ("actualizaste tu perfil con éxito").
 - Acción sensible / de seguridad → interna **+ correo**. Ej: `TOTP_ACTIVADO`, `RESET_PASSWORD`.
 
-(El canal efectivo se gatea con `supports_email`/`supports_push`/`supports_sms` de la **categoría** del tipo **+** las preferencias `allow_email`/`allow_push`/`allow_sms` del usuario — ver "Comportamiento automático".)
+(El canal efectivo se gatea con `supports_email`/`supports_push`/`supports_sms` de la **categoría** del tipo **+** la preferencia `allow_email`/`allow_push`/`allow_sms` del usuario, salvo categoría crítica — ver "Entregas por canal".)
 
 ### Rutas de cliente → destinatario = el propio cliente (self)
 
@@ -75,7 +75,7 @@ Otros `target-client` reales (admin actúa → el cliente se entera): `ACCOUNT_B
 
 ### Destinatarios que no son "un usuario" → `crearNotificacionDirecta`
 
-Cuando el destinatario no tiene cuenta (o no debe pasar por preferencias/quiet hours) se usa `crearNotificacionDirecta({ tipoNotificacion, email, metadata })` — email puro, sin persistir `Notification`. Casos reales del template: confirmación de cuenta eliminada (`CUENTA_ELIMINADA`) y solicitudes de reset de credenciales por email (`CODIGO_VERIFICACION`).
+Cuando el destinatario no tiene cuenta (o no debe pasar por la preferencia ni el horario de silencio) se usa `crearNotificacionDirecta({ tipoNotificacion, email, metadata })` — email puro, sin persistir `Notification`. Casos reales del template: confirmación de cuenta eliminada (`CUENTA_ELIMINADA`) y solicitudes de reset de credenciales por email (`CODIGO_VERIFICACION`).
 
 ### Disparadas por workers/system (sin actor humano)
 
@@ -89,22 +89,18 @@ Eventos de tiempo/lote emitidos por un worker con `userId:'system'`: el destinat
 
 ```
 src/modules/notification/
-  models/        notification-category / notification-type / notification / global-notification
-                 global-notification-read / user-push-token / verification-code / sms-delivery-attempt
   services/      notification-creation*  ← ENTRADA
-                 notification-sending / email-notification / push-notification / sms
-                 notification-scheduler / notification-rate-limit / notification-retry
-                 notification-batch / notification-cleanup / email-suppression
-  workers/       notification-worker.ts (5 cron jobs)
-  utils/         notification-content.util.ts (render {{var}}) / notification-emitter.util.ts (SSE)
-  repositories/  notification-category / notification-type / notification / global-notification / user-push-token
-
-src/modules/notification/          CRUD admin de categorías y tipos + panel de entregas/reintentos
-src/modules/person/ endpoints de preferencias del usuario (global + por categoría)
+                 notification-delivery   ← canales, horario de silencio, intentos, despachador
+                 email-notification / push-notification / sms  (proveedores)
+                 notification-preference / notification-batch (globales) / notification-cleanup / email-suppression
+                 admin-notification-*    (categorías, tipos, consulta de entregas)
+  repositories/  notification (bandeja) / notification-delivery / notification-category / notification-type
+                 global-notification / user-notification-preference / user-push-token / ...
+  workers/       notification-worker.ts (despachador + limpiezas)
+  utils/         notification-content.util.ts (render {{var}}) / quiet-hours.util.ts / notification-emitter.util.ts (SSE)
 ```
 
-Preferencias por usuario: tabla `user_notification_preferences` (modelo en `schemas/kyc/`), atadas a la
-**categoría** (`notification_category_code`, `null` = global).
+Preferencia por usuario: tabla `user_notification_preferences`, **una fila por usuario** (`user_id` UNIQUE).
 
 ## API — `NotificationCreationService`
 
@@ -126,17 +122,16 @@ setImmediate(() => {
 ```
 
 - **`tipoNotificacion`** (req): `code` del tipo.
-- **`userId`** (opcional): si `null` → **notificación global** (inserta en `global_notifications`, llega a todos los usuarios activos). Cuidado: es masivo.
+- **`userId`** (opcional): si `null` → **notificación global** (una fila en `global_notifications` que todos ven in-app + envío masivo por push/email a todos los clientes activos; ver "Notificaciones globales"). Cuidado: es masivo.
 - **`relatedEntity`** (opcional): `{ type, id }`. Se persiste en `related_entity_type` / `related_entity_id`. (Algunos casos legacy pasan un string; la forma correcta es el objeto.)
 - **`metadata`** (opcional): valores que reemplazan los `{{placeholders}}` de los templates. Pasar **todas** las variables que usan los templates o saldrán literales.
 
-Internamente: valida el code, busca el `NotificationType`, renderiza `title/body` (+ email subject/body) con `notification-content.util`, persiste y dispara el envío con `setImmediate`. Si se llama dentro de un `unitOfWork.run()`, la notificación se crea en esa transacción (los repositorios la toman
-del contexto). Retorna `{ estadoSolicitud, message }` + **una sola** de las dos ids, según el caso:
+Internamente: valida el code, busca el `NotificationType`, renderiza `title/body` (+ email subject/body) con `notification-content.util`, guarda la notificación y sus entregas en una transacción y las envía tras confirmar (ver "Entregas por canal"). Si se llama dentro de un `unitOfWork.run()`, la notificación se crea en esa transacción y las entregas las envía el despachador después del commit. Retorna `{ estadoSolicitud, message }` + **una sola** de las dos ids, según el caso:
 `notificationId` (individual) o `globalNotificationId` (global) — son mutuamente excluyentes.
 
 ### `crearNotificacionDirecta({ tipoNotificacion, email, metadata })`
 
-Email directo a un destinatario **sin userId** (no persiste en BD, no respeta quiet hours). Para: acuse de PQRS/contacto a alguien sin cuenta, confirmación de cuenta eliminada, avisos a un email administrativo/externo.
+Email directo a un destinatario **sin userId** (no persiste en BD, no respeta el horario de silencio ni se reintenta). Para: acuse de PQRS/contacto a alguien sin cuenta, confirmación de cuenta eliminada, avisos a un email administrativo/externo.
 
 ### Emails con adjuntos (PDF, etc.)
 
@@ -169,106 +164,142 @@ setImmediate(() => {
 
 ## Modelo `NotificationCategory` — campos (fuente de verdad)
 
-| Campo                                                 | Notas                                                                                          |
-| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `code` STRING UNIQUE                                  | Identificador de la categoría (ej: `SECURITY`, `ACCOUNT`, `TRANSACTIONAL`)                      |
-| `name`, `description`                                 | Legibles                                                                                        |
-| `supports_push` / `supports_email` / `supports_sms`   | **Canales habilitados** — mandan sobre el envío de todos los tipos de la categoría              |
-| `allow_dnd`                                            | `false` → el usuario NO puede silenciar la categoría (se ignora su quiet hours)                 |
-| `is_critical`                                          | `true` → emergencia: ignora quiet hours y no es silenciable                                     |
-| `default_quiet_hours_start` / `_end`                  | Quiet hours por defecto de la categoría                                                         |
-| `priority`                                            | `low \| normal \| high \| urgent`                                                              |
-| `email_layout_template`                               | Cascarón HTML del email con `{{content}}` donde se inyecta el `email_body_template` del tipo    |
-| `sort_order`, `is_active`                             | Orden de presentación / habilitación                                                            |
+| Campo                                               | Notas                                                                                         |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `code` STRING UNIQUE                                | Identificador de la categoría (ej: `SECURITY`, `ACCOUNT`, `TRANSACTIONAL`)                     |
+| `name`, `description`                               | Legibles                                                                                       |
+| `supports_push` / `supports_email` / `supports_sms` | **Canales habilitados** — mandan sobre el envío de todos los tipos de la categoría             |
+| `is_critical`                                       | `true` → se envía siempre: ignora la preferencia y el horario de silencio del usuario          |
+| `email_layout_template`                             | Cascarón HTML del email con `{{content}}` donde se inyecta el `email_body_template` del tipo   |
+| `is_active`                                         | Habilitación                                                                                   |
 
 ## Modelo `NotificationType` — campos (contenido del evento)
 
-| Campo                                            | Notas                                                                                          |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
-| `code` STRING UNIQUE                             | Identificador usado en `crearNotificacion()`                                                    |
-| `notification_category_id`                       | **Categoría a la que pertenece** — de ahí salen canales, DND y layout de email                 |
-| `name`, `description`                            | Legibles                                                                                        |
-| `priority`                                       | `low \| normal \| high \| urgent` (la categoría puede elevarla)                                 |
-| `title_template` / `body_template`               | Push / in-app, con `{{variable}}`                                                               |
-| `email_subject_template` / `email_body_template` | Email (HTML) — el `email_body_template` es el **fragmento** que se inyecta en el layout          |
-| `is_active`                                      | Habilita/deshabilita el tipo                                                                     |
+| Campo                                            | Notas                                                                                 |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `code` STRING UNIQUE                             | Identificador usado en `crearNotificacion()`                                           |
+| `notification_category_id`                       | **Categoría a la que pertenece** — de ahí salen canales, criticidad y layout de email |
+| `name`, `description`                            | Legibles                                                                               |
+| `title_template` / `body_template`               | Push / in-app, con `{{variable}}`                                                      |
+| `email_subject_template` / `email_body_template` | Email (HTML) — el `email_body_template` es el **fragmento** que se inyecta en el layout |
+| `is_active`                                      | Habilita/deshabilita el tipo                                                           |
 
-> Los canales (`supports_*`) y la criticidad (`is_critical`) **ya no viven en el tipo**: subieron a la categoría.
+## Entregas por canal (`notification_deliveries`)
+
+`notifications` es solo la bandeja in-app. Cada canal externo por el que sale una notificación es una fila
+de `notification_deliveries`:
+
+| Campo                          | Notas                                                                                               |
+| ------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `channel`                      | `push` · `email` · `sms` (UNIQUE con `notification_id`)                                              |
+| `status`                       | `pending` (por enviar o reintentando) · `sent` · `failed` (rebote definitivo o intentos agotados) · `skipped` (sin destinatario: sin dispositivos, sin email/teléfono, dirección suprimida) |
+| `attempts`                     | Intentos hechos                                                                                     |
+| `next_attempt_at`              | Cuándo toca el próximo intento (o fin de la reserva del intento en curso); `null` al terminar      |
+| `sent_at`                      | Cuándo se envió                                                                                     |
+| `last_error` / `last_error_code` | Último error y código del proveedor (p. ej. `MessageRejected`, `EndpointDisabled`)                |
+
+### Qué canales y cuándo
+
+1. **Canales:** los que soporta la categoría **y** permite la preferencia del usuario (`allow_push` /
+   `allow_email` / `allow_sms`). Una categoría **crítica** ignora la preferencia: salen todos los que soporta.
+2. **Cuándo:** si el usuario está en su horario de silencio (y la categoría no es crítica), las entregas se
+   crean con `next_attempt_at` = fin del horario y las envía el despachador. Si no, se envían apenas se
+   confirma la transacción.
+
+### Envío, reintentos y recuperación
+
+- **Una transacción.** La notificación y sus entregas se guardan juntas. Las que salen ya quedan
+  **reservadas** (`next_attempt_at` = ahora + 5 min) y se envían en segundo plano tras el commit. Si el
+  proceso muere antes de enviarlas, la reserva vence y el despachador las toma: no se pierden.
+- **Dentro de un `unitOfWork.run()` de quien llama**, la notificación se crea en esa transacción y no se
+  envía desde ahí (el commit llega después): las entregas quedan vencidas y las envía el próximo ciclo
+  del despachador (≤ 1 min).
+- **Despachador** (`notification-worker.ts`, cada minuto): toma de a 50 entregas `pending` con
+  `next_attempt_at` vencido (`FOR UPDATE SKIP LOCKED`, y las reserva), así que **varias instancias no envían
+  la misma**. En un ciclo sigue tomando hasta vaciar lo vencido o cumplir 45 s, y envía 10 notificaciones a
+  la vez: una acumulación (fin del horario de silencio de muchos usuarios, un proveedor que vuelve) se vacía
+  en minutos. Un ciclo sin trabajo no escribe nada en `operations`. La tabla funciona como cola. Cuándo
+  conviene pasar a SQS, RabbitMQ o Kafka, y cómo hacerlo: docs/ARCHITECTURE.md, «Trabajo asíncrono».
+- **Resultado de un intento:**
+  - enviado → `sent`;
+  - sin destinatario → `skipped` (no se reintenta);
+  - error temporal → sigue `pending`, con espera creciente: **1 min → 5 min → 30 min → 2 h → 6 h**;
+  - **rebote definitivo** (`isHardBounce`, catálogo en `src/shared/constants/aws-error-codes.ts`: email
+    `MessageRejected`/`InvalidParameterValue`/`AccountSendingPausedException`, push
+    `EndpointDisabled`/`InvalidParameter`) o **6.º intento fallido** → `failed`, y se audita **una vez**
+    (`EMAIL_/PUSH_/SMS_DELIVERY_FAILED`, con `reason: hard_bounce | attempts_exhausted`).
+  - Push: basta con que llegue a un dispositivo; es rebote definitivo solo si **todos** fallaron con un
+    código definitivo. SMS no tiene código terminal: todo fallo se trata como temporal.
+- **Al menos una vez.** Si el proceso muere entre que AWS acepta el envío y se marca `sent`, ese envío se
+  repite al vencer la reserva (SES/SNS no aceptan una clave de idempotencia). Es raro y aceptable para
+  notificaciones.
+- **Sin reenvío manual.** Los reintentos automáticos cubren las caídas largas del proveedor (~8 h). Un OTP o
+  un reset reenviado horas después ya no sirve (el usuario lo pide de nuevo), y la notificación in-app
+  siempre queda.
+
+### Consulta de entregas (admin)
+
+`GET /api/v1/notification/notification-delivery?status&channel&userId&from&to` y
+`GET .../notification-delivery/:id` (RBAC `notificationDeliveries` + READ): solo lectura, para responder
+"¿le llegó el correo a este usuario?". Las métricas de éxito por proveedor están en CloudWatch
+(`ProviderCalls`, ver docs/ARCHITECTURE.md).
+
+**Dispositivos dados de baja.** Un `EndpointDisabled` de SNS significa que **ese dispositivo** ya no existe
+para APNs/FCM (app desinstalada, token vencido): su token se desactiva en `user_push_tokens`
+(`deactivateTokens`) y no se le vuelve a enviar, tanto en las entregas individuales como en el envío
+masivo de las globales. No cambia el resultado de la entrega (si llegó a otro dispositivo, sigue `sent`).
+Si el usuario vuelve a registrar el dispositivo, `upsertToken` lo reactiva y `registrarDispositivo` vuelve a
+habilitar su endpoint en SNS (`CreatePlatformEndpoint` solo no lo hace: se lee con `GetEndpointAttributes` y,
+si está deshabilitado o tiene otro token/usuario, se corrige con `SetEndpointAttributes`). Si el token ya
+tenía endpoint de otro usuario (dispositivo compartido), se reutiliza ese endpoint. Los inactivos se borran a
+los 90 días (limpieza diaria). `InvalidParameter` no desactiva: puede ser el mensaje y no el dispositivo.
+
+## Notificaciones globales (`global_notifications`)
+
+Una sola fila que todos ven en su bandeja (cada lectura va a `global_notification_reads`) y un **envío
+masivo** por push/email a todos los clientes activos (`CLIENT_ROLE_NAMES`), según `send_push`/`send_email`
+(los canales de la categoría al crearla).
+
+- **Por páginas de 100 usuarios, ordenadas por `user_id`.** Cada página filtra con la preferencia de esos
+  usuarios (una consulta; una categoría crítica la ignora), envía push en tandas de 100 tokens y email en
+  tandas de 50 (con el rate limit de SNS/SES) y guarda el avance en la fila: `cursor_user_id` (último
+  enviado), `push_sent_count`/`email_sent_count` y renueva la reserva `locked_until`.
+- **`status`:** `pending` → `processing` → `completed`; `failed` si no se puede enviar (sin tipo).
+- **Recuperación.** Al crearla queda reservada y se envía en segundo plano. Si el proceso muere, la reserva
+  vence y el despachador la retoma **desde el cursor** (no vuelve a empezar ni queda colgada). Dentro de un
+  `unitOfWork.run()` de quien llama queda `pending` y la envía el despachador tras el commit. Como las
+  entregas individuales, es "al menos una vez": la página en curso al morir se reenvía.
+- No hay vigencia ni segmentación: todas las globales se muestran a todos. Si llegaran a hacer falta, se
+  agregan cuando haya un caso real.
 
 ## Workers — cron jobs (`notification-worker.ts`)
 
-| Cron           | Frecuencia  | Qué hace                                       |
-| -------------- | ----------- | ---------------------------------------------- |
-| `*/5 * * * *`  | cada 5 min  | procesa notificaciones diferidas (quiet hours) |
-| `*/10 * * * *` | cada 10 min | reintenta push fallidos                        |
-| `*/15 * * * *` | cada 15 min | reintenta email fallidos                       |
-| `5-59/15 * * * *` | cada 15 min (offset :05) | reintenta SMS fallidos              |
-| `0 3 * * *`    | 3 AM diario | limpia notificaciones antiguas (retención)     |
-| `0 4 * * *`    | 4 AM diario | limpia códigos de verificación (OTP) expirados |
-
-Reintentos: máx 3 por canal, con backoff (columnas `push_retry_count`/`push_next_retry_at`, `email_*`, `sms_*`).
-El retry de SMS corre en un cron aparte con offset `:05/:20/:35/:50` para no colisionar con push/email.
+| Cron          | Frecuencia  | Qué hace                                                        |
+| ------------- | ----------- | --------------------------------------------------------------- |
+| `* * * * *`   | cada minuto | despachador: entregas vencidas + envíos masivos a retomar        |
+| `0 3 * * *`   | 3 AM diario | limpia notificaciones leídas antiguas (sus entregas en cascada) |
+| `0 4 * * *`   | 4 AM diario | limpia códigos de verificación (OTP) expirados                  |
 
 ## Comportamiento automático
 
-- **Quiet hours:** si el usuario configuró `quiet_hours_start`/`quiet_hours_end` (TIME), la notificación se difiere hasta el fin de la ventana. Soporta rangos que cruzan medianoche (`start > end` → `now >= start || now < end`). Si ambos son null → se envía de inmediato. **Una categoría crítica (`is_critical`) o no-silenciable (`allow_dnd=false`) ignora el quiet hours del usuario.**
-- **Preferencias:** `user_notification_preferences` atadas a `notification_category_code` (o `null` = **preferencia global** que aplica a todas las categorías sin override) con `allow_push` / `allow_email` / `allow_sms` + quiet hours. Resolución en envío: override de la categoría → preferencia global → default. El usuario las gestiona vía `GET/PUT /person/notifications/preferences[/global|/category/:code]` y `GET /person/notifications/preferences/categories` (categorías activas con la preferencia efectiva ya resuelta).
-- **Rate limiting:** SNS ~300/min, SES ~200/min (clave Redis por minuto; espera graceful al límite).
-- **SSE (contador de no leídas):** `notification-emitter.util.ts` transporta `count-updated` (Redis Pub/Sub, fallback EventEmitter local; se inicializa en `src/server.ts`); el stream es `GET /notification/notifications/count/stream` (`notification.controller.ts`). El punto único de refresco es `notification-count.util.ts` (`emitCountUpdate(userId)`), invocado vía `setImmediate` en cada flujo que altera el contador: crear notificación individual (`notification-creation.service.ts`), marcar leídas al listar personal/global/mixto (`notification.service.ts`), además del emit propio de `getUnreadCount`. La **notificación global** (1 fila para todos) no hace fan-out por usuario: publica un broadcast `{ global: true }` y cada conexión SSE abierta recalcula su propio count (`computeUnreadCount`, sin re-emitir ni auditar). **Auth por cookie** (`access_token`, canal web): el front abre el stream con `fetch` + `credentials:'include'` (no `EventSource` nativo, que no puede mandar la cookie cross-site). **Heartbeat:** el stream emite un comentario SSE `: ping` cada 25 s (`SSE_HEARTBEAT_MS`) para que el idle timeout del reverse proxy (ALB/nginx, ~60 s) no cierre la conexión en periodos sin eventos y congele el contador; se limpia en `req.on('close')` junto con el listener.
+- **Horario de silencio:** si el usuario configuró `quiet_hours_start`/`quiet_hours_end` (TIME, hora del
+  servidor), el envío por canal externo se difiere hasta el fin de la ventana; la notificación in-app se crea
+  igual. Soporta rangos que cruzan medianoche. **Una categoría crítica lo ignora.**
+- **Preferencia:** una por usuario, `GET/PUT /person/notifications/preferences` (`allowPush` / `allowEmail` /
+  `allowSms` + horario de silencio). Sin fila → todo permitido, sin horario. **Las categorías críticas la
+  ignoran** (un usuario que apagó el email igual recibe el reset de contraseña).
+- **Rate limiting:** tope por minuto de los envíos masivos, `SNS_RATE_LIMIT_PER_MINUTE` (300) y
+  `SES_RATE_LIMIT_PER_MINUTE` (200): ajustarlos a la cuota real de la cuenta de AWS. Cada tanda suma su
+  tamaño con un `INCRBY` atómico de Redis (compartido entre instancias); si se pasa, espera al minuto
+  siguiente. Sin Redis cuenta en el proceso.
+- **SSE (contador de no leídas):** `notification-emitter.util.ts` transporta `count-updated` (Redis Pub/Sub, fallback EventEmitter local; se inicializa en `src/server.ts`); el stream es `GET /notification/notifications/count/stream` (`notification.controller.ts`). El punto único de refresco es `notification-count.util.ts` (`emitCountUpdate(userId)`), invocado vía `setImmediate` en cada flujo que altera el contador: crear notificación individual (`notification-creation.service.ts`), marcar leídas al listar personal/global/mixto (`notification.service.ts`), además del emit propio de `getUnreadCount`. La **notificación global** (1 fila para todos) no hace fan-out por usuario: publica un broadcast `{ global: true }` y cada conexión SSE abierta recalcula su propio count (`computeUnreadCount`: dos `COUNT`, sin re-emitir ni auditar) tras una espera al azar de hasta 5 s, para que miles de conexiones no consulten la base en el mismo instante. **Auth por cookie** (`access_token`, canal web): el front abre el stream con `fetch` + `credentials:'include'` (no `EventSource` nativo, que no puede mandar la cookie cross-site). **Heartbeat:** el stream emite un comentario SSE `: ping` cada 25 s (`SSE_HEARTBEAT_MS`) para que el idle timeout del reverse proxy (ALB/nginx, ~60 s) no cierre la conexión en periodos sin eventos y congele el contador; se limpia en `req.on('close')` junto con el listener.
 
-## Entrega crítica (`is_critical`) y reenvío manual del admin
+## Criticidad (`is_critical`)
 
-`notification_categories.is_critical` (BOOLEAN, default `false`) marca las **categorías** cuya **entrega al destinatario es materialmente importante**: si el envío por canal externo falla, el admin DEBE poder reintentarlo. Una categoría "solo interna" (sin canal externo) nunca es crítica — no hay entrega que reintentar. (La criticidad subió del tipo a la categoría en el refactor de categorías; cada tipo hereda la de su categoría.)
-
-- **No cambia el envío.** `is_critical` NO afecta cómo ni por dónde se envía; el envío sigue gateado por `supports_email`/`supports_push`/`supports_sms` de la categoría + preferencias. Además, una categoría crítica **ignora el quiet hours** del usuario (entrega inmediata) y **no es silenciable**.
-- **Filtro del panel de entregas.** El panel admin de entregas acepta `onlyCritical=true`, que hace un INNER JOIN sobre la categoría con `is_critical=true` para listar solo las entregas críticas (típicamente las que fallaron).
-- **Criterio de marcado.** Crítico = identidad, seguridad de acceso, OTP/recuperación de cuenta, cambios sensibles de cuenta. NO crítico = informativos (si el correo de bienvenida falla, no amerita reintento manual). Se define a nivel categoría en el seeder de categorías.
-
-### Reenvío manual (`AdminNotificationDeliveryService.retry`)
-
-`src/modules/notification/services/admin-notification-delivery.service.ts`:
-
-- Rechaza reintentar si la notificación ya está `COMPLETED` (entregada en todos los canales) o si no hay canal con error **reintentable** pendiente.
-- `_resolverCanal()` decide qué canal reintentar según lo que **realmente falló y sigue siendo reintentable** (ver _Reintentable vs no reintentable_ abajo); pedir `'all'` solo reintenta los canales reintentables que fallaron.
-- **Resetea el MISMO registro** (`resetForRetry`), no crea uno nuevo, y **reenvía de inmediato ignorando quiet hours** (override explícito del admin).
-- Audita `NOTIFICATION_DELIVERY_RETRY_REQUESTED` y emite además una notificación interna `NOTIFICATION_RETRY_REQUESTED` al admin que lo solicitó.
-
-> Relación con la retención automática: los workers de retry (push cada 10 min, email y SMS cada 15 min, máx 3 con backoff — ver "Workers") cubren el reintento **automático**. El reenvío de esta sección es la palanca **manual** del admin para cuando esos reintentos se agotaron y la entrega es crítica.
-
-### Métricas de entrega (% de éxito)
-
-`GET /api/v1/notification/notification-delivery/metrics?from&to&userId` (RBAC `notificationResend` + READ).
-Devuelve agregados sobre la tabla `notifications` (no sobre las llamadas al proveedor, que son métricas de CloudWatch):
-
-- `total` y `byStatus` (completed / partial_failure / failed / pending / processing).
-- `byChannel` para email, push y SMS: `{ attempted, sent, failed, successRate }`. `successRate = sent /
-  attempted` (0-100, 2 decimales; `null` si no hubo intentos — no se infla el fallo con canales que no
-  aplicaban). "Intentado" = enviado OK o con error registrado.
-- `byCategory`: las mismas métricas desglosadas por categoría de notificación.
-
-Implementación: `notification.repository.deliveryMetrics()` (`COUNT(*) FILTER (WHERE ...)` agrupado por
-categoría) → `NotificationDeliveryMetricsDTO` (calcula overall + tasas). Es la vista de **negocio**
-("¿de lo que intenté, cuánto llegó?"); la vista de **proveedor** ("¿AWS aceptó mis llamadas?") son las
-métricas `ProviderCalls` de CloudWatch (ver docs/ARCHITECTURE.md, "Llamadas a proveedores externos").
-
-### Reintentable vs no reintentable (hard bounce) — cómo se diferencia
-
-Sólo las notificaciones **por canal externo** (email/push) pueden fallar: el canal interno (in-app) nunca falla, así que no hay nada que reintentar ahí. De los fallos externos, **no todos son reintentables**. La diferencia se decide leyendo, por canal, dos columnas de la fila de `notifications` (`email_*` / `push_*`):
-
-| Situación                                         | `*_error` | `*_next_retry_at` | ¿Reintentable?                           |
-| ------------------------------------------------- | --------- | ----------------- | ---------------------------------------- |
-| Fallo temporal pendiente (lo toma el worker auto) | seteado   | fecha futura      | ✅ sí                                    |
-| Temporal con reintentos auto agotados (≥3)        | seteado   | fecha             | ✅ sí — **vía reenvío manual del admin** |
-| **Hard bounce** (buzón/endpoint muerto)           | seteado   | **`null`**        | ❌ **no**                                |
-| Nunca intentado / reseteado                       | `null`    | `null`            | n/a                                      |
-
-- **Cómo se detecta el hard bounce.** Un fallo es _hard bounce_ cuando AWS devuelve un `error_code` terminal (email: `MessageRejected`/`InvalidParameterValue`/`AccountSendingPausedException`; push: `EndpointDisabled`/`InvalidParameter` — catálogo en `src/shared/constants/aws-error-codes.ts`, `isHardBounce(channel, code)`). Al fallar un envío, `notification-sending.service` guarda ese código en la propia notificación (`email_error_code` / `push_error_code`, junto a `*_error`); un éxito lo limpia. En push, como un usuario puede tener varios dispositivos, el código se guarda solo si **todos** fallaron con un código definitivo; si alguno falló por algo temporal queda `null` y se reintenta. El worker de reintentos (`notification-retry.service`) lee ese código de la fila. Al detectarlo, **cierra el canal** con `markEmail/PushPermanentFailure`, que deja `*_error` seteado y **`*_next_retry_at = null`**.
-- **Señal canónica del cierre.** `*_error != null && *_next_retry_at === null` ⇒ hard bounce, no reintentable. Es inequívoco porque `resetForRetry` y el estado inicial dejan `*_error = null`; un temporal agotado conserva **fecha** en `*_next_retry_at`, por eso **sí** se puede reenviar manualmente.
-- **Ambos caminos respetan la misma señal.** El worker automático deja de seleccionar el canal cerrado (`findPending*Retries` filtra `*_next_retry_at <= now`; `null` no matchea). El reenvío manual del admin aplica la misma regla en `_resolverCanal()`: si los canales con error son hard bounce, devuelve `null` y `retry()` responde `400 'No hay canales con error pendiente de reintento…'`. Así el admin **no** puede reintentar en loop un buzón/endpoint muerto, pero **sí** puede reenviar fallos temporales agotados.
-
-> **Pendiente conocido (push).** Un `EndpointDisabled` significa que **ese dispositivo** está dado de baja. Hoy
-> solo cierra el canal push de la notificación cuando todos los dispositivos fallan así; lo correcto a futuro es
-> desactivar el token de ese dispositivo en `user_push_tokens`.
+Crítica = identidad, seguridad de acceso, OTP/recuperación de cuenta, cambios sensibles de cuenta
+(categorías `SECURITY` y `EMERGENCY` del seed). Efecto: salen por todos los canales que soporta la
+categoría aunque el usuario los haya apagado, y sin esperar su horario de silencio. NO crítica =
+informativas. Se define a nivel categoría en el seeder.
 
 ## Seed de tipos y categorías
 
@@ -277,10 +308,10 @@ regla general del seed en [`database.md`](database.md#seed)):
 
 - **Tipos:** un archivo por módulo en `prisma/seeds/notification-types/<modulo>.ts` (`shared-kyc`, `client-kyc`,
   `admin-kyc`, `admin-iam`, `admin-audit`, `admin-approvals`), que devuelve un arreglo de
-  `NotificationTypeSeed` (`code`, `name`, `description`, `priority`, `titleTemplate`, `bodyTemplate`,
+  `NotificationTypeSeed` (`code`, `name`, `description`, `titleTemplate`, `bodyTemplate`,
   `emailSubjectTemplate`, `emailBodyTemplate`). Se insertan los `code` que faltan.
 - **Templates:** son del seed (la API no los edita). Si cambian en el archivo, `db:seed` los actualiza en la
-  base; nombre, descripción, prioridad, estado y categoría quedan como los dejó el admin.
+  base; nombre, descripción, estado y categoría quedan como los dejó el admin.
 - **Categorías:** `prisma/seeds/data/notification-categories.ts` (con el `emailLayoutTemplate` por
   categoría). Se insertan las que faltan; después se editan desde el admin.
 - **Tipo → categoría:** `CATEGORY_BY_TYPE` en `notifications.seed.ts` (por `code`). Solo se asigna a los

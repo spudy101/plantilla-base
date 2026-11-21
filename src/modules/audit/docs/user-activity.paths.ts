@@ -2,7 +2,7 @@
 
 import commonResponses from '../../../config/swagger/responses/common.responses';
 import { toOpenApi, toParameters } from '../../../shared/validation/openapi';
-import { PaginationQuery } from '../requests/audit.request';
+import { RecentActivityQuery } from '../requests/audit.request';
 import { UserActivityItemSchema } from '../responses/user-activity.response';
 
 /**
@@ -45,7 +45,7 @@ Fusiona dos fuentes (campo \`source\` de cada ítem):
 
 **Client-safe:** nunca expone el detalle técnico de los cambios (valores anteriores/nuevos), user agent ni datos de terceros — solo el código de la acción, una descripción legible y el desenlace.`,
       security: clientSecurity,
-      parameters: toParameters(PaginationQuery, 'query'),
+      parameters: toParameters(RecentActivityQuery, 'query'),
       responses: {
         200: commonResponses.paginated(
           { $ref: '#/components/schemas/UserActivityItem' },

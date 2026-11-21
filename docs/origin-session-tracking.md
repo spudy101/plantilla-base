@@ -25,7 +25,7 @@ reclamación, la fila apunta a su sesión, y la sesión a su dispositivo, IP y v
 
 ## Cómo se rellena (la extensión de Prisma)
 
-`piiExtension` (`src/src/shared/database/prisma-extensions.ts`), aplicada al cliente único, completa
+`piiExtension` (`src/shared/database/prisma-extensions.ts`), aplicada al cliente único, completa
 `originSessionId` y `originCorrelationId` al **crear** una fila de un modelo que los declara, desde
 `requestContext.originFromContext()` (que lee el `sessionId`/`correlationId` del `AsyncLocalStorage`). El
 `sessionId` lo inyecta al store `auth.middleware` tras autenticar, así que cualquier `create()` río abajo
@@ -84,7 +84,7 @@ Hoy registra: `user_consents`, `user_notification_preferences`, `user_trusted_de
    ```
 
 > PII: si la tabla tiene dirección, teléfono o tokens, **enmascará u omití** esos campos en el component.
-> Por eso `person_locations` y `reset_credentials` no están registradas todavía (dirección/token sensibles).
+> Por eso `person_locations` y `credential_resets` no están registradas todavía (dirección/token sensibles).
 
 ---
 

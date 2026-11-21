@@ -42,7 +42,7 @@ interface AuditLogRow {
 }
 
 interface AuditAlertRow {
-  alertId: string;
+  auditAlertId: string;
   auditLogId?: Maybe<string>;
   action: string;
   category?: Maybe<string>;
@@ -64,7 +64,6 @@ interface AuditAlertRow {
 interface NotificationPreferenceRow {
   userNotificationPreferenceId: string;
   userId: string;
-  notificationCategoryCode?: Maybe<string>;
   allowPush?: Maybe<boolean>;
   allowEmail?: Maybe<boolean>;
   allowSms?: Maybe<boolean>;
@@ -152,7 +151,7 @@ class AuditAlertComponent {
       return null;
     }
     return {
-      alertId: record.alertId,
+      alertId: record.auditAlertId,
       auditLogId: record.auditLogId || null,
       action: record.action,
       category: record.category || null,
@@ -192,8 +191,6 @@ class NotificationPreferenceComponent {
     return {
       userNotificationPreferenceId: record.userNotificationPreferenceId,
       userId: record.userId,
-      // null = preferencia global; con valor = override de esa categoría.
-      notificationCategoryCode: record.notificationCategoryCode ?? null,
       allowPush: record.allowPush,
       allowEmail: record.allowEmail,
       allowSms: record.allowSms,

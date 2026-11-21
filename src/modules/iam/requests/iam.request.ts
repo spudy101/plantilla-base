@@ -8,7 +8,7 @@ import {
   optionalInList,
   optionalIsoDate,
   optionalUuid,
-  paginationQuery,
+  pageQuery,
   searchQuery,
   uuid
 } from '../../../shared/validation/fields';
@@ -186,26 +186,31 @@ const SCOPES = ['all', 'login'];
 const OUTCOMES = ['success', 'failure', 'warning', 'attempt'];
 const dateRange = { dateFrom: optionalIsoDate('dateFrom'), dateTo: optionalIsoDate('dateTo') };
 
-export const AdminSessionListQuery = input({
-  ...paginationQuery,
+const bySessionStart = pageQuery(['startedAt'], { sortBy: 'startedAt' });
+export const AdminSessionListQuery = z.object({
+  ...bySessionStart,
   ...dateRange,
   sessionId: optionalUuid('El ID de sesión'),
   userId: optionalUuid('El ID de usuario'),
   status: valuesOf('status', STATUSES)
 });
+export type AdminSessionListQuery = z.output<typeof AdminSessionListQuery>;
 export const UserIdParams = input({ userId: uuid('userId') });
-export const SessionsByUserQuery = input({ ...paginationQuery, status: valuesOf('status', STATUSES) });
+export const SessionsByUserQuery = z.object({ ...bySessionStart, status: valuesOf('status', STATUSES) });
+export type SessionsByUserQuery = z.output<typeof SessionsByUserQuery>;
 export const RevokeSessionParams = input({ sessionId: uuid('sessionId') });
 const attemptFilters = {
-  ...paginationQuery,
+  ...pageQuery(['createdAt'], { sortBy: 'createdAt' }),
   ...dateRange,
   scope: valuesOf('scope', SCOPES).meta({
     description: '`all` (por defecto): todos los eventos de Autenticación; `login`: solo intentos de inicio de sesión.'
   }),
   outcome: valuesOf('outcome', OUTCOMES)
 };
-export const AttemptListQuery = input({ ...attemptFilters, userId: optionalUuid('El ID de usuario') });
-export const AttemptsByUserQuery = input(attemptFilters);
+export const AttemptListQuery = z.object({ ...attemptFilters, userId: optionalUuid('El ID de usuario') });
+export type AttemptListQuery = z.output<typeof AttemptListQuery>;
+export const AttemptsByUserQuery = z.object(attemptFilters);
+export type AttemptsByUserQuery = z.output<typeof AttemptsByUserQuery>;
 
 // ── RBAC (admin) ──────────────────────────────────────────────
 const roleNames = Object.values(RBAC_ROLES) as string[];
@@ -245,12 +250,21 @@ export const GrantPermissionBody = input({
 });
 
 // ── Usuarios internos (admin) ─────────────────────────────────
-export const InternalUserListQuery = input({
-  ...paginationQuery,
+const byUserDates = pageQuery(['createdAt', 'updatedAt'], { sortBy: 'createdAt' });
+export const InternalUserListQuery = z.object({
+  ...byUserDates,
   ...searchQuery,
   roleId: optionalUuid('El rol'),
   isActive: optionalBool('El estado')
 });
+export type InternalUserListQuery = z.output<typeof InternalUserListQuery>;
+/** Eliminados (histórico): sin filtro de estado, y ordenables también por fecha de baja. */
+export const InternalUserDeletedListQuery = z.object({
+  ...pageQuery(['createdAt', 'deletedAt'], { sortBy: 'createdAt' }),
+  ...searchQuery,
+  roleId: optionalUuid('El rol')
+});
+export type InternalUserDeletedListQuery = z.output<typeof InternalUserDeletedListQuery>;
 export const CreateInternalUserBody = input({
   firstName: personFields.firstName(),
   lastName: personFields.lastName(),
@@ -284,7 +298,8 @@ export const ChangeStatusBody = input({
     { hint: 'Ingresá true o false' }
   )
 });
-export const PaginationQuery = input({ ...paginationQuery });
+export const UserChangeLogsQuery = z.object(pageQuery(['createdAt'], { sortBy: 'createdAt' }));
+export type UserChangeLogsQuery = z.output<typeof UserChangeLogsQuery>;
 export const InternalUserIdParams = input({ userId: uuid('El usuario') });
 export const DeleteInternalUserBody = input({
   currentPassword: withHint(

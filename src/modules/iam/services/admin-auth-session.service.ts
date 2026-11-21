@@ -13,11 +13,12 @@ import constantsModule from '../../../shared/constants';
 const { notifications } = constantsModule;
 import notificationModule from '../../notification';
 const { notifier } = notificationModule;
-import PaginationHelper from '../../../shared/http/pagination.util';
 import domainEnumsModule from '../../../shared/constants/domain-enums';
 const { USER_SESSION_STATUS } = domainEnumsModule;
 import adminAuthSessionDtoModule from '../responses/admin-auth-session.response';
 import type { SessionRevoked } from '../responses/admin-auth-session.response';
+import { pageMetadata, pageRequest } from '../../../shared/http/pagination';
+import type { AdminSessionListQuery, AttemptListQuery, AttemptsByUserQuery, SessionsByUserQuery } from '../requests/iam.request';
 const { SessionListDTO, AuthAttemptListDTO } = adminAuthSessionDtoModule;
 const AUTH_CATEGORY = 'Autenticación';
 const DEFAULT_DATE_FROM = new Date('2000-01-01');
@@ -52,11 +53,18 @@ class AdminAuthSessionService {
   // [RF-AUTH-02] | CA-04 | Superficie de consumo para RF-AUTH-03: lista sesiones con JOIN a dispositivos
   // [RF-AUTH-03] | CA-01 | Vista admin de sesiones activas (equivalente a
   // /auth/devices pero con vista por sesión cruda y scope de todos los usuarios)
-  async listSessions(query: Record<string, unknown>, adminUserId: string) {
-    const pagination = PaginationHelper.getPaginationParams(query);
-    const where = this.userSessionRepository.buildWhere(query);
+  async listSessions(query: AdminSessionListQuery, adminUserId: string) {
+    const page = pageRequest(query);
+    const filters = {
+      sessionId: query.sessionId ?? undefined,
+      userId: query.userId ?? undefined,
+      status: query.status ?? undefined,
+      dateFrom: query.dateFrom ?? undefined,
+      dateTo: query.dateTo ?? undefined
+    };
+    const where = this.userSessionRepository.buildWhere(filters);
 
-    const { rows, count } = await this.userSessionRepository.findPaginatedWithDeviceAndUser(where, pagination);
+    const { rows, count } = await this.userSessionRepository.findPaginatedWithDeviceAndUser(where, page);
 
     await audit.record('AUTH_SESSION_LIST_VIEWED', {
       actorId: adminUserId,
@@ -65,34 +73,17 @@ class AdminAuthSessionService {
       entityTable: 'user_sessions'
     });
 
-    const filters: Record<string, unknown> = {};
-    const sessionIdParam = PaginationHelper.stringParam(query, 'sessionId');
-    if (sessionIdParam) {
-      filters.sessionId = sessionIdParam;
-    }
-
-    return SessionListDTO(rows, {
-      totalItems: count,
-      page: pagination.page,
-      limit: pagination.limit,
-      sortBy: pagination.sortBy,
-      order: pagination.order,
-      filters
-    });
+    return SessionListDTO(rows, pageMetadata(page, count, filters));
   }
 
   // [RF-AUTH-02] | CA-04 | Superficie de consumo para RF-AUTH-03: lista sesiones con JOIN a dispositivos
   // [RF-AUTH-03] | CA-01 | Vista admin de sesiones activas (equivalente a
   // /auth/devices pero con vista por sesión cruda y scope de todos los usuarios)
-  async getSessionsByUser(userId: string, query: Record<string, unknown>, adminUserId: string) {
-    const pagination = PaginationHelper.getPaginationParams(query);
-    const statusParam = PaginationHelper.stringParam(query, 'status');
-    const where = this.userSessionRepository.buildWhere({
-      userId,
-      status: statusParam === 'active' || statusParam === 'closed' ? statusParam : undefined
-    });
+  async getSessionsByUser(userId: string, query: SessionsByUserQuery, adminUserId: string) {
+    const page = pageRequest(query);
+    const where = this.userSessionRepository.buildWhere({ userId, status: query.status ?? undefined });
 
-    const { rows, count } = await this.userSessionRepository.findPaginatedWithDeviceAndUser(where, pagination);
+    const { rows, count } = await this.userSessionRepository.findPaginatedWithDeviceAndUser(where, page);
 
     await audit.record('AUTH_SESSION_BY_USER_VIEWED', {
       actorId: adminUserId,
@@ -101,14 +92,7 @@ class AdminAuthSessionService {
       entityType: 'InternalUser'
     });
 
-    return SessionListDTO(rows, {
-      totalItems: count,
-      page: pagination.page,
-      limit: pagination.limit,
-      sortBy: pagination.sortBy,
-      order: pagination.order,
-      filters: {}
-    });
+    return SessionListDTO(rows, pageMetadata(page, count, { status: query.status }));
   }
 
   // [RF-AUTH-02] | CA-02, CA-04 | Revocación administrativa de sesión individual
@@ -179,11 +163,9 @@ class AdminAuthSessionService {
   // Traduce el query HTTP a criterios de negocio (sin Sequelize): scope, usuario, outcome y rango de fechas.
   // scope=login → solo LOGIN_ACTIONS; scope=all (default) → toda la categoría 'Autenticación'.
   // El repositorio es quien convierte estos criterios en un WHERE.
-  _buildAttemptsCriteria(query: Record<string, unknown>, forcedUserId: string | null = null) {
-    const dateFrom = PaginationHelper.stringParam(query, 'dateFrom');
-    const dateTo = PaginationHelper.stringParam(query, 'dateTo');
-    const from = dateFrom ? new Date(dateFrom) : DEFAULT_DATE_FROM;
-    const to = dateTo ? new Date(dateTo) : new Date();
+  _buildAttemptsCriteria(query: AttemptsByUserQuery & { userId?: string | null }, forcedUserId: string | null = null) {
+    const from = query.dateFrom ?? DEFAULT_DATE_FROM;
+    const to = query.dateTo ?? new Date();
     const isLoginScope = query.scope === 'login';
 
     return {
@@ -191,16 +173,16 @@ class AdminAuthSessionService {
       to,
       actions: isLoginScope ? LOGIN_ACTIONS : undefined,
       category: isLoginScope ? undefined : AUTH_CATEGORY,
-      userId: forcedUserId || PaginationHelper.stringParam(query, 'userId') || undefined,
-      outcome: PaginationHelper.stringParam(query, 'outcome') || undefined
+      userId: forcedUserId || query.userId || undefined,
+      outcome: query.outcome || undefined
     };
   }
 
-  async listAttempts(query: Record<string, unknown>, adminUserId: string) {
-    const pagination = PaginationHelper.getPaginationParams(query);
+  async listAttempts(query: AttemptListQuery, adminUserId: string) {
+    const page = pageRequest(query);
     const criteria = this._buildAttemptsCriteria(query);
 
-    const { rows, count } = await this.auditLogRepository.findAuthAttemptsPaginated(criteria, pagination);
+    const { rows, count } = await this.auditLogRepository.findAuthAttemptsPaginated(criteria, page);
 
     const scope = query.scope || 'all';
     await audit.record('AUTH_ATTEMPTS_LIST_VIEWED', {
@@ -210,21 +192,14 @@ class AdminAuthSessionService {
       entityTable: 'audit_logs'
     });
 
-    return AuthAttemptListDTO(rows, {
-      totalItems: count,
-      page: pagination.page,
-      limit: pagination.limit,
-      sortBy: pagination.sortBy,
-      order: pagination.order,
-      filters: { scope }
-    });
+    return AuthAttemptListDTO(rows, pageMetadata(page, count, { scope, outcome: query.outcome, dateFrom: query.dateFrom, dateTo: query.dateTo }));
   }
 
-  async getAttemptsByUser(userId: string, query: Record<string, unknown>, adminUserId: string) {
-    const pagination = PaginationHelper.getPaginationParams(query);
+  async getAttemptsByUser(userId: string, query: AttemptsByUserQuery, adminUserId: string) {
+    const page = pageRequest(query);
     const criteria = this._buildAttemptsCriteria(query, userId);
 
-    const { rows, count } = await this.auditLogRepository.findAuthAttemptsPaginated(criteria, pagination);
+    const { rows, count } = await this.auditLogRepository.findAuthAttemptsPaginated(criteria, page);
 
     const scope = query.scope || 'all';
     await audit.record('AUTH_ATTEMPTS_BY_USER_VIEWED', {
@@ -234,14 +209,7 @@ class AdminAuthSessionService {
       entityType: 'InternalUser'
     });
 
-    return AuthAttemptListDTO(rows, {
-      totalItems: count,
-      page: pagination.page,
-      limit: pagination.limit,
-      sortBy: pagination.sortBy,
-      order: pagination.order,
-      filters: { scope }
-    });
+    return AuthAttemptListDTO(rows, pageMetadata(page, count, { scope, outcome: query.outcome, dateFrom: query.dateFrom, dateTo: query.dateTo }));
   }
 }
 

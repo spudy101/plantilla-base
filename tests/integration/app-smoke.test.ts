@@ -72,6 +72,28 @@ describe('App smoke (client) · pipeline HTTP end-to-end', () => {
     });
   });
 
+  describe('listados paginados (catálogo público de géneros)', () => {
+    const GENDERS = '/client/api/v1/kyc/maintainers/genders';
+
+    it('responde { data, metadata } con la paginación y el orden aplicados', async () => {
+      const res = await request(app).get(GENDERS).query({ limit: '2', sortBy: 'name', order: 'asc' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.length).toBeLessThanOrEqual(2);
+      expect(res.body.metadata).toMatchObject({
+        pagination: { currentPage: 1, pageSize: 2 },
+        sort: { field: 'name', order: 'ASC' }
+      });
+    });
+
+    it('un sortBy fuera de los campos permitidos → 422 con la pista de los válidos', async () => {
+      const res = await request(app).get(GENDERS).query({ sortBy: 'passwordHash' });
+
+      expect(res.status).toBe(422);
+      expect(res.body.errors).toEqual([expect.objectContaining({ field: 'sortBy', hint: 'Ordená por uno de: createdAt, name' })]);
+    });
+  });
+
   it('aplica headers de seguridad (helmet)', async () => {
     const res = await request(app).get('/health');
     // helmet fija, entre otros, X-Content-Type-Options: nosniff

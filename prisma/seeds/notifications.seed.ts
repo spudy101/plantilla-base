@@ -70,8 +70,7 @@ const CATEGORY_BY_TYPE: Record<string, string[]> = {
     'IAM_INTERNAL_USER_DEACTIVATED',
     'IAM_INTERNAL_USER_ROLE_CHANGED',
     'IAM_RBAC_PERMISSION_GRANTED',
-    'IAM_RBAC_PERMISSION_REVOKED',
-    'NOTIFICATION_RETRY_REQUESTED'
+    'IAM_RBAC_PERMISSION_REVOKED'
   ]
 };
 
@@ -95,7 +94,7 @@ export async function seedNotifications(db: SeedClient): Promise<void> {
   reportCreated('Tipos de notificación', created.count, types.length);
 
   // Los templates son del seed (la API no los edita: admin-notification-type.validator): si cambiaron
-  // acá, se actualizan en la base. Nombre, descripción, prioridad, estado y categoría son del admin.
+  // acá, se actualizan en la base. Nombre, descripción, estado y categoría son del admin.
   const stored = new Map(
     (
       await db.notificationType.findMany({

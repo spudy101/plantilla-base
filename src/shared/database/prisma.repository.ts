@@ -8,17 +8,16 @@
 // si no el cliente único. Los repositorios no reciben ni pasan
 // transacciones.
 //
-// Los helpers de paginación reciben lo que arma PaginationHelper desde la query string, y los listados
-// devuelven `{ rows, count }`: el mismo contrato en todos los repositorios.
+// Los listados reciben el pedido de página (`PageRequest`, shared/http/pagination.ts) y devuelven
+// `{ rows, count }`: el mismo contrato en todos los repositorios.
 import prisma from './prisma';
 import txContext from './transaction-context';
 import type { Prisma } from './generated/prisma/client';
+import type { PageRequest } from '../http/pagination';
 
 type PrismaClientInstance = typeof prisma;
 /** Lo que ve un repositorio: los delegates de los modelos (el cliente único o el de una transacción). */
 type PrismaDb = Prisma.TransactionClient;
-
-const camel = (s: string): string => s.replace(/_([a-z0-9])/g, (_m, c: string) => c.toUpperCase());
 
 abstract class PrismaRepository {
   private readonly _client: PrismaDb;
@@ -63,21 +62,17 @@ abstract class PrismaRepository {
   }
 
   /**
-   * skip/take/orderBy de un listado paginado. `sortBy` llega de la query string con el nombre de la
-   * columna (`created_at`, como hasta ahora) o del campo (`createdAt`); solo se acepta si es un campo
-   * del modelo, si no se ordena por `defaultSort` ("sortBy seguro": nunca una columna arbitraria).
+   * skip/take/orderBy de un listado paginado. `sortBy` ya viene validado contra los campos ordenables que
+   * declara el esquema del request (`pageQuery`): acá no se elige ni se corrige, se aplica tal cual, así
+   * la metadata de la respuesta dice el orden real. El desempate por `tiebreaker` (la clave primaria) da
+   * un orden estable: sin él, filas con el mismo valor pueden repetirse o faltar entre páginas.
    */
-  protected paginationArgs(
-    sortableFields: readonly string[],
-    { limit, offset, sortBy, order }: PrismaRepository.PaginationParams = {},
-    defaultSort = 'createdAt'
-  ) {
-    const requested = sortBy ? camel(sortBy) : '';
-    const field = sortableFields.includes(requested) ? requested : defaultSort;
+  protected paginationArgs({ limit, offset, sortBy, order }: PageRequest, tiebreaker?: string) {
+    const direction = order === 'ASC' ? ('asc' as const) : ('desc' as const);
     return {
       take: limit,
       skip: offset,
-      orderBy: { [field]: String(order).toUpperCase() === 'ASC' ? ('asc' as const) : ('desc' as const) }
+      orderBy: [{ [sortBy]: direction }, ...(tiebreaker && tiebreaker !== sortBy ? [{ [tiebreaker]: direction }] : [])]
     };
   }
 
@@ -97,8 +92,8 @@ abstract class PrismaRepository {
    */
   protected listQuery(
     filters: PrismaRepository.Filters,
-    pagination: PrismaRepository.PaginationParams,
-    searchTerm: string | null,
+    pagination: PageRequest,
+    searchTerm: string | null | undefined,
     config: PrismaRepository.ListConfig
   ) {
     const where: Record<string, unknown> = {
@@ -108,24 +103,17 @@ abstract class PrismaRepository {
     if (config.filterId && filters[config.filterId.key]) {
       where[config.filterId.field] = filters[config.filterId.key];
     }
-    return { where, page: this.paginationArgs(config.sortable, pagination) };
+    return { where, page: this.paginationArgs(pagination, config.tiebreaker) };
   }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 namespace PrismaRepository {
   export type Db = PrismaDb;
-  /** Lo arma PaginationHelper.getPaginationParams desde la query string. */
-  export interface PaginationParams {
-    limit?: number;
-    offset?: number;
-    sortBy?: string;
-    order?: 'ASC' | 'DESC' | string;
-  }
   export type Filters = { isActive?: boolean } & Record<string, unknown>;
   export interface ListConfig {
-    /** Campos por los que se puede ordenar (Object.values(Prisma.XScalarFieldEnum)). */
-    sortable: readonly string[];
+    /** Clave primaria del modelo: desempata el orden para que la paginación sea estable. */
+    tiebreaker: string;
     searchFields?: readonly string[];
     /** Filtro por id padre: `filters[key]` → `where[field]` (ej. countryId → countryId). */
     filterId?: { key: string; field: string };

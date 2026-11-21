@@ -1,3 +1,4 @@
+import type { PageMetadata } from '../../../shared/http/pagination';
 import { z } from '../../../shared/validation/z';
 import { dateTime } from '../../../shared/validation/output';
 import { UserRefSchema, UserSessionSchema } from './auth-components.response';
@@ -5,9 +6,6 @@ import type { SessionWithDeviceAndUser } from '../repositories/user-session.repo
 import type { AuditLogWithExecutor } from '../../audit';
 import componentsAuthModule from './auth-components.response';
 const { UserSessionComponent } = componentsAuthModule;
-import catalogsModule from '../../catalogs';
-const { catalogComponentsDto: componentsCatalogDtoModule } = catalogsModule;
-const { MetadataDTO } = componentsCatalogDtoModule;
 
 type SessionRow = SessionWithDeviceAndUser;
 type AttemptRow = AuditLogWithExecutor;
@@ -30,10 +28,10 @@ function SessionDTO(session: SessionRow) {
   };
 }
 
-function SessionListDTO(rows: SessionRow[], metadata: Parameters<typeof MetadataDTO.build>[0]) {
+function SessionListDTO(rows: SessionRow[], metadata: PageMetadata) {
   return {
     data: Array.isArray(rows) ? rows.map(s => SessionDTO(s)) : [],
-    metadata: MetadataDTO.build(metadata)
+    metadata
   };
 }
 
@@ -65,10 +63,10 @@ function AuthAttemptDTO(log: AttemptRow) {
   };
 }
 
-function AuthAttemptListDTO(rows: AttemptRow[], metadata: Parameters<typeof MetadataDTO.build>[0]) {
+function AuthAttemptListDTO(rows: AttemptRow[], metadata: PageMetadata) {
   return {
     data: Array.isArray(rows) ? rows.map(l => AuthAttemptDTO(l)) : [],
-    metadata: MetadataDTO.build(metadata)
+    metadata
   };
 }
 

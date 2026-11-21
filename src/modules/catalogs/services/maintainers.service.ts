@@ -13,10 +13,9 @@ const { roleRepository } = iamModule;
 import notificationModule from '../../notification';
 const { notificationTypeRepository } = notificationModule;
 import AppError from '../../../shared/http/app-error.util';
-import PaginationHelper from '../../../shared/http/pagination.util';
 import type PrismaRepository from '../../../shared/database/prisma.repository';
-import componentsCatalogDtoModule from '../responses/catalog-components.response';
-const { MetadataDTO } = componentsCatalogDtoModule;
+import { pageMetadata, pageRequest, type PageMetadata, type PageQuery, type PageRequest } from '../../../shared/http/pagination';
+import type * as Q from '../requests/maintainers.request';
 import redisClient from '../../../shared/infra/redis.util';
 import maintainersDtoModule from '../responses/maintainers.response';
 import auditModule from '../../audit';
@@ -74,20 +73,22 @@ class MaintainersService {
   }
 
   // Rutas públicas — userId puede ser null si no hay sesión activa
-  // Se auditan para detectar scraping o reconocimiento previo a ataques
+  // Se auditan para detectar scraping o reconocimiento previo a ataques.
+  // `query` es la ya validada por el esquema de la ruta (requests/maintainers.request.ts).
 
-  listGenders(query: MaintainersService.Query = {}, userId: string | null = null) {
+  listGenders(query: Q.GenderListQuery, userId: string | null = null) {
     return this._list({
       repository: this.genderRepository,
       query,
-      filters: ['isActive'],
+      filters: { isActive: query.isActive ?? undefined },
       auditAction: 'MAINTAINER_GENDERS_VIEWED',
       userId,
       DTO: ListGendersResponseDTO
     });
   }
 
-  async listDocumentTypes(_query: MaintainersService.Query = {}, userId: string | null = null) {
+  /** Selector del formulario: todos los visibles, por nombre (sin paginar). */
+  async listDocumentTypes(userId: string | null = null) {
     const items = await this.documentTypeRepository.findAllVisibleToClient();
     await audit.record('MAINTAINER_DOCUMENT_TYPES_VIEWED', {
       actorId: userId,
@@ -95,98 +96,91 @@ class MaintainersService {
       entityType: 'Catalog',
       entityTable: null
     });
-    return ListDocumentTypesResponseDTO(items, {
-      totalItems: items.length,
-      page: 1,
-      limit: items.length || 1,
-      sortBy: 'name',
-      order: 'ASC',
-      filters: {}
-    });
+    return ListDocumentTypesResponseDTO(items, pageMetadata({ page: 1, limit: items.length || 1, sortBy: 'name', order: 'ASC' }, items.length));
   }
 
-  listPhonePrefixes(query: MaintainersService.Query = {}, userId: string | null = null) {
+  listPhonePrefixes(query: Q.PhonePrefixListQuery, userId: string | null = null) {
     return this._list({
       repository: this.phonePrefixRepository,
       query,
-      filters: ['isActive', 'countryId'],
+      filters: { isActive: query.isActive ?? undefined, countryId: query.countryId },
       auditAction: 'MAINTAINER_PHONE_PREFIXES_VIEWED',
       userId,
       DTO: ListPhonePrefixesResponseDTO
     });
   }
 
-  listAvatars(query: MaintainersService.Query = {}, userId: string | null = null) {
+  listAvatars(query: Q.AvatarListQuery, userId: string | null = null) {
     return this._list({
       repository: this.avatarRepository,
       query,
-      filters: ['isActive', 'themeId'],
+      filters: { isActive: query.isActive ?? undefined, themeId: query.themeId },
       auditAction: 'MAINTAINER_AVATARS_VIEWED',
       userId,
       DTO: ListAvatarsResponseDTO
     });
   }
 
-  listAvatarThemes(query: MaintainersService.Query = {}, userId: string | null = null) {
+  listAvatarThemes(query: Q.AvatarThemeListQuery, userId: string | null = null) {
     return this._list({
       repository: this.avatarThemeRepository,
       query,
-      filters: ['isActive'],
+      filters: { isActive: query.isActive ?? undefined },
       auditAction: 'MAINTAINER_AVATAR_THEMES_VIEWED',
       userId,
       DTO: ListAvatarThemesResponseDTO
     });
   }
 
-  listCountries(query: MaintainersService.Query = {}, userId: string | null = null) {
+  listCountries(query: Q.CountryListQuery, userId: string | null = null) {
     return this._list({
       repository: this.countryRepository,
       query,
-      filters: ['isActive'],
+      filters: { isActive: query.isActive ?? undefined },
       auditAction: 'MAINTAINER_COUNTRIES_VIEWED',
       userId,
       DTO: ListCountriesResponseDTO
     });
   }
 
-  listDepartments(query: MaintainersService.Query = {}, userId: string | null = null) {
+  listDepartments(query: Q.DepartmentListQuery, userId: string | null = null) {
     return this._list({
       repository: this.departmentRepository,
       query,
-      filters: ['isActive', 'countryId'],
+      filters: { isActive: query.isActive ?? undefined, countryId: query.countryId },
       auditAction: 'MAINTAINER_DEPARTMENTS_VIEWED',
       userId,
       DTO: ListDepartmentsResponseDTO
     });
   }
 
-  listCities(query: MaintainersService.Query = {}, userId: string | null = null) {
+  listCities(query: Q.CityListQuery, userId: string | null = null) {
     return this._list({
       repository: this.cityRepository,
       query,
-      filters: ['isActive', 'departmentId'],
+      filters: { isActive: query.isActive ?? undefined, departmentId: query.departmentId },
       auditAction: 'MAINTAINER_CITIES_VIEWED',
       userId,
       DTO: ListCitiesResponseDTO
     });
   }
 
-  listRoles(query: MaintainersService.Query = {}, userId: string | null = null) {
+  listRoles(query: Q.RoleListQuery, userId: string | null = null) {
     return this._list({
       repository: this.roleRepository,
       query,
-      filters: ['isActive'],
+      filters: { isActive: query.isActive ?? undefined },
       auditAction: 'MAINTAINER_ROLES_VIEWED',
       userId,
       DTO: ListRolesResponseDTO
     });
   }
 
-  listNotificationTypes(query: MaintainersService.Query = {}, userId: string | null = null) {
+  listNotificationTypes(query: Q.NotificationTypeCatalogListQuery, userId: string | null = null) {
     return this._list({
       repository: this.notificationTypeRepository,
       query,
-      filters: ['isActive'],
+      filters: { isActive: query.isActive ?? undefined },
       auditAction: 'MAINTAINER_NOTIFICATION_TYPES_VIEWED',
       userId,
       DTO: ListNotificationTypesResponseDTO
@@ -232,52 +226,33 @@ class MaintainersService {
     DTO
   }: {
     repository: MaintainersService.PaginatedSource<T>;
-    query: MaintainersService.Query;
-    filters: readonly string[];
+    query: PageQuery & { search?: string };
+    filters: PrismaRepository.Filters;
     auditAction?: AuditActionKey;
     userId?: string | null;
-    DTO: (rows: T[], metadata: Parameters<typeof MetadataDTO.build>[0]) => R;
+    DTO: (rows: T[], metadata: PageMetadata) => R;
   }) {
-    const paginationParams = PaginationHelper.getPaginationParams(query);
-    const builtFilters = PaginationHelper.buildFilters(query, filters);
-    const searchTerm = typeof query.search === 'string' && query.search ? query.search : null;
-
-    const { rows, count } = await repository.findAllPaginated(builtFilters, paginationParams, searchTerm);
-
-    const metadata = {
-      totalItems: count,
-      page: paginationParams.page,
-      limit: paginationParams.limit,
-      sortBy: paginationParams.sortBy,
-      order: paginationParams.order,
-      filters: searchTerm ? { search: searchTerm, ...builtFilters } : builtFilters
-    };
+    const page = pageRequest(query);
+    const { rows, count } = await repository.findAllPaginated(filters, page, query.search);
 
     if (auditAction) {
       await audit.record(auditAction, {
         actorId: userId,
-        details: { totalItems: count, page: paginationParams.page },
+        details: { totalItems: count, page: page.page },
         entityType: 'Catalog',
         entityTable: null
       });
     }
 
-    return DTO(rows, metadata);
+    return DTO(rows, pageMetadata(page, count, { search: query.search, ...filters }));
   }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 namespace MaintainersService {
-  /** Query string tal como llega de Express (se normaliza con PaginationHelper). */
-  export type Query = Record<string, unknown>;
-
   /** Lo que _list necesita de un repositorio: el listado paginado estándar. */
   export interface PaginatedSource<T> {
-    findAllPaginated(
-      filters: PrismaRepository.Filters,
-      paginationParams: PrismaRepository.PaginationParams,
-      searchTerm: string | null
-    ): Promise<{ rows: T[]; count: number }>;
+    findAllPaginated(filters: PrismaRepository.Filters, page: PageRequest, searchTerm?: string | null): Promise<{ rows: T[]; count: number }>;
   }
 
   /** Dependencias inyectables (SOLID: D); sin ellas se usan las instancias reales. */

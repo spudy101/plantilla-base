@@ -22,17 +22,6 @@ jest.mock('../../../shared/observability/logger.util', () => ({
 }));
 jest.mock('../audit.service', () => ({ record: jest.fn() }));
 
-jest.mock('../../../shared/http/pagination.util', () => ({
-  stringParam: jest.requireActual('../../../shared/http/pagination.util').default.stringParam,
-  booleanParam: jest.requireActual('../../../shared/http/pagination.util').default.booleanParam,
-  getPaginationParams: jest.fn().mockReturnValue({ page: 1, limit: 10, offset: 0, sortBy: 'createdAt', order: 'DESC' }),
-  buildFilters: jest.fn().mockReturnValue({})
-}));
-
-jest.mock('../../catalogs/responses/catalog-components.response', () => ({
-  MetadataDTO: { build: (meta: Loose) => ({ ...meta }) }
-}));
-
 jest.mock('../repositories/audit-log.repository', () => ({
   searchPaginated: jest.fn(),
   findByIdFull: jest.fn(),
@@ -53,11 +42,10 @@ import loggerUtilModule from '../../../shared/observability/logger.util';
 import auditServiceModule from '../audit.service';
 const { logger } = mocked(loggerUtilModule);
 const logAudit = mocked(auditServiceModule).record;
-import PaginationHelperModule from '../../../shared/http/pagination.util';
-const PaginationHelper = mocked(PaginationHelperModule);
 import auditLogRepoModule from '../repositories/audit-log.repository';
 const auditLogRepo = mocked(auditLogRepoModule);
 import service from './admin-audit-log.service';
+import { AuditLogListQuery } from '../requests/audit.request';
 
 const ADMIN = 'admin-1';
 
@@ -68,7 +56,6 @@ function fakeRes() {
 describe('AdminAuditLogService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    PaginationHelper.buildFilters.mockReturnValue({});
   });
 
   describe('list', () => {
@@ -77,18 +64,17 @@ describe('AdminAuditLogService', () => {
         rows: [{ audit_log_id: 'a-1' }, { audit_log_id: 'a-2' }],
         count: 2
       });
-      PaginationHelper.buildFilters.mockReturnValue({ action: 'LOGIN' });
+      const userId = '11111111-1111-4111-8111-111111111111';
+      const result = await service.list(AuditLogListQuery.parse({ action: 'LOGIN_SUCCESS', userId, dateFrom: '2024-01-01' }), ADMIN);
 
-      const result = await service.list({ action: 'LOGIN', userId: 'u-9', dateFrom: '2024-01-01' }, ADMIN);
-
-      // El service ya no arma el WHERE (no conoce Sequelize): pasa los filtros de negocio tal cual.
+      // El service no arma el WHERE: pasa los filtros con valor y el pedido de página
       const [filtersArg, paginationArg] = auditLogRepo.searchPaginated.mock.calls[0];
-      expect(filtersArg).toMatchObject({ action: 'LOGIN', userId: 'u-9', dateFrom: '2024-01-01' });
-      expect(paginationArg).toMatchObject({ limit: expect.any(Number) });
+      expect(filtersArg).toEqual({ action: 'LOGIN_SUCCESS', userId, dateFrom: new Date('2024-01-01') });
+      expect(paginationArg).toEqual({ page: 1, limit: 10, offset: 0, sortBy: 'createdAt', order: 'DESC' });
 
       expect(result.data).toHaveLength(2);
       expect(result.data[0]).toMatchObject({ dto: 'list', audit_log_id: 'a-1' });
-      expect(result.metadata).toMatchObject({ totalItems: 2, page: 1 });
+      expect(result.metadata).toMatchObject({ pagination: { totalItems: 2, currentPage: 1 }, filters: { action: 'LOGIN_SUCCESS', userId } });
       expect(logAudit).toHaveBeenCalledWith('AUDIT_LOG_LISTED', expect.objectContaining({ actorId: ADMIN, details: expect.objectContaining({ totalItems: 2 }), entityType: 'AuditLog' })
       );
     });

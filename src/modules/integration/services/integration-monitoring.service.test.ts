@@ -1,6 +1,6 @@
 // IntegrationMonitoringService — panel de solo lectura sobre los proveedores externos: semáforo del
 // circuit breaker (getProvidersHealth) e historial de caídas (getFallbackHistory). Las métricas por
-// llamada están en CloudWatch. Repos, CircuitBreaker, paginación y auditoría se mockean.
+// llamada están en CloudWatch. Repos, CircuitBreaker y auditoría se mockean; la query pasa por FallbackQuery.
 
 jest.mock('../repositories/provider-fallback-event.repository', () => ({
   countActive: jest.fn(),
@@ -11,22 +11,12 @@ jest.mock('../../../shared/infra/circuit-breaker.util', () => ({
   getStatus: jest.fn()
 }));
 
-jest.mock('../../../shared/http/pagination.util', () => ({
-  stringParam: jest.requireActual('../../../shared/http/pagination.util').default.stringParam,
-  booleanParam: jest.requireActual('../../../shared/http/pagination.util').default.booleanParam,
-  getPaginationParams: jest.fn().mockReturnValue({ limit: 20, offset: 0, page: 1, sortBy: 'created_at', order: 'DESC' })
-}));
-
 jest.mock('../../../shared/observability/logger.util', () => ({
   logger: { warn: jest.fn(), info: jest.fn(), error: jest.fn(), debug: jest.fn() }
 }));
 jest.mock('../../audit/audit.service', () => ({ record: jest.fn() }));
 
-jest.mock('../../catalogs/responses/catalog-components.response', () => ({
-  MetadataDTO: { build: (meta: Loose) => ({ ...meta }) }
-}));
-
-import { mocked, Loose } from 'tests/helpers/mock';
+import { mocked } from 'tests/helpers/mock';
 import fallbackRepoModule from '../repositories/provider-fallback-event.repository';
 const fallbackRepo = mocked(fallbackRepoModule);
 import CircuitBreakerModule from '../../../shared/infra/circuit-breaker.util';
@@ -35,6 +25,7 @@ import auditServiceModule from '../../audit/audit.service';
 const logAudit = mocked(auditServiceModule).record;
 import { PROVIDER_PRODUCTS } from '../../../shared/infra/provider-call.util';
 import service from './integration-monitoring.service';
+import { FallbackQuery } from '../requests/integration-monitoring.request';
 
 const ADMIN = 'admin-1';
 
@@ -68,7 +59,7 @@ describe('IntegrationMonitoringService', () => {
       fallbackRepo.findAllPaginated.mockResolvedValue({
         rows: [
           {
-            fallbackEventId: 'f-1',
+            providerFallbackEventId: 'f-1',
             provider: 'aws_sns',
             circuitProduct: 'sns',
             startedAt: new Date(),
@@ -79,20 +70,22 @@ describe('IntegrationMonitoringService', () => {
         count: 1
       } as never);
 
-      const result = await service.getFallbackHistory({ provider: 'sns', activeOnly: 'true' }, ADMIN);
+      // '1' también es verdadero (antes el service solo reconocía el texto 'true')
+      const result = await service.getFallbackHistory(FallbackQuery.parse({ provider: 'sns', activeOnly: '1', from: '2026-11-01' }), ADMIN);
 
       expect(fallbackRepo.findAllPaginated).toHaveBeenCalledWith(
-        expect.objectContaining({ provider: 'sns', activeOnly: true, from: null, to: null }),
-        expect.any(Object)
+        { provider: 'sns', activeOnly: true, from: new Date('2026-11-01'), to: null },
+        expect.objectContaining({ sortBy: 'startedAt', order: 'DESC' })
       );
       expect(result.data[0]).toMatchObject({ fallbackEventId: 'f-1', active: true });
-      expect(result.metadata.filters).toEqual({ provider: 'sns', activeOnly: true });
+      expect(result.metadata.filters).toEqual({ provider: 'sns', activeOnly: true, from: new Date('2026-11-01') });
+      expect(result.metadata.sort).toEqual({ field: 'startedAt', order: 'DESC' });
     });
 
     it('con activeOnly ausente (false) no lo lista como filtro activo', async () => {
       fallbackRepo.findAllPaginated.mockResolvedValue({ rows: [], count: 0 });
 
-      const result = await service.getFallbackHistory({}, ADMIN);
+      const result = await service.getFallbackHistory(FallbackQuery.parse({}), ADMIN);
 
       expect(result.metadata.filters).toBeUndefined();
     });

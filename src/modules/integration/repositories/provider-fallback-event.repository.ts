@@ -2,6 +2,7 @@
 //
 // Ventanas de caída de un proveedor (circuito abierto → cerrado) para el monitoreo de integraciones.
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import type { Prisma, ProviderFallbackEvent } from '../../../shared/database/generated/prisma/client';
 
 // Tolerancia al emparejar el cierre con su apertura (relojes de distintos procesos)
@@ -55,7 +56,7 @@ class ProviderFallbackEventRepository extends PrismaRepository {
         return null;
       }
       return db.providerFallbackEvent.update({
-        where: { fallbackEventId: event.fallbackEventId },
+        where: { providerFallbackEventId: event.providerFallbackEventId },
         data: { endedAt, affectedProcessesCount: affectedCount }
       });
     });
@@ -72,7 +73,7 @@ class ProviderFallbackEventRepository extends PrismaRepository {
       from = null,
       to = null
     }: { provider?: string | null; activeOnly?: boolean; from?: string | Date | null; to?: string | Date | null } = {},
-    { limit, offset }: PrismaRepository.PaginationParams = {}
+    page: PageRequest
   ): Promise<PrismaRepository.Page<ProviderFallbackEvent>> {
     const where: Prisma.ProviderFallbackEventWhereInput = {};
     if (provider) {
@@ -86,7 +87,7 @@ class ProviderFallbackEventRepository extends PrismaRepository {
     }
     const db = await this.db();
     const [rows, count] = await Promise.all([
-      db.providerFallbackEvent.findMany({ where, orderBy: { startedAt: 'desc' }, take: limit, skip: offset }),
+      db.providerFallbackEvent.findMany({ where, ...this.paginationArgs(page, 'providerFallbackEventId') }),
       db.providerFallbackEvent.count({ where })
     ]);
     return { rows, count };

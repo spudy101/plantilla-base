@@ -1,3 +1,4 @@
+import type { PageMetadata } from '../../../shared/http/pagination';
 import componentsCatalogDtoModule from './catalog-components.response';
 const {
   CountryComponent,
@@ -7,7 +8,6 @@ const {
   GenderComponent,
   AvatarThemeComponent,
   AvatarComponent,
-  MetadataDTO,
   RoleComponent
 } = componentsCatalogDtoModule;
 
@@ -30,13 +30,13 @@ const { NotificationTypeComponent } = componentsNotificationDtoModule;
 // HELPER GENÉRICO — lista paginada
 // ============================================================
 
-/** Metadata de paginación (la forma que espera MetadataDTO). */
-type Metadata = Parameters<typeof MetadataDTO.build>[0];
+/** Metadata de paginación (pageMetadata, shared/http/pagination.ts). */
+type Metadata = PageMetadata;
 
 function buildListResponse<T, R>(items: readonly T[] | null | undefined, metadata: Metadata, buildFn: (item: T) => R) {
   return {
     data: Array.isArray(items) ? items.map(buildFn) : [],
-    metadata: MetadataDTO.build(metadata)
+    metadata
   };
 }
 

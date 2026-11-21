@@ -38,7 +38,7 @@ class PromotionalBannerService {
 
     await audit.record('PROMOTIONAL_BANNERS_VIEWED_ADMIN', {
       actorId: adminUserId,
-      entityId: config.configId,
+      entityId: config.systemGlobalConfigId,
       ...ENTITY_META
     });
 
@@ -67,7 +67,7 @@ class PromotionalBannerService {
       sort_order: b.sortOrder ?? index + 1
     }));
 
-    const updated = await this.systemGlobalConfigRepository.update(config.configId, {
+    const updated = await this.systemGlobalConfigRepository.update(config.systemGlobalConfigId, {
       promotionalBanners: normalized as unknown as Prisma.InputJsonValue,
       configVersion: { increment: 1 }
     });
@@ -82,7 +82,7 @@ class PromotionalBannerService {
     await audit.record('PROMOTIONAL_BANNERS_UPDATED', {
       actorId: adminUserId,
       details: { total: normalized.length, active: normalized.filter(b => b.is_active).length, imagesRemoved: cleanup.deleted },
-      entityId: config.configId,
+      entityId: config.systemGlobalConfigId,
       ...ENTITY_META
     });
 

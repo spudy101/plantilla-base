@@ -63,21 +63,7 @@ export default {
   },
 
   NOTIFICATION_GLOBAL_PREFERENCE_UPDATED: {
-    description: 'Usuario actualizó su preferencia global de notificaciones (push, email, SMS, quiet hours)',
-    category: AUDIT_CATEGORIES.NOTIFICATIONS,
-    module: AUDIT_MODULES.CLIENT,
-    risk: AUDIT_RISKS.LOW
-  },
-
-  NOTIFICATION_CATEGORY_PREFERENCE_UPDATED: {
-    description: 'Usuario actualizó su preferencia de una categoría de notificaciones (push, email, SMS, quiet hours)',
-    category: AUDIT_CATEGORIES.NOTIFICATIONS,
-    module: AUDIT_MODULES.CLIENT,
-    risk: AUDIT_RISKS.LOW
-  },
-
-  NOTIFICATION_CATEGORY_PREFERENCE_DELETED: {
-    description: 'Usuario eliminó la preferencia específica de una categoría (vuelve a regirse por la global)',
+    description: 'Usuario actualizó su preferencia de notificaciones (push, email, SMS, horario de silencio)',
     category: AUDIT_CATEGORIES.NOTIFICATIONS,
     module: AUDIT_MODULES.CLIENT,
     risk: AUDIT_RISKS.LOW

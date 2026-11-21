@@ -3,7 +3,7 @@
 
 import express from 'express';
 import { validate } from '../../../shared/validation/validate';
-import { SessionListQuery, SessionIdParams, PaginationQuery, SessionEntitiesQuery } from '../requests/audit.request';
+import { SessionListQuery, SessionIdParams, SessionTimelineQuery, SessionEntitiesQuery } from '../requests/audit.request';
 const router = express.Router();
 import AdminSessionTraceController from '../controllers/admin-session-trace.controller';
 import iamModule from '../../iam';
@@ -29,7 +29,7 @@ router.get(
   RbacMiddleware.requirePermission(RBAC_MODULES.GLOBAL_LOGS, RBAC_ACTIONS.READ),
   RateLimitMiddleware.apiLimiter(),
   RequestLockMiddleware.forAuthenticatedUsers(),
-  validate({ params: SessionIdParams, query: PaginationQuery }),
+  validate({ params: SessionIdParams, query: SessionTimelineQuery }),
   AdminSessionTraceController.timeline
 );
 

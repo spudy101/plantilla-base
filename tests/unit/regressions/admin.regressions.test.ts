@@ -7,7 +7,6 @@ import componentsApprovalDtoModule from '../../../src/modules/approvals/response
 const { ApprovalRequestComponent } = componentsApprovalDtoModule;
 import adminAuditContextUtilModule from '../../../src/modules/audit/utils/admin-audit-context.util';
 const { adminAuditContext } = adminAuditContextUtilModule;
-import PaginationHelper from '../../../src/shared/http/pagination.util';
 
 describe('Timestamps de modelos underscored', () => {
   // En una consulta normal Sequelize expone el atributo (createdAt), no la columna (created_at).
@@ -39,19 +38,5 @@ describe('adminAuditContext', () => {
 
   it('responde 401 si la ruta quedó sin autenticación', () => {
     expect(() => adminAuditContext(fixture({}), fixture({ locals: {} }))).toThrow(expect.objectContaining({ statusCode: 401 }));
-  });
-});
-
-describe('PaginationHelper.booleanParam', () => {
-  // Los validators con .toBoolean() dejan boolean; sin sanitizer llega 'true'/'false'.
-  it.each([
-    [true, true],
-    ['true', true],
-    [false, false],
-    ['false', false],
-    [undefined, undefined],
-    ['si', undefined]
-  ])('%p → %p', (value, expected) => {
-    expect(PaginationHelper.booleanParam({ flag: value }, 'flag')).toBe(expected);
   });
 });

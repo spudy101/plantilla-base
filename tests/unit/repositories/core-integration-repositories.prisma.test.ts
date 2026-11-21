@@ -61,7 +61,7 @@ describe('ApprovalRequestRepository — cierre y vencimiento', () => {
 describe('ProviderFallbackEventRepository.closeFallback', () => {
   it('cierra la ventana abierta más reciente desde el inicio menos la tolerancia', async () => {
     const startedAt = new Date('2026-01-01T00:00:10Z');
-    mockDb.providerFallbackEvent.findFirst.mockResolvedValue({ fallbackEventId: 'f-1' });
+    mockDb.providerFallbackEvent.findFirst.mockResolvedValue({ providerFallbackEventId: 'f-1' });
     mockDb.providerFallbackEvent.update.mockResolvedValue('closed');
 
     await expect(providerFallbackEventRepository.closeFallback({ provider: 'sms', startedAt, endedAt: new Date(), affectedCount: 4 })).resolves.toBe('closed');
@@ -71,7 +71,7 @@ describe('ProviderFallbackEventRepository.closeFallback', () => {
       orderBy: { startedAt: 'desc' }
     });
     expect(mockDb.providerFallbackEvent.update).toHaveBeenCalledWith({
-      where: { fallbackEventId: 'f-1' },
+      where: { providerFallbackEventId: 'f-1' },
       data: { endedAt: expect.any(Date), affectedProcessesCount: 4 }
     });
   });

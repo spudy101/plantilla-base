@@ -56,6 +56,7 @@ const {
   PrivacyPolicyCreatedResponseDTO
 } = mocked(privacyPolicyAdminDtoModule);
 import service from './privacy-policy-admin.service';
+import { PrivacyPolicyListQuery } from '../requests/legal.request';
 
 const flush = () =>
   new Promise(resolve => {
@@ -73,7 +74,7 @@ describe('PrivacyPolicyAdminService', () => {
     it('pagina, incluye search en filtros, audita y responde el DTO de lista', async () => {
       repo.findAllPaginated.mockResolvedValue({ rows: [{ id: 1 }], count: 1 });
 
-      const result = await service.listVersions({ search: 'v1', isActive: 'true' }, USER_ID);
+      const result = await service.listVersions(PrivacyPolicyListQuery.parse({ search: 'v1', isActive: 'true' }), USER_ID);
 
       expect(repo.findAllPaginated).toHaveBeenCalledWith(
         { isActive: true },
@@ -82,7 +83,7 @@ describe('PrivacyPolicyAdminService', () => {
       );
       expect(ListPrivacyPoliciesResponseDTO).toHaveBeenCalledWith(
         [{ id: 1 }],
-        expect.objectContaining({ filters: { search: 'v1', isActive: true } })
+        expect.objectContaining({ sort: { field: 'createdAt', order: 'DESC' }, filters: { search: 'v1', isActive: true } })
       );
       expect(logAudit).toHaveBeenCalledWith('PRIVACY_POLICY_LIST_VIEWED', expect.objectContaining({ actorId: USER_ID, details: expect.objectContaining({ totalItems: 1 }) })
       );

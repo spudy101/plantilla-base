@@ -71,6 +71,7 @@ const {
   SessionEntitiesDTO
 } = mocked(adminSessionTraceDtoModule);
 import service from './admin-session-trace.service';
+import { SessionListQuery, SessionTimelineQuery } from '../requests/audit.request';
 
 const ADMIN_ID = 'admin-1';
 
@@ -91,7 +92,7 @@ describe('AdminSessionTraceService', () => {
         { sessionId: 's2', count: 0 }
       ]);
 
-      const result = await service.listSessions({ userId: 'u-1' }, ADMIN_ID);
+      const result = await service.listSessions(SessionListQuery.parse({ userId: '11111111-1111-4111-8111-111111111111' }), ADMIN_ID);
 
       expect(auditLogRepository.countBySessionIds).toHaveBeenCalledWith(['s1', 's2']);
       expect(SessionTraceListDTO).toHaveBeenCalledWith(
@@ -100,7 +101,7 @@ describe('AdminSessionTraceService', () => {
           ['s1', 3],
           ['s2', 0]
         ]),
-        expect.objectContaining({ totalItems: 2 })
+        expect.objectContaining({ pagination: expect.objectContaining({ totalItems: 2 }), sort: { field: 'startedAt', order: 'DESC' } })
       );
       expect(logAudit).toHaveBeenCalledWith('SESSION_TRACE_LIST_VIEWED', expect.objectContaining({ actorId: ADMIN_ID, details: expect.objectContaining({ totalItems: 2, filters: ['userId'] }) })
       );
@@ -112,7 +113,7 @@ describe('AdminSessionTraceService', () => {
     it('lanza 404 cuando la sesión no existe', async () => {
       userSessionRepository.findByIdWithDeviceAndUser.mockResolvedValue(null);
 
-      await expect(service.getSessionTimeline('nope', {}, ADMIN_ID)).rejects.toThrow('Sesión no encontrada');
+      await expect(service.getSessionTimeline('nope', SessionTimelineQuery.parse({}), ADMIN_ID)).rejects.toThrow('Sesión no encontrada');
     });
 
     it('devuelve el timeline y marca hasDetail solo para tablas registradas con id', async () => {
@@ -126,7 +127,13 @@ describe('AdminSessionTraceService', () => {
         count: 3
       });
 
-      await service.getSessionTimeline('s1', {}, ADMIN_ID);
+      await service.getSessionTimeline('s1', SessionTimelineQuery.parse({}), ADMIN_ID);
+
+      // Cronológico por defecto (createdAt ASC)
+      expect(auditLogRepository.findPaginatedWithExecutor).toHaveBeenCalledWith(
+        { sessionId: 's1' },
+        { page: 1, limit: 10, offset: 0, sortBy: 'createdAt', order: 'ASC' }
+      );
 
       expect(logAudit).toHaveBeenCalledWith('SESSION_TRACE_VIEWED', expect.objectContaining({ actorId: ADMIN_ID, details: expect.objectContaining({ sessionId: 's1', totalItems: 3 }) })
       );

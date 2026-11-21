@@ -113,7 +113,7 @@ describe('AdminRbacService', () => {
 
   describe('listOverrides', () => {
     it('lista los overrides de un rol válido y audita', async () => {
-      overrideRepo.findByRole.mockResolvedValue([{ rolePermissionId: 'rp-1' }]);
+      overrideRepo.findByRole.mockResolvedValue([{ rolePermissionOverrideId: 'rp-1' }]);
 
       const result = await service.listOverrides('admin', 'admin-1');
 
@@ -132,7 +132,7 @@ describe('AdminRbacService', () => {
     it('otorga el permiso, invalida caché, audita, notifica y devuelve el override', async () => {
       overrideRepo.existsOverride.mockResolvedValue(false);
       overrideRepo.create.mockResolvedValue({
-        rolePermissionId: 'rp-9',
+        rolePermissionOverrideId: 'rp-9',
         roleName: 'admin',
         moduleName: 'users',
         action: 'delete'
@@ -146,7 +146,7 @@ describe('AdminRbacService', () => {
       expect(RbacService.invalidateCache).toHaveBeenCalledWith('admin');
       expect(logAudit).toHaveBeenCalledWith('RBAC_PERMISSION_GRANTED', expect.objectContaining({ actorId: 'admin-1', details: expect.objectContaining({ roleName: 'admin', moduleName: 'users', action: 'delete' }) })
       );
-      expect(result).toMatchObject({ dto: 'override', rolePermissionId: 'rp-9' });
+      expect(result).toMatchObject({ dto: 'override', rolePermissionOverrideId: 'rp-9' });
 
       await flush();
       expect(notifier.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'IAM_RBAC_PERMISSION_GRANTED' }));
@@ -167,7 +167,7 @@ describe('AdminRbacService', () => {
   describe('revokePermission', () => {
     it('revoca el permiso, invalida la caché del rol afectado, audita y notifica', async () => {
       overrideRepo.findById.mockResolvedValue({
-        rolePermissionId: 'rp-1',
+        rolePermissionOverrideId: 'rp-1',
         roleName: 'admin',
         moduleName: 'users',
         action: 'delete'

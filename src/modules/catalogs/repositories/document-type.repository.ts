@@ -1,9 +1,10 @@
 // modules/schemas/kyc/maintainers/repositories/document-type.repository.ts
 import PrismaRepository from '../../../shared/database/prisma.repository';
+import type { PageRequest } from '../../../shared/http/pagination';
 import { Prisma } from '../../../shared/database/generated/prisma/client';
 import type { DocumentType } from '../../../shared/database/generated/prisma/client';
 
-const LIST = { sortable: Object.values(Prisma.DocumentTypeScalarFieldEnum), searchFields: ['name', 'code'] };
+const LIST = { tiebreaker: 'documentTypeId', searchFields: ['name', 'code'] };
 
 class DocumentTypeRepository extends PrismaRepository {
   async findById(documentTypeId: string): Promise<DocumentType | null> {
@@ -25,7 +26,7 @@ class DocumentTypeRepository extends PrismaRepository {
 
   async findAllPaginated(
     filters: PrismaRepository.Filters = {},
-    pagination: PrismaRepository.PaginationParams = {},
+    pagination: PageRequest,
     searchTerm: string | null = null
   ): Promise<PrismaRepository.Page<DocumentType>> {
     const { where, page } = this.listQuery(filters, pagination, searchTerm, LIST);
