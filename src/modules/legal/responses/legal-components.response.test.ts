@@ -8,6 +8,9 @@ import components, {
   UserConsentSchema
 } from './legal-components.response';
 import policies, { PrivacyPolicyDetailSchema, PrivacyPolicyItemSchema } from './privacy-policy-admin.response';
+import { pageMetadata } from '../../../shared/http/pagination';
+
+const meta = pageMetadata({ page: 1, limit: 10, sortBy: 'createdAt', order: 'DESC' }, 1);
 
 const ID = '0f8fad5b-d9cb-469f-a165-70867728950e';
 const at = new Date('2026-01-01T00:00:00Z');
@@ -48,7 +51,7 @@ describe('esquemas de salida de legal', () => {
   });
 
   it('políticas de privacidad: ítem, detalle y creada', () => {
-    ok(PrivacyPolicyItemSchema, policies.ListPrivacyPoliciesResponseDTO([policy as never], { totalItems: 1, page: 1, limit: 10 }).data[0]);
+    ok(PrivacyPolicyItemSchema, policies.ListPrivacyPoliciesResponseDTO([policy as never], meta).data[0]);
     ok(PrivacyPolicyDetailSchema, policies.PrivacyPolicyDetailResponseDTO(policy as never));
     ok(PrivacyPolicyDetailSchema, policies.PrivacyPolicyCreatedResponseDTO(policy as never));
   });
