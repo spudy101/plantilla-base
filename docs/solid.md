@@ -8,9 +8,9 @@
 | Principio | Idea en una línea | Dónde se ve en la plantilla |
 |---|---|---|
 | **S** — Single Responsibility | Una clase, una razón de cambio | Fachadas `auth-login/`, `auth-register/`, `mfa/`, `admin-user/`, `admin-person/`; servicios compartidos de sesión y política |
-| **O** — Open/Closed | Extender sin modificar | Canales de notificación como descriptores |
+| **O** — Open/Closed | Extender sin modificar | `ENTITY_REGISTRY` de la traza de sesión; canales de notificación como conjunto cerrado y tipado |
 | **L** — Liskov Substitution | Un hijo sirve donde se espera al padre | `PrismaRepository` (todos los repos); cada repo expone solo lo que su tabla admite |
-| **I** — Interface Segregation | No depender de métodos que no usas | Repos con métodos de negocio; puertos `XRepositoryPort` + `Pick` |
+| **I** — Interface Segregation | No depender de métodos que no usas | Repos con métodos de negocio; el service tipa solo lo que usa con `Pick<typeof repo, …>` |
 | **D** — Dependency Inversion | Depender de abstracciones inyectadas | `constructor(deps = {})`, `UnitOfWork`, el cliente de Prisma solo en repositorios |
 
 Las reglas se **verifican automáticamente** en `tests/unit/guards/solid-architecture.test.ts`
@@ -105,35 +105,20 @@ También se eliminó lógica **duplicada** entre los tres flujos de autenticaci�
 
 ## O — Open/Closed
 
-> Nota (2026-11-19): el envío se simplificó a `notification-delivery.service.ts` (una fila por canal en
-> `notification_deliveries`, docs/notifications.md); el ejemplo queda como ilustración del principio.
+OCP se aplica donde las variantes **crecen de verdad**; donde el conjunto es chico y cerrado, gana lo simple.
+En la plantilla hay un caso de cada tipo:
 
-**Antes:** `notification-sending.service.ts` repetía en tres lugares:
+**Registro (abierto a extensión):** el `ENTITY_REGISTRY` de `admin-session-trace.service.ts`. Cada tabla
+que la traza de sesión sabe mostrar es una entrada `{ repository, pk, entityType, dto }`; mostrar una tabla
+nueva es sumar una entrada, sin tocar el código que recorre la traza.
 
-```js
-if (category?.supports_push ?? true) { ... }
-if (category?.supports_email ?? true) { ... }
-if (category?.supports_sms ?? false) { ... }
-```
-
-Agregar WhatsApp obligaba a modificar los tres bloques.
-
-**Ahora:** cada canal es un **descriptor** y el service los recorre:
-
-```js
-{
-  key: 'sms',                 // define sms_sent / sms_error, supports_sms, allow_sms
-  supportedByDefault: false,
-  send: ctx => this.enviarSmsIndividual(ctx.userId, ctx.body, ctx.metadata, ctx.notificationId),
-  schedule: ctx => this.schedulerService.programarEnvioSms(ctx.notificationId, ctx.userPreference)
-}
-```
-
-Agregar un canal = sumar un descriptor en `_defaultChannels()` (o inyectarlo con `deps.channels`).
-El envío inicial, el reenvío programado y el cálculo de estado (`completed` / `partial_failure` /
-`failed`) no se tocan. Hay un test con un canal WhatsApp de ejemplo.
-
-Otro ejemplo que ya existía: el `ENTITY_REGISTRY` de `admin-session-trace.service.ts`.
+**Canales de notificación (conjunto cerrado, a propósito):** `notification-delivery.service.ts` tenía antes
+canales como descriptores inyectables (`deps.channels`). Se simplificó (ver [`notifications.md`](notifications.md)):
+son tres canales fijos y un registro dinámico no se pagaba. Hoy hay una lista `CHANNELS` y tablas tipadas por
+canal (`SUPPORTED_BY_DEFAULT: Record<NotificationChannel, boolean>`, `FAILED_AUDIT_ACTION`) y `send()` despacha
+con un `if` por canal. Agregar un canal toca unos pocos lugares, pero el compilador los señala: un
+`Record<NotificationChannel, …>` sin la clave nueva no compila. Si los canales empiezan a crecer, ese es el
+momento de volver a un registro.
 
 ---
 
@@ -166,7 +151,9 @@ Si necesitas otra semántica, usa otro nombre en vez de redefinir el método del
 ## I — Interface Segregation
 
 1. **Cada repositorio declara sus operaciones** (arriba): uno de solo inserción no carga con `update`/`delete`.
-   Los services dependen de `XRepositoryPort` + `Pick` con los métodos que usan (`src/modules/repository-ports.ts`).
+   Cuando un service usa pocos métodos de un repositorio, declara la dependencia con `Pick` en el propio service
+   (`type AuditReader = Pick<typeof auditLogRepository, 'findByCorrelationId'>`, ver `admin-operation.service.ts`
+   y `audit.service.ts`). No hay un archivo central de puertos: el tipo se deriva del repositorio real.
 2. **Métodos con nombre de negocio** en vez de un `findAll(where)` genérico que obliga al service a
    conocer el ORM (los "antes" son de la época de Sequelize):
 
