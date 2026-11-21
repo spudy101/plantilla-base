@@ -119,8 +119,8 @@ export default Object.assign(new MyService(), { MyService });
 > (los repositorios toman la transacción solos), y **nunca** el cliente de Prisma en un service — si necesitas
 > un filtro, crea un método con nombre de negocio en el repositorio (`findByNames`, `findActive`,
 > `searchPaginated`…). Los tipos de las filas sí: `import type { User } from '…/generated/prisma/client'`.
-> ✅ Si el service usa pocos métodos de un repositorio, declara el puerto con `Pick<XRepositoryPort, 'a' | 'b'>`
-> (`src/modules/repository-ports.ts`).
+> ✅ Si el service usa pocos métodos de un repositorio, tipa la dependencia con `Pick<typeof myRepository, 'a' | 'b'>`
+> en el propio service (ver `src/modules/audit/services/admin-operation.service.ts`).
 > ✅ Listados: el contrato completo está en `src/shared/http/pagination.ts`. La query llega **ya validada y
 > tipada** (`MyListQuery`): el service no vuelve a interpretar strings. La metadata sale **siempre** de
 > `pageMetadata` / `pageOf`: `{ pagination, sort, filters? }`, con el orden y los filtros aplicados.
@@ -198,7 +198,6 @@ export default new MyRepository();
 
 > ✅ Extiende `PrismaRepository` y expone **solo** las operaciones que su tabla admite (una bitácora
 > append-only no tiene `update`/`delete`) — SOLID: L/I.
-> ✅ Repositorio nuevo → `node scripts/ts-migration/gen-repository-ports.js` (agrega su `XRepositoryPort`).
 > ✅ Filtros, `include` y `select` viven aquí, detrás de métodos con nombre de negocio:
 > `findByNames(names, { exclude })`, `findPaginatedWithDeviceAndUser(where, pagination)`. El service no
 > arma `where` de Prisma.

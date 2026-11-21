@@ -28,7 +28,7 @@ propios** (`JwtUtil`) + estado en Redis (`TokenBlacklistUtil`, `RefreshTokenStor
 | Recuperación de credenciales (reset)                              | `src/modules/iam/services/auth-register.service.ts`               |
 | Revocación de sesión por admin                                    | `src/modules/iam/services/admin-auth-session.service.ts`           |
 | Worker de expiración (inactividad + tope absoluto)                | `src/modules/iam/workers/session-expiration.worker.ts`           |
-| Modelo de sesión                                                  | `src/modules/iam/models/user-session.model.ts` (`user_sessions`) |
+| Modelo de sesión                                                  | `model UserSession` en `prisma/schema.prisma` (`user_sessions`) |
 
 ---
 
