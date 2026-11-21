@@ -27,6 +27,8 @@ import service from './approval-request.service';
 
 const ADMIN = 'admin-1';
 const ENTITY = { entityType: 'ApprovalRequest', entityTable: 'approval_requests' };
+// Lo que deja validate() en la query: paginación y orden con sus defaults.
+const PAGE = { page: 1, limit: 10, sortBy: 'createdAt', order: 'DESC' } as const;
 
 describe('ApprovalRequestService', () => {
   beforeEach(() => {
@@ -37,7 +39,7 @@ describe('ApprovalRequestService', () => {
     it('delega en el core y audita con operationKey/status normalizados', async () => {
       const coreResult = { data: [{ id: 'r1' }], metadata: {} };
       DualApprovalService.list.mockResolvedValue(coreResult);
-      const query = { operationKey: 'CLIENT_ACCOUNT_DELETE', status: 'pending' };
+      const query = { ...PAGE, operationKey: 'CLIENT_ACCOUNT_DELETE', status: 'pending' } as const;
 
       const result = await service.list(query, ADMIN);
 
@@ -50,7 +52,7 @@ describe('ApprovalRequestService', () => {
     it('normaliza operationKey/status ausentes a null en la auditoría', async () => {
       DualApprovalService.list.mockResolvedValue({ data: [] });
 
-      await service.list({}, ADMIN);
+      await service.list(PAGE, ADMIN);
 
       expect(logAudit).toHaveBeenCalledWith('APPROVAL_REQUEST_LIST_VIEWED', { actorId: ADMIN, details: { operationKey: null, status: null }, ...ENTITY }
       );
